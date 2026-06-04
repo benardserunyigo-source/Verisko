@@ -1361,8 +1361,15 @@ body { overflow-x: clip; }
   .hero-text h1 {
     font-size: clamp(34px, 9vw, 52px);
     margin-bottom: 22px;
+    overflow-wrap: break-word;
   }
+  /* let the headline + subhead wrap naturally instead of forcing wide lines
+     (the forced <br> could overflow narrow phones like the iPhone SE) */
+  .hero-text h1 br,
+  .subhead br { display: none; }
   .subhead { margin-bottom: 30px; }
+
+  .contact-form { padding: 22px; }
 
   .about-stats { gap: 28px 22px; }
   .stat-num { font-size: clamp(32px, 11vw, 42px); }
