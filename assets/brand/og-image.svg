@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" width="1200" height="1200">
+  <rect width="1200" height="1200" fill="#012169"/>
+
+  <!-- faint oversized mark texture, bleeding off bottom-right -->
+  <g transform="translate(1080,1040)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.06">
+    <path d="M-210 -210 L0 240 L210 -210" stroke="#FFFFFF"/>
+  </g>
+
+  <!-- centred V symbol (white + cyan) -->
+  <g transform="translate(600,430)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M-66 -66 L0 84" stroke="#FFFFFF"/>
+    <path d="M0 84 L66 -66" stroke="#169BD7"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="600" y="690" text-anchor="middle"
+        font-family="Helvetica, Arial, sans-serif" font-weight="700"
+        font-size="150" letter-spacing="14" fill="#FFFFFF">VERISKO</text>
+
+  <!-- tagline -->
+  <text x="600" y="770" text-anchor="middle"
+        font-family="Helvetica, Arial, sans-serif" font-weight="400"
+        font-size="40" letter-spacing="1" fill="#9FB2DA">AI security cameras · professionally installed</text>
+</svg>
