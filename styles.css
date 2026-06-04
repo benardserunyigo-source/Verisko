@@ -53,6 +53,52 @@ a { text-decoration: none; color: inherit; }
   padding-bottom: 16px;
 }
 
+/* ---- mobile nav: hamburger + slide-in drawer ----
+   On desktop the panel is display:contents, so nav + CTA flow inline exactly
+   as before; the toggle and backdrop are hidden. The mobile drawer is in the
+   @media (max-width: 900px) block further down. */
+.nav-toggle {
+  display: none;
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+.nav-toggle span {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--navy);
+  transition: transform 0.3s ease, opacity 0.2s ease, top 0.3s ease;
+}
+.nav-toggle span:nth-child(1) { top: 15px; }
+.nav-toggle span:nth-child(2) { top: 21px; }
+.nav-toggle span:nth-child(3) { top: 27px; }
+.nav-toggle[aria-expanded="true"] span:nth-child(1) { top: 21px; transform: rotate(45deg); }
+.nav-toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+.nav-toggle[aria-expanded="true"] span:nth-child(3) { top: 21px; transform: rotate(-45deg); }
+
+.nav-panel { display: contents; }
+
+.nav-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(4, 12, 38, 0.5);
+  -webkit-backdrop-filter: blur(2px);
+          backdrop-filter: blur(2px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.nav-backdrop.show { opacity: 1; }
+
+body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
+
 .logo {
   color: var(--navy);
   font-weight: 800;
@@ -601,9 +647,51 @@ a.ci-value:hover { color: var(--navy); }
 @media (max-width: 900px) {
   :root { --pad: 28px; }
 
-  .site-header { position: static; }
-  .header-inner { flex-wrap: wrap; gap: 16px; }
-  .nav { gap: 28px; margin: 0; }
+  /* compact sticky header: logo + hamburger */
+  .nav-toggle { display: block; margin-left: auto; }
+
+  .nav-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(82vw, 340px);
+    padding: 100px 26px 40px;
+    background: linear-gradient(160deg, #0b1f54 0%, #16266b 60%, #012169 100%);
+    box-shadow: -22px 0 60px rgba(1, 33, 105, 0.35);
+    transform: translateX(100%);
+    transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 55;
+    overflow-y: auto;
+  }
+  .nav-panel.open { transform: translateX(0); }
+
+  .nav {
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+  }
+  .nav a {
+    color: #e7ecf8;
+    font-size: 19px;
+    font-weight: 600;
+    padding: 15px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .nav a::after { display: none; }   /* underline animation off inside the drawer */
+
+  .nav-cta {
+    margin-top: 24px;
+    justify-content: center;
+    padding: 15px 0;
+    background: #169BD7;
+    border-color: #169BD7;
+    color: #ffffff;
+  }
+  .nav-cta:hover { background: #1aa8e8; border-color: #1aa8e8; color: #ffffff; }
 
   .about-inner,
   .contact-inner {
@@ -1246,4 +1334,36 @@ section[id] { scroll-margin-top: 96px; }
   .cookie-bar { gap: 12px; padding: 12px 18px; }
   .cookie-text { flex: 1 1 100%; text-align: center; }
   .cookie-actions { flex: 1 1 100%; justify-content: center; }
+}
+
+/* =====================================================================
+   MOBILE LAYOUT POLISH — tighter spacing, fluid type, stacked fields.
+   Keeps the experience feeling built-for-mobile on small viewports.
+   ===================================================================== */
+
+/* the off-canvas drawer lives beyond the right edge; clip (not hidden, so
+   the sticky header keeps working) prevents any sideways scroll */
+body { overflow-x: clip; }
+
+@media (max-width: 760px) {
+  .solutions,
+  .products,
+  .contact { padding: 68px 0; }
+  .about    { padding: 76px 0; }
+
+  .section-sub { font-size: 16px; }
+
+  .field-row { grid-template-columns: 1fr; }   /* stack name / phone / email */
+}
+
+@media (max-width: 600px) {
+  .hero-text { padding: 36px var(--pad) 52px; }
+  .hero-text h1 {
+    font-size: clamp(34px, 9vw, 52px);
+    margin-bottom: 22px;
+  }
+  .subhead { margin-bottom: 30px; }
+
+  .about-stats { gap: 28px 22px; }
+  .stat-num { font-size: clamp(32px, 11vw, 42px); }
 }

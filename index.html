@@ -14,6 +14,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="styles.css" />
+  <!-- Preload the hero (LCP) image, picking the right size per viewport -->
+  <link rel="preload" as="image" href="assets/camera.jpg"
+        imagesrcset="assets/camera-sm.jpg 600w, assets/camera.jpg 1000w"
+        imagesizes="(max-width: 900px) 100vw, 52vw" />
+
   <!-- Set the reveal flag before first paint so animated content never flashes in -->
   <script>document.documentElement.classList.add('js-reveal');</script>
 </head>
@@ -34,16 +39,22 @@
     <div class="header-inner">
       <a class="logo" href="#">NYALIKO</a>
 
-      <nav class="nav">
-        <a href="#products">Products</a>
-        <a href="#packages">Packages</a>
-        <a href="#features">Features</a>
-        <a href="#about">About</a>
-        <a href="#contact">Contact</a>
-      </nav>
+      <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="primary-nav">
+        <span></span><span></span><span></span>
+      </button>
 
-      <a class="btn btn-outline" href="#contact">Book a survey</a>
+      <div class="nav-panel" id="primary-nav">
+        <nav class="nav">
+          <a href="#products">Products</a>
+          <a href="#packages">Packages</a>
+          <a href="#features">Features</a>
+          <a href="#about">About</a>
+          <a href="#contact">Contact</a>
+        </nav>
+        <a class="btn btn-outline nav-cta" href="#contact">Book a survey</a>
+      </div>
     </div>
+    <div class="nav-backdrop" hidden></div>
   </header>
 
   <main>
@@ -58,7 +69,12 @@
       </div>
 
       <div class="hero-image">
-        <img src="assets/camera.jpg" alt="AI security camera mounted on a wall" />
+        <img src="assets/camera.jpg"
+             srcset="assets/camera-sm.jpg 600w, assets/camera.jpg 1000w"
+             sizes="(max-width: 900px) 100vw, 52vw"
+             width="1000" height="1000"
+             fetchpriority="high" decoding="async"
+             alt="AI security camera mounted on a wall" />
       </div>
     </section>
 
@@ -154,7 +170,7 @@
               <a href="#contact" class="card-cta">Book free survey</a>
             </div>
             <figure class="pkg-photo">
-              <img src="assets/packages/pkg-2.jpeg" alt="Nyaliko 2-camera Starter package — two 5MP AI cameras with NVR" />
+              <img src="assets/packages/pkg-2.jpeg" alt="Nyaliko 2-camera Starter package — two 5MP AI cameras with NVR" loading="lazy" decoding="async" width="1000" height="747" />
             </figure>
           </div>
 
@@ -179,7 +195,7 @@
               <a href="#contact" class="card-cta">Book free survey</a>
             </div>
             <figure class="pkg-photo">
-              <img src="assets/packages/pkg-4.jpeg" alt="Nyaliko 4-camera Essential package — four 5MP AI cameras with NVR" />
+              <img src="assets/packages/pkg-4.jpeg" alt="Nyaliko 4-camera Essential package — four 5MP AI cameras with NVR" loading="lazy" decoding="async" width="1000" height="747" />
             </figure>
           </div>
 
@@ -203,7 +219,7 @@
               <a href="#contact" class="card-cta">Book free survey</a>
             </div>
             <figure class="pkg-photo">
-              <img src="assets/packages/pkg-6.jpeg" alt="Nyaliko 6-camera Standard package — six 5MP AI cameras with NVR" />
+              <img src="assets/packages/pkg-6.jpeg" alt="Nyaliko 6-camera Standard package — six 5MP AI cameras with NVR" loading="lazy" decoding="async" width="1000" height="747" />
             </figure>
           </div>
 
@@ -227,7 +243,7 @@
               <a href="#contact" class="card-cta">Book free survey</a>
             </div>
             <figure class="pkg-photo">
-              <img src="assets/packages/pkg-8.jpeg" alt="Nyaliko 8-camera Premium package — eight 5MP AI cameras with NVR" />
+              <img src="assets/packages/pkg-8.jpeg" alt="Nyaliko 8-camera Premium package — eight 5MP AI cameras with NVR" loading="lazy" decoding="async" width="1000" height="747" />
             </figure>
           </div>
 
@@ -251,7 +267,7 @@
               <a href="#contact" class="card-cta">Book free survey</a>
             </div>
             <figure class="pkg-photo">
-              <img src="assets/packages/pkg-12.jpeg" alt="Nyaliko 12-camera Maximum package — twelve 5MP AI cameras with 16-channel NVR" />
+              <img src="assets/packages/pkg-12.jpeg" alt="Nyaliko 12-camera Maximum package — twelve 5MP AI cameras with 16-channel NVR" loading="lazy" decoding="async" width="1000" height="747" />
             </figure>
           </div>
 
@@ -335,22 +351,22 @@
 
         <!-- Hero: full vision range (day / IR / full-colour night) -->
         <figure class="feature-hero">
-          <img src="assets/features/night-vision.jpeg" alt="Day vision, IR night vision and full-colour night vision compared on a Nyaliko camera" />
+          <img src="assets/features/night-vision.jpeg" alt="Day vision, IR night vision and full-colour night vision compared on a Nyaliko camera" loading="lazy" decoding="async" width="1200" height="900" />
         </figure>
 
         <!-- 2×2 grid of self-captioned feature graphics -->
         <div class="feature-grid">
           <figure class="feature-card">
-            <img src="assets/features/face-detection.jpeg" alt="Face detection, recording and playback — every face captured on the lens" />
+            <img src="assets/features/face-detection.jpeg" alt="Face detection, recording and playback — every face captured on the lens" loading="lazy" decoding="async" width="1000" height="1000" />
           </figure>
           <figure class="feature-card">
-            <img src="assets/features/smart-email-alert.jpeg" alt="Smart email alert sent automatically the moment an intruder is detected" />
+            <img src="assets/features/smart-email-alert.jpeg" alt="Smart email alert sent automatically the moment an intruder is detected" loading="lazy" decoding="async" width="1000" height="1000" />
           </figure>
           <figure class="feature-card">
-            <img src="assets/features/active-deterrence.jpeg" alt="Active deterrence — the white LEDs light and warn anyone entering the danger zone" />
+            <img src="assets/features/active-deterrence.jpeg" alt="Active deterrence — the white LEDs light and warn anyone entering the danger zone" loading="lazy" decoding="async" width="1000" height="1000" />
           </figure>
           <figure class="feature-card">
-            <img src="assets/features/two-way-audio.jpeg" alt="Real-time two-way audio between the camera and your phone" />
+            <img src="assets/features/two-way-audio.jpeg" alt="Real-time two-way audio between the camera and your phone" loading="lazy" decoding="async" width="1000" height="1000" />
           </figure>
         </div>
       </div>
