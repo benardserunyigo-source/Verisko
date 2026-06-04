@@ -558,16 +558,19 @@ a.ci-value:hover { color: var(--navy); }
   position: relative;
   overflow: hidden;            /* clip the watermark */
 }
-/* large, faint brand mark fading in behind the footer */
+/* large, faint brand mark fading in behind the footer (anchored to the right,
+   vertically centred — bleeds gently off the right edge so it reads as a
+   deliberate watermark rather than something stuck in the corner) */
 .site-footer::before {
   content: "";
   position: absolute;
-  right: -56px;
-  bottom: -80px;
-  width: 380px;
-  height: 380px;
+  right: -36px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 300px;
+  height: 300px;
   background: url('assets/brand/verisko-symbol-mono-white.svg') no-repeat center / contain;
-  opacity: 0.05;
+  opacity: 0.06;
   pointer-events: none;
   z-index: 0;
 }
