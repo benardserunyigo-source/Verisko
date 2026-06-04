@@ -1,0 +1,131 @@
+/* =====================================================================
+   Nyaliko — front-end interactions
+   - Scroll-reveal (staggered fade/rise) via IntersectionObserver
+   - Count-up animation on the About stats
+   - Frosted sticky-header state on scroll
+   - Cookie consent (remembers the choice in localStorage)
+   All motion is progressive enhancement and respects reduced-motion.
+   ===================================================================== */
+(function () {
+  'use strict';
+
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var hasIO = 'IntersectionObserver' in window;
+
+  /* ---------- Scroll reveal ----------
+     The .js-reveal flag is set in <head> before first paint. The hero gets a
+     dedicated CSS entrance (see styles.css); everything below reveals on scroll. */
+  if (!reduceMotion && hasIO) {
+    // [selector, per-item stagger in ms] — staggered groups feel choreographed
+    var groups = [
+      ['.solutions .section-title', 0],
+      ['.bento .tile', 80],
+      ['.products .section-head > *', 90],
+      ['.product-grid .product-card', 90],
+      ['.pricing-header > *', 90],
+      ['.pkg-rows .pkg-row', 80],
+      ['.addon-note', 0],
+      ['.trust-bar', 0],
+      ['.why-more', 0],
+      ['.features-head > *', 90],
+      ['.feature-hero', 0],
+      ['.feature-grid .feature-card', 100],
+      ['.about-text > *', 90],
+      ['.about-stats .stat', 90],
+      ['.contact-text > *', 80],
+      ['.contact-form', 0]
+    ];
+
+    var revealIO = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          revealIO.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+
+    groups.forEach(function (group) {
+      var selector = group[0];
+      var step = group[1];
+      document.querySelectorAll(selector).forEach(function (el, i) {
+        el.classList.add('reveal');
+        if (step) el.style.transitionDelay = Math.min(i * step, 520) + 'ms';
+        revealIO.observe(el);
+      });
+    });
+  }
+
+  /* ---------- Count-up on the About stats ---------- */
+  var statNums = document.querySelectorAll('.about-stats .stat-num');
+  if (statNums.length && hasIO && !reduceMotion) {
+    var runCount = function (el) {
+      var raw = el.textContent;
+      var match = raw.match(/(\d[\d,]*)/);
+      if (!match) return;
+      var target = parseInt(match[1].replace(/,/g, ''), 10);
+      var prefix = raw.slice(0, match.index);
+      var suffix = raw.slice(match.index + match[1].length);
+      var duration = 1500;
+      var startTime = null;
+      var tick = function (now) {
+        if (startTime === null) startTime = now;
+        var p = Math.min((now - startTime) / duration, 1);
+        var eased = 1 - Math.pow(1 - p, 3);           // easeOutCubic
+        var val = Math.round(eased * target);
+        el.textContent = prefix + val.toLocaleString() + suffix;
+        if (p < 1) requestAnimationFrame(tick);
+        else el.textContent = prefix + target.toLocaleString() + suffix;
+      };
+      requestAnimationFrame(tick);
+    };
+
+    var statIO = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          runCount(entry.target);
+          statIO.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.6 });
+    statNums.forEach(function (el) { statIO.observe(el); });
+  }
+
+  /* ---------- Frosted header on scroll ---------- */
+  var header = document.querySelector('.site-header');
+  if (header) {
+    var onScroll = function () {
+      header.classList.toggle('scrolled', window.scrollY > 12);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+  }
+
+  /* ---------- Cookie consent ---------- */
+  var bar = document.getElementById('cookieBar');
+  if (bar) {
+    var KEY = 'nyaliko_cookie_consent';
+    var stored = null;
+    try { stored = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
+
+    if (!stored) {
+      bar.hidden = false;
+      // double rAF so the slide-in transition runs from the hidden state
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { bar.classList.add('show'); });
+      });
+    }
+
+    var dismiss = function (choice) {
+      try { localStorage.setItem(KEY, choice); } catch (e) { /* ignore */ }
+      bar.classList.remove('show');
+      var cleanup = function () { bar.hidden = true; bar.removeEventListener('transitionend', cleanup); };
+      bar.addEventListener('transitionend', cleanup);
+    };
+
+    var accept = bar.querySelector('.cookie-accept');
+    var decline = bar.querySelector('.cookie-decline');
+    if (accept) accept.addEventListener('click', function () { dismiss('accepted'); });
+    if (decline) decline.addEventListener('click', function () { dismiss('declined'); });
+  }
+})();
