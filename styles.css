@@ -1070,7 +1070,13 @@ a.ci-value:hover { color: var(--navy); }
     grid-template-columns: 1fr;
     gap: 22px;
   }
-  .pkg-photo { aspect-ratio: 3 / 2; }
+  /* match the panel to the image's ~4:3 shape so the camera sits large and
+     centred with minimal empty space, instead of a tall letterboxed box */
+  .pkg-photo {
+    aspect-ratio: 4 / 3;
+    min-height: 0;
+  }
+  .pkg-photo img { padding: 14px; }
 }
 @media (max-width: 760px) {
   .pricing { padding: 80px 24px; }
@@ -1341,9 +1347,11 @@ section[id] { scroll-margin-top: 96px; }
    Keeps the experience feeling built-for-mobile on small viewports.
    ===================================================================== */
 
-/* the off-canvas drawer lives beyond the right edge; clip (not hidden, so
-   the sticky header keeps working) prevents any sideways scroll */
-body { overflow-x: clip; }
+/* The mobile drawer sits off the right edge when closed. overflow-x:hidden on
+   the root element clips that (and any stray overflow) on every browser —
+   including iOS 15 Safari, which doesn't support overflow:clip. Applied to
+   <html> (the scroll root) so the sticky header keeps working. */
+html { overflow-x: hidden; }
 
 @media (max-width: 760px) {
   .solutions,
