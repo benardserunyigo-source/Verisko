@@ -362,7 +362,7 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
   margin: 0 auto;
   padding: 0 var(--pad);
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: 1fr;   /* single column since the stats block was removed */
   gap: 72px;
   align-items: center;
 }

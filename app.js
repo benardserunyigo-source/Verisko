@@ -1,5 +1,5 @@
 /* =====================================================================
-   Nyaliko — front-end interactions
+   Verisko — front-end interactions
    - Scroll-reveal (staggered fade/rise) via IntersectionObserver
    - Count-up animation on the About stats
    - Frosted sticky-header state on scroll
@@ -145,7 +145,7 @@
   /* ---------- Cookie consent ---------- */
   var bar = document.getElementById('cookieBar');
   if (bar) {
-    var KEY = 'nyaliko_cookie_consent';
+    var KEY = 'verisko_cookie_consent';
     var stored = null;
     try { stored = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
 
