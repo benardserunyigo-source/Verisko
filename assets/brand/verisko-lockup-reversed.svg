@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 270 72" role="img" aria-label="Verisko Security Group reversed lockup, for navy backgrounds">
+  <defs>
+    
+  </defs>
+  <svg x="2" y="8" width="56" height="56" viewBox="23 22 54 54">
+    <path d="M31 30 L50 69" fill="none" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"></path>
+    <path d="M50 69 L69 30" fill="none" stroke="#169BD7" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"></path>
+  </svg>
+  <text class="wm" x="74" y="52" fill="#FFFFFF">VERISKO</text>
+</svg>

@@ -100,11 +100,21 @@ a { text-decoration: none; color: inherit; }
 body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
 
 .logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   color: var(--navy);
   font-weight: 800;
   font-size: 22px;
   letter-spacing: 0.14em;
 }
+.logo-mark {
+  display: block;
+  width: 30px;
+  height: 30px;
+  flex: none;
+}
+.footer-brand .logo-mark { width: 28px; height: 28px; }
 
 .nav {
   display: flex;
@@ -542,7 +552,27 @@ a.ci-value:hover { color: var(--navy); }
 .contact-submit { width: 100%; justify-content: center; margin-top: 6px; }
 
 /* ---------- Footer ---------- */
-.site-footer { background: var(--navy); color: #fff; }
+.site-footer {
+  background: var(--navy);
+  color: #fff;
+  position: relative;
+  overflow: hidden;            /* clip the watermark */
+}
+/* large, faint brand mark fading in behind the footer */
+.site-footer::before {
+  content: "";
+  position: absolute;
+  right: -56px;
+  bottom: -80px;
+  width: 380px;
+  height: 380px;
+  background: url('assets/brand/verisko-symbol-mono-white.svg') no-repeat center / contain;
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: 0;
+}
+.footer-top,
+.footer-bottom { position: relative; z-index: 1; }   /* content sits above the watermark */
 
 .footer-top {
   max-width: var(--maxw);

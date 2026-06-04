@@ -6,6 +6,51 @@
   <title>Verisko — AI security cameras, professionally installed across Uganda</title>
   <meta name="description" content="AI security cameras, professionally installed across Uganda. Monitor your home and business from anywhere." />
 
+  <!-- Canonical + icons + theme -->
+  <link rel="canonical" href="https://verisko.com/" />
+  <link rel="icon" href="assets/brand/verisko-favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="assets/brand/verisko-favicon.svg" />
+  <meta name="theme-color" content="#012169" />
+
+  <!-- Open Graph / Twitter (link previews) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Verisko Security" />
+  <meta property="og:url" content="https://verisko.com/" />
+  <meta property="og:title" content="Verisko — AI security cameras, professionally installed across Uganda" />
+  <meta property="og:description" content="AI security cameras, professionally installed across Uganda. Monitor your home and business from anywhere." />
+  <meta property="og:image" content="https://verisko.com/assets/brand/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Verisko — AI security cameras, professionally installed across Uganda" />
+  <meta name="twitter:description" content="AI security cameras, professionally installed across Uganda. Monitor your home and business from anywhere." />
+  <meta name="twitter:image" content="https://verisko.com/assets/brand/og-image.png" />
+
+  <!-- Local-business structured data (helps local search + Google business panels) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SecuritySystemInstaller",
+    "name": "Verisko Security",
+    "url": "https://verisko.com/",
+    "image": "https://verisko.com/assets/camera.jpg",
+    "logo": "https://verisko.com/assets/brand/verisko-symbol-duo-light.svg",
+    "telephone": "+256761480347",
+    "email": "hello@verisko.com",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "Plot 668 Kayondo Road, Block 216",
+      "postOfficeBoxNumber": "318",
+      "addressLocality": "Kampala",
+      "addressRegion": "Ntinda",
+      "addressCountry": "UG"
+    },
+    "areaServed": "Kampala, Uganda",
+    "openingHours": "Mo-Sa 08:00-18:00",
+    "priceRange": "UGX 1,200,000 - UGX 5,500,000"
+  }
+  </script>
+
   <!-- Fonts: Plus Jakarta Sans is a close match to the reference's rounded geometric sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -37,7 +82,10 @@
 
   <header class="site-header">
     <div class="header-inner">
-      <a class="logo" href="#">VERISKO</a>
+      <a class="logo" href="#" aria-label="Verisko — home">
+        <img class="logo-mark" src="assets/brand/verisko-symbol-duo-light.svg" alt="" width="30" height="30" aria-hidden="true" />
+        <span class="logo-word">VERISKO</span>
+      </a>
 
       <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="primary-nav">
         <span></span><span></span><span></span>
@@ -493,7 +541,10 @@
   <footer class="site-footer">
     <div class="footer-top">
       <div class="footer-brand">
-        <span class="logo">VERISKO</span>
+        <span class="logo">
+          <img class="logo-mark" src="assets/brand/verisko-symbol-mono-white.svg" alt="" width="28" height="28" aria-hidden="true" />
+          <span class="logo-word">VERISKO</span>
+        </span>
         <p class="footer-tagline">AI security cameras, professionally installed across Uganda. Monitor your home and business from anywhere.</p>
         <div class="footer-social">
           <a href="#" aria-label="WhatsApp">
