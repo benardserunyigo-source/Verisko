@@ -1456,3 +1456,22 @@ html { overflow-x: hidden; }
 @media (max-width: 600px) {
   .legal { padding: 40px var(--pad) 64px; }
 }
+
+/* ---- contact form: honeypot + submit status ---- */
+.hp-field {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+.form-status {
+  margin: 4px 0 0;
+  font-size: 14.5px;
+  line-height: 1.5;
+  display: none;
+}
+.form-status.show { display: block; }
+.form-status.ok  { color: #1a8f5a; }
+.form-status.err { color: #c0392b; }

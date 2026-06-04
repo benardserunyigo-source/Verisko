@@ -437,9 +437,14 @@
           </ul>
         </div>
 
-        <!-- NOTE: this form is UI only. To receive submissions, point `action`
-             at a form service (e.g. Formspree) or a backend endpoint. -->
-        <form class="contact-form" action="#" method="post">
+        <!-- Submissions POST to a Google Apps Script web app that appends each
+             lead to a Google Sheet. app.js intercepts submit for inline UX;
+             the action= attribute is the no-JS fallback. -->
+        <form class="contact-form" method="post"
+              action="https://script.google.com/macros/s/AKfycbzUdZ4_yleyGyqycc83OtNlB0sfg3ryjRUQVsz8gmvhUg6Z9IGli6Xd1bKASplBrB1qOQ/exec"
+              data-endpoint="https://script.google.com/macros/s/AKfycbzUdZ4_yleyGyqycc83OtNlB0sfg3ryjRUQVsz8gmvhUg6Z9IGli6Xd1bKASplBrB1qOQ/exec">
+          <!-- honeypot: hidden from people, often filled by bots -->
+          <input type="text" name="company" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true" />
           <div class="field">
             <label for="cf-name">Full name</label>
             <input id="cf-name" name="name" type="text" placeholder="Your name" required />
@@ -478,6 +483,8 @@
           <button type="submit" class="btn btn-primary contact-submit">
             Book a free survey <span class="arrow" aria-hidden="true">&rarr;</span>
           </button>
+
+          <p class="form-status" role="status" aria-live="polite"></p>
         </form>
       </div>
     </section>

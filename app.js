@@ -169,4 +169,44 @@
     if (accept) accept.addEventListener('click', function () { dismiss('accepted'); });
     if (decline) decline.addEventListener('click', function () { dismiss('declined'); });
   }
+
+  /* ---------- Contact form -> Google Sheet (Apps Script web app) ---------- */
+  var form = document.querySelector('.contact-form');
+  if (form) {
+    var endpoint = form.getAttribute('data-endpoint');
+    var status = form.querySelector('.form-status');
+    var setStatus = function (msg, kind) {
+      if (!status) return;
+      status.textContent = msg;
+      status.classList.remove('ok', 'err');
+      status.classList.add('show', kind);
+    };
+    form.addEventListener('submit', function (e) {
+      if (!endpoint) return;                       // no endpoint -> native submit
+      e.preventDefault();
+
+      var honey = form.querySelector('[name="company"]');
+      if (honey && honey.value) return;            // bot filled the honeypot — drop silently
+
+      var btn = form.querySelector('button[type="submit"]');
+      var original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+
+      fetch(endpoint, {
+        method: 'POST',
+        body: new URLSearchParams(new FormData(form)),
+        mode: 'no-cors'                            // Apps Script doesn't send CORS headers
+      })
+        .then(function () {
+          form.reset();
+          setStatus('Thanks! We’ve got your details and will be in touch shortly.', 'ok');
+        })
+        .catch(function () {
+          setStatus('Sorry, something went wrong. Please call or WhatsApp us instead.', 'err');
+        })
+        .then(function () {
+          if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        });
+    });
+  }
 })();
