@@ -23,7 +23,7 @@
       ['.products .section-head > *', 90],
       ['.product-grid .product-card', 90],
       ['.pricing-header > *', 90],
-      ['.pkg-rows .pkg-row', 80],
+      ['.pricing-grid .card', 80],
       ['.addon-note', 0],
       ['.trust-bar', 0],
       ['.why-more', 0],
@@ -32,8 +32,8 @@
       ['.feature-grid .feature-card', 100],
       ['.about-text > *', 90],
       ['.about-stats .stat', 90],
-      ['.contact-text > *', 80],
-      ['.contact-form', 0]
+      ['.survey-header > *', 80],
+      ['.survey .step', 90]
     ];
 
     var revealIO = new IntersectionObserver(function (entries) {
@@ -170,132 +170,206 @@
     if (decline) decline.addEventListener('click', function () { dismiss('declined'); });
   }
 
-  /* ---------- Contact form -> Google Sheet (Apps Script web app) ---------- */
-  var form = document.querySelector('.contact-form');
-  if (form) {
-    var endpoint = form.getAttribute('data-endpoint');
-    var status = form.querySelector('.form-status');
-    var setStatus = function (msg, kind) {
-      if (!status) return;
-      status.textContent = msg;
-      status.classList.remove('ok', 'err');
-      status.classList.add('show', kind);
+  /* ---------- Free site survey: contextual steps + submit -> Google Sheet ---------- */
+  var surveyForm = document.getElementById('surveyForm');
+  if (surveyForm) {
+    // Contextual sub-questions + concern checkboxes per vertical.
+    var contextualQuestions = {
+      home: {
+        subFields: '' +
+          '<label class="field-label">Quick property details</label>' +
+          '<div class="input-row">' +
+            '<div class="field"><input class="input-text" name="floors" type="text" placeholder="Number of floors (e.g. 2)"></div>' +
+            '<div class="field"><input class="input-text" name="gates" type="text" placeholder="Number of gates / entrances (e.g. 2)"></div>' +
+          '</div>' +
+          '<div class="input-row" style="margin-top:14px;">' +
+            '<div class="field" style="margin:0;"><input class="input-text" name="boundary" type="text" placeholder="Boundary wall (yes / no / partial)"></div>' +
+            '<div class="field" style="margin:0;"><input class="input-text" name="staff" type="text" placeholder="Domestic staff (housekeeper, guard, gardener…)"></div>' +
+          '</div>',
+        concerns: [
+          'After-hours intrusion', 'Domestic staff accountability', 'Front gate access',
+          'Driveway / parking', 'Back yard or perimeter', 'Children safety monitoring',
+          'Recent specific incident', 'Remote viewing while travelling'
+        ]
+      },
+      shop: {
+        subFields: '' +
+          '<label class="field-label">Quick shop details</label>' +
+          '<div class="input-row">' +
+            '<div class="field"><input class="input-text" name="shopType" type="text" placeholder="Type of shop (supermarket, salon, electronics…)"></div>' +
+            '<div class="field"><input class="input-text" name="staffCount" type="text" placeholder="Number of staff at peak"></div>' +
+          '</div>' +
+          '<div class="input-row" style="margin-top:14px;">' +
+            '<div class="field" style="margin:0;"><input class="input-text" name="tills" type="text" placeholder="Number of till / cash points"></div>' +
+            '<div class="field" style="margin:0;"><input class="input-text" name="hours" type="text" placeholder="Operating hours (e.g. 8am–8pm)"></div>' +
+          '</div>',
+        concerns: [
+          'Customer shoplifting', 'Staff shrinkage (internal theft)', 'Till transaction disputes',
+          'After-hours break-in', 'Front window / display protection', 'Stockroom / back-of-house theft',
+          'Customer disputes & refund claims', 'Insurance verification requirement'
+        ]
+      },
+      office: {
+        subFields: '' +
+          '<label class="field-label">Quick office details</label>' +
+          '<div class="input-row">' +
+            '<div class="field"><input class="input-text" name="employees" type="text" placeholder="Number of employees"></div>' +
+            '<div class="field"><input class="input-text" name="reception" type="text" placeholder="Reception staffed? (yes / no)"></div>' +
+          '</div>' +
+          '<div class="input-row" style="margin-top:14px;">' +
+            '<div class="field" style="margin:0;"><input class="input-text" name="serverRoom" type="text" placeholder="Server / IT room? (yes / no)"></div>' +
+            '<div class="field" style="margin:0;"><input class="input-text" name="parking" type="text" placeholder="Car park? (yes / no / shared)"></div>' +
+          '</div>',
+        concerns: [
+          'Visitor management at reception', 'After-hours building access', 'Workspace and corridor coverage',
+          'Server room / IT closet protection', 'Parking lot incidents', 'Equipment theft tracking',
+          'Employee accountability monitoring', 'Compliance / audit requirement'
+        ]
+      },
+      pharmacy: {
+        subFields: '' +
+          '<label class="field-label">Quick pharmacy / clinic details</label>' +
+          '<div class="input-row">' +
+            '<div class="field"><input class="input-text" name="pharmType" type="text" placeholder="Type (community pharmacy, clinic, dental, optical…)"></div>' +
+            '<div class="field"><input class="input-text" name="cdStorage" type="text" placeholder="Controlled drug storage? (yes / no)"></div>' +
+          '</div>' +
+          '<div class="input-row" style="margin-top:14px;">' +
+            '<div class="field" style="margin:0;"><input class="input-text" name="dispensary" type="text" placeholder="Number of dispensary counters"></div>' +
+            '<div class="field" style="margin:0;"><input class="input-text" name="staffCount" type="text" placeholder="Number of staff"></div>' +
+          '</div>',
+        concerns: [
+          'Dispensary counter dispute resolution', 'Staff shrinkage and accountability',
+          'Controlled drug storage monitoring', 'Till / cash point coverage', 'Customer ID at dispensary',
+          'Insurance verification requirement', 'After-hours break-in', 'Patient safety monitoring'
+        ]
+      },
+      compound: {
+        subFields: '' +
+          '<label class="field-label">Quick compound details</label>' +
+          '<div class="input-row">' +
+            '<div class="field"><input class="input-text" name="buildings" type="text" placeholder="Number of buildings"></div>' +
+            '<div class="field"><input class="input-text" name="gates" type="text" placeholder="Number of gates / entrances"></div>' +
+          '</div>' +
+          '<div class="input-row" style="margin-top:14px;">' +
+            '<div class="field" style="margin:0;"><input class="input-text" name="mixedUse" type="text" placeholder="Mixed use? (residence + business / Airbnb / single family)"></div>' +
+            '<div class="field" style="margin:0;"><input class="input-text" name="guard" type="text" placeholder="Security guard on duty? (yes / no / day-only)"></div>' +
+          '</div>',
+        concerns: [
+          'Perimeter wall and boundary', 'Main gate ID and access', 'Drive and parking coverage',
+          'Multiple building blind spots', 'Visitor / tenant tracking', 'Domestic staff accountability',
+          'Mixed-use separation (residence vs business)', 'Remote viewing while travelling'
+        ]
+      }
     };
-    form.addEventListener('submit', function (e) {
-      if (!endpoint) return;                       // no endpoint -> native submit
+    var verticalLabels = {
+      home: 'Home', shop: 'Shop / Retail', office: 'Office',
+      pharmacy: 'Pharmacy / Clinic', compound: 'Compound'
+    };
+
+    var contextualBlock = document.getElementById('contextualBlock');
+    var concernsList = document.getElementById('concernsList');
+
+    var escapeHtml = function (s) {
+      return String(s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    };
+
+    var renderContextual = function (vertical) {
+      var data = contextualQuestions[vertical];
+      if (!data) return;
+      contextualBlock.innerHTML = data.subFields;
+      concernsList.innerHTML = data.concerns.map(function (c, i) {
+        return '' +
+          '<div class="check-item">' +
+            '<input type="checkbox" id="concern-' + i + '" name="concerns[]" value="' + escapeHtml(c) + '">' +
+            '<label for="concern-' + i + '">' +
+              '<span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' +
+              '<span>' + escapeHtml(c) + '</span>' +
+            '</label>' +
+          '</div>';
+      }).join('');
+    };
+    renderContextual('home');
+
+    var svtabs = surveyForm.querySelectorAll('.vtab');
+    var verticalInput = document.getElementById('verticalInput');
+    svtabs.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        svtabs.forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        var v = btn.dataset.vertical;
+        if (verticalInput) verticalInput.value = v;
+        renderContextual(v);
+      });
+    });
+
+    // ---- submit: map answers to the Sheet's columns, then POST ----
+    var surveyEndpoint = surveyForm.getAttribute('data-endpoint');
+    var surveyStatus = surveyForm.querySelector('.form-status');
+    var setSurveyStatus = function (msg, kind) {
+      if (!surveyStatus) return;
+      surveyStatus.textContent = msg;
+      surveyStatus.classList.remove('ok', 'err');
+      surveyStatus.classList.add('show', kind);
+    };
+
+    var buildSummary = function (fd) {
+      var get = function (k) { var v = fd.get(k); return v ? String(v).trim() : ''; };
+      var concerns = fd.getAll('concerns[]').join(', ');
+      var lines = [
+        'Space type: ' + (verticalLabels[get('vertical')] || get('vertical')),
+        'Property: ' + get('propName') + (get('propArea') ? ' (' + get('propArea') + ')' : ''),
+        'Size: ' + get('propSize') + ' | Existing CCTV: ' + get('cctvStatus'),
+        'Timeline: ' + get('timeline') + ' | Preferred contact: ' + get('contactPref'),
+        concerns ? 'Concerns: ' + concerns : ''
+      ];
+      var ctxKeys = ['floors','gates','boundary','staff','shopType','staffCount','tills','hours',
+        'employees','reception','serverRoom','parking','pharmType','cdStorage','dispensary',
+        'buildings','mixedUse','guard'];
+      var ctx = ctxKeys.map(function (k) { var v = get(k); return v ? k + ': ' + v : ''; })
+        .filter(Boolean).join(' | ');
+      if (ctx) lines.push('Details: ' + ctx);
+      if (get('notes')) lines.push('Notes: ' + get('notes'));
+      return lines.filter(Boolean).join('\n');
+    };
+
+    surveyForm.addEventListener('submit', function (e) {
       e.preventDefault();
 
-      var honey = form.querySelector('[name="company"]');
+      var honey = surveyForm.querySelector('[name="company"]');
       if (honey && honey.value) return;            // bot filled the honeypot — drop silently
 
-      var btn = form.querySelector('button[type="submit"]');
+      var btn = surveyForm.querySelector('.submit-btn');
       var original = btn ? btn.innerHTML : '';
       if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
 
-      fetch(endpoint, {
+      var fd = new FormData(surveyForm);
+      fd.set('name', (fd.get('fullName') || '').toString());
+      fd.set('phone', (fd.get('whatsapp') || '').toString());
+      fd.set('type', verticalLabels[fd.get('vertical')] || (fd.get('vertical') || '').toString());
+      fd.set('message', buildSummary(fd));
+
+      var showSuccess = function () {
+        surveyForm.classList.add('hidden');
+        var banner = document.getElementById('successBanner');
+        if (banner) banner.classList.add('shown');
+        var section = document.getElementById('contact');
+        if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+
+      if (!surveyEndpoint) { showSuccess(); return; }
+
+      fetch(surveyEndpoint, {
         method: 'POST',
-        body: new URLSearchParams(new FormData(form)),
+        body: new URLSearchParams(fd),
         mode: 'no-cors'                            // Apps Script doesn't send CORS headers
       })
-        .then(function () {
-          form.reset();
-          setStatus('Thanks! We’ve got your details and will be in touch shortly.', 'ok');
-        })
+        .then(function () { showSuccess(); })
         .catch(function () {
-          setStatus('Sorry, something went wrong. Please call or WhatsApp us instead.', 'err');
-        })
-        .then(function () {
           if (btn) { btn.disabled = false; btn.innerHTML = original; }
+          setSurveyStatus('Sorry, something went wrong. Please call or WhatsApp us on +256 761 480 347 instead.', 'err');
         });
-    });
-  }
-
-  /* ---------- Pricing: vertical tabs + Standard/Pro toggle ---------- */
-  var vtabs = document.querySelectorAll('.vtab');
-  if (vtabs.length) {
-    // Camera mixes per vertical × package size. All cameras drawn from the
-    // current catalogue: 5MP bullet, 5MP dome, 8MP wide-angle dome, 5MP PTZ.
-    var cameraMixes = {
-      home: {
-        2:  '2× 5MP bullet — gate + drive',
-        4:  '3× 5MP bullet + 1× 5MP dome (interior entrance)',
-        6:  '4× 5MP bullet + 2× 5MP dome (interior)',
-        8:  '5× 5MP bullet + 2× 5MP dome + 1× 5MP PTZ (back yard)',
-        12: '7× 5MP bullet + 4× 5MP dome + 1× 5MP PTZ'
-      },
-      shop: {
-        2:  '1× 5MP bullet + 1× 5MP dome (interior)',
-        4:  '1× 5MP bullet + 3× 5MP dome (retail floor)',
-        6:  '1× 5MP bullet + 4× 5MP dome + 1× 8MP dome (overhead till)',
-        8:  '1× 5MP bullet + 5× 5MP dome + 1× 8MP dome (till) + 1× 5MP PTZ',
-        12: '2× 5MP bullet + 7× 5MP dome + 1× 8MP dome (till) + 1× 5MP PTZ + 1× 5MP dome (rear)'
-      },
-      office: {
-        2:  '1× 5MP bullet + 1× 5MP dome (reception, close-mount)',
-        4:  '1× 5MP bullet + 1× 5MP dome (reception) + 2× 5MP dome (workspace)',
-        6:  '2× 5MP bullet + 1× 5MP dome (reception) + 3× 5MP dome (workspace)',
-        8:  '2× 5MP bullet + 1× 5MP dome (reception) + 4× 5MP dome + 1× 5MP PTZ (parking)',
-        12: '3× 5MP bullet + 2× 5MP dome (reception/lobby) + 5× 5MP dome + 1× 8MP dome + 1× 5MP PTZ'
-      },
-      pharmacy: {
-        2:  '1× 5MP bullet + 1× 5MP dome (dispensary, close-mount)',
-        4:  '1× 5MP bullet + 1× 5MP dome (dispensary) + 2× 5MP dome (floor)',
-        6:  '1× 5MP bullet + 1× 5MP dome (dispensary) + 3× 5MP dome + 1× 8MP dome (overhead till)',
-        8:  '1× 5MP bullet + 2× 5MP dome (dispensary + storage) + 4× 5MP dome + 1× 8MP dome (till)',
-        12: '2× 5MP bullet + 2× 5MP dome (dispensary + storage) + 6× 5MP dome + 1× 8MP dome + 1× 5MP PTZ'
-      },
-      compound: {
-        2:  '2× 5MP bullet — main gate + drive',
-        4:  '3× 5MP bullet + 1× 5MP dome (interior)',
-        6:  '4× 5MP bullet + 2× 5MP dome (interior)',
-        8:  '5× 5MP bullet + 2× 5MP dome + 1× 5MP PTZ',
-        12: '6× 5MP bullet + 3× 5MP dome + 1× 5MP PTZ + 1× 5MP dome (gate ID) + 1× 8MP dome'
-      }
-    };
-
-    var verticalDescriptions = {
-      home: '<strong>Home —</strong> detached or semi-detached residence with gate and perimeter focus. 5MP bullets at entry, drive, and side passages; discreet 5MP domes at interior entry points; PTZ for back yard tracking at the 8-cam tier and above.',
-      shop: '<strong>Shop &amp; Retail —</strong> boutiques, supermarkets, salons, electronics. Interior-heavy with discreet ceiling-mounted 5MP domes through the retail floor; <strong>8MP wide-angle dome overhead at the till</strong> for high-detail transaction capture. Bullet at the entrance for deterrence.',
-      office: '<strong>Office &amp; Workspace —</strong> coworking, small/medium offices. <strong>Close-mounted 5MP dome at reception</strong> for ID-grade entry capture (1.5–2m above the desk), domes through workspaces and corridors, bullet at the car park entry, PTZ for larger lots from 8-cam up.',
-      pharmacy: '<strong>Pharmacy &amp; Clinic —</strong> pharmacies, clinics, dental, optical. <strong>Close-mounted 5MP dome at the dispensary counter</strong> for compliance and identification-grade capture, <strong>8MP wide-angle dome overhead at the till</strong> from 6-cam up. Domes on the retail floor, bullet at entry. Designed to resolve disputes and meet insurance verification.',
-      compound: '<strong>Compound / Mixed Use —</strong> larger residential with multiple buildings, Airbnb compounds, residence + business. Heavy on perimeter 5MP bullets, dome coverage in main interior spaces, PTZ for the drive at 8-cam up, gate ID dome at the 12-cam tier.'
-    };
-
-    var mixDetails = document.querySelectorAll('.mix-detail');
-    var vertDesc = document.getElementById('vertDesc');
-
-    vtabs.forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        vtabs.forEach(function (b) { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
-        btn.classList.add('active');
-        btn.setAttribute('aria-selected', 'true');
-        var v = btn.dataset.vertical;
-        mixDetails.forEach(function (el) {
-          var size = el.dataset.mix;
-          if (cameraMixes[v] && cameraMixes[v][size]) el.textContent = cameraMixes[v][size];
-        });
-        if (vertDesc && verticalDescriptions[v]) vertDesc.innerHTML = verticalDescriptions[v];
-      });
-    });
-
-    var toggleBtns = document.querySelectorAll('.toggle-btn');
-    var priceNums = document.querySelectorAll('.price-num');
-    toggleBtns.forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        toggleBtns.forEach(function (b) { b.classList.remove('active'); });
-        btn.classList.add('active');
-        var tier = btn.dataset.tier;
-        priceNums.forEach(function (el) {
-          var value = el.dataset[tier === 'pro' ? 'pro' : 'std'];
-          if (value === '—') {
-            el.classList.add('unavailable');
-            el.textContent = 'Pro starts at 4-cam';
-          } else {
-            el.classList.remove('unavailable');
-            el.textContent = value;
-          }
-        });
-      });
     });
   }
 })();

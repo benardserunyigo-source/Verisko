@@ -506,103 +506,191 @@
       </div>
     </section>
 
-    <!-- ===================== Contact ===================== -->
-    <section class="contact" id="contact">
-      <div class="contact-inner">
-        <div class="contact-text">
-          <span class="eyebrow">Contact</span>
-          <h2>Book your free survey.</h2>
-          <p>Tell us about your space and we'll arrange a free, no-obligation site survey — then recommend the right camera package for you.</p>
+    <!-- ===================== Contact / Free site survey ===================== -->
+    <section class="survey-section" id="contact">
+      <div class="survey">
 
-          <ul class="contact-list">
-            <li>
-              <span class="ci-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-              </span>
-              <span class="ci-body">
-                <span class="ci-label">Call or WhatsApp</span>
-                <a class="ci-value" href="tel:+256761480347">+256 761 480 347</a>
-              </span>
-            </li>
-            <li>
-              <span class="ci-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>
-              </span>
-              <span class="ci-body">
-                <span class="ci-label">Email</span>
-                <a class="ci-value" href="mailto:hello@verisko.com">hello@verisko.com</a>
-              </span>
-            </li>
-            <li>
-              <span class="ci-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>
-              </span>
-              <span class="ci-body">
-                <span class="ci-label">Location</span>
-                <span class="ci-value">Plot 668 Kayondo Road<br />Block 216 — P.O. Box 318<br />Ntinda, Kampala, Uganda</span>
-              </span>
-            </li>
-            <li>
-              <span class="ci-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-              </span>
-              <span class="ci-body">
-                <span class="ci-label">Hours</span>
-                <span class="ci-value">Mon–Sat, 8:00am – 6:00pm</span>
-              </span>
-            </li>
-          </ul>
+        <div class="survey-header">
+          <div class="eyebrow">FREE SITE SURVEY · 30 MINUTES · NO OBLIGATION</div>
+          <h2>Tell us what you're protecting.</h2>
+          <p>We'll come to your property, design a system around how you actually use the space, and send a written proposal within 48 hours. No verbal quotes. No installation pressure.</p>
         </div>
 
         <!-- Submissions POST to a Google Apps Script web app that appends each
-             lead to a Google Sheet. app.js intercepts submit for inline UX;
+             lead to a Google Sheet. app.js maps the answers into name/phone/
+             email/type/message and intercepts submit for the success state;
              the action= attribute is the no-JS fallback. -->
-        <form class="contact-form" method="post"
+        <form id="surveyForm" class="form-container" method="post"
               action="https://script.google.com/macros/s/AKfycbzUdZ4_yleyGyqycc83OtNlB0sfg3ryjRUQVsz8gmvhUg6Z9IGli6Xd1bKASplBrB1qOQ/exec"
               data-endpoint="https://script.google.com/macros/s/AKfycbzUdZ4_yleyGyqycc83OtNlB0sfg3ryjRUQVsz8gmvhUg6Z9IGli6Xd1bKASplBrB1qOQ/exec">
+
           <!-- honeypot: hidden from people, often filled by bots -->
           <input type="text" name="company" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true" />
-          <div class="field">
-            <label for="cf-name">Full name</label>
-            <input id="cf-name" name="name" type="text" placeholder="Your name" required />
-          </div>
 
-          <div class="field-row">
-            <div class="field">
-              <label for="cf-phone">Phone</label>
-              <input id="cf-phone" name="phone" type="tel" placeholder="+256 …" required />
+          <!-- STEP 1 — VERTICAL -->
+          <div class="step">
+            <div class="step-header">
+              <span class="step-num">01</span>
+              <h3 class="step-title">What kind of space are you protecting?</h3>
             </div>
+            <p class="step-help">Choose the option closest to your property. We'll tailor everything else based on this — different spaces need different cameras in different places.</p>
+
+            <div class="vertical-tabs" role="tablist">
+              <button type="button" class="vtab active" data-vertical="home">
+                <span class="vicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2h-4v-7H10v7H5a2 2 0 0 1-2-2V11z"/></svg></span>
+                Home
+              </button>
+              <button type="button" class="vtab" data-vertical="shop">
+                <span class="vicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M3 9c0 1.5 1.5 3 3 3s3-1.5 3-3"/><path d="M9 9c0 1.5 1.5 3 3 3s3-1.5 3-3"/><path d="M15 9c0 1.5 1.5 3 3 3s3-1.5 3-3"/></svg></span>
+                Shop / Retail
+              </button>
+              <button type="button" class="vtab" data-vertical="office">
+                <span class="vicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><line x1="8" y1="7" x2="10" y2="7"/><line x1="14" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="10" y2="11"/><line x1="14" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="10" y2="15"/><line x1="14" y1="15" x2="16" y2="15"/></svg></span>
+                Office
+              </button>
+              <button type="button" class="vtab" data-vertical="pharmacy">
+                <span class="vicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="12" y1="7" x2="12" y2="17"/><line x1="7" y1="12" x2="17" y2="12"/></svg></span>
+                Pharmacy / Clinic
+              </button>
+              <button type="button" class="vtab" data-vertical="compound">
+                <span class="vicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V11l5-4 5 4v10"/><path d="M13 21V14l4-3 4 3v7"/><line x1="3" y1="21" x2="21" y2="21"/></svg></span>
+                Compound
+              </button>
+            </div>
+            <input type="hidden" id="verticalInput" name="vertical" value="home"/>
+          </div>
+
+          <!-- STEP 2 — PROPERTY DETAILS -->
+          <div class="step">
+            <div class="step-header">
+              <span class="step-num">02</span>
+              <h3 class="step-title">Tell us about your property.</h3>
+            </div>
+
             <div class="field">
-              <label for="cf-email">Email <span class="opt">(optional)</span></label>
-              <input id="cf-email" name="email" type="email" placeholder="you@example.com" />
+              <label class="field-label" for="propName">Property name or nickname <span class="req">*</span></label>
+              <p class="field-hint">Whatever you'd call it in conversation — e.g., "Bugolobi house", "Mukono pharmacy", "the office on Kira Road."</p>
+              <input class="input-text" id="propName" name="propName" type="text" placeholder="My property" required>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="propArea">Neighborhood or area <span class="req">*</span></label>
+              <input class="input-text" id="propArea" name="propArea" type="text" placeholder="Ntinda, Kira, Bugolobi, Muyenga, Mukono…" required>
+            </div>
+
+            <div class="field">
+              <label class="field-label">Approximate property size <span class="req">*</span></label>
+              <div class="pill-group">
+                <div class="pill"><input type="radio" id="sizeS" name="propSize" value="small"><label for="sizeS">Small<br/><small style="font-weight:400;color:var(--muted);">Under 200m²</small></label></div>
+                <div class="pill"><input type="radio" id="sizeM" name="propSize" value="medium" checked><label for="sizeM">Medium<br/><small style="font-weight:400;color:var(--muted);">200–500m²</small></label></div>
+                <div class="pill"><input type="radio" id="sizeL" name="propSize" value="large"><label for="sizeL">Large<br/><small style="font-weight:400;color:var(--muted);">Over 500m²</small></label></div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field-label">Do you currently have CCTV? <span class="req">*</span></label>
+              <div class="pill-group">
+                <div class="pill"><input type="radio" id="cctvNo" name="cctvStatus" value="none" checked><label for="cctvNo">No, first system</label></div>
+                <div class="pill"><input type="radio" id="cctvUpgrade" name="cctvStatus" value="upgrade"><label for="cctvUpgrade">Yes, want to upgrade</label></div>
+                <div class="pill"><input type="radio" id="cctvBroken" name="cctvStatus" value="broken"><label for="cctvBroken">Yes, but it stopped working</label></div>
+              </div>
+            </div>
+
+            <!-- Contextual sub-questions per vertical (populated by app.js) -->
+            <div class="contextual-fields" id="contextualBlock"></div>
+          </div>
+
+          <!-- STEP 3 — COVERAGE PRIORITIES (contextual) -->
+          <div class="step">
+            <div class="step-header">
+              <span class="step-num">03</span>
+              <h3 class="step-title">What worries you most?</h3>
+            </div>
+            <p class="step-help">Check everything that matters. This helps us decide where the cameras go and what type each one needs to be.</p>
+
+            <div class="check-group" id="concernsList"></div>
+          </div>
+
+          <!-- STEP 4 — TIMELINE + CONTACT -->
+          <div class="step">
+            <div class="step-header">
+              <span class="step-num">04</span>
+              <h3 class="step-title">When and how should we reach you?</h3>
+            </div>
+
+            <div class="field">
+              <label class="field-label">When do you need it installed? <span class="req">*</span></label>
+              <div class="pill-group">
+                <div class="pill"><input type="radio" id="time2w" name="timeline" value="2w"><label for="time2w">Within 2 weeks</label></div>
+                <div class="pill"><input type="radio" id="time1m" name="timeline" value="1m" checked><label for="time1m">Within 1 month</label></div>
+                <div class="pill"><input type="radio" id="time3m" name="timeline" value="3m"><label for="time3m">1–3 months</label></div>
+                <div class="pill"><input type="radio" id="timeExp" name="timeline" value="exploring"><label for="timeExp">Just exploring</label></div>
+              </div>
+            </div>
+
+            <div class="input-row">
+              <div class="field">
+                <label class="field-label" for="fullName">Your name <span class="req">*</span></label>
+                <input class="input-text" id="fullName" name="fullName" type="text" required placeholder="Ben Serunyigo">
+              </div>
+              <div class="field">
+                <label class="field-label" for="whatsapp">WhatsApp number <span class="req">*</span></label>
+                <input class="input-text" id="whatsapp" name="whatsapp" type="tel" required placeholder="+256 7XX XXX XXX">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="email">Email (optional)</label>
+              <input class="input-text" id="email" name="email" type="email" placeholder="you@example.com">
+            </div>
+
+            <div class="field">
+              <label class="field-label">Preferred way to reach you <span class="req">*</span></label>
+              <div class="pill-group">
+                <div class="pill"><input type="radio" id="cWa" name="contactPref" value="whatsapp" checked><label for="cWa">WhatsApp</label></div>
+                <div class="pill"><input type="radio" id="cCall" name="contactPref" value="call"><label for="cCall">Phone call</label></div>
+                <div class="pill"><input type="radio" id="cEmail" name="contactPref" value="email"><label for="cEmail">Email</label></div>
+              </div>
             </div>
           </div>
 
-          <div class="field">
-            <label for="cf-type">What are you securing?</label>
-            <select id="cf-type" name="type">
-              <option value="" disabled selected>Select a space…</option>
-              <option>Home</option>
-              <option>Apartment</option>
-              <option>Pharmacy</option>
-              <option>Supermarket</option>
-              <option>Hospital</option>
-              <option>Office / business</option>
-              <option>Other</option>
-            </select>
+          <!-- STEP 5 — ANYTHING ELSE -->
+          <div class="step">
+            <div class="step-header">
+              <span class="step-num">05</span>
+              <h3 class="step-title">Anything else we should know?</h3>
+            </div>
+            <p class="step-help">Optional. A specific past incident, a particular spot that worries you, a tight budget, a preferred mounting style — anything that would help us prepare for the survey.</p>
+
+            <div class="field">
+              <textarea class="input-textarea" name="notes" placeholder="e.g. We had a break-in last March through the side gate. I also want to monitor the housekeeper area without it being too obvious. Budget around UGX 3M."></textarea>
+            </div>
           </div>
 
-          <div class="field">
-            <label for="cf-message">Details</label>
-            <textarea id="cf-message" name="message" placeholder="Tell us a little about the property and how many cameras you're considering."></textarea>
+          <!-- SUBMIT -->
+          <div class="submit-row">
+            <button type="submit" class="submit-btn">
+              Request my free site survey
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+            <p class="submit-footer">
+              We reply within <strong>4 hours</strong> on business days. Site survey appointments are typically available within <strong>5–7 business days</strong>. No quote on the visit — we send a written proposal within 48 hours of the survey.
+            </p>
+            <p class="form-status" role="status" aria-live="polite"></p>
           </div>
 
-          <button type="submit" class="btn btn-primary contact-submit">
-            Book a free survey <span class="arrow" aria-hidden="true">&rarr;</span>
-          </button>
-
-          <p class="form-status" role="status" aria-live="polite"></p>
         </form>
+
+        <!-- SUCCESS STATE -->
+        <div class="success-banner" id="successBanner">
+          <div class="success-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <h2>Thank you — your request is in.</h2>
+          <p>We'll reach out via your preferred channel within 4 business hours to confirm survey timing. Look out for a message from <strong>+256 761 480 347</strong> (Verisko Security Group).</p>
+          <p>In the meantime, if anything urgent, message us directly on WhatsApp.</p>
+        </div>
+
       </div>
     </section>
   </main>
