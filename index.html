@@ -223,135 +223,203 @@
         <!-- HEADER -->
         <div class="pricing-header">
           <div class="eyebrow">FOUNDER PRICING · FIRST 100 CUSTOMERS</div>
-          <h2>Five packages. One all-in price each.</h2>
+          <h2>Five packages.<br/>Tailored to your space.</h2>
           <p class="lead">
             Hardware, installation, warranty, app setup, after-sales — everything's in the
-            number you see. No install fees. No hidden costs.
+            number you see. Same prices across every property type — different cameras for different jobs.
           </p>
+          <div class="founder-counter">
+            <span class="counter-dot"></span>
+            <strong>82 of 100</strong>&nbsp;founder spots remaining
+          </div>
         </div>
 
-        <!-- ALTERNATING PACKAGE ROWS -->
-        <div class="pkg-rows">
+        <!-- VERTICAL TABS — "Where will the cameras go?" -->
+        <div class="vertical-question">Where will the cameras go?</div>
+        <div class="vertical-tabs-wrap">
+          <div class="vertical-tabs" role="tablist">
 
-          <!-- 2-CAMERA -->
-          <div class="pkg-row">
-            <div class="card" data-pkg="2">
-              <div class="card-label">2-CAMERA</div>
-              <div class="card-name">Starter</div>
-              <div class="card-price">
-                <span class="price-currency">UGX</span>
-                <span class="price-num">1,200,000</span>
-              </div>
-              <div class="card-divider"></div>
-              <ul class="card-includes">
-                <li>2× 5MP AI cameras</li>
-                <li>8-channel NVR + 1TB hard drive</li>
-                <li>Concealed cabling install</li>
-                <li>Mobile app + 30-min training</li>
-                <li>12-month written warranty</li>
-              </ul>
-              <a href="#contact" class="card-cta">Book free survey</a>
-            </div>
-            <figure class="pkg-photo">
-              <img src="assets/packages/pkg-2.jpeg" alt="Verisko 2-camera Starter package — two 5MP AI cameras with NVR" loading="lazy" decoding="async" width="1000" height="747" />
-            </figure>
+            <button class="vtab active" data-vertical="home" role="tab" aria-selected="true">
+              <span class="vicon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2h-4v-7H10v7H5a2 2 0 0 1-2-2V11z"/>
+                </svg>
+              </span>
+              <span class="vname">Home</span>
+            </button>
+
+            <button class="vtab" data-vertical="shop" role="tab" aria-selected="false">
+              <span class="vicon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 9l1-5h16l1 5"/>
+                  <path d="M4 9v11h16V9"/>
+                  <path d="M3 9c0 1.5 1.5 3 3 3s3-1.5 3-3"/>
+                  <path d="M9 9c0 1.5 1.5 3 3 3s3-1.5 3-3"/>
+                  <path d="M15 9c0 1.5 1.5 3 3 3s3-1.5 3-3"/>
+                </svg>
+              </span>
+              <span class="vname">Shop &amp; Retail</span>
+            </button>
+
+            <button class="vtab" data-vertical="office" role="tab" aria-selected="false">
+              <span class="vicon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="4" y="3" width="16" height="18" rx="1"/>
+                  <line x1="8" y1="7" x2="10" y2="7"/>
+                  <line x1="14" y1="7" x2="16" y2="7"/>
+                  <line x1="8" y1="11" x2="10" y2="11"/>
+                  <line x1="14" y1="11" x2="16" y2="11"/>
+                  <line x1="8" y1="15" x2="10" y2="15"/>
+                  <line x1="14" y1="15" x2="16" y2="15"/>
+                </svg>
+              </span>
+              <span class="vname">Office</span>
+            </button>
+
+            <button class="vtab" data-vertical="pharmacy" role="tab" aria-selected="false">
+              <span class="vicon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="3"/>
+                  <line x1="12" y1="7" x2="12" y2="17"/>
+                  <line x1="7" y1="12" x2="17" y2="12"/>
+                </svg>
+              </span>
+              <span class="vname">Pharmacy / Clinic</span>
+            </button>
+
+            <button class="vtab" data-vertical="compound" role="tab" aria-selected="false">
+              <span class="vicon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 21V11l5-4 5 4v10"/>
+                  <path d="M13 21V14l4-3 4 3v7"/>
+                  <line x1="3" y1="21" x2="21" y2="21"/>
+                </svg>
+              </span>
+              <span class="vname">Compound</span>
+            </button>
+
           </div>
 
-          <!-- 4-CAMERA (Featured) -->
-          <div class="pkg-row">
-            <div class="card featured" data-pkg="4">
-              <div class="badge">Most popular</div>
-              <div class="card-label">4-CAMERA</div>
-              <div class="card-name">Essential</div>
-              <div class="card-price">
-                <span class="price-currency">UGX</span>
-                <span class="price-num">1,800,000</span>
-              </div>
-              <div class="card-divider"></div>
-              <ul class="card-includes">
-                <li>4× 5MP AI cameras</li>
-                <li>8-channel NVR + 1TB hard drive</li>
-                <li>Concealed cabling install</li>
-                <li>Mobile app + 30-min training</li>
-                <li>12-month written warranty</li>
-              </ul>
-              <a href="#contact" class="card-cta">Book free survey</a>
+          <div class="vertical-description" id="vertDesc">
+            <strong>Home —</strong> detached or semi-detached residence with gate and perimeter focus. 5MP bullets at entry, drive, and side passages; discreet 5MP domes at interior entry points; PTZ for back yard tracking at the 8-cam tier and above.
+          </div>
+        </div>
+
+        <!-- Standard / Pro Toggle -->
+        <div class="toggle-center">
+          <div class="toggle-wrap" role="tablist">
+            <button class="toggle-btn active" data-tier="standard">Standard</button>
+            <button class="toggle-btn" data-tier="pro">Pro <small>· adds rear PTZ</small></button>
+          </div>
+        </div>
+
+        <!-- GRID -->
+        <div class="pricing-grid">
+
+          <!-- 2-CAMERA -->
+          <div class="card" data-pkg="2">
+            <div class="card-label">2-CAMERA</div>
+            <div class="card-name">Starter</div>
+            <div class="card-price">
+              <span class="price-currency">UGX</span>
+              <span class="price-num" data-std="1,200,000" data-pro="—">1,200,000</span>
             </div>
-            <figure class="pkg-photo">
-              <img src="assets/packages/pkg-4.jpeg" alt="Verisko 4-camera Essential package — four 5MP AI cameras with NVR" loading="lazy" decoding="async" width="1000" height="747" />
-            </figure>
+            <div class="camera-mix">
+              <div class="mix-label">Camera mix</div>
+              <div class="mix-detail" data-mix="2">2× 5MP bullet — gate + drive</div>
+            </div>
+            <ul class="card-includes">
+              <li>8-channel NVR + 1TB hard drive</li>
+              <li>Concealed cabling install</li>
+              <li>Mobile app + 30-min training</li>
+              <li>12-month written warranty</li>
+            </ul>
+            <a href="#contact" class="card-cta">Book free survey</a>
+          </div>
+
+          <!-- 4-CAMERA (featured) -->
+          <div class="card featured" data-pkg="4">
+            <div class="badge">Most popular</div>
+            <div class="card-label">4-CAMERA</div>
+            <div class="card-name">Essential</div>
+            <div class="card-price">
+              <span class="price-currency">UGX</span>
+              <span class="price-num" data-std="1,800,000" data-pro="2,200,000">1,800,000</span>
+            </div>
+            <div class="camera-mix">
+              <div class="mix-label">Camera mix</div>
+              <div class="mix-detail" data-mix="4">3× 5MP bullet + 1× 5MP dome (interior entrance)</div>
+            </div>
+            <ul class="card-includes">
+              <li>8-channel NVR + 1TB hard drive</li>
+              <li>Concealed cabling install</li>
+              <li>Mobile app + 30-min training</li>
+              <li>12-month written warranty</li>
+            </ul>
+            <a href="#contact" class="card-cta">Book free survey</a>
           </div>
 
           <!-- 6-CAMERA -->
-          <div class="pkg-row">
-            <div class="card" data-pkg="6">
-              <div class="card-label">6-CAMERA</div>
-              <div class="card-name">Standard</div>
-              <div class="card-price">
-                <span class="price-currency">UGX</span>
-                <span class="price-num">2,700,000</span>
-              </div>
-              <div class="card-divider"></div>
-              <ul class="card-includes">
-                <li>6× 5MP AI cameras</li>
-                <li>8-channel NVR + 2TB hard drive</li>
-                <li>Concealed cabling install</li>
-                <li>Mobile app + 30-min training</li>
-                <li>12-month written warranty</li>
-              </ul>
-              <a href="#contact" class="card-cta">Book free survey</a>
+          <div class="card" data-pkg="6">
+            <div class="card-label">6-CAMERA</div>
+            <div class="card-name">Standard</div>
+            <div class="card-price">
+              <span class="price-currency">UGX</span>
+              <span class="price-num" data-std="2,700,000" data-pro="3,100,000">2,700,000</span>
             </div>
-            <figure class="pkg-photo">
-              <img src="assets/packages/pkg-6.jpeg" alt="Verisko 6-camera Standard package — six 5MP AI cameras with NVR" loading="lazy" decoding="async" width="1000" height="747" />
-            </figure>
+            <div class="camera-mix">
+              <div class="mix-label">Camera mix</div>
+              <div class="mix-detail" data-mix="6">4× 5MP bullet + 2× 5MP dome (interior)</div>
+            </div>
+            <ul class="card-includes">
+              <li>8-channel NVR + 2TB hard drive</li>
+              <li>Concealed cabling install</li>
+              <li>Mobile app + 30-min training</li>
+              <li>12-month written warranty</li>
+            </ul>
+            <a href="#contact" class="card-cta">Book free survey</a>
           </div>
 
           <!-- 8-CAMERA -->
-          <div class="pkg-row">
-            <div class="card" data-pkg="8">
-              <div class="card-label">8-CAMERA</div>
-              <div class="card-name">Premium</div>
-              <div class="card-price">
-                <span class="price-currency">UGX</span>
-                <span class="price-num">3,700,000</span>
-              </div>
-              <div class="card-divider"></div>
-              <ul class="card-includes">
-                <li>8× 5MP AI cameras</li>
-                <li>8-channel NVR + 2TB hard drive</li>
-                <li>Concealed cabling install</li>
-                <li>Mobile app + 30-min training</li>
-                <li>12-month written warranty</li>
-              </ul>
-              <a href="#contact" class="card-cta">Book free survey</a>
+          <div class="card" data-pkg="8">
+            <div class="card-label">8-CAMERA</div>
+            <div class="card-name">Premium</div>
+            <div class="card-price">
+              <span class="price-currency">UGX</span>
+              <span class="price-num" data-std="3,700,000" data-pro="4,100,000">3,700,000</span>
             </div>
-            <figure class="pkg-photo">
-              <img src="assets/packages/pkg-8.jpeg" alt="Verisko 8-camera Premium package — eight 5MP AI cameras with NVR" loading="lazy" decoding="async" width="1000" height="747" />
-            </figure>
+            <div class="camera-mix">
+              <div class="mix-label">Camera mix</div>
+              <div class="mix-detail" data-mix="8">5× 5MP bullet + 2× 5MP dome + 1× 5MP PTZ (back yard)</div>
+            </div>
+            <ul class="card-includes">
+              <li>8-channel NVR + 2TB hard drive</li>
+              <li>Concealed cabling install</li>
+              <li>Mobile app + 30-min training</li>
+              <li>12-month written warranty</li>
+            </ul>
+            <a href="#contact" class="card-cta">Book free survey</a>
           </div>
 
           <!-- 12-CAMERA -->
-          <div class="pkg-row">
-            <div class="card" data-pkg="12">
-              <div class="card-label">12-CAMERA</div>
-              <div class="card-name">Maximum</div>
-              <div class="card-price">
-                <span class="price-currency">UGX</span>
-                <span class="price-num">5,500,000</span>
-              </div>
-              <div class="card-divider"></div>
-              <ul class="card-includes">
-                <li>12× 5MP AI cameras</li>
-                <li>16-channel NVR + 4TB hard drive</li>
-                <li>Concealed cabling install</li>
-                <li>Mobile app + 30-min training</li>
-                <li>12-month written warranty</li>
-              </ul>
-              <a href="#contact" class="card-cta">Book free survey</a>
+          <div class="card" data-pkg="12">
+            <div class="card-label">12-CAMERA</div>
+            <div class="card-name">Maximum</div>
+            <div class="card-price">
+              <span class="price-currency">UGX</span>
+              <span class="price-num" data-std="5,500,000" data-pro="5,900,000">5,500,000</span>
             </div>
-            <figure class="pkg-photo">
-              <img src="assets/packages/pkg-12.jpeg" alt="Verisko 12-camera Maximum package — twelve 5MP AI cameras with 16-channel NVR" loading="lazy" decoding="async" width="1000" height="747" />
-            </figure>
+            <div class="camera-mix">
+              <div class="mix-label">Camera mix</div>
+              <div class="mix-detail" data-mix="12">7× 5MP bullet + 4× 5MP dome + 1× 5MP PTZ</div>
+            </div>
+            <ul class="card-includes">
+              <li>16-channel NVR + 4TB hard drive</li>
+              <li>Concealed cabling install</li>
+              <li>Mobile app + 30-min training</li>
+              <li>12-month written warranty</li>
+            </ul>
+            <a href="#contact" class="card-cta">Book free survey</a>
           </div>
 
         </div>
@@ -365,7 +433,7 @@
             </svg>
           </div>
           <div class="addon-text">
-            <strong>Need an odd number?</strong>&nbsp;&nbsp;Add up to 2 cameras to any package at <strong>UGX 400,000 each</strong>. PTZ add-on UGX 500,000. More than that and the next package up gives you better value.
+            <strong>Need a specific mix?</strong>&nbsp;&nbsp;Add up to 2 cameras to any package — <strong>5MP bullet or dome UGX 400,000</strong>, <strong>8MP dome or 5MP PTZ UGX 500,000</strong>. For unusual properties, book a free site survey and we'll design a custom mix at the closest package price.
           </div>
         </div>
 
@@ -405,9 +473,10 @@
             Here's exactly where the difference goes:
           </p>
           <ul>
-            <li>5MP AI cameras imported direct from the factory — not the analog kit reused from informal market stock.</li>
+            <li>5MP and 8MP AI cameras imported direct from the factory — and the right form factor for the job. 5MP bullet for perimeter and exterior deterrence, 5MP dome for indoor coverage and ID-grade close-mount at counters and reception, 8MP wide-angle dome overhead at high-detail points like the till, 5MP PTZ for yards and parking. Most informal installers use the cheapest bullet for everything.</li>
             <li>Cabling concealed in proper trunking. Not stapled to your wall.</li>
-            <li>A written warranty we honour. Most informal installers vanish after the install.</li>
+            <li><strong>Proper cybersecurity hardening on every install</strong> — every default password changed, cameras segmented on their own network, HTTPS-only access, firmware updated quarterly. Most installers leave admin/12345. That's why so many CCTV feeds in Kampala are searchable on the public internet. Yours won't be.</li>
+            <li>A written warranty we honour. Most informal installers vanish after install.</li>
             <li>Free 30-day check-in to confirm the system still works the way it did on day one.</li>
             <li>Every cable, screw, connector, and configuration step is in the price you see. No fees added on install day.</li>
           </ul>
