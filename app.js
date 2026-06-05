@@ -170,6 +170,95 @@
     if (decline) decline.addEventListener('click', function () { dismiss('declined'); });
   }
 
+  /* ---------- Packages: vertical tabs + Standard/Pro toggle ---------- */
+  var pkgTabs = document.querySelectorAll('.pricing .vtab');
+  if (pkgTabs.length) {
+    // Camera mixes per vertical × package size. All cameras drawn from the
+    // current catalogue: 5MP bullet, 5MP dome, 8MP wide-angle dome, 5MP PTZ.
+    var cameraMixes = {
+      home: {
+        2:  '2× 5MP bullet — gate + drive',
+        4:  '3× 5MP bullet + 1× 5MP dome (interior entrance)',
+        6:  '4× 5MP bullet + 2× 5MP dome (interior)',
+        8:  '5× 5MP bullet + 2× 5MP dome + 1× 5MP PTZ (back yard)',
+        12: '7× 5MP bullet + 4× 5MP dome + 1× 5MP PTZ'
+      },
+      shop: {
+        2:  '1× 5MP bullet + 1× 5MP dome (interior)',
+        4:  '1× 5MP bullet + 3× 5MP dome (retail floor)',
+        6:  '1× 5MP bullet + 4× 5MP dome + 1× 8MP dome (overhead till)',
+        8:  '1× 5MP bullet + 5× 5MP dome + 1× 8MP dome (till) + 1× 5MP PTZ',
+        12: '2× 5MP bullet + 7× 5MP dome + 1× 8MP dome (till) + 1× 5MP PTZ + 1× 5MP dome (rear)'
+      },
+      office: {
+        2:  '1× 5MP bullet + 1× 5MP dome (reception, close-mount)',
+        4:  '1× 5MP bullet + 1× 5MP dome (reception) + 2× 5MP dome (workspace)',
+        6:  '2× 5MP bullet + 1× 5MP dome (reception) + 3× 5MP dome (workspace)',
+        8:  '2× 5MP bullet + 1× 5MP dome (reception) + 4× 5MP dome + 1× 5MP PTZ (parking)',
+        12: '3× 5MP bullet + 2× 5MP dome (reception/lobby) + 5× 5MP dome + 1× 8MP dome + 1× 5MP PTZ'
+      },
+      pharmacy: {
+        2:  '1× 5MP bullet + 1× 5MP dome (dispensary, close-mount)',
+        4:  '1× 5MP bullet + 1× 5MP dome (dispensary) + 2× 5MP dome (floor)',
+        6:  '1× 5MP bullet + 1× 5MP dome (dispensary) + 3× 5MP dome + 1× 8MP dome (overhead till)',
+        8:  '1× 5MP bullet + 2× 5MP dome (dispensary + storage) + 4× 5MP dome + 1× 8MP dome (till)',
+        12: '2× 5MP bullet + 2× 5MP dome (dispensary + storage) + 6× 5MP dome + 1× 8MP dome + 1× 5MP PTZ'
+      },
+      compound: {
+        2:  '2× 5MP bullet — main gate + drive',
+        4:  '3× 5MP bullet + 1× 5MP dome (interior)',
+        6:  '4× 5MP bullet + 2× 5MP dome (interior)',
+        8:  '5× 5MP bullet + 2× 5MP dome + 1× 5MP PTZ',
+        12: '6× 5MP bullet + 3× 5MP dome + 1× 5MP PTZ + 1× 5MP dome (gate ID) + 1× 8MP dome'
+      }
+    };
+
+    var verticalDescriptions = {
+      home: '<strong>Home —</strong> detached or semi-detached residence with gate and perimeter focus. 5MP bullets at entry, drive, and side passages; discreet 5MP domes at interior entry points; PTZ for back yard tracking at the 8-cam tier and above.',
+      shop: '<strong>Shop &amp; Retail —</strong> boutiques, supermarkets, salons, electronics. Interior-heavy with discreet ceiling-mounted 5MP domes through the retail floor; <strong>8MP wide-angle dome overhead at the till</strong> for high-detail transaction capture. Bullet at the entrance for deterrence.',
+      office: '<strong>Office &amp; Workspace —</strong> coworking, small/medium offices. <strong>Close-mounted 5MP dome at reception</strong> for ID-grade entry capture (1.5–2m above the desk), domes through workspaces and corridors, bullet at the car park entry, PTZ for larger lots from 8-cam up.',
+      pharmacy: '<strong>Pharmacy &amp; Clinic —</strong> pharmacies, clinics, dental, optical. <strong>Close-mounted 5MP dome at the dispensary counter</strong> for compliance and identification-grade capture, <strong>8MP wide-angle dome overhead at the till</strong> from 6-cam up. Domes on the retail floor, bullet at entry. Designed to resolve disputes and meet insurance verification.',
+      compound: '<strong>Compound / Mixed Use —</strong> larger residential with multiple buildings, Airbnb compounds, residence + business. Heavy on perimeter 5MP bullets, dome coverage in main interior spaces, PTZ for the drive at 8-cam up, gate ID dome at the 12-cam tier.'
+    };
+
+    var mixDetails = document.querySelectorAll('.pricing .mix-detail');
+    var vertDesc = document.getElementById('vertDesc');
+
+    pkgTabs.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        pkgTabs.forEach(function (b) { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+        var v = btn.dataset.vertical;
+        mixDetails.forEach(function (el) {
+          var size = el.dataset.mix;
+          if (cameraMixes[v] && cameraMixes[v][size]) el.textContent = cameraMixes[v][size];
+        });
+        if (vertDesc && verticalDescriptions[v]) vertDesc.innerHTML = verticalDescriptions[v];
+      });
+    });
+
+    var toggleBtns = document.querySelectorAll('.pricing .toggle-btn');
+    var priceNums = document.querySelectorAll('.pricing .price-num');
+    toggleBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        toggleBtns.forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        var tier = btn.dataset.tier;
+        priceNums.forEach(function (el) {
+          var value = el.dataset[tier === 'pro' ? 'pro' : 'std'];
+          if (value === '—') {
+            el.classList.add('unavailable');
+            el.textContent = 'Pro starts at 4-cam';
+          } else {
+            el.classList.remove('unavailable');
+            el.textContent = value;
+          }
+        });
+      });
+    });
+  }
+
   /* ---------- Free site survey: contextual steps + submit -> Google Sheet ---------- */
   var surveyForm = document.getElementById('surveyForm');
   if (surveyForm) {
