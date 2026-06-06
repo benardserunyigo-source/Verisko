@@ -471,13 +471,20 @@
   if (featureModal) {
     var fmName = featureModal.querySelector('[data-feature-name]');
     var fmCloseBtn = featureModal.querySelector('.fm-close');
+    var fmSets = featureModal.querySelectorAll('.fm-set');
+    var fmDialog = featureModal.querySelector('.fm-dialog');
     var fmLastFocus = null;
 
-    var openModal = function (product) {
+    var openModal = function (product, set) {
       fmLastFocus = document.activeElement;
       if (fmName && product) fmName.textContent = product;
+      var want = set || 'camera';
+      fmSets.forEach(function (s) {
+        s.hidden = (s.getAttribute('data-feature-set') !== want);
+      });
       featureModal.hidden = false;
       document.body.style.overflow = 'hidden';
+      if (fmDialog) fmDialog.scrollTop = 0;
       if (fmCloseBtn) fmCloseBtn.focus();
     };
 
@@ -491,7 +498,7 @@
       btn.addEventListener('click', function (e) {
         // nav/footer "Features" are <a> — don't also jump the page
         if (btn.tagName === 'A') e.preventDefault();
-        openModal(btn.getAttribute('data-product') || '');
+        openModal(btn.getAttribute('data-product') || '', btn.getAttribute('data-feature-set') || 'camera');
       });
     });
 

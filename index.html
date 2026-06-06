@@ -94,7 +94,7 @@
       <div class="nav-panel" id="primary-nav">
         <nav class="nav">
           <a href="#products">Products</a>
-          <a href="#products" data-feature-open data-product="Verisko camera">Features</a>
+          <a href="#products" data-feature-open data-feature-set="camera" data-product="Verisko camera">Features</a>
           <a href="#packages">Packages</a>
           <a href="#about">About</a>
           <a href="#contact">Contact</a>
@@ -166,7 +166,7 @@
             <div class="pc-media" style="background-image:url('assets/products/ptz.jpeg')"></div>
             <h3 class="pc-name">PTZ Camera</h3>
             <p class="pc-detail">Pan-tilt-zoom · AI enabled · 5MP / 8MP</p>
-            <button type="button" class="pc-btn" data-feature-open data-product="PTZ Camera">
+            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="PTZ Camera">
               View features <span class="arrow" aria-hidden="true">→</span>
             </button>
           </article>
@@ -174,7 +174,7 @@
             <div class="pc-media" style="background-image:url('assets/products/bullet.jpeg')"></div>
             <h3 class="pc-name">Bullet Camera</h3>
             <p class="pc-detail">Outdoor · long-range IR · AI enabled · 5MP / 8MP</p>
-            <button type="button" class="pc-btn" data-feature-open data-product="Bullet Camera">
+            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="Bullet Camera">
               View features <span class="arrow" aria-hidden="true">→</span>
             </button>
           </article>
@@ -182,7 +182,7 @@
             <div class="pc-media" style="background-image:url('assets/products/nvr.jpeg')"></div>
             <h3 class="pc-name">8-Channel PoE NVR</h3>
             <p class="pc-detail">Records &amp; powers your cameras · included with every package</p>
-            <button type="button" class="pc-btn" data-feature-open data-product="8-Channel PoE NVR">
+            <button type="button" class="pc-btn" data-feature-open data-feature-set="nvr" data-product="8-Channel PoE NVR">
               View features <span class="arrow" aria-hidden="true">→</span>
             </button>
           </article>
@@ -195,27 +195,63 @@
       <div class="fm-overlay" data-feature-close></div>
       <div class="fm-dialog" role="dialog" aria-modal="true" aria-labelledby="fmTitle">
         <button type="button" class="fm-close" data-feature-close aria-label="Close">&times;</button>
-        <div class="fm-eyebrow">EVERY VERISKO CAMERA INCLUDES</div>
-        <h3 class="fm-title" id="fmTitle">Smart features</h3>
-        <p class="fm-lead">The <span data-feature-name>camera</span> — like every camera we install — ships with the same intelligence built in. No premium tiers, no add-on fees.</p>
+        <h3 class="fm-title" id="fmTitle"><span data-feature-name>Smart features</span></h3>
 
-        <figure class="fm-hero">
-          <img src="assets/features/night-vision.jpeg" alt="Day vision, IR night vision and full-colour night vision compared on a Verisko camera" loading="lazy" decoding="async" width="1200" height="900" />
-        </figure>
-        <div class="fm-grid">
-          <figure class="fm-shot">
-            <img src="assets/features/face-detection.jpeg" alt="Face detection, recording and playback — every face captured on the lens" loading="lazy" decoding="async" width="1000" height="1000" />
+        <!-- Camera feature set: the visual smart-features graphics -->
+        <div class="fm-set" data-feature-set="camera">
+          <div class="fm-eyebrow">EVERY VERISKO CAMERA INCLUDES</div>
+          <p class="fm-lead">Like every camera we install, it ships with the same intelligence built in — no premium tiers, no add-on fees.</p>
+          <figure class="fm-hero">
+            <img src="assets/features/night-vision.jpeg" alt="Day vision, IR night vision and full-colour night vision compared on a Verisko camera" loading="lazy" decoding="async" width="1200" height="900" />
           </figure>
-          <figure class="fm-shot">
-            <img src="assets/features/smart-email-alert.jpeg" alt="Smart email alert sent automatically the moment an intruder is detected" loading="lazy" decoding="async" width="1000" height="1000" />
-          </figure>
-          <figure class="fm-shot">
-            <img src="assets/features/active-deterrence.jpeg" alt="Active deterrence — the white LEDs light and warn anyone entering the danger zone" loading="lazy" decoding="async" width="1000" height="1000" />
-          </figure>
-          <figure class="fm-shot">
-            <img src="assets/features/two-way-audio.jpeg" alt="Real-time two-way audio between the camera and your phone" loading="lazy" decoding="async" width="1000" height="1000" />
-          </figure>
+          <div class="fm-grid">
+            <figure class="fm-shot">
+              <img src="assets/features/face-detection.jpeg" alt="Face detection, recording and playback — every face captured on the lens" loading="lazy" decoding="async" width="1000" height="1000" />
+            </figure>
+            <figure class="fm-shot">
+              <img src="assets/features/smart-email-alert.jpeg" alt="Smart email alert sent automatically the moment an intruder is detected" loading="lazy" decoding="async" width="1000" height="1000" />
+            </figure>
+            <figure class="fm-shot">
+              <img src="assets/features/active-deterrence.jpeg" alt="Active deterrence — the white LEDs light and warn anyone entering the danger zone" loading="lazy" decoding="async" width="1000" height="1000" />
+            </figure>
+            <figure class="fm-shot">
+              <img src="assets/features/two-way-audio.jpeg" alt="Real-time two-way audio between the camera and your phone" loading="lazy" decoding="async" width="1000" height="1000" />
+            </figure>
+          </div>
         </div>
+
+        <!-- NVR feature set: what the recorder does -->
+        <div class="fm-set" data-feature-set="nvr" hidden>
+          <div class="fm-eyebrow">THE HEART OF YOUR SYSTEM</div>
+          <p class="fm-lead">The recorder that powers and stores everything. It's included with whichever package you choose — supplied, fitted and configured by us.</p>
+          <ul class="fm-list">
+            <li>
+              <span class="fm-ic" aria-hidden="true">✓</span>
+              <div><strong>Powers &amp; records up to 8 cameras</strong>Every Verisko camera plugs straight in — one box runs the whole system.</div>
+            </li>
+            <li>
+              <span class="fm-ic" aria-hidden="true">✓</span>
+              <div><strong>Power over Ethernet (PoE)</strong>A single cable carries both power and video to each camera — no separate power supply, a cleaner, tidier install.</div>
+            </li>
+            <li>
+              <span class="fm-ic" aria-hidden="true">✓</span>
+              <div><strong>24/7 + motion recording</strong>Continuous footage with smart motion search, so you find the moment that matters in seconds.</div>
+            </li>
+            <li>
+              <span class="fm-ic" aria-hidden="true">✓</span>
+              <div><strong>Playback from anywhere</strong>Review live or past recordings on your phone, wherever you are.</div>
+            </li>
+            <li>
+              <span class="fm-ic" aria-hidden="true">✓</span>
+              <div><strong>Expandable storage</strong>Sized to keep days or weeks of footage — your choice of how far back to keep.</div>
+            </li>
+            <li>
+              <span class="fm-ic" aria-hidden="true">✓</span>
+              <div><strong>Included with every package</strong>No extra cost — it's the foundation every Verisko system is built on.</div>
+            </li>
+          </ul>
+        </div>
+
         <a href="#contact" class="fm-cta" data-feature-close>Book a free survey <span class="arrow" aria-hidden="true">→</span></a>
       </div>
     </div>
@@ -729,7 +765,7 @@
         <ul>
           <li><a href="#solutions">Solutions</a></li>
           <li><a href="#products">Products</a></li>
-          <li><a href="#products" data-feature-open data-product="Verisko camera">Features</a></li>
+          <li><a href="#products" data-feature-open data-feature-set="camera" data-product="Verisko camera">Features</a></li>
           <li><a href="#packages">Packages</a></li>
           <li><a href="#about">About</a></li>
           <li><a href="#contact">Contact</a></li>
