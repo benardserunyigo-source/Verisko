@@ -265,16 +265,7 @@
     // Contextual sub-questions + concern checkboxes per vertical.
     var contextualQuestions = {
       home: {
-        subFields: '' +
-          '<label class="field-label">Quick property details</label>' +
-          '<div class="input-row">' +
-            '<div class="field"><input class="input-text" name="floors" type="text" placeholder="Number of floors (e.g. 2)"></div>' +
-            '<div class="field"><input class="input-text" name="gates" type="text" placeholder="Number of gates / entrances (e.g. 2)"></div>' +
-          '</div>' +
-          '<div class="input-row" style="margin-top:14px;">' +
-            '<div class="field" style="margin:0;"><input class="input-text" name="boundary" type="text" placeholder="Boundary wall (yes / no / partial)"></div>' +
-            '<div class="field" style="margin:0;"><input class="input-text" name="staff" type="text" placeholder="Domestic staff (housekeeper, guard, gardener…)"></div>' +
-          '</div>',
+        subFields: '',
         concerns: [
           'After-hours intrusion', 'Domestic staff accountability', 'Front gate access',
           'Driveway / parking', 'Back yard or perimeter', 'Children safety monitoring',
@@ -282,16 +273,7 @@
         ]
       },
       shop: {
-        subFields: '' +
-          '<label class="field-label">Quick shop details</label>' +
-          '<div class="input-row">' +
-            '<div class="field"><input class="input-text" name="shopType" type="text" placeholder="Type of shop (supermarket, salon, electronics…)"></div>' +
-            '<div class="field"><input class="input-text" name="staffCount" type="text" placeholder="Number of staff at peak"></div>' +
-          '</div>' +
-          '<div class="input-row" style="margin-top:14px;">' +
-            '<div class="field" style="margin:0;"><input class="input-text" name="tills" type="text" placeholder="Number of till / cash points"></div>' +
-            '<div class="field" style="margin:0;"><input class="input-text" name="hours" type="text" placeholder="Operating hours (e.g. 8am–8pm)"></div>' +
-          '</div>',
+        subFields: '',
         concerns: [
           'Customer shoplifting', 'Staff shrinkage (internal theft)', 'Till transaction disputes',
           'After-hours break-in', 'Front window / display protection', 'Stockroom / back-of-house theft',
@@ -299,16 +281,7 @@
         ]
       },
       office: {
-        subFields: '' +
-          '<label class="field-label">Quick office details</label>' +
-          '<div class="input-row">' +
-            '<div class="field"><input class="input-text" name="employees" type="text" placeholder="Number of employees"></div>' +
-            '<div class="field"><input class="input-text" name="reception" type="text" placeholder="Reception staffed? (yes / no)"></div>' +
-          '</div>' +
-          '<div class="input-row" style="margin-top:14px;">' +
-            '<div class="field" style="margin:0;"><input class="input-text" name="serverRoom" type="text" placeholder="Server / IT room? (yes / no)"></div>' +
-            '<div class="field" style="margin:0;"><input class="input-text" name="parking" type="text" placeholder="Car park? (yes / no / shared)"></div>' +
-          '</div>',
+        subFields: '',
         concerns: [
           'Visitor management at reception', 'After-hours building access', 'Workspace and corridor coverage',
           'Server room / IT closet protection', 'Parking lot incidents', 'Equipment theft tracking',
@@ -316,16 +289,7 @@
         ]
       },
       pharmacy: {
-        subFields: '' +
-          '<label class="field-label">Quick pharmacy / clinic details</label>' +
-          '<div class="input-row">' +
-            '<div class="field"><input class="input-text" name="pharmType" type="text" placeholder="Type (community pharmacy, clinic, dental, optical…)"></div>' +
-            '<div class="field"><input class="input-text" name="cdStorage" type="text" placeholder="Controlled drug storage? (yes / no)"></div>' +
-          '</div>' +
-          '<div class="input-row" style="margin-top:14px;">' +
-            '<div class="field" style="margin:0;"><input class="input-text" name="dispensary" type="text" placeholder="Number of dispensary counters"></div>' +
-            '<div class="field" style="margin:0;"><input class="input-text" name="staffCount" type="text" placeholder="Number of staff"></div>' +
-          '</div>',
+        subFields: '',
         concerns: [
           'Dispensary counter dispute resolution', 'Staff shrinkage and accountability',
           'Controlled drug storage monitoring', 'Till / cash point coverage', 'Customer ID at dispensary',
@@ -333,16 +297,7 @@
         ]
       },
       compound: {
-        subFields: '' +
-          '<label class="field-label">Quick compound details</label>' +
-          '<div class="input-row">' +
-            '<div class="field"><input class="input-text" name="buildings" type="text" placeholder="Number of buildings"></div>' +
-            '<div class="field"><input class="input-text" name="gates" type="text" placeholder="Number of gates / entrances"></div>' +
-          '</div>' +
-          '<div class="input-row" style="margin-top:14px;">' +
-            '<div class="field" style="margin:0;"><input class="input-text" name="mixedUse" type="text" placeholder="Mixed use? (residence + business / Airbnb / single family)"></div>' +
-            '<div class="field" style="margin:0;"><input class="input-text" name="guard" type="text" placeholder="Security guard on duty? (yes / no / day-only)"></div>' +
-          '</div>',
+        subFields: '',
         concerns: [
           'Perimeter wall and boundary', 'Main gate ID and access', 'Drive and parking coverage',
           'Multiple building blind spots', 'Visitor / tenant tracking', 'Domestic staff accountability',
