@@ -461,4 +461,51 @@
         });
     });
   }
+
+  /* -------------------------------------------------------------------
+     Product features modal — "View features" on each product card opens
+     a shared smart-features dialog, personalised with the product name.
+     Tap/click only (no hover dependency); Esc + overlay + × all close it.
+  ------------------------------------------------------------------- */
+  var featureModal = document.getElementById('featureModal');
+  if (featureModal) {
+    var fmName = featureModal.querySelector('[data-feature-name]');
+    var fmCloseBtn = featureModal.querySelector('.fm-close');
+    var fmLastFocus = null;
+
+    var openModal = function (product) {
+      fmLastFocus = document.activeElement;
+      if (fmName && product) fmName.textContent = product;
+      featureModal.hidden = false;
+      document.body.style.overflow = 'hidden';
+      if (fmCloseBtn) fmCloseBtn.focus();
+    };
+
+    var closeModal = function (restoreFocus) {
+      featureModal.hidden = true;
+      document.body.style.overflow = '';
+      if (restoreFocus !== false && fmLastFocus && fmLastFocus.focus) fmLastFocus.focus();
+    };
+
+    document.querySelectorAll('[data-feature-open]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        // nav/footer "Features" are <a> — don't also jump the page
+        if (btn.tagName === 'A') e.preventDefault();
+        openModal(btn.getAttribute('data-product') || '');
+      });
+    });
+
+    featureModal.querySelectorAll('[data-feature-close]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        // the CTA is a real anchor to #contact — close, but don't steal focus
+        // back to the card or it fights the scroll-to-contact.
+        var isLink = el.tagName === 'A';
+        closeModal(!isLink);
+      });
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !featureModal.hidden) closeModal();
+    });
+  }
 })();

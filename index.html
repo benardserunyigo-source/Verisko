@@ -94,7 +94,7 @@
       <div class="nav-panel" id="primary-nav">
         <nav class="nav">
           <a href="#products">Products</a>
-          <a href="#features">Features</a>
+          <a href="#products" data-feature-open data-product="Verisko camera">Features</a>
           <a href="#packages">Packages</a>
           <a href="#about">About</a>
           <a href="#contact">Contact</a>
@@ -166,55 +166,60 @@
             <div class="pc-media" style="background-image:url('assets/products/ptz.jpeg')"></div>
             <h3 class="pc-name">PTZ Camera</h3>
             <p class="pc-detail">Pan-tilt-zoom · AI enabled · 5MP / 8MP</p>
+            <button type="button" class="pc-btn" data-feature-open data-product="PTZ Camera">
+              View features <span class="arrow" aria-hidden="true">→</span>
+            </button>
           </article>
           <article class="product-card">
             <div class="pc-media" style="background-image:url('assets/products/bullet.jpeg')"></div>
             <h3 class="pc-name">Bullet Camera</h3>
             <p class="pc-detail">Outdoor · long-range IR · AI enabled · 5MP / 8MP</p>
+            <button type="button" class="pc-btn" data-feature-open data-product="Bullet Camera">
+              View features <span class="arrow" aria-hidden="true">→</span>
+            </button>
           </article>
           <article class="product-card">
             <div class="pc-media" style="background-image:url('assets/products/nvr.jpeg')"></div>
             <h3 class="pc-name">8-Channel PoE NVR</h3>
             <p class="pc-detail">Records &amp; powers your cameras · included with every package</p>
+            <button type="button" class="pc-btn" data-feature-open data-product="8-Channel PoE NVR">
+              View features <span class="arrow" aria-hidden="true">→</span>
+            </button>
           </article>
         </div>
       </div>
     </section>
 
-    <!-- ===================== Features ===================== -->
-    <section class="features" id="features">
-      <div class="features-inner">
-        <div class="features-head">
-          <div class="eyebrow">EVERY CAMERA INCLUDES</div>
-          <h2>Smart features, built in.</h2>
-          <p class="features-lead">
-            Every Verisko camera ships with the same intelligence — no premium tiers,
-            no add-on fees. Here's what's watching over your space, day and night.
-          </p>
-        </div>
+    <!-- ===================== Product features modal ===================== -->
+    <div class="feature-modal" id="featureModal" hidden>
+      <div class="fm-overlay" data-feature-close></div>
+      <div class="fm-dialog" role="dialog" aria-modal="true" aria-labelledby="fmTitle">
+        <button type="button" class="fm-close" data-feature-close aria-label="Close">&times;</button>
+        <div class="fm-eyebrow">EVERY VERISKO CAMERA INCLUDES</div>
+        <h3 class="fm-title" id="fmTitle">Smart features</h3>
+        <p class="fm-lead">The <span data-feature-name>camera</span> — like every camera we install — ships with the same intelligence built in. No premium tiers, no add-on fees.</p>
 
-        <!-- Hero: full vision range (day / IR / full-colour night) -->
-        <figure class="feature-hero">
+        <figure class="fm-hero">
           <img src="assets/features/night-vision.jpeg" alt="Day vision, IR night vision and full-colour night vision compared on a Verisko camera" loading="lazy" decoding="async" width="1200" height="900" />
         </figure>
-
-        <!-- 2×2 grid of self-captioned feature graphics -->
-        <div class="feature-grid">
-          <figure class="feature-card">
+        <div class="fm-grid">
+          <figure class="fm-shot">
             <img src="assets/features/face-detection.jpeg" alt="Face detection, recording and playback — every face captured on the lens" loading="lazy" decoding="async" width="1000" height="1000" />
           </figure>
-          <figure class="feature-card">
+          <figure class="fm-shot">
             <img src="assets/features/smart-email-alert.jpeg" alt="Smart email alert sent automatically the moment an intruder is detected" loading="lazy" decoding="async" width="1000" height="1000" />
           </figure>
-          <figure class="feature-card">
+          <figure class="fm-shot">
             <img src="assets/features/active-deterrence.jpeg" alt="Active deterrence — the white LEDs light and warn anyone entering the danger zone" loading="lazy" decoding="async" width="1000" height="1000" />
           </figure>
-          <figure class="feature-card">
+          <figure class="fm-shot">
             <img src="assets/features/two-way-audio.jpeg" alt="Real-time two-way audio between the camera and your phone" loading="lazy" decoding="async" width="1000" height="1000" />
           </figure>
         </div>
+        <a href="#contact" class="fm-cta" data-feature-close>Book a free survey <span class="arrow" aria-hidden="true">→</span></a>
       </div>
-    </section>
+    </div>
+
 
     <!-- ===================== Packages / Pricing ===================== -->
     <section class="pricing" id="packages">
@@ -724,7 +729,7 @@
         <ul>
           <li><a href="#solutions">Solutions</a></li>
           <li><a href="#products">Products</a></li>
-          <li><a href="#features">Features</a></li>
+          <li><a href="#products" data-feature-open data-product="Verisko camera">Features</a></li>
           <li><a href="#packages">Packages</a></li>
           <li><a href="#about">About</a></li>
           <li><a href="#contact">Contact</a></li>
