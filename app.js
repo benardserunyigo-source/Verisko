@@ -262,79 +262,10 @@
   /* ---------- Free site survey: contextual steps + submit -> Google Sheet ---------- */
   var surveyForm = document.getElementById('surveyForm');
   if (surveyForm) {
-    // Contextual sub-questions + concern checkboxes per vertical.
-    var contextualQuestions = {
-      home: {
-        subFields: '',
-        concerns: [
-          'After-hours intrusion', 'Domestic staff accountability', 'Front gate access',
-          'Driveway / parking', 'Back yard or perimeter', 'Children safety monitoring',
-          'Recent specific incident', 'Remote viewing while travelling'
-        ]
-      },
-      shop: {
-        subFields: '',
-        concerns: [
-          'Customer shoplifting', 'Staff shrinkage (internal theft)', 'Till transaction disputes',
-          'After-hours break-in', 'Front window / display protection', 'Stockroom / back-of-house theft',
-          'Customer disputes & refund claims', 'Insurance verification requirement'
-        ]
-      },
-      office: {
-        subFields: '',
-        concerns: [
-          'Visitor management at reception', 'After-hours building access', 'Workspace and corridor coverage',
-          'Server room / IT closet protection', 'Parking lot incidents', 'Equipment theft tracking',
-          'Employee accountability monitoring', 'Compliance / audit requirement'
-        ]
-      },
-      pharmacy: {
-        subFields: '',
-        concerns: [
-          'Dispensary counter dispute resolution', 'Staff shrinkage and accountability',
-          'Controlled drug storage monitoring', 'Till / cash point coverage', 'Customer ID at dispensary',
-          'Insurance verification requirement', 'After-hours break-in', 'Patient safety monitoring'
-        ]
-      },
-      compound: {
-        subFields: '',
-        concerns: [
-          'Perimeter wall and boundary', 'Main gate ID and access', 'Drive and parking coverage',
-          'Multiple building blind spots', 'Visitor / tenant tracking', 'Domestic staff accountability',
-          'Mixed-use separation (residence vs business)', 'Remote viewing while travelling'
-        ]
-      }
-    };
     var verticalLabels = {
       home: 'Home', shop: 'Shop / Retail', office: 'Office',
-      pharmacy: 'Pharmacy / Clinic', compound: 'Compound'
+      pharmacy: 'Pharmacy / Clinic', schools: 'Schools', rentals: 'Rentals'
     };
-
-    var contextualBlock = document.getElementById('contextualBlock');
-    var concernsList = document.getElementById('concernsList');
-
-    var escapeHtml = function (s) {
-      return String(s).replace(/[&<>"]/g, function (c) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-      });
-    };
-
-    var renderContextual = function (vertical) {
-      var data = contextualQuestions[vertical];
-      if (!data) return;
-      contextualBlock.innerHTML = data.subFields;
-      concernsList.innerHTML = data.concerns.map(function (c, i) {
-        return '' +
-          '<div class="check-item">' +
-            '<input type="checkbox" id="concern-' + i + '" name="concerns[]" value="' + escapeHtml(c) + '">' +
-            '<label for="concern-' + i + '">' +
-              '<span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' +
-              '<span>' + escapeHtml(c) + '</span>' +
-            '</label>' +
-          '</div>';
-      }).join('');
-    };
-    renderContextual('home');
 
     var svtabs = surveyForm.querySelectorAll('.vtab');
     var verticalInput = document.getElementById('verticalInput');
@@ -342,9 +273,7 @@
       btn.addEventListener('click', function () {
         svtabs.forEach(function (b) { b.classList.remove('active'); });
         btn.classList.add('active');
-        var v = btn.dataset.vertical;
-        if (verticalInput) verticalInput.value = v;
-        renderContextual(v);
+        if (verticalInput) verticalInput.value = btn.dataset.vertical;
       });
     });
 
@@ -360,20 +289,13 @@
 
     var buildSummary = function (fd) {
       var get = function (k) { var v = fd.get(k); return v ? String(v).trim() : ''; };
-      var concerns = fd.getAll('concerns[]').join(', ');
       var lines = [
         'Space type: ' + (verticalLabels[get('vertical')] || get('vertical')),
-        'Property: ' + get('propName') + (get('propArea') ? ' (' + get('propArea') + ')' : ''),
+        'Area: ' + get('propArea'),
         'Size: ' + get('propSize') + ' | Existing CCTV: ' + get('cctvStatus'),
-        'Timeline: ' + get('timeline') + ' | Preferred contact: ' + get('contactPref'),
-        concerns ? 'Concerns: ' + concerns : ''
+        'Timeline: ' + get('timeline') + ' | Payment: ' + get('payment'),
+        'Preferred contact: ' + get('contactPref')
       ];
-      var ctxKeys = ['floors','gates','boundary','staff','shopType','staffCount','tills','hours',
-        'employees','reception','serverRoom','parking','pharmType','cdStorage','dispensary',
-        'buildings','mixedUse','guard'];
-      var ctx = ctxKeys.map(function (k) { var v = get(k); return v ? k + ': ' + v : ''; })
-        .filter(Boolean).join(' | ');
-      if (ctx) lines.push('Details: ' + ctx);
       if (get('notes')) lines.push('Notes: ' + get('notes'));
       return lines.filter(Boolean).join('\n');
     };

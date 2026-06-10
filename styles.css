@@ -1901,6 +1901,14 @@ html { overflow-x: hidden; }
   border-color: var(--cyan);
   color: var(--navy);
 }
+.survey .pill label small {
+  display: block;
+  margin-top: 4px;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--muted);
+}
+.survey .pill input:checked + label small { color: var(--navy); }
 
 /* ---- checkbox group (concerns) ---- */
 .survey .check-group {
