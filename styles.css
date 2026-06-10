@@ -1960,14 +1960,21 @@ html { overflow-x: hidden; }
    ===================================================================== */
 .survey-section {
   --navy:  #012169;
+  --navy-soft: #1A3A7E;
   --cyan:  #169BD7;
+  --cyan-bright: #2EB5F0;
   --cyan-soft: #E8F4FB;
   --ink:   #0A1733;
   --muted: #5E6B82;
-  --line:  rgba(1, 33, 105, 0.08);
-  --line-mid: rgba(1, 33, 105, 0.18);
+  --muted-soft: #8A95AB;
+  --line:  rgba(1, 33, 105, 0.06);
+  --line-mid: rgba(1, 33, 105, 0.12);
+  --line-strong: rgba(1, 33, 105, 0.18);
   --card-bg: #FFFFFF;
-  --section-bg: #FAFBFD;
+  --section-bg: #F7F9FC;
+  --field-bg: #F4F7FB;
+  --shadow-sm: 0 1px 2px rgba(1, 33, 105, 0.04), 0 1px 1px rgba(1, 33, 105, 0.02);
+  --shadow-md: 0 4px 12px rgba(1, 33, 105, 0.06), 0 2px 4px rgba(1, 33, 105, 0.04);
 
   font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
   color: var(--ink);
@@ -2009,85 +2016,97 @@ html { overflow-x: hidden; }
 /* ---- step ---- */
 .survey .step {
   background: #FFFFFF;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 36px 36px 32px;
-  margin-bottom: 18px;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  border: 1px solid var(--line-mid);
+  border-radius: 20px;
+  padding: 40px 40px 36px;
+  margin-bottom: 22px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.22s ease, box-shadow 0.22s ease;
 }
 .survey .step:focus-within {
-  border-color: var(--line-mid);
-  box-shadow: 0 8px 24px rgba(1, 33, 105, 0.06);
+  border-color: rgba(22, 155, 215, 0.30);
+  box-shadow: var(--shadow-md);
 }
 .survey .step-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 14px;
-  margin-bottom: 22px;
+  margin-bottom: 24px;
 }
 .survey .step-num {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: var(--cyan);
-  padding: 5px 10px;
-  background: var(--cyan-soft);
-  border-radius: 6px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #FFFFFF;
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-soft) 100%);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(1, 33, 105, 0.18);
 }
 .survey .step-title {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
   color: var(--navy);
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
   line-height: 1.2;
 }
 .survey .step-help {
-  font-size: 14.5px;
+  font-size: 15px;
   color: var(--muted);
-  margin-top: -10px;
-  margin-bottom: 22px;
-  line-height: 1.55;
+  margin-top: -14px;
+  margin-bottom: 26px;
+  line-height: 1.6;
 }
 
 /* ---- vertical tabs ---- */
 .survey .vertical-tabs {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
 }
 .survey .vtab {
-  border: 2px solid var(--line-mid);
+  border: 1.5px solid var(--line-mid);
   background: #FFFFFF;
-  padding: 18px 10px 16px;
+  padding: 20px 8px 16px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
   color: var(--navy);
   cursor: pointer;
   border-radius: 14px;
-  transition: all 0.18s ease;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   text-align: center;
+  letter-spacing: -0.005em;
   flex: none;          /* override the pricing .vtab flex:1 */
   min-width: 0;
 }
-.survey .vtab:hover { border-color: var(--cyan); }
+.survey .vtab:hover {
+  border-color: rgba(22, 155, 215, 0.35);
+  background: var(--cyan-soft);
+}
 .survey .vtab.active {
-  background: var(--navy);
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-soft) 100%);
   color: #FFFFFF;
   border-color: var(--navy);
-  box-shadow: 0 4px 12px rgba(1, 33, 105, 0.16);
+  box-shadow: 0 8px 20px rgba(1, 33, 105, 0.22);
 }
 .survey .vtab .vicon {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 6px;
-  width: 26px; height: 26px;
+  margin: 0 auto 8px;
+  width: 28px; height: 28px;
   color: var(--cyan);
-  transition: color 0.18s ease;
+  transition: color 0.22s ease, transform 0.22s ease;
 }
-.survey .vtab.active .vicon { color: #FFFFFF; }
+.survey .vtab:hover .vicon { transform: scale(1.08); }
+.survey .vtab.active .vicon { color: var(--cyan-bright); }
 .survey .vtab .vicon svg { width: 100%; height: 100%; }
 
 /* ---- form fields ---- */
@@ -2156,22 +2175,27 @@ html { overflow-x: hidden; }
 .survey .pill input { position: absolute; opacity: 0; pointer-events: none; }
 .survey .pill label {
   display: block;
-  padding: 12px 16px;
-  background: var(--section-bg);
+  padding: 14px 18px;
+  background: var(--field-bg);
   border: 1.5px solid transparent;
-  border-radius: 10px;
+  border-radius: 12px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ink);
   text-align: center;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: -0.005em;
 }
-.survey .pill label:hover { border-color: var(--cyan); }
+.survey .pill label:hover {
+  background: #FFFFFF;
+  border-color: rgba(22, 155, 215, 0.35);
+}
 .survey .pill input:checked + label {
-  background: var(--cyan-soft);
-  border-color: var(--cyan);
-  color: var(--navy);
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-soft) 100%);
+  border-color: var(--navy);
+  color: #FFFFFF;
+  box-shadow: 0 6px 18px rgba(1, 33, 105, 0.22);
 }
 .survey .pill label small {
   display: block;
@@ -2180,7 +2204,7 @@ html { overflow-x: hidden; }
   font-size: 12px;
   color: var(--muted);
 }
-.survey .pill input:checked + label small { color: var(--navy); }
+.survey .pill input:checked + label small { color: rgba(255, 255, 255, 0.75); }
 
 /* ---- checkbox group (concerns) ---- */
 .survey .check-group {
@@ -2326,11 +2350,21 @@ html { overflow-x: hidden; }
 }
 
 /* ---- survey responsive ---- */
+@media (max-width: 980px) {
+  .survey .vertical-tabs { grid-template-columns: repeat(3, 1fr); }
+}
 @media (max-width: 760px) {
   .survey { padding: 56px 16px 80px; }
-  .survey .step { padding: 26px 22px; }
-  .survey .vertical-tabs { grid-template-columns: repeat(2, 1fr); }
+  .survey .step { padding: 30px 24px 26px; border-radius: 18px; }
+  .survey .vertical-tabs { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .survey .vtab { padding: 16px 6px 14px; font-size: 12px; border-radius: 12px; }
+  .survey .vtab .vicon { width: 24px; height: 24px; margin-bottom: 6px; }
   .survey .check-group { grid-template-columns: 1fr; }
   .survey .input-row { grid-template-columns: 1fr; }
   .survey .pill { min-width: calc(50% - 5px); }
+  .survey .pill label { padding: 12px 14px; }
+}
+@media (max-width: 460px) {
+  .survey .vertical-tabs { grid-template-columns: repeat(2, 1fr); }
+  .survey .pill { min-width: 100%; }
 }
