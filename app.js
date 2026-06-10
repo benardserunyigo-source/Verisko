@@ -139,52 +139,61 @@
   /* ---------- Packages: vertical tabs + Standard/Pro toggle ---------- */
   var pkgTabs = document.querySelectorAll('.pricing .vtab');
   if (pkgTabs.length) {
-    // Camera mixes per vertical × package size. All cameras drawn from the
-    // current catalogue: 5MP bullet, 5MP dome, 8MP wide-angle dome, 5MP PTZ.
+    // Camera mixes per vertical × package size, in plain customer language.
+    // Outdoor camera = bullet, ceiling camera = dome, wide camera = 8MP
+    // wide-angle dome, moving camera = PTZ.
     var cameraMixes = {
       home: {
-        2:  '2× 5MP bullet — gate + drive',
-        4:  '3× 5MP bullet + 1× 5MP dome (interior entrance)',
-        6:  '4× 5MP bullet + 2× 5MP dome (interior)',
-        8:  '5× 5MP bullet + 2× 5MP dome + 1× 5MP PTZ (back yard)',
-        12: '7× 5MP bullet + 4× 5MP dome + 1× 5MP PTZ'
+        2:  '2 outdoor cameras — gate and drive',
+        4:  '3 outdoor cameras + 1 ceiling camera inside the door',
+        6:  '4 outdoor cameras + 2 ceiling cameras inside',
+        8:  '5 outdoor cameras + 2 ceiling cameras + 1 moving camera for the back yard',
+        12: '7 outdoor cameras + 4 ceiling cameras + 1 moving camera'
       },
       shop: {
-        2:  '1× 5MP bullet + 1× 5MP dome (interior)',
-        4:  '1× 5MP bullet + 3× 5MP dome (retail floor)',
-        6:  '1× 5MP bullet + 4× 5MP dome + 1× 8MP dome (overhead till)',
-        8:  '1× 5MP bullet + 5× 5MP dome + 1× 8MP dome (till) + 1× 5MP PTZ',
-        12: '2× 5MP bullet + 7× 5MP dome + 1× 8MP dome (till) + 1× 5MP PTZ + 1× 5MP dome (rear)'
+        2:  '1 outdoor camera at the door + 1 ceiling camera inside',
+        4:  '1 outdoor camera + 3 ceiling cameras on the shop floor',
+        6:  '1 outdoor camera + 4 ceiling cameras + 1 wide camera over the till',
+        8:  '1 outdoor camera + 5 ceiling cameras + 1 wide camera over the till + 1 moving camera',
+        12: '2 outdoor cameras + 7 ceiling cameras + 1 wide camera over the till + 1 moving camera + 1 ceiling camera at the back'
       },
       office: {
-        2:  '1× 5MP bullet + 1× 5MP dome (reception, close-mount)',
-        4:  '1× 5MP bullet + 1× 5MP dome (reception) + 2× 5MP dome (workspace)',
-        6:  '2× 5MP bullet + 1× 5MP dome (reception) + 3× 5MP dome (workspace)',
-        8:  '2× 5MP bullet + 1× 5MP dome (reception) + 4× 5MP dome + 1× 5MP PTZ (parking)',
-        12: '3× 5MP bullet + 2× 5MP dome (reception/lobby) + 5× 5MP dome + 1× 8MP dome + 1× 5MP PTZ'
+        2:  '1 outdoor camera + 1 close ceiling camera at reception',
+        4:  '1 outdoor camera + 1 close ceiling camera at reception + 2 ceiling cameras in the workspace',
+        6:  '2 outdoor cameras + 1 close ceiling camera at reception + 3 ceiling cameras in the workspace',
+        8:  '2 outdoor cameras + 1 reception camera + 4 ceiling cameras + 1 moving camera for the parking',
+        12: '3 outdoor cameras + 2 reception cameras + 5 ceiling cameras + 1 wide camera + 1 moving camera'
       },
       pharmacy: {
-        2:  '1× 5MP bullet + 1× 5MP dome (dispensary, close-mount)',
-        4:  '1× 5MP bullet + 1× 5MP dome (dispensary) + 2× 5MP dome (floor)',
-        6:  '1× 5MP bullet + 1× 5MP dome (dispensary) + 3× 5MP dome + 1× 8MP dome (overhead till)',
-        8:  '1× 5MP bullet + 2× 5MP dome (dispensary + storage) + 4× 5MP dome + 1× 8MP dome (till)',
-        12: '2× 5MP bullet + 2× 5MP dome (dispensary + storage) + 6× 5MP dome + 1× 8MP dome + 1× 5MP PTZ'
+        2:  '1 outdoor camera + 1 close ceiling camera at the dispensary',
+        4:  '1 outdoor camera + 1 dispensary camera + 2 ceiling cameras on the floor',
+        6:  '1 outdoor camera + 1 dispensary camera + 3 ceiling cameras + 1 wide camera over the till',
+        8:  '1 outdoor camera + 2 dispensary cameras + 4 ceiling cameras + 1 wide camera over the till',
+        12: '2 outdoor cameras + 2 dispensary cameras + 6 ceiling cameras + 1 wide camera over the till + 1 moving camera'
       },
-      compound: {
-        2:  '2× 5MP bullet — main gate + drive',
-        4:  '3× 5MP bullet + 1× 5MP dome (interior)',
-        6:  '4× 5MP bullet + 2× 5MP dome (interior)',
-        8:  '5× 5MP bullet + 2× 5MP dome + 1× 5MP PTZ',
-        12: '6× 5MP bullet + 3× 5MP dome + 1× 5MP PTZ + 1× 5MP dome (gate ID) + 1× 8MP dome'
+      schools: {
+        2:  '2 outdoor cameras — main gate and entrance',
+        4:  '2 outdoor cameras at the gate + 2 ceiling cameras in the corridor and reception',
+        6:  '3 outdoor cameras + 2 ceiling cameras in the corridors + 1 wide camera over the playground',
+        8:  '3 outdoor cameras + 3 ceiling cameras + 1 wide camera over the playground + 1 moving camera for the compound',
+        12: '4 outdoor cameras + 5 ceiling cameras + 1 wide camera over the playground + 1 wide camera in the hall + 1 moving camera'
+      },
+      rentals: {
+        2:  '2 outdoor cameras — main gate and building door',
+        4:  '2 outdoor cameras at the gate and entry + 2 ceiling cameras in the stairwell and corridor',
+        6:  '2 outdoor cameras at entry/exit + 1 wide camera over the parking + 3 ceiling cameras in stairwells and corridors',
+        8:  '3 outdoor cameras + 1 wide camera over the parking + 4 ceiling cameras in corridors and stairwells',
+        12: '4 outdoor cameras + 2 wide cameras over parking and entrance + 5 ceiling cameras in corridors and stairwells + 1 moving camera for the parking'
       }
     };
 
     var verticalDescriptions = {
-      home: '<strong>Home —</strong> detached or semi-detached residence with gate and perimeter focus. 5MP bullets at entry, drive, and side passages; discreet 5MP domes at interior entry points; PTZ for back yard tracking at the 8-cam tier and above.',
-      shop: '<strong>Shop &amp; Retail —</strong> boutiques, supermarkets, salons, electronics. Interior-heavy with discreet ceiling-mounted 5MP domes through the retail floor; <strong>8MP wide-angle dome overhead at the till</strong> for high-detail transaction capture. Bullet at the entrance for deterrence.',
-      office: '<strong>Office &amp; Workspace —</strong> coworking, small/medium offices. <strong>Close-mounted 5MP dome at reception</strong> for ID-grade entry capture (1.5–2m above the desk), domes through workspaces and corridors, bullet at the car park entry, PTZ for larger lots from 8-cam up.',
-      pharmacy: '<strong>Pharmacy &amp; Clinic —</strong> pharmacies, clinics, dental, optical. <strong>Close-mounted 5MP dome at the dispensary counter</strong> for compliance and identification-grade capture, <strong>8MP wide-angle dome overhead at the till</strong> from 6-cam up. Domes on the retail floor, bullet at entry. Designed to resolve disputes and meet insurance verification.',
-      compound: '<strong>Compound / Mixed Use —</strong> larger residential with multiple buildings, Airbnb compounds, residence + business. Heavy on perimeter 5MP bullets, dome coverage in main interior spaces, PTZ for the drive at 8-cam up, gate ID dome at the 12-cam tier.'
+      home: '<strong>Home —</strong> Cameras at your gate. Cameras down the drive. A camera inside near the door. From the 8-camera package, a moving camera in the back yard.<br><br>Made to keep your family safe. Made so you can check the kids when you are away. And if something happens, you have the proof.',
+      shop: '<strong>Shop &amp; Retail —</strong> Boutiques, supermarkets, salons, electronics. A camera at the door so people see you take this serious. Ceiling cameras across the shop floor. A wide camera right over the till from the 6-camera package up.<br><br>See every customer. See every cash exchange. End every "I paid for that" argument before it starts.',
+      office: '<strong>Office —</strong> Co-working spaces, small and medium offices. A close camera over reception that catches every face. Ceiling cameras through the work area. A camera at the car park entry. From the 8-camera package, a moving camera for the bigger lots.<br><br>Know who came in. Know when. Know what they touched.',
+      pharmacy: '<strong>Pharmacy &amp; Clinic —</strong> Pharmacies, clinics, dental, optical. A close camera right at the dispensary counter. A wide camera over the till from the 6-camera package up. Ceiling cameras through the floor. A camera at the door.<br><br>Settle every dispute. Meet the insurance check. Keep controlled drugs safe.',
+      schools: '<strong>Schools —</strong> Primary, secondary, daycares, training centres. Cameras at the gate. Cameras in the corridors. A wide camera over the playground from the 6-camera package up. A moving camera for the compound from the 8-camera package.<br><br>Keep the children safe. Show parents you care. And if something happens, you have the proof.',
+      rentals: '<strong>Rentals —</strong> Apartment blocks, hostels, rental compounds, Airbnbs. Cameras at the main gate and building entry. A wide camera over the parking from the 6-camera package up. Ceiling cameras in the stairwells and shared corridors. <em>Never</em> pointing at private tenant doors.<br><br>Tenants feel safer. You see the common areas. And every dispute gets settled by the footage.'
     };
 
     var mixDetails = document.querySelectorAll('.pricing .mix-detail');
