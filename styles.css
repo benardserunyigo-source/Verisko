@@ -1157,36 +1157,6 @@ a.ci-value:hover { color: var(--navy); }
   font-weight: 400;
 }
 
-/* ---- founder spots counter ---- */
-.founder-counter {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 28px;
-  padding: 10px 20px;
-  background: rgba(22, 155, 215, 0.08);
-  border: 1px solid rgba(22, 155, 215, 0.22);
-  border-radius: 999px;
-  font-size: 13.5px;
-  color: var(--navy);
-  font-weight: 500;
-}
-.founder-counter strong { font-weight: 700; }
-.counter-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--cyan);
-  box-shadow: 0 0 0 3px rgba(22, 155, 215, 0.20);
-  animation: pulse 2.2s ease-in-out infinite;
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .counter-dot { animation: none; }
-}
-
 /* ---- vertical tabs ("where do you need the cameras?") ---- */
 .vertical-question {
   text-align: center;
