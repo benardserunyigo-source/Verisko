@@ -31,7 +31,8 @@
       ['.feature-hero', 0],
       ['.feature-grid .feature-card', 100],
       ['.about-text > *', 90],
-      ['.about-stats .stat', 90],
+      ['.promise-head > *', 90],
+      ['.promise-grid .promise-card', 80],
       ['.survey-header > *', 80],
       ['.survey .step', 90]
     ];
@@ -54,41 +55,6 @@
         revealIO.observe(el);
       });
     });
-  }
-
-  /* ---------- Count-up on the About stats ---------- */
-  var statNums = document.querySelectorAll('.about-stats .stat-num');
-  if (statNums.length && hasIO && !reduceMotion) {
-    var runCount = function (el) {
-      var raw = el.textContent;
-      var match = raw.match(/(\d[\d,]*)/);
-      if (!match) return;
-      var target = parseInt(match[1].replace(/,/g, ''), 10);
-      var prefix = raw.slice(0, match.index);
-      var suffix = raw.slice(match.index + match[1].length);
-      var duration = 1500;
-      var startTime = null;
-      var tick = function (now) {
-        if (startTime === null) startTime = now;
-        var p = Math.min((now - startTime) / duration, 1);
-        var eased = 1 - Math.pow(1 - p, 3);           // easeOutCubic
-        var val = Math.round(eased * target);
-        el.textContent = prefix + val.toLocaleString() + suffix;
-        if (p < 1) requestAnimationFrame(tick);
-        else el.textContent = prefix + target.toLocaleString() + suffix;
-      };
-      requestAnimationFrame(tick);
-    };
-
-    var statIO = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        if (entry.isIntersecting) {
-          runCount(entry.target);
-          statIO.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.6 });
-    statNums.forEach(function (el) { statIO.observe(el); });
   }
 
   /* ---------- Mobile nav (hamburger drawer) ---------- */

@@ -6,6 +6,8 @@
   --gray-hover: #2b3340;
   --border: #d9dde6;
   --white: #ffffff;
+  --cyan: #169BD7;        /* brand accent (glow, chips, icons) */
+  --cyan-soft: #E8F4FB;
 
   --maxw: 1280px;
   --pad: 64px;            /* horizontal page padding on desktop */
@@ -231,6 +233,94 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
      Top, right and bottom stay flush with the screen corners. */
   -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 30%);
           mask-image: linear-gradient(to right, transparent 0%, #000 30%);
+}
+
+/* Branded cyan glow behind the hero — same language as the survey backdrop,
+   so the page reads as one system. Sits below text and image. */
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -10%;
+  left: -6%;
+  width: 60%;
+  height: 90%;
+  background: radial-gradient(ellipse at center, rgba(22, 155, 215, 0.16) 0%, transparent 62%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Frosted "live feed" chip floating over the camera panel — makes the
+   "watch from anywhere" promise visible at a glance. */
+.hero-live {
+  position: absolute;
+  z-index: 3;
+  right: 6%;
+  bottom: 14%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px 12px 14px;
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+          backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 16px;
+  box-shadow: 0 18px 40px rgba(22, 38, 107, 0.18), 0 4px 12px rgba(22, 38, 107, 0.10);
+}
+.hero-live .live-dot {
+  flex: none;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: #18c171;
+  box-shadow: 0 0 0 4px rgba(24, 193, 113, 0.22);
+  animation: livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(24, 193, 113, 0.22); }
+  50%      { box-shadow: 0 0 0 7px rgba(24, 193, 113, 0.08); }
+}
+.hero-live .live-meta { line-height: 1.25; }
+.hero-live .live-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--navy);
+  letter-spacing: -0.01em;
+}
+.hero-live .live-sub {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+/* Trust chips under the hero CTA — promises, not track-record claims. */
+.hero-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
+  max-width: 580px;
+}
+.hero-trust .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--navy);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgba(22, 38, 107, 0.04);
+}
+.hero-trust .chip svg {
+  width: 15px; height: 15px;
+  color: var(--cyan);
+  flex: none;
 }
 
 /* ---------- Solutions (bento grid) ---------- */
@@ -565,29 +655,96 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
 .btn-light:hover { background: #eef0fb; transform: translateY(-1px); }
 .btn-light .arrow { font-size: 20px; line-height: 1; }
 
-.about-stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 40px 44px;
+/* ---------- Our Promise (commitments, not track-record claims) ---------- */
+.promise {
+  background: #fff;
+  padding: 104px 0;
+  border-top: 1px solid var(--border);
 }
-
-.stat {
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
-  padding-top: 18px;
+.promise-inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0 var(--pad);
 }
-.stat-num {
-  display: block;
-  font-size: clamp(36px, 3.4vw, 46px);
+.promise-head {
+  max-width: 640px;
+  margin: 0 auto 56px;
+  text-align: center;
+}
+.promise-eyebrow {
+  display: inline-block;
+  color: var(--cyan);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.promise-head h2 {
+  font-size: clamp(30px, 3.4vw, 44px);
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.1;
   letter-spacing: -0.01em;
+  color: var(--navy);
+  margin: 0 0 16px;
 }
-.stat-label {
-  display: block;
-  color: #aab6ec;
-  font-size: 15px;
-  line-height: 1.4;
-  margin-top: 10px;
+.promise-head p {
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--gray);
+  margin: 0;
+}
+.promise-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+.promise-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 28px 26px;
+  transition: border-color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease;
+}
+.promise-card:hover {
+  border-color: rgba(22, 155, 215, 0.4);
+  box-shadow: 0 16px 36px rgba(22, 38, 107, 0.08);
+  transform: translateY(-3px);
+}
+.promise-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px; height: 48px;
+  border-radius: 13px;
+  background: var(--cyan-soft);
+  color: var(--cyan);
+  margin-bottom: 18px;
+}
+.promise-ic svg { width: 24px; height: 24px; }
+.promise-card h3 {
+  font-size: 17.5px;
+  font-weight: 800;
+  color: var(--navy);
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+}
+.promise-card p {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--gray);
+  margin: 0;
+}
+@media (max-width: 900px) {
+  .promise { padding: 76px 0; }
+  .promise-grid { grid-template-columns: 1fr 1fr; }
+  .promise-head { margin-bottom: 40px; }
+}
+@media (max-width: 560px) {
+  .promise-grid { grid-template-columns: 1fr; }
 }
 
 /* ---------- Contact ---------- */
@@ -893,6 +1050,7 @@ a.ci-value:hover { color: var(--navy); }
     min-height: 0;
     overflow: visible;
   }
+  .hero-live { display: none; }   /* no absolute overlay once the hero stacks */
   .hero-text { padding: 40px var(--pad) 24px; }
   .hero-image {
     position: static;
@@ -1441,6 +1599,7 @@ section[id] { scroll-margin-top: 96px; }
   .js-reveal .hero-text > *:nth-child(1) { animation-delay: 0.05s; }
   .js-reveal .hero-text > *:nth-child(2) { animation-delay: 0.18s; }
   .js-reveal .hero-text > *:nth-child(3) { animation-delay: 0.31s; }
+  .js-reveal .hero-text > *:nth-child(4) { animation-delay: 0.44s; }
   .js-reveal .hero-image {
     opacity: 0;
     animation: heroFade 1.2s ease 0.15s forwards;
@@ -1575,10 +1734,15 @@ html { overflow-x: hidden; }
 
 @media (max-width: 600px) {
   .hero-text { padding: 36px var(--pad) 52px; }
+  .hero-text h1,
+  .hero-text .subhead { max-width: 100%; }   /* never exceed the phone width */
   .hero-text h1 {
-    font-size: clamp(34px, 9vw, 52px);
+    font-size: clamp(30px, 8vw, 52px);
+    line-height: 1.12;
     margin-bottom: 22px;
     overflow-wrap: break-word;
+    word-break: normal;
+    hyphens: none;
   }
   /* let the headline + subhead wrap naturally instead of forcing wide lines
      (the forced <br> could overflow narrow phones like the iPhone SE) */
@@ -1587,9 +1751,6 @@ html { overflow-x: hidden; }
   .subhead { margin-bottom: 30px; }
 
   .contact-form { padding: 22px; }
-
-  .about-stats { gap: 28px 22px; }
-  .stat-num { font-size: clamp(32px, 11vw, 42px); }
 }
 
 /* =====================================================================
