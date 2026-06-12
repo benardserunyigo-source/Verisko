@@ -282,7 +282,7 @@
       var fd = new FormData(surveyForm);
       fd.set('name', (fd.get('fullName') || '').toString());
       fd.set('phone', (fd.get('whatsapp') || '').toString());
-      fd.set('type', verticalLabels[fd.get('vertical')] || (fd.get('vertical') || '').toString());
+      fd.set('type', 'site-survey');     // lead type — the vertical itself lands in the 'vertical' column
       fd.set('message', buildSummary(fd));
 
       var showSuccess = function () {
@@ -304,6 +304,50 @@
         .catch(function () {
           if (btn) { btn.disabled = false; btn.innerHTML = original; }
           setSurveyStatus('Sorry, something went wrong. Please call or WhatsApp us on +256 761 480 347 instead.', 'err');
+        });
+    });
+  }
+
+  /* -------------------------------------------------------------------
+     Financing waiting list — compact lead-capture card in the pricing
+     section. POSTs to the same Apps Script as the survey, tagged
+     type=financing-waitlist so the Sheet can be filtered by lead type.
+  ------------------------------------------------------------------- */
+  var financeForm = document.getElementById('financeForm');
+  if (financeForm) {
+    var financeEndpoint = financeForm.getAttribute('data-endpoint');
+    var financeStatus = financeForm.querySelector('.fw-status');
+    var financeSuccess = document.getElementById('fwSuccess');
+
+    financeForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      var honey = financeForm.querySelector('[name="company"]');
+      if (honey && honey.value) return;            // bot filled the honeypot — drop silently
+
+      var btn = financeForm.querySelector('.fw-submit');
+      var original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+
+      var showSuccess = function () {
+        financeForm.classList.add('hidden');
+        if (financeSuccess) financeSuccess.hidden = false;
+      };
+
+      if (!financeEndpoint) { showSuccess(); return; }
+
+      fetch(financeEndpoint, {
+        method: 'POST',
+        body: new URLSearchParams(new FormData(financeForm)),
+        mode: 'no-cors'                            // Apps Script doesn't send CORS headers
+      })
+        .then(function () { showSuccess(); })
+        .catch(function () {
+          if (btn) { btn.disabled = false; btn.innerHTML = original; }
+          if (financeStatus) {
+            financeStatus.textContent = 'Sorry, something went wrong. Please WhatsApp us on +256 761 480 347 instead.';
+            financeStatus.classList.add('err');
+          }
         });
     });
   }

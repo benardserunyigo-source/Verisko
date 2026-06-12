@@ -24,8 +24,10 @@ const SHEET_ID = '';   // leave '' if this script is bound to the sheet; else pa
 // raw form field -> friendly column header, in display order.
 // Contextual fields only fill in for the relevant space type; the rest stay blank.
 const COLUMNS = [
+  ['type',        'Lead type'],
   ['fullName',    'Name'],
   ['whatsapp',    'WhatsApp'],
+  ['cameras',     'Cameras wanted'],
   ['email',       'Email'],
   ['contactPref', 'Preferred contact'],
   ['vertical',    'Space type'],
@@ -58,6 +60,8 @@ const COLUMNS = [
 
 // value code -> friendly label (for the dropdown/radio answers)
 const LABELS = {
+  type:        { 'site-survey': 'Site survey', 'financing-waitlist': 'Financing waitlist' },
+  cameras:     { more: 'More than 8' },
   vertical:    { home: 'Home', shop: 'Shop / Retail', office: 'Office', pharmacy: 'Pharmacy / Clinic', compound: 'Compound' },
   propSize:    { small: 'Small (under 200m²)', medium: 'Medium (200–500m²)', large: 'Large (over 500m²)' },
   cctvStatus:  { none: 'No — first system', upgrade: 'Yes — wants upgrade', broken: 'Yes — stopped working' },
