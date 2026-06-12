@@ -147,43 +147,37 @@
         2:  '2 outdoor cameras — gate and drive',
         4:  '3 outdoor cameras + 1 ceiling camera inside the door',
         6:  '4 outdoor cameras + 2 ceiling cameras inside',
-        8:  '5 outdoor cameras + 2 ceiling cameras + 1 moving camera for the back yard',
-        12: '7 outdoor cameras + 4 ceiling cameras + 1 moving camera'
+        8:  '5 outdoor cameras + 2 ceiling cameras + 1 moving camera for the back yard'
       },
       shop: {
         2:  '1 outdoor camera at the door + 1 ceiling camera inside',
         4:  '1 outdoor camera + 3 ceiling cameras on the shop floor',
         6:  '1 outdoor camera + 4 ceiling cameras + 1 wide camera over the till',
-        8:  '1 outdoor camera + 5 ceiling cameras + 1 wide camera over the till + 1 moving camera',
-        12: '2 outdoor cameras + 7 ceiling cameras + 1 wide camera over the till + 1 moving camera + 1 ceiling camera at the back'
+        8:  '1 outdoor camera + 5 ceiling cameras + 1 wide camera over the till + 1 moving camera'
       },
       office: {
         2:  '1 outdoor camera + 1 close ceiling camera at reception',
         4:  '1 outdoor camera + 1 close ceiling camera at reception + 2 ceiling cameras in the workspace',
         6:  '2 outdoor cameras + 1 close ceiling camera at reception + 3 ceiling cameras in the workspace',
-        8:  '2 outdoor cameras + 1 reception camera + 4 ceiling cameras + 1 moving camera for the parking',
-        12: '3 outdoor cameras + 2 reception cameras + 5 ceiling cameras + 1 wide camera + 1 moving camera'
+        8:  '2 outdoor cameras + 1 reception camera + 4 ceiling cameras + 1 moving camera for the parking'
       },
       pharmacy: {
         2:  '1 outdoor camera + 1 close ceiling camera at the dispensary',
         4:  '1 outdoor camera + 1 dispensary camera + 2 ceiling cameras on the floor',
         6:  '1 outdoor camera + 1 dispensary camera + 3 ceiling cameras + 1 wide camera over the till',
-        8:  '1 outdoor camera + 2 dispensary cameras + 4 ceiling cameras + 1 wide camera over the till',
-        12: '2 outdoor cameras + 2 dispensary cameras + 6 ceiling cameras + 1 wide camera over the till + 1 moving camera'
+        8:  '1 outdoor camera + 2 dispensary cameras + 4 ceiling cameras + 1 wide camera over the till'
       },
       schools: {
         2:  '2 outdoor cameras — main gate and entrance',
         4:  '2 outdoor cameras at the gate + 2 ceiling cameras in the corridor and reception',
         6:  '3 outdoor cameras + 2 ceiling cameras in the corridors + 1 wide camera over the playground',
-        8:  '3 outdoor cameras + 3 ceiling cameras + 1 wide camera over the playground + 1 moving camera for the compound',
-        12: '4 outdoor cameras + 5 ceiling cameras + 1 wide camera over the playground + 1 wide camera in the hall + 1 moving camera'
+        8:  '3 outdoor cameras + 3 ceiling cameras + 1 wide camera over the playground + 1 moving camera for the compound'
       },
       rentals: {
         2:  '2 outdoor cameras — main gate and building door',
         4:  '2 outdoor cameras at the gate and entry + 2 ceiling cameras in the stairwell and corridor',
         6:  '2 outdoor cameras at entry/exit + 1 wide camera over the parking + 3 ceiling cameras in stairwells and corridors',
-        8:  '3 outdoor cameras + 1 wide camera over the parking + 4 ceiling cameras in corridors and stairwells',
-        12: '4 outdoor cameras + 2 wide cameras over parking and entrance + 5 ceiling cameras in corridors and stairwells + 1 moving camera for the parking'
+        8:  '3 outdoor cameras + 1 wide camera over the parking + 4 ceiling cameras in corridors and stairwells'
       }
     };
 
