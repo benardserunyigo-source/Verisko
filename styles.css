@@ -1754,7 +1754,7 @@ a.ci-value:hover { color: var(--navy); }
   max-width: 920px;
   margin: 0 auto;
   padding: 64px 64px 56px;
-  background: linear-gradient(155deg, var(--navy) 0%, var(--navy-dark) 100%);
+  background: linear-gradient(155deg, var(--navy) 0%, var(--navy-dark, #001448) 100%);
   border-radius: 28px;
   color: #FFFFFF;
   box-shadow: 0 24px 60px rgba(1, 33, 105, 0.25);
@@ -1768,7 +1768,7 @@ a.ci-value:hover { color: var(--navy); }
   background: radial-gradient(circle, rgba(22, 155, 215, 0.18) 0%, transparent 70%);
   pointer-events: none;
 }
-.why-more h3 {
+.why-more h2 {
   position: relative;
   font-size: 32px;
   font-weight: 800;
@@ -1848,7 +1848,7 @@ a.ci-value:hover { color: var(--navy); }
   .trust-item { border-right: none !important; border-bottom: 1px solid var(--line); padding: 18px 22px; }
   .trust-item:last-child { border-bottom: none; }
   .why-more { padding: 44px 28px 36px; border-radius: 20px; }
-  .why-more h3 { font-size: 26px; }
+  .why-more h2 { font-size: 26px; }
   .vertical-tabs { padding: 6px; gap: 4px; }
   .vtab .vname { font-size: 11.5px; }
   .vtab { padding: 14px 6px 12px; }
