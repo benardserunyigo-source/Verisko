@@ -343,96 +343,126 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
   margin: 0 0 36px;
 }
 
-/* Uniform 3-column × 2-row grid for the six canonical verticals.
-   Photo tiles and placeholder tiles share the same cell size so the grid
-   stays clean. */
+/* Magazine-style cards for the six canonical verticals: a photo zone on top
+   and a solid white text zone below, so copy never fights the photo.
+   Desktop 3-col, tablet 2-col, mobile 1-col (breakpoints further down). */
 .bento {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: 240px;
-  gap: 16px;
-}
-
-/* The photo tiles crop to fill; ceiling-mounted cameras sit near the top of
-   each frame, so anchor the crop to the top to keep them in view. */
-.bento .tile-shops,
-.bento .tile-offices,
-.bento .tile-pharmacy {
-  background-position: center top;
+  gap: 24px;
+  align-items: stretch;   /* cards in a row match the tallest one */
 }
 
 .tile {
-  position: relative;
-  border-radius: 18px;
-  overflow: hidden;
-  background-color: #c8d0ea;   /* fallback shown until the image is added */
-  background-size: cover;
-  background-position: center;
-  display: flex;
-  align-items: flex-end;
-  text-decoration: none;
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-
-/* Placeholder tiles: navy field with the Verisko symbol, awaiting a real photo. */
-.tile-placeholder {
-  background-color: var(--navy);
-}
-.tile-symbol {
-  position: absolute;
-  top: 22px;
-  left: 24px;
-  width: 40px;
-  height: 40px;
-  opacity: 0.9;
-  z-index: 1;
-}
-
-/* gradient scrim so the white copy is always legible */
-.tile::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, rgba(11, 18, 40, 0.62), rgba(11, 18, 40, 0) 48%);
-}
-.tile-placeholder::after {
-  background: linear-gradient(to top, rgba(11, 18, 40, 0.55), rgba(11, 18, 40, 0) 62%);
-}
-
-.tile-copy {
-  position: relative;
-  z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 22px 24px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  text-decoration: none;
+  transition: transform 200ms ease-out, box-shadow 200ms ease-out;
 }
 
-.tile-label {
-  color: #fff;
-  font-weight: 600;
+/* Photo zone: fixed 4:3 frame, cropped cleanly. */
+.tile-photo {
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #c8d0ea;   /* fallback tint until an image paints */
+}
+.tile-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Ceiling-mounted cameras sit near the top of each frame, so anchor the crop. */
+.tile-shops .tile-photo img,
+.tile-offices .tile-photo img,
+.tile-pharmacy .tile-photo img {
+  object-position: center top;
+}
+
+/* Text zone: white, stretches to fill leftover height so rows stay even. */
+.tile-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  padding: 24px;
+  background: #fff;
+}
+
+.tile-label {          /* h3 — vertical name */
+  margin: 0 0 8px;
+  color: var(--navy);
+  font-weight: 700;
   font-size: 21px;
+  line-height: 1.2;
 }
 
-.tile-hook {
-  color: rgba(255, 255, 255, 0.9);
+.tile-hook {           /* body — hook copy */
+  margin: 0;
+  color: var(--ink);
   font-weight: 400;
-  font-size: 14px;
-  line-height: 1.35;
+  font-size: 15px;
+  line-height: 1.5;
 }
 
-.tile:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 18px 36px rgba(22, 38, 107, 0.18);
+.tile-arrow {          /* decorative; whole card is the link */
+  margin-top: auto;    /* pin to bottom of the text zone */
+  align-self: flex-end;
+  padding-top: 16px;
+  color: var(--navy);
+  font-size: 20px;
+  line-height: 1;
 }
 
-/* Tablet: 2 columns (× 3 rows). Bounded range so it never collides with the
-   single-column mobile rule in the max-width:760px block below. */
-@media (min-width: 761px) and (max-width: 900px) {
-  .bento {
-    grid-template-columns: repeat(2, 1fr);
-    grid-auto-rows: 220px;
+/* Placeholder cards (no photo yet): whole card navy, white text, the Verisko
+   symbol floating faintly in the photo-zone position — reads as "photo pending",
+   not broken. Converts to the split pattern once a real photo is added. */
+.tile-placeholder {
+  background: var(--navy);
+}
+.tile-placeholder .tile-photo {
+  background: var(--navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tile-placeholder .tile-copy {
+  background: var(--navy);
+}
+.tile-placeholder .tile-label { color: #fff; }
+.tile-placeholder .tile-hook { color: rgba(255, 255, 255, 0.85); }
+.tile-placeholder .tile-arrow { color: #fff; }
+.tile-symbol {
+  width: 72px;
+  height: 72px;
+  opacity: 0.4;
+}
+
+/* Hover lift — pointer devices only (desktop); disabled for reduced motion. */
+@media (hover: hover) {
+  .tile:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(22, 38, 107, 0.12);
   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile { transition: none; }
+  .tile:hover { transform: none; }
+}
+
+/* Tablet (768–1023px): 2 columns. */
+@media (max-width: 1023px) {
+  .bento { grid-template-columns: repeat(2, 1fr); }
+}
+/* Mobile (<768px): single-column stack with slightly tighter type. */
+@media (max-width: 767px) {
+  .bento { grid-template-columns: 1fr; }
+  .tile-copy { padding: 20px; }
+  .tile-label { font-size: 18px; }
+  .tile-hook { font-size: 14px; }
 }
 
 /* ---------- Our Products ---------- */
@@ -1008,18 +1038,6 @@ a.ci-value:hover { color: var(--navy); }
   .footer-brand { grid-column: 1 / -1; }
 
   .product-grid { grid-template-columns: 1fr; max-width: 420px; margin-left: auto; margin-right: auto; }
-
-  /* Mobile: single-column stack of the six verticals. */
-  .bento {
-    grid-template-columns: 1fr;
-    grid-template-rows: none;
-    grid-auto-rows: 200px;
-  }
-
-  /* smaller copy so the longer names stay fully visible on small tiles */
-  .tile-copy { padding: 16px 18px; gap: 4px; }
-  .tile-label { font-size: 18px; line-height: 1.2; }
-  .tile-hook { font-size: 13px; }
 }
 
 @media (max-width: 900px) {
