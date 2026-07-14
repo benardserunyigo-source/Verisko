@@ -239,49 +239,55 @@
     <section class="products" id="products">
       <div class="products-inner">
         <div class="section-head">
-          <h2 class="section-title">Our Products</h2>
-          <p class="section-sub">The range of cameras we supply and professionally install — choose your setup, and we'll recommend the right package.</p>
+          <h2 class="section-title">The cameras we install</h2>
+          <p class="section-sub">Each camera does a different job. Pick the ones that fit your place — or let us pick for you during your free check.</p>
         </div>
 
         <div class="product-grid">
-          <article class="product-card">
-            <div class="pc-media" style="background-image:url('assets/products/ptz.jpeg')"></div>
-            <h3 class="pc-name">PTZ Camera</h3>
-            <p class="pc-detail">Pan-tilt-zoom · AI enabled · 5MP / 8MP</p>
-            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="PTZ Camera">
-              View features <span class="arrow" aria-hidden="true">→</span>
-            </button>
-          </article>
+          <!-- Order: most common → specialist → utility. Images stay with each
+               camera (renamed only); files are swapped separately. -->
           <article class="product-card">
             <div class="pc-media" style="background-image:url('assets/products/bullet.jpeg')"></div>
-            <h3 class="pc-name">Bullet Camera</h3>
-            <p class="pc-detail">Outdoor · long-range IR · AI enabled · 5MP / 8MP</p>
-            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="Bullet Camera">
-              View features <span class="arrow" aria-hidden="true">→</span>
+            <h3 class="pc-name">Outdoor Camera</h3>
+            <p class="pc-detail">Made for outside. Sees far, day or night. Fits at your gate, driveway, or building corner.</p>
+            <p class="pc-sub">Standard sharp or extra sharp</p>
+            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="Outdoor Camera">
+              See what it does <span class="arrow" aria-hidden="true">→</span>
             </button>
           </article>
           <article class="product-card">
             <div class="pc-media" style="background-image:url('assets/products/dome.jpeg')"></div>
-            <h3 class="pc-name">Dome Camera</h3>
-            <p class="pc-detail">Active deterrence · full-colour night vision · AI enabled · 5MP / 8MP</p>
-            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="Dome Camera">
-              View features <span class="arrow" aria-hidden="true">→</span>
+            <h3 class="pc-name">Ceiling Camera</h3>
+            <p class="pc-detail">Fits on your ceiling — inside your shop, office, or under a covered roof. Sees in colour even at night. White lights flash to scare people away.</p>
+            <p class="pc-sub">Standard sharp or extra sharp</p>
+            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="Ceiling Camera">
+              See what it does <span class="arrow" aria-hidden="true">→</span>
+            </button>
+          </article>
+          <article class="product-card">
+            <div class="pc-media" style="background-image:url('assets/products/ptz.jpeg')"></div>
+            <h3 class="pc-name">Moving Camera</h3>
+            <p class="pc-detail">Turns and looks around. Watches a big yard or shop from one spot. Move it from your phone.</p>
+            <p class="pc-sub">Standard sharp or extra sharp</p>
+            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="Moving Camera">
+              See what it does <span class="arrow" aria-hidden="true">→</span>
             </button>
           </article>
           <article class="product-card">
             <div class="pc-media" style="background-image:url('assets/products/dome-48v.jpeg')"></div>
-            <h3 class="pc-name">Vandal Dome Camera</h3>
-            <p class="pc-detail">Vandal-resistant · indoor/outdoor · IR night vision · 5MP / 8MP</p>
-            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="Vandal Dome Camera">
-              View features <span class="arrow" aria-hidden="true">→</span>
+            <h3 class="pc-name">Tough Camera</h3>
+            <p class="pc-detail">For rough spots. Cannot be smashed easily. Fits inside or outside where people might try to break it.</p>
+            <p class="pc-sub">Standard sharp or extra sharp</p>
+            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="Tough Camera">
+              See what it does <span class="arrow" aria-hidden="true">→</span>
             </button>
           </article>
           <article class="product-card">
             <div class="pc-media" style="background-image:url('assets/products/nvr.jpeg')"></div>
-            <h3 class="pc-name">8-Channel PoE NVR</h3>
-            <p class="pc-detail">Records &amp; powers your cameras · included with every package</p>
-            <button type="button" class="pc-btn" data-feature-open data-feature-set="nvr" data-product="8-Channel PoE NVR">
-              View features <span class="arrow" aria-hidden="true">→</span>
+            <h3 class="pc-name">Recorder</h3>
+            <p class="pc-detail">The box that records everything and powers all your cameras. One neat cable to each camera. Comes with every package.</p>
+            <button type="button" class="pc-btn" data-feature-open data-feature-set="nvr" data-product="Recorder">
+              See what it does <span class="arrow" aria-hidden="true">→</span>
             </button>
           </article>
         </div>
@@ -318,7 +324,7 @@
           </div>
         </div>
 
-        <!-- NVR feature set: what the recorder does -->
+        <!-- Recorder feature set: what the recorder does -->
         <div class="fm-set" data-feature-set="nvr" hidden>
           <div class="fm-eyebrow">THE HEART OF YOUR SYSTEM</div>
           <p class="fm-lead">The recorder that powers and stores everything. It's included with whichever package you choose — supplied, fitted and configured by us.</p>
@@ -329,7 +335,7 @@
             </li>
             <li>
               <span class="fm-ic" aria-hidden="true">✓</span>
-              <div><strong>Power over Ethernet (PoE)</strong>A single cable carries both power and video to each camera — no separate power supply, a cleaner, tidier install.</div>
+              <div><strong>One cable for power and video</strong>A single cable carries both power and video to each camera — no separate power supply, a cleaner, tidier install.</div>
             </li>
             <li>
               <span class="fm-ic" aria-hidden="true">✓</span>

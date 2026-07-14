@@ -509,7 +509,8 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
   background-size: contain;        /* show the whole camera, no cropping */
 }
 .pc-name { color: var(--navy); font-weight: 700; font-size: 19px; margin: 0 0 6px; }
-.pc-detail { color: var(--gray); font-size: 14px; margin: 0; }
+.pc-detail { color: var(--gray); font-size: 14px; margin: 0; line-height: 1.5; }
+.pc-sub { color: var(--navy); font-size: 12.5px; font-weight: 600; margin: 10px 0 0; letter-spacing: 0.01em; }
 
 .pc-btn {
   margin-top: 18px;
