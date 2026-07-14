@@ -339,6 +339,103 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
   color: var(--gray);
 }
 
+/* ---------- Two ways to pay ---------- */
+.payment {
+  background: #f7f9fd;         /* soft neutral so the white cards separate */
+  padding: 104px 0;
+}
+.payment-inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0 var(--pad);
+}
+
+.pay-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  align-items: stretch;        /* equal height; both cards match the taller one */
+}
+.pay-card {
+  background: #fff;
+  border: 1px solid #e9ecf4;
+  border-radius: 20px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 2px rgba(22, 38, 107, 0.04);
+}
+.pay-name {
+  color: var(--navy);
+  font-weight: 700;
+  font-size: 22px;
+  margin: 0 0 16px;
+}
+.pay-body {
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.6;
+  margin: 0 0 20px;
+}
+.pay-foot {
+  color: var(--gray);
+  font-size: 14px;
+  font-style: italic;
+  margin: auto 0 0;            /* pin footers to the bottom so they baseline-align */
+}
+
+.pay-support {
+  max-width: 760px;
+  margin: 48px 0 0;
+}
+.pay-note {
+  color: var(--gray);
+  font-size: 14px;
+  font-style: italic;
+  margin: 0 0 28px;
+}
+.pay-subhead {
+  color: var(--navy);
+  font-weight: 700;
+  font-size: 19px;
+  margin: 28px 0 12px;
+}
+.pay-group {
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0 0 14px;
+}
+.pay-group strong { color: var(--navy); }
+.pay-nolist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pay-nolist li {
+  display: flex;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+.pay-x {
+  color: #c2566b;             /* muted red — a gentle "no", never alarming */
+  font-weight: 700;
+  flex: none;
+}
+.pay-close {
+  color: var(--gray);
+  font-size: 14px;
+  font-style: italic;
+  margin: 24px 0 0;
+}
+
+@media (max-width: 767px) {
+  .pay-grid { grid-template-columns: 1fr; }
+}
+
 /* ---------- Solutions (bento grid) ---------- */
 .solutions {
   background: #ebeefb;        /* light indigo tint of the brand navy */
