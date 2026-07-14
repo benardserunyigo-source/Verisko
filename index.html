@@ -94,7 +94,6 @@
           <a href="#products">Products</a>
           <a href="#products" data-feature-open data-feature-set="camera" data-product="Verisko camera">Features</a>
           <a href="#packages">Packages</a>
-          <a href="#about">About</a>
           <a href="#contact">Contact</a>
         </nav>
         <a class="btn btn-outline nav-cta" href="#contact">Book a survey</a>
@@ -599,108 +598,7 @@
           </div>
         </div>
 
-        <!-- FINANCING WAITLIST -->
-        <div class="finance-waitlist" id="financing">
-          <div class="fw-copy">
-            <span class="fw-eyebrow">Not ready to pay it all today?</span>
-            <h3>Join the financing waiting list</h3>
-            <p>We're setting up a plan to spread the cost over 3 months. Leave your details and we'll message you the moment it opens. No commitment. No free check needed yet.</p>
-          </div>
-          <form id="financeForm" class="fw-form" method="post"
-                action="https://script.google.com/macros/s/AKfycbzUdZ4_yleyGyqycc83OtNlB0sfg3ryjRUQVsz8gmvhUg6Z9IGli6Xd1bKASplBrB1qOQ/exec"
-                data-endpoint="https://script.google.com/macros/s/AKfycbzUdZ4_yleyGyqycc83OtNlB0sfg3ryjRUQVsz8gmvhUg6Z9IGli6Xd1bKASplBrB1qOQ/exec">
-            <!-- honeypot: hidden from people, often filled by bots -->
-            <input type="text" name="company" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true" />
-            <input type="hidden" name="type" value="financing-waitlist" />
-            <div class="fw-row">
-              <div class="fw-field">
-                <label class="fw-label" for="fwName">Your name</label>
-                <input class="input-text" id="fwName" name="fullName" type="text" required placeholder="Ben Serunyigo" />
-              </div>
-              <div class="fw-field">
-                <label class="fw-label" for="fwPhone">WhatsApp number</label>
-                <input class="input-text" id="fwPhone" name="whatsapp" type="tel" required placeholder="+256 7XX XXX XXX" />
-              </div>
-            </div>
-            <div class="fw-field">
-              <label class="fw-label">About how many cameras?</label>
-              <div class="pill-group fw-pills">
-                <div class="pill"><input type="radio" id="fwc2" name="cameras" value="2" checked><label for="fwc2">2</label></div>
-                <div class="pill"><input type="radio" id="fwc4" name="cameras" value="4"><label for="fwc4">4</label></div>
-                <div class="pill"><input type="radio" id="fwc6" name="cameras" value="6"><label for="fwc6">6</label></div>
-                <div class="pill"><input type="radio" id="fwc8" name="cameras" value="8"><label for="fwc8">8</label></div>
-                <div class="pill"><input type="radio" id="fwcMore" name="cameras" value="more"><label for="fwcMore">More</label></div>
-              </div>
-            </div>
-            <button type="submit" class="fw-submit">Join the waiting list</button>
-            <p class="fw-status" role="status" aria-live="polite"></p>
-          </form>
-          <div class="fw-success" id="fwSuccess" hidden>
-            <span class="fw-success-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-            <p><strong>You're on the list.</strong> We'll message you on WhatsApp the moment financing opens.</p>
-          </div>
-        </div>
 
-        <!-- TRUST BAR -->
-        <div class="trust-bar">
-          <div class="trust-item">
-            <span class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#169BD7" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-            One price. Nothing extra.
-          </div>
-          <div class="trust-item">
-            <span class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#169BD7" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-            Free check before you pay
-          </div>
-          <div class="trust-item">
-            <span class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#169BD7" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-            12-month written warranty
-          </div>
-          <div class="trust-item">
-            <span class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#169BD7" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-            Pay 60% to start, 40% when done
-          </div>
-        </div>
-
-        <!-- THE VERISKO STANDARD -->
-        <div class="why-more">
-          <h3>The Verisko standard.</h3>
-          <p>
-            Every Verisko system is built the same way. Same care.
-            Same standards. Whether you buy 2 cameras or 12. Here is what
-            you get with every job.
-          </p>
-          <ul>
-            <li><strong>The right camera in the right place.</strong> Outdoor cameras at the gate and around the building. Ceiling cameras inside. Wide cameras where you need to see a big area. Moving cameras for big yards and parking. Each camera matched to the job.</li>
-            <li><strong>Cables hidden the right way.</strong> All cables run through proper pipes and trunking. Clean walls. The work looks as good as it is.</li>
-            <li><strong>We lock your cameras down.</strong> We change every password. We put your cameras on their own private network. We only let the right people in. Your footage stays yours. No one else can watch.</li>
-            <li><strong>A warranty you can hold us to.</strong> 12 months on the hardware and the install. In writing. Signed when we hand over. You always know where to find us.</li>
-            <li><strong>We come back after 30 days. Free.</strong> We check the system still works the same. No call needed. No charge.</li>
-            <li><strong>One price. Nothing extra.</strong> Cables, screws, plugs, set-up — all in the price you see. No surprise bills on install day.</li>
-          </ul>
-          <p class="why-close">
-            The system you put in today should still keep your place safe next year.
-            And the year after. That is why we build it slow and right.
-          </p>
-        </div>
-
-      
-      </div>
-    </section>
-
-    <!-- ===================== About ===================== -->
-    <section class="about" id="about">
-      <div class="about-inner">
-        <div class="about-text">
-          <span class="eyebrow">About Verisko</span>
-          <h2>Professional security, built for Uganda.</h2>
-          <p>
-            Verisko designs, installs and supports AI-powered camera systems for homes
-            and businesses across Uganda. From the first free survey to clean, concealed
-            cabling and a system you can watch from your phone — we handle every detail,
-            and stand behind it with a full-year warranty.
-          </p>
-          <a class="btn btn-light" href="#contact">Book your free check <span class="arrow" aria-hidden="true">&rarr;</span></a>
-        </div>
       </div>
     </section>
 
@@ -998,7 +896,6 @@
           <li><a href="#products">Products</a></li>
           <li><a href="#products" data-feature-open data-feature-set="camera" data-product="Verisko camera">Features</a></li>
           <li><a href="#packages">Packages</a></li>
-          <li><a href="#about">About</a></li>
           <li><a href="#contact">Contact</a></li>
         </ul>
       </div>
