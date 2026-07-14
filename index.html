@@ -150,25 +150,69 @@
     <!-- ===================== Solutions ===================== -->
     <section class="solutions" id="solutions">
       <div class="solutions-inner">
-        <h2 class="section-title">Solutions</h2>
+        <h2 class="section-title">Who we protect</h2>
 
         <div class="bento">
-          <!-- Each tile's photo is set via background-image; if a file is missing,
-               the fallback colour shows so the layout stays intact. -->
-          <a class="tile tile-homes"        href="#contact" style="background-image:url('assets/solutions/homes.jpg')">
-            <span class="tile-label">Compound</span>
+          <!-- Each photo tile's image is set via background-image; if a file is
+               missing, the fallback colour shows so the layout stays intact.
+               Placeholder tiles use a navy card with the Verisko symbol until a
+               real photo is added. -->
+
+          <a class="tile tile-homes" href="#contact?vertical=home"
+             aria-label="Homes — A Ugandan home compound protected by a Verisko camera"
+             style="background-image:url('assets/solutions/homes.jpg')">
+            <span class="tile-copy">
+              <span class="tile-label">Homes</span>
+              <span class="tile-hook">Know what's happening at home. Even when you're not there.</span>
+            </span>
           </a>
-          <a class="tile tile-hospitals"    href="#contact" style="background-image:url('assets/solutions/hospitals.jpg')">
-            <span class="tile-label">Clinics</span>
+
+          <a class="tile tile-shops" href="#contact?vertical=shop"
+             aria-label="Shops — A Ugandan shop protected by Verisko cameras"
+             style="background-image:url('assets/solutions/supermarkets.jpg')">
+            <span class="tile-copy">
+              <span class="tile-label">Shops</span>
+              <span class="tile-hook">Stop losing stock. Watch every till and aisle from your phone.</span>
+            </span>
           </a>
-          <a class="tile tile-pharmacy"     href="#contact" style="background-image:url('assets/solutions/pharmacy.jpg')">
-            <span class="tile-label">Pharmacy</span>
+
+          <!-- TODO: Add a dedicated office photo — reusing the Home &amp; Office image for now. -->
+          <a class="tile tile-offices" href="#contact?vertical=office"
+             aria-label="Offices — An office protected by Verisko cameras"
+             style="background-image:url('assets/solutions/apartments.jpg')">
+            <span class="tile-copy">
+              <span class="tile-label">Offices</span>
+              <span class="tile-hook">Know who's in the office. Even on weekends.</span>
+            </span>
           </a>
-          <a class="tile tile-supermarkets" href="#contact" style="background-image:url('assets/solutions/supermarkets.jpg')">
-            <span class="tile-label">Shop &amp; Retail</span>
+
+          <a class="tile tile-pharmacy" href="#contact?vertical=pharmacy"
+             aria-label="Pharmacies &amp; Clinics — A Ugandan pharmacy protected by Verisko cameras."
+             style="background-image:url('assets/solutions/pharmacy.jpg')">
+            <span class="tile-copy">
+              <span class="tile-label">Pharmacies &amp; Clinics</span>
+              <span class="tile-hook">Protect your patients, your team, and your medicines.</span>
+            </span>
           </a>
-          <a class="tile tile-apartments"   href="#contact" style="background-image:url('assets/solutions/apartments.jpg')">
-            <span class="tile-label">Home &amp; Office</span>
+
+          <!-- TODO: Add a Kampala school photo — gate or reception preferred. -->
+          <a class="tile tile-placeholder tile-schools" href="#contact?vertical=school"
+             aria-label="Schools">
+            <img class="tile-symbol" src="assets/brand/verisko-symbol-mono-white.svg" alt="" aria-hidden="true" />
+            <span class="tile-copy">
+              <span class="tile-label">Schools</span>
+              <span class="tile-hook">Watch the gate, the classrooms, and the grounds. 24/7.</span>
+            </span>
+          </a>
+
+          <!-- TODO: Add a townhouse or apartment block photo. -->
+          <a class="tile tile-placeholder tile-rentals" href="#contact?vertical=rental"
+             aria-label="Rentals">
+            <img class="tile-symbol" src="assets/brand/verisko-symbol-mono-white.svg" alt="" aria-hidden="true" />
+            <span class="tile-copy">
+              <span class="tile-label">Rentals</span>
+              <span class="tile-hook">Your property is your investment. Protect it 24/7.</span>
+            </span>
           </a>
         </div>
       </div>
@@ -750,19 +794,19 @@
             <div class="vertical-tabs" role="tablist">
               <button type="button" class="vtab active" data-vertical="home">
                 <span class="vicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v10a2 2 0 0 1-2 2h-4v-7H10v7H5a2 2 0 0 1-2-2V11z"/></svg></span>
-                Home
+                Homes
               </button>
               <button type="button" class="vtab" data-vertical="shop">
                 <span class="vicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M3 9c0 1.5 1.5 3 3 3s3-1.5 3-3"/><path d="M9 9c0 1.5 1.5 3 3 3s3-1.5 3-3"/><path d="M15 9c0 1.5 1.5 3 3 3s3-1.5 3-3"/></svg></span>
-                Shop / Retail
+                Shops
               </button>
               <button type="button" class="vtab" data-vertical="office">
                 <span class="vicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><line x1="8" y1="7" x2="10" y2="7"/><line x1="14" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="10" y2="11"/><line x1="14" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="10" y2="15"/><line x1="14" y1="15" x2="16" y2="15"/></svg></span>
-                Office
+                Offices
               </button>
               <button type="button" class="vtab" data-vertical="pharmacy">
                 <span class="vicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="12" y1="7" x2="12" y2="17"/><line x1="7" y1="12" x2="17" y2="12"/></svg></span>
-                Pharmacy / Clinic
+                Pharmacies &amp; Clinics
               </button>
               <button type="button" class="vtab" data-vertical="schools">
                 <span class="vicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>

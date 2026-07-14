@@ -232,17 +232,41 @@
   var surveyForm = document.getElementById('surveyForm');
   if (surveyForm) {
     var verticalLabels = {
-      home: 'Home', shop: 'Shop / Retail', office: 'Office',
-      pharmacy: 'Pharmacy / Clinic', schools: 'Schools', rentals: 'Rentals'
+      home: 'Homes', shop: 'Shops', office: 'Offices',
+      pharmacy: 'Pharmacies & Clinics', schools: 'Schools', rentals: 'Rentals'
     };
 
     var svtabs = surveyForm.querySelectorAll('.vtab');
     var verticalInput = document.getElementById('verticalInput');
+    var selectVertical = function (slug) {
+      var matched = false;
+      svtabs.forEach(function (b) {
+        var on = b.dataset.vertical === slug;
+        b.classList.toggle('active', on);
+        if (on) matched = true;
+      });
+      if (matched && verticalInput) verticalInput.value = slug;
+      return matched;
+    };
     svtabs.forEach(function (btn) {
       btn.addEventListener('click', function () {
-        svtabs.forEach(function (b) { b.classList.remove('active'); });
-        btn.classList.add('active');
-        if (verticalInput) verticalInput.value = btn.dataset.vertical;
+        selectVertical(btn.dataset.vertical);
+      });
+    });
+
+    /* Deep-link from the "Who we protect" tiles: href="#contact?vertical=<slug>".
+       The browser can't scroll to that fragment (no matching id) and nothing
+       reads the query, so intercept the click, scroll to the form, and preselect
+       the vertical. The tiles use singular slugs (school/rental) while the form
+       uses plural (schools/rentals), so alias those two. */
+    var tileSlugAlias = { school: 'schools', rental: 'rentals' };
+    document.querySelectorAll('.tile[href*="#contact?vertical="]').forEach(function (tile) {
+      tile.addEventListener('click', function (e) {
+        e.preventDefault();
+        var raw = (tile.getAttribute('href').split('vertical=')[1] || '').split('&')[0];
+        selectVertical(tileSlugAlias[raw] || raw);
+        var section = document.getElementById('contact');
+        if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
 
