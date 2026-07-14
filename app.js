@@ -230,7 +230,7 @@
   if (surveyForm) {
     var verticalLabels = {
       home: 'Homes', shop: 'Shops', office: 'Offices',
-      pharmacy: 'Pharmacies & Clinics', schools: 'Schools', rentals: 'Rentals'
+      pharmacy: 'Pharmacies & Clinics', school: 'Schools', rental: 'Rentals'
     };
 
     var svtabs = surveyForm.querySelectorAll('.vtab');
@@ -251,17 +251,25 @@
       });
     });
 
-    /* Deep-link from the "Who we protect" tiles: href="#contact?vertical=<slug>".
-       The browser can't scroll to that fragment (no matching id) and nothing
-       reads the query, so intercept the click, scroll to the form, and preselect
-       the vertical. The tiles use singular slugs (school/rental) while the form
-       uses plural (schools/rentals), so alias those two. */
-    var tileSlugAlias = { school: 'schools', rental: 'rentals' };
+    // Read a "#contact?vertical=<slug>" deep link on page load and pre-select the
+    // matching Step 01 chip — without scrolling. Chips now carry the same stable
+    // slugs as the tile links (home/shop/office/pharmacy/school/rental), so no
+    // aliasing is needed. Scoped to the survey form via selectVertical().
+    var deepHash = window.location.hash;               // e.g. "#contact?vertical=pharmacy"
+    var deepQ = deepHash.indexOf('?');
+    if (deepQ !== -1) {
+      var deepVertical = new URLSearchParams(deepHash.slice(deepQ + 1)).get('vertical');
+      if (deepVertical) selectVertical(deepVertical);
+    }
+
+    /* In-page clicks on the "Who we protect" tiles: the browser can't scroll to
+       "#contact?vertical=X" (no matching id), so intercept, pre-select the chip,
+       and scroll to the form. */
     document.querySelectorAll('.tile[href*="#contact?vertical="]').forEach(function (tile) {
       tile.addEventListener('click', function (e) {
         e.preventDefault();
         var raw = (tile.getAttribute('href').split('vertical=')[1] || '').split('&')[0];
-        selectVertical(tileSlugAlias[raw] || raw);
+        selectVertical(raw);
         var section = document.getElementById('contact');
         if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
