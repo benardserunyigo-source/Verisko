@@ -322,6 +322,22 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
   color: var(--cyan);
   flex: none;
 }
+.hero-trust .chip-check {
+  color: var(--cyan);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  flex: none;
+}
+
+/* Micro reassurance line directly under the primary CTA */
+.hero-micro {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--gray);
+}
 
 /* ---------- Solutions (bento grid) ---------- */
 .solutions {
@@ -1763,6 +1779,7 @@ section[id] { scroll-margin-top: 96px; }
   .js-reveal .hero-text > *:nth-child(2) { animation-delay: 0.18s; }
   .js-reveal .hero-text > *:nth-child(3) { animation-delay: 0.31s; }
   .js-reveal .hero-text > *:nth-child(4) { animation-delay: 0.44s; }
+  .js-reveal .hero-text > *:nth-child(5) { animation-delay: 0.57s; }
   .js-reveal .hero-image {
     opacity: 0;
     animation: heroFade 1.2s ease 0.15s forwards;
