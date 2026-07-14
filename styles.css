@@ -1673,12 +1673,31 @@ a.ci-value:hover { color: var(--navy); }
   align-items: center;
   gap: 18px;
   max-width: 920px;
-  margin: 0 auto 48px;
+  margin: 0 auto 28px;
   padding: 20px 28px;
   background: #FFFFFF;
   border: 1px solid rgba(22, 155, 215, 0.25);
   border-radius: 16px;
   box-shadow: var(--shadow-sm);
+}
+
+/* Complexity transparency — why the "From" price might not be final */
+.complexity-note {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 4px;
+}
+.complexity-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 0 0 10px;
+}
+.complexity-body {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  margin: 0;
 }
 .addon-icon {
   flex: none;

@@ -179,12 +179,12 @@
     };
 
     var verticalDescriptions = {
-      home: '<strong>Home —</strong> Cameras at your gate. Cameras down the drive. A camera inside near the door. From the 8-camera package, a moving camera in the back yard.<br><br>Made to keep your family safe. Made so you can check the kids when you are away. And if something happens, you have the proof.',
-      shop: '<strong>Shop &amp; Retail —</strong> Boutiques, supermarkets, salons, electronics. A camera at the door so people see you take this serious. Ceiling cameras across the shop floor. A wide camera right over the till from the 6-camera package up.<br><br>See every customer. See every cash exchange. End every "I paid for that" argument before it starts.',
-      office: '<strong>Office —</strong> Co-working spaces, small and medium offices. A close camera over reception that catches every face. Ceiling cameras through the work area. A camera at the car park entry. From the 8-camera package, a moving camera for the bigger lots.<br><br>Know who came in. Know when. Know what they touched.',
-      pharmacy: '<strong>Pharmacy &amp; Clinic —</strong> Pharmacies, clinics, dental, optical. A close camera right at the dispensary counter. A wide camera over the till from the 6-camera package up. Ceiling cameras through the floor. A camera at the door.<br><br>Settle every dispute. Meet the insurance check. Keep controlled drugs safe.',
-      schools: '<strong>Schools —</strong> Primary, secondary, daycares, training centres. Cameras at the gate. Cameras in the corridors. A wide camera over the playground from the 6-camera package up. A moving camera for the compound from the 8-camera package.<br><br>Keep the children safe. Show parents you care. And if something happens, you have the proof.',
-      rentals: '<strong>Rentals —</strong> Apartment blocks, hostels, rental compounds, Airbnbs. Cameras at the main gate and building entry. A wide camera over the parking from the 6-camera package up. Ceiling cameras in the stairwells and shared corridors. <em>Never</em> pointing at private tenant doors.<br><br>Tenants feel safer. You see the common areas. And every dispute gets settled by the footage.'
+      home: 'Cameras at your gate. Cameras down the drive. A camera inside near the door. From the 8-camera package, a moving camera in the back yard.<br><br>Made to keep your family safe. Made so you can check on your place from anywhere.',
+      shop: 'Cameras above every till. Cameras at each door. Cameras in the store room.<br><br>Made to stop stock walking out. Made so you can see every corner from your phone.',
+      office: 'Cameras at the reception. Cameras in the corridors. Cameras at the back door.<br><br>Made so you know who came in — even on weekends.',
+      pharmacy: 'Cameras at the counter. Cameras at the drug cabinet. Cameras at the entrance.<br><br>Made to protect your medicines, your team, and your patients.',
+      schools: 'Cameras at the gate. Cameras in the corridors. Cameras at the grounds.<br><br>Made to keep learners safe. Made so parents and teachers can watch the school 24/7.',
+      rentals: 'Cameras at every entrance. Cameras in shared areas. Cameras at the parking.<br><br>Made to protect your property between tenants. Made so you can check on it from anywhere.'
     };
 
     var mixDetails = document.querySelectorAll('.pricing .mix-detail');
