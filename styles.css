@@ -1446,6 +1446,7 @@ a.ci-value:hover { color: var(--navy); }
   align-self: flex-start;
   margin-top: 12px;
   margin-right: 2px;
+  white-space: nowrap;   /* keep "From UGX" together on narrow viewports */
 }
 .price-num {
   font-size: 48px;
