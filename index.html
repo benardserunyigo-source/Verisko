@@ -57,10 +57,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="styles.css" />
-  <!-- Preload the hero (LCP) image, picking the right size per viewport -->
-  <link rel="preload" as="image" href="assets/camera.jpg"
-        imagesrcset="assets/camera-sm.jpg 600w, assets/camera.jpg 1000w"
-        imagesizes="(max-width: 900px) 100vw, 52vw" />
+  <!-- Preload the hero (LCP) image -->
+  <link rel="preload" as="image" href="assets/hero-camera.png" />
 
   <!-- Set the reveal flag before first paint so animated content never flashes in -->
   <script>document.documentElement.classList.add('js-reveal');</script>
@@ -119,12 +117,10 @@
         </div>
 
         <div class="hero-media">
-          <img src="assets/camera.jpg"
-               srcset="assets/camera-sm.jpg 600w, assets/camera.jpg 1000w"
-               sizes="(max-width: 900px) 100vw, 46vw"
-               width="1000" height="1000"
+          <img src="assets/hero-camera.png"
+               width="864" height="864"
                fetchpriority="high" decoding="async"
-               alt="AI security camera mounted on a wall" />
+               alt="Verisko AI bullet security camera" />
 
           <div class="hero-live" aria-hidden="true">
             <span class="live-dot"></span>

@@ -275,11 +275,16 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
   /* height:auto is load-bearing — the width/height attributes map to CSS
      dimensions, and aspect-ratio is ignored while both are set. */
   height: auto;
-  aspect-ratio: 1 / 0.92;
+  /* Square panel matches the square product shot, so the camera and its rings
+     show whole with no crop. */
+  aspect-ratio: 1 / 1;
   object-fit: cover;
-  object-position: 62% center;   /* keeps the camera off the panel's edge */
+  object-position: center;
   display: block;
   border-radius: 22px;
+  /* The PNG is transparent with pale-mint rings — without a light fill the
+     navy band shows through and the camera reads dark and murky. */
+  background: var(--white);
   box-shadow: 0 34px 70px rgba(4, 12, 46, 0.34);
 }
 
