@@ -793,6 +793,7 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
 }
 
 .product-card {
+  position: relative;             /* anchor for the stretched .pc-open::after */
   background: #fff;                /* white card — the near-white photo bg blends in */
   border: 1px solid #e9ecf4;
   border-radius: 20px;
@@ -801,12 +802,17 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
   flex-direction: column;
   align-items: center;
   text-align: center;
+  cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .product-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 20px 44px rgba(22, 38, 107, 0.10);
   border-color: #dfe3ef;
+}
+.product-card:focus-within {      /* keyboard focus lands on the inner button */
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
 }
 
 .pc-media {
@@ -817,28 +823,31 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
   background-position: center;
   background-size: contain;        /* show the whole camera, no cropping */
 }
-.pc-name { color: var(--navy); font-weight: 700; font-size: 19px; margin: 0 0 6px; }
-.pc-detail { color: var(--gray); font-size: 14px; margin: 0; line-height: 1.5; }
-.pc-sub { color: var(--navy); font-size: 12.5px; font-weight: 600; margin: 10px 0 0; letter-spacing: 0.01em; }
-
-.pc-btn {
-  margin-top: 18px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 22px;
-  border-radius: 999px;
-  border: 1.5px solid var(--border);
-  background: #fff;
+.pc-name { margin: 0 0 6px; }
+/* The name is a real button so the card is keyboard-operable; its ::after
+   stretches over the whole card to make the entire card the click target. */
+.pc-open {
+  font: inherit;
   color: var(--navy);
-  font-weight: 600;
-  font-size: 15px;
+  font-weight: 700;
+  font-size: 19px;
+  background: none;
+  border: 0;
+  padding: 0;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
 }
-.pc-btn:hover { border-color: var(--navy); background: #f6f7fc; transform: translateY(-1px); }
-.pc-btn .arrow { transition: transform 0.2s ease; }
-.pc-btn:hover .arrow { transform: translateX(3px); }
+.pc-open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.pc-open:focus { outline: none; }  /* focus ring is drawn on the card instead */
+.pc-context {
+  color: var(--gray);
+  font-size: 14px;
+  margin: 0;
+  line-height: 1.5;
+}
 
 /* ---------- Product features modal ---------- */
 .feature-modal {

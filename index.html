@@ -311,52 +311,44 @@
           <p class="section-sub">Each camera does a different job. Pick the ones that fit your place — or let us pick for you during your free check.</p>
         </div>
 
+        <!-- Simplified cards: image, name, one line on where it goes. The whole
+             card opens the capability popup — .pc-open is a real button whose
+             ::after stretches over the card, so it stays keyboard-accessible. -->
         <div class="product-grid">
-          <!-- Order: most common → specialist → utility. Images stay with each
-               camera (renamed only); files are swapped separately. -->
           <article class="product-card">
             <div class="pc-media" style="background-image:url('assets/products/bullet.jpeg')"></div>
-            <h3 class="pc-name">Outdoor Camera</h3>
-            <p class="pc-detail">Made for outside. Sees far, day or night. Fits at your gate, driveway, or building corner.</p>
-            <p class="pc-sub">Standard sharp or extra sharp</p>
-            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="Outdoor Camera">
-              See what it does <span class="arrow" aria-hidden="true">→</span>
-            </button>
+            <h3 class="pc-name">
+              <button type="button" class="pc-open" data-feature-open data-feature-set="camera" data-product="Outdoor Camera">Outdoor Camera</button>
+            </h3>
+            <p class="pc-context">At your gate, driveway or building corner.</p>
           </article>
           <article class="product-card">
             <div class="pc-media" style="background-image:url('assets/products/dome.jpeg')"></div>
-            <h3 class="pc-name">Ceiling Camera</h3>
-            <p class="pc-detail">Fits on your ceiling — inside your shop, office, or under a covered roof. Sees in colour even at night. White lights flash to scare people away.</p>
-            <p class="pc-sub">Standard sharp or extra sharp</p>
-            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="Ceiling Camera">
-              See what it does <span class="arrow" aria-hidden="true">→</span>
-            </button>
+            <h3 class="pc-name">
+              <button type="button" class="pc-open" data-feature-open data-feature-set="camera" data-product="Ceiling Camera">Ceiling Camera</button>
+            </h3>
+            <p class="pc-context">Inside your shop, office or reception.</p>
           </article>
           <article class="product-card">
             <div class="pc-media" style="background-image:url('assets/products/ptz.jpeg')"></div>
-            <h3 class="pc-name">Moving Camera</h3>
-            <p class="pc-detail">Turns and looks around. Watches a big yard or shop from one spot. Move it from your phone.</p>
-            <p class="pc-sub">Standard sharp or extra sharp</p>
-            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="Moving Camera">
-              See what it does <span class="arrow" aria-hidden="true">→</span>
-            </button>
+            <h3 class="pc-name">
+              <button type="button" class="pc-open" data-feature-open data-feature-set="camera" data-product="Moving Camera">Moving Camera</button>
+            </h3>
+            <p class="pc-context">Covers a big yard or shop floor from one spot.</p>
           </article>
           <article class="product-card">
             <div class="pc-media" style="background-image:url('assets/products/dome-48v.jpeg')"></div>
-            <h3 class="pc-name">Tough Camera</h3>
-            <p class="pc-detail">For rough spots. Cannot be smashed easily. Fits inside or outside where people might try to break it.</p>
-            <p class="pc-sub">Standard sharp or extra sharp</p>
-            <button type="button" class="pc-btn" data-feature-open data-feature-set="camera" data-product="Tough Camera">
-              See what it does <span class="arrow" aria-hidden="true">→</span>
-            </button>
+            <h3 class="pc-name">
+              <button type="button" class="pc-open" data-feature-open data-feature-set="camera" data-product="Tough Camera">Tough Camera</button>
+            </h3>
+            <p class="pc-context">For rough spots where cameras get knocked.</p>
           </article>
           <article class="product-card">
             <div class="pc-media" style="background-image:url('assets/products/nvr.jpeg')"></div>
-            <h3 class="pc-name">Recorder</h3>
-            <p class="pc-detail">The box that records everything and powers all your cameras. One neat cable to each camera. Comes with every package.</p>
-            <button type="button" class="pc-btn" data-feature-open data-feature-set="nvr" data-product="Recorder">
-              See what it does <span class="arrow" aria-hidden="true">→</span>
-            </button>
+            <h3 class="pc-name">
+              <button type="button" class="pc-open" data-feature-open data-feature-set="nvr" data-product="Recorder">Recorder</button>
+            </h3>
+            <p class="pc-context">Kept safe indoors — records every camera.</p>
           </article>
         </div>
       </div>
