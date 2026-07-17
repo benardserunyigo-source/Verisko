@@ -305,6 +305,104 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
   color: var(--gray);
 }
 
+/* ---------- What the cameras can do ----------
+   Copy left, image collage right. The collage is one tall cell beside three
+   stacked cells; cell order matches the order the sub-copy names them. */
+.capability {
+  padding: 104px 0;
+}
+.capability-inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0 var(--pad);
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
+  gap: 64px;
+  align-items: center;
+}
+.cap-eyebrow {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+/* Tighter than the shared .section-title default — this headline sits on a
+   two-line break and the wide default margin pushes the sub too far down. */
+.cap-copy .section-title { margin: 0 0 20px; }
+.cap-copy .section-sub { max-width: 46ch; }
+
+.cap-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 28px;
+  padding: 0;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--navy);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.cap-cta .arrow { transition: transform 0.2s ease; }
+@media (hover: hover) {
+  .cap-cta:hover { color: var(--cyan); }
+  .cap-cta:hover .arrow { transform: translateX(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cap-cta .arrow { transition: none; }
+}
+
+/* Each graphic carries its own baked-in heading, so cells show the whole image
+   rather than crop to fill — cropping slices the text. Every source file is
+   1:1, so the column ratio and aspect-ratio are tuned to make each cell land
+   square too; that way "contain" has almost no tint left to show. */
+.cap-collage {
+  display: grid;
+  grid-template-columns: 3.17fr 1fr;
+  grid-template-rows: repeat(3, 1fr);
+  gap: 12px;
+  aspect-ratio: 4 / 3;
+}
+.cap-shot {
+  margin: 0;
+  padding: 6px;
+  border-radius: 18px;
+  background: var(--cyan-soft);   /* panel behind the letterboxed image */
+  /* Without this the images' intrinsic 1000px sets a min-content floor and
+     the rows refuse to shrink, so the collage ignores its aspect-ratio. */
+  min-width: 0;
+  min-height: 0;
+}
+.cap-shot-tall { grid-row: 1 / -1; }
+.cap-shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 12px;
+  display: block;
+}
+
+@media (max-width: 900px) {
+  .capability { padding: 72px 0; }
+  .capability-inner {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+  .cap-copy .section-sub { max-width: none; }
+  /* The desktop ratio would squeeze the three side cells to ~50px here, too
+     small to make out. Even 2x2 keeps all four legible on a phone. */
+  .cap-collage {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    aspect-ratio: 1 / 1;
+  }
+  .cap-shot-tall { grid-row: auto; }
+}
+
 /* ---------- Two ways to pay ---------- */
 .payment {
   background: #f7f9fd;         /* soft neutral so the white cards separate */
