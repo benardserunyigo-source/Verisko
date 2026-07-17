@@ -975,7 +975,6 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
   .fm-overlay, .fm-dialog { animation: none; }
 }
 
-
 /* ---------- Section heads (Products / Solutions) ---------- */
 .section-head { max-width: 620px; margin: 0 0 48px; }
 .section-sub {
@@ -1519,49 +1518,6 @@ a.ci-value:hover { color: var(--navy); }
 }
 
 /* ---- vertical tabs ("where do you need the cameras?") ---- */
-.vertical-tabs {
-  display: flex;
-  gap: 6px;
-  background: #FFFFFF;
-  padding: 8px;
-  border: 1px solid var(--line-mid);
-  border-radius: 20px;
-  box-shadow: var(--shadow-md);
-}
-.vtab {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  padding: 20px 10px 18px;
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--ink);
-  cursor: pointer;
-  border-radius: 14px;
-  transition: background 0.22s cubic-bezier(0.4, 0, 0.2, 1), color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease;
-  text-align: center;
-  position: relative;
-}
-.vtab:hover { background: var(--cyan-soft); }
-.vtab.active {
-  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-soft) 100%);
-  color: #FFFFFF;
-  box-shadow: 0 8px 22px rgba(1, 33, 105, 0.22);
-}
-.vtab .vicon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 10px;
-  width: 32px; height: 32px;
-  color: var(--cyan);
-  transition: color 0.22s ease, transform 0.22s ease;
-}
-.vtab:hover .vicon { transform: scale(1.08); }
-.vtab.active .vicon { color: var(--cyan-bright); }
-.vtab .vicon svg { width: 100%; height: 100%; }
 /* ---- pricing grid ---- */
 .pricing-grid {
   display: grid;
@@ -1851,9 +1807,6 @@ a.ci-value:hover { color: var(--navy); }
 }
 @media (max-width: 980px) {
   .pricing { padding: 90px 32px 110px; }
-  .vertical-tabs { flex-wrap: wrap; }
-  .vtab { min-width: 30%; padding: 16px 8px 14px; }
-  .vtab .vicon { width: 26px; height: 26px; margin-bottom: 8px; }
   .trust-bar { grid-template-columns: repeat(2, 1fr); }
   .trust-item:nth-child(2) { border-right: none; }
   .trust-item:nth-child(1), .trust-item:nth-child(2) { border-bottom: 1px solid var(--line); }
@@ -1872,12 +1825,6 @@ a.ci-value:hover { color: var(--navy); }
   .trust-item:last-child { border-bottom: none; }
   .why-more { padding: 44px 28px 36px; border-radius: 20px; }
   .why-more h2 { font-size: 26px; }
-  .vertical-tabs { padding: 6px; gap: 4px; }
-  .vtab { padding: 14px 6px 12px; }
-}
-@media (max-width: 460px) {
-  .vertical-tabs { grid-template-columns: repeat(2, 1fr); display: grid; }
-  .vtab { min-width: 0; }
 }
 
 /* =====================================================================
@@ -2156,9 +2103,9 @@ html { overflow-x: hidden; }
 .form-status.err { color: #c0392b; }
 
 /* =====================================================================
-   FREE SITE SURVEY (contact section)
+   BOOK YOUR FREE CHECK (contact section)
    Self-contained. Tokens scoped to .survey-section; every rule is scoped
-   under .survey so it overrides the site-wide .field / .vtab / .eyebrow.
+   under .survey so it overrides the site-wide .field / .eyebrow.
    ===================================================================== */
 .survey-section {
   --navy:  #16266b;
@@ -2229,87 +2176,8 @@ html { overflow-x: hidden; }
   border-color: rgba(22, 155, 215, 0.30);
   box-shadow: var(--shadow-md);
 }
-.survey .step-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 24px;
-}
-.survey .step-num {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  height: 32px;
-  padding: 0 10px;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #FFFFFF;
-  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-soft) 100%);
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(1, 33, 105, 0.18);
-}
-.survey .step-title {
-  font-size: 24px;
-  font-weight: 800;
-  color: var(--navy);
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-}
-.survey .step-help {
-  font-size: 15px;
-  color: var(--muted);
-  margin-top: -14px;
-  margin-bottom: 26px;
-  line-height: 1.6;
-}
 
 /* ---- vertical tabs ---- */
-.survey .vertical-tabs {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 8px;
-}
-.survey .vtab {
-  border: 1.5px solid var(--line-mid);
-  background: #FFFFFF;
-  padding: 20px 8px 16px;
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--navy);
-  cursor: pointer;
-  border-radius: 14px;
-  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-  text-align: center;
-  letter-spacing: -0.005em;
-  flex: none;          /* override the pricing .vtab flex:1 */
-  min-width: 0;
-}
-.survey .vtab:hover {
-  border-color: rgba(22, 155, 215, 0.35);
-  background: var(--cyan-soft);
-}
-.survey .vtab.active {
-  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-soft) 100%);
-  color: #FFFFFF;
-  border-color: var(--navy);
-  box-shadow: 0 8px 20px rgba(1, 33, 105, 0.22);
-}
-.survey .vtab .vicon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 8px;
-  width: 28px; height: 28px;
-  color: var(--cyan);
-  transition: color 0.22s ease, transform 0.22s ease;
-}
-.survey .vtab:hover .vicon { transform: scale(1.08); }
-.survey .vtab.active .vicon { color: var(--cyan-bright); }
-.survey .vtab .vicon svg { width: 100%; height: 100%; }
 
 /* ---- form fields ---- */
 .survey .field { display: block; margin-bottom: 20px; }
@@ -2325,6 +2193,13 @@ html { overflow-x: hidden; }
   color: var(--cyan);
   margin-left: 3px;
   font-weight: 800;
+}
+.survey .field-label .opt {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0;
 }
 .survey .field-hint {
   font-size: 13px;
@@ -2364,113 +2239,10 @@ html { overflow-x: hidden; }
 }
 
 /* ---- radio pill groups ---- */
-.survey .pill-group {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.survey .pill {
-  flex: 1;
-  min-width: 140px;
-  position: relative;
-}
-.survey .pill input { position: absolute; opacity: 0; pointer-events: none; }
-.survey .pill label {
-  display: block;
-  padding: 14px 18px;
-  background: var(--field-bg);
-  border: 1.5px solid transparent;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink);
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-  letter-spacing: -0.005em;
-}
-.survey .pill label:hover {
-  background: #FFFFFF;
-  border-color: rgba(22, 155, 215, 0.35);
-}
-.survey .pill input:checked + label {
-  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-soft) 100%);
-  border-color: var(--navy);
-  color: #FFFFFF;
-  box-shadow: 0 6px 18px rgba(1, 33, 105, 0.22);
-}
-.survey .pill label small {
-  display: block;
-  margin-top: 4px;
-  font-weight: 500;
-  font-size: 12px;
-  color: var(--muted);
-}
-.survey .pill input:checked + label small { color: rgba(255, 255, 255, 0.75); }
 
 /* ---- checkbox group (concerns) ---- */
-.survey .check-group {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-}
-.survey .check-item { position: relative; }
-.survey .check-item input { position: absolute; opacity: 0; pointer-events: none; }
-.survey .check-item label {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--section-bg);
-  border: 1.5px solid transparent;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--ink);
-  cursor: pointer;
-  transition: all 0.18s ease;
-  line-height: 1.4;
-}
-.survey .check-item label:hover { border-color: var(--cyan); }
-.survey .check-item input:checked + label {
-  background: var(--cyan-soft);
-  border-color: var(--cyan);
-  color: var(--navy);
-  font-weight: 600;
-}
-.survey .check-item .box {
-  flex: none;
-  width: 18px; height: 18px;
-  border: 2px solid var(--muted);
-  border-radius: 5px;
-  margin-top: 1px;
-  transition: all 0.18s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.survey .check-item input:checked + label .box {
-  background: var(--cyan);
-  border-color: var(--cyan);
-}
-.survey .check-item .box svg {
-  width: 12px; height: 12px;
-  color: #FFFFFF;
-  opacity: 0;
-  transition: opacity 0.18s ease;
-}
-.survey .check-item input:checked + label .box svg { opacity: 1; }
 
 /* ---- contextual sub-questions ---- */
-.survey .contextual-fields {
-  margin-top: 22px;
-  padding: 20px;
-  background: var(--section-bg);
-  border-radius: 12px;
-  border-left: 3px solid var(--cyan);
-}
-.survey .contextual-fields:empty { display: none; }
-.survey .contextual-fields .field-label { font-size: 13px; }
 
 /* ---- submit ---- */
 .survey .submit-row { margin-top: 32px; text-align: center; }
@@ -2552,23 +2324,10 @@ html { overflow-x: hidden; }
 }
 
 /* ---- survey responsive ---- */
-@media (max-width: 980px) {
-  .survey .vertical-tabs { grid-template-columns: repeat(3, 1fr); }
-}
 @media (max-width: 760px) {
   .survey { padding: 56px 16px 80px; }
   .survey .step { padding: 30px 24px 26px; border-radius: 18px; }
-  .survey .vertical-tabs { grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .survey .vtab { padding: 16px 6px 14px; font-size: 12px; border-radius: 12px; }
-  .survey .vtab .vicon { width: 24px; height: 24px; margin-bottom: 6px; }
-  .survey .check-group { grid-template-columns: 1fr; }
   .survey .input-row { grid-template-columns: 1fr; }
-  .survey .pill { min-width: calc(50% - 5px); }
-  .survey .pill label { padding: 12px 14px; }
-}
-@media (max-width: 460px) {
-  .survey .vertical-tabs { grid-template-columns: repeat(2, 1fr); }
-  .survey .pill { min-width: 100%; }
 }
 
 /* =====================================================================

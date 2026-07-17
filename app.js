@@ -138,26 +138,17 @@
   if (surveyForm) {
     var verticalLabels = {
       home: 'Homes', shop: 'Shops', office: 'Offices',
-      pharmacy: 'Pharmacies & Clinics', school: 'Schools', rental: 'Rentals'
+      pharmacy: 'Pharmacies & Clinics', school: 'Schools', rental: 'Rentals', other: 'Something else'
     };
 
-    var svtabs = surveyForm.querySelectorAll('.vtab');
-    var verticalInput = document.getElementById('verticalInput');
+    // Place type is now a <select>; deep links / tile clicks pre-select it.
+    var verticalSelect = document.getElementById('verticalSelect');
     var selectVertical = function (slug) {
-      var matched = false;
-      svtabs.forEach(function (b) {
-        var on = b.dataset.vertical === slug;
-        b.classList.toggle('active', on);
-        if (on) matched = true;
-      });
-      if (matched && verticalInput) verticalInput.value = slug;
-      return matched;
+      if (!verticalSelect) return false;
+      var has = Array.prototype.some.call(verticalSelect.options, function (o) { return o.value === slug; });
+      if (has) verticalSelect.value = slug;
+      return has;
     };
-    svtabs.forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        selectVertical(btn.dataset.vertical);
-      });
-    });
 
     // Read a "#contact?vertical=<slug>" deep link on page load and pre-select the
     // matching Step 01 chip — without scrolling. Chips now carry the same stable
@@ -195,15 +186,11 @@
 
     var buildSummary = function (fd) {
       var get = function (k) { var v = fd.get(k); return v ? String(v).trim() : ''; };
-      var lines = [
-        'Space type: ' + (verticalLabels[get('vertical')] || get('vertical')),
-        'Area: ' + get('propArea'),
-        'Size: ' + get('propSize') + ' | Existing CCTV: ' + get('cctvStatus'),
-        'Timeline: ' + get('timeline') + ' | Payment: ' + get('payment'),
-        'Preferred contact: ' + get('contactPref')
-      ];
-      if (get('notes')) lines.push('Notes: ' + get('notes'));
-      return lines.filter(Boolean).join('\n');
+      var lines = [];
+      if (get('vertical')) lines.push('Space type: ' + (verticalLabels[get('vertical')] || get('vertical')));
+      if (get('propArea')) lines.push('Area: ' + get('propArea'));
+      if (get('notes'))    lines.push('Notes: ' + get('notes'));
+      return lines.join('\n');
     };
 
     surveyForm.addEventListener('submit', function (e) {
