@@ -448,49 +448,148 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
 }
 
 .pay-grid {
+  margin-top: 44px;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
-  align-items: stretch;        /* equal height; both cards match the taller one */
+  gap: 28px;
 }
 .pay-card {
+  position: relative;
   background: #fff;
   border: 1px solid #e9ecf4;
-  border-radius: 20px;
-  padding: 32px;
+  border-radius: 22px;
+  box-shadow: 0 1px 2px rgba(22, 38, 107, 0.04);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 1px 2px rgba(22, 38, 107, 0.04);
+}
+
+/* Dark visual panel with a white badge floating over its lower edge —
+   the look of the reference without building a literal phone. */
+.pay-visual {
+  position: relative;
+  height: 210px;
+  border-radius: 22px 22px 0 0;
+  background: linear-gradient(160deg, #0d142d 0%, #16266b 100%);
+  overflow: hidden;            /* keep the glow inside the rounded top */
+}
+.pay-visual::before {          /* soft brand glow so the panel isn't flat */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 118%, rgba(22, 155, 215, 0.30) 0%, transparent 56%);
+}
+/* Sibling of .pay-visual, not a child — the panel's overflow:hidden (for the
+   glow) would otherwise clip the badge. Positioned on the panel's bottom edge. */
+.pay-badge {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 210px;                  /* = .pay-visual height */
+  transform: translateY(-50%); /* straddle the panel's bottom edge */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 18px 40px rgba(13, 20, 45, 0.22);
+}
+.pay-badge-text { flex: 1; min-width: 0; }
+.pay-badge-title {
+  display: block;
+  color: var(--navy);
+  font-weight: 800;
+  font-size: 21px;
+  letter-spacing: -0.01em;
+}
+.pay-badge-sub { display: block; color: var(--gray); font-size: 13px; margin-top: 2px; }
+.pay-badge-pill {
+  flex: none;
+  background: var(--cyan-soft);
+  color: var(--navy);
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+.pay-badge-check {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--cyan);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pay-card-body {
+  padding: 52px 30px 32px;     /* top padding clears the overhanging badge */
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 .pay-name {
   color: var(--navy);
   font-weight: 700;
-  font-size: 22px;
-  margin: 0 0 16px;
+  font-size: 24px;
+  margin: 0 0 12px;
 }
-.pay-body {
-  color: var(--ink);
-  font-size: 18px;
-  line-height: 1.6;
-  margin: 0 0 20px;
-}
-.pay-foot {
+.pay-desc {
   color: var(--gray);
-  font-size: 14px;
-  font-style: italic;
-  margin: auto 0 0;            /* pin footers to the bottom so they baseline-align */
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0 0 24px;
+}
+.pay-cta {
+  margin-top: auto;            /* pin buttons to the bottom so cards align */
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 14px 26px;
+  border-radius: 999px;
+  border: none;
+  background: var(--navy);
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.pay-cta .arrow { transition: transform 0.2s ease; }
+@media (hover: hover) {
+  .pay-cta:hover { background: var(--navy-hover); transform: translateY(-1px); }
+  .pay-cta:hover .arrow { transform: translateX(3px); }
 }
 
-.pay-support {
-  max-width: 760px;
-  margin: 48px 0 0;
+/* Payment schedule — shown inside the modal for each path */
+.pay-steps {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  display: grid;
+  gap: 14px;
 }
-.pay-note {
-  color: var(--gray);
-  font-size: 14px;
-  font-style: italic;
-  margin: 0 0 28px;
+.pay-steps li { display: flex; gap: 14px; align-items: flex-start; }
+.pay-step-pct {
+  flex: none;
+  min-width: 54px;
+  padding: 7px 0;
+  text-align: center;
+  background: var(--cyan-soft);
+  color: var(--navy);
+  font-weight: 800;
+  font-size: 15px;
+  border-radius: 10px;
 }
+.pay-steps strong { display: block; color: var(--ink); font-size: 15px; margin-bottom: 2px; }
+.pay-steps li > div { color: var(--gray); font-size: 14px; line-height: 1.5; }
+
+/* --- retained for the modal's 3-month detail (documents, exclusions) --- */
 .pay-subhead {
   color: var(--navy);
   font-weight: 700;
