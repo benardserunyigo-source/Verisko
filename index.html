@@ -103,32 +103,37 @@
   </header>
 
   <main>
+    <!-- Hero: navy colour band with the photo panel overhanging its bottom
+         edge. The band runs under the sticky header, so the header inverts to
+         white while it's over the hero (see .site-header:not(.scrolled)). -->
     <section class="hero">
-      <div class="hero-text">
-        <h1>See your home or business from anywhere.<br /> Anytime.</h1>
-        <p class="subhead">AI cameras. Set up around your phone.<br /> Pay now, or over 3 months — you choose.</p>
-        <a class="btn btn-primary" href="#contact">
-          Book your free check
-          <span class="arrow" aria-hidden="true">&rarr;</span>
-        </a>
-        <p class="hero-micro">Free. No pressure. Written quote in 2 days.</p>
-      </div>
+      <div class="hero-inner">
+        <div class="hero-text">
+          <h1>See your home or business from anywhere.<br /> Anytime.</h1>
+          <p class="subhead">AI cameras. Set up around your phone.<br /> Pay now, or over 3 months — you choose.</p>
+          <a class="btn btn-hero" href="#contact">
+            Book your free check
+            <span class="arrow" aria-hidden="true">&rarr;</span>
+          </a>
+          <p class="hero-micro">Free. No pressure. Written quote in 2 days.</p>
+        </div>
 
-      <div class="hero-image">
-        <img src="assets/camera.jpg"
-             srcset="assets/camera-sm.jpg 600w, assets/camera.jpg 1000w"
-             sizes="(max-width: 900px) 100vw, 52vw"
-             width="1000" height="1000"
-             fetchpriority="high" decoding="async"
-             alt="AI security camera mounted on a wall" />
-      </div>
+        <div class="hero-media">
+          <img src="assets/camera.jpg"
+               srcset="assets/camera-sm.jpg 600w, assets/camera.jpg 1000w"
+               sizes="(max-width: 900px) 100vw, 46vw"
+               width="1000" height="1000"
+               fetchpriority="high" decoding="async"
+               alt="AI security camera mounted on a wall" />
 
-      <div class="hero-live" aria-hidden="true">
-        <span class="live-dot"></span>
-        <span class="live-meta">
-          <span class="live-label">Front Gate</span>
-          <span class="live-sub">Live · on your phone</span>
-        </span>
+          <div class="hero-live" aria-hidden="true">
+            <span class="live-dot"></span>
+            <span class="live-meta">
+              <span class="live-label">Front Gate</span>
+              <span class="live-sub">Live · on your phone</span>
+            </span>
+          </div>
+        </div>
       </div>
     </section>
 

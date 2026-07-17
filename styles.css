@@ -11,6 +11,7 @@
 
   --maxw: 1280px;
   --pad: 64px;            /* horizontal page padding on desktop */
+  --header-h: 102px;      /* unscrolled header; the hero tucks up behind it */
 }
 
 * { box-sizing: border-box; }
@@ -34,6 +35,20 @@ a { text-decoration: none; color: inherit; }
   z-index: 50;               /* above the full-bleed hero image + page content */
   transition: background 0.3s ease, box-shadow 0.3s ease, -webkit-backdrop-filter 0.3s ease, backdrop-filter 0.3s ease;
 }
+/* Unscrolled, the header floats over the navy hero band, where the default
+   navy logo and grey links would be invisible. Invert to white until the
+   frosted-white .scrolled state takes over. */
+.site-header:not(.scrolled) .logo { color: var(--white); }
+.site-header:not(.scrolled) .logo-mark { filter: brightness(0) invert(1); }
+.site-header:not(.scrolled) .nav a { color: rgba(255, 255, 255, 0.82); }
+.site-header:not(.scrolled) .nav a:hover { color: var(--white); }
+.site-header:not(.scrolled) .nav-cta {
+  color: var(--white);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+.site-header:not(.scrolled) .nav-cta:hover { border-color: var(--white); }
+.site-header:not(.scrolled) .nav-toggle span { background: var(--white); }
+
 /* frosted glass appears once the page is scrolled */
 .site-header.scrolled {
   background: rgba(255, 255, 255, 0.72);
@@ -169,84 +184,103 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
 }
 .btn-primary .arrow { font-size: 22px; line-height: 1; }
 
-/* ---------- Hero ---------- */
+/* ---------- Hero ----------
+   A navy colour band with the photo panel breaking out below its bottom edge.
+   The band is a ::before rather than a background on .hero, so its bottom can
+   stop short of the section and let the photo overhang into the white page. */
+/* The header is sticky and transparent, so it takes flow space above the hero.
+   Pull the hero up by the header's height and pad it back — that puts the navy
+   band behind the nav, as in the reference, instead of starting below it. */
 .hero {
   position: relative;
-  min-height: 660px;
-  display: flex;
+  background: var(--white);
+  margin-top: calc(-1 * var(--header-h));
+  padding-top: var(--header-h);
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Ends exactly where the content row does, so the copy always sits safely on
+     navy. A percentage here drifts with content length and slices the text. */
+  height: calc(100% - 72px);
+  background: var(--navy);
+  z-index: 0;
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 1;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 40px var(--pad) 72px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 56px;
   align-items: center;
-  overflow: hidden;          /* clip the full-bleed image to the hero */
 }
 
 .hero-text {
-  position: relative;
-  z-index: 2;                /* text sits above the image */
-  max-width: var(--maxw);
-  width: 100%;
-  margin: 0 auto;
-  padding: 72px var(--pad) 96px;
-}
-
-/* Keep the headline + subhead in a left-hand column so they never crowd
-   the camera panel on the right. Caps the line length on wide screens. */
-.hero-text h1,
-.hero-text .subhead {
-  max-width: 580px;
+  padding-bottom: 40px;      /* optically centres the copy within the band */
 }
 
 .hero-text h1 {
-  color: var(--navy);
+  color: var(--white);
   font-weight: 800;
   font-size: clamp(42px, 4.4vw, 58px);
   line-height: 1.14;          /* roomier lines so the headline breathes */
   letter-spacing: 0;
   word-spacing: 0.04em;
-  margin: 0 0 36px;
+  margin: 0 0 28px;
 }
 
 .subhead {
-  color: var(--gray);
+  color: rgba(255, 255, 255, 0.82);
   font-size: clamp(18px, 1.7vw, 24px);
   line-height: 1.45;
   font-weight: 400;
-  margin: 0 0 48px;
+  margin: 0 0 40px;
 }
 
-/* ---------- Hero image: full-bleed panel anchored to the right ---------- */
-.hero-image {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 48%;                /* right portion of the hero */
+/* The hero CTA sits on navy, so the page-wide navy .btn-primary would vanish
+   into the band. Invert it: white pill, navy label. */
+.btn-hero {
+  background: var(--white);
+  color: var(--navy);
+  padding: 20px 36px;
+  font-size: 20px;
+  box-shadow: 0 12px 28px rgba(4, 12, 46, 0.28);
+}
+.btn-hero .arrow { font-size: 22px; line-height: 1; }
+@media (hover: hover) {
+  .btn-hero:hover {
+    background: var(--cyan-soft);
+    transform: translateY(-1px);
+  }
+}
+
+/* ---------- Hero photo: panel overhanging the band's bottom edge ---------- */
+/* Dropped past the row's end by exactly the overhang, so the photo always
+   breaks the band's edge by the same amount whatever the copy's height. */
+.hero-media {
+  position: relative;
   z-index: 1;
-  pointer-events: none;
+  align-self: end;
+  margin-bottom: -56px;
 }
-
-.hero-image img {
+.hero-media img {
   width: 100%;
-  height: 100%;
-  object-fit: cover;         /* fill the panel; flush to top/right/bottom edges */
-  object-position: center;
+  /* height:auto is load-bearing — the width/height attributes map to CSS
+     dimensions, and aspect-ratio is ignored while both are set. */
+  height: auto;
+  aspect-ratio: 1 / 0.92;
+  object-fit: cover;
+  object-position: 62% center;   /* keeps the camera off the panel's edge */
   display: block;
-  /* Only the inner (left) edge dissolves into the white page — no hard seam.
-     Top, right and bottom stay flush with the screen corners. */
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 30%);
-          mask-image: linear-gradient(to right, transparent 0%, #000 30%);
-}
-
-/* Branded cyan glow behind the hero — same language as the survey backdrop,
-   so the page reads as one system. Sits below text and image. */
-.hero::before {
-  content: '';
-  position: absolute;
-  top: -10%;
-  left: -6%;
-  width: 60%;
-  height: 90%;
-  background: radial-gradient(ellipse at center, rgba(22, 155, 215, 0.16) 0%, transparent 62%);
-  pointer-events: none;
-  z-index: 0;
+  border-radius: 22px;
+  box-shadow: 0 34px 70px rgba(4, 12, 46, 0.34);
 }
 
 /* Frosted "live feed" chip floating over the camera panel — makes the
@@ -298,11 +332,11 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
 
 /* Micro reassurance line directly under the primary CTA */
 .hero-micro {
-  margin: 10px 0 0;
+  margin: 14px 0 0;
   font-size: 13.5px;
   font-style: italic;
   font-weight: 400;
-  color: var(--gray);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* ---------- What the cameras can do ----------
@@ -1267,24 +1301,16 @@ a.ci-value:hover { color: var(--navy); }
     gap: 48px;
   }
 
-  .hero {
-    display: block;
-    min-height: 0;
-    overflow: visible;
+  /* Stacked: copy above photo. The band grows to cover the copy and still
+     stops short, so the photo keeps overhanging it. */
+  .hero::before { height: 74%; }
+  .hero-inner {
+    grid-template-columns: 1fr;
+    gap: 36px;
+    padding: 24px var(--pad) 56px;
   }
-  .hero-live { display: none; }   /* no absolute overlay once the hero stacks */
-  .hero-text { padding: 40px var(--pad) 24px; }
-  .hero-image {
-    position: static;
-    width: 100%;
-    height: auto;
-  }
-  .hero-image img {
-    width: 100%;
-    height: auto;
-    -webkit-mask-image: none;
-            mask-image: none;
-  }
+  .hero-text { padding-bottom: 0; }
+  .hero-media img { aspect-ratio: 1 / 0.8; }
 }
 
 /* =====================================================================
@@ -1954,7 +1980,7 @@ section[id] { scroll-margin-top: 96px; }
   .js-reveal .hero-text > *:nth-child(3) { animation-delay: 0.31s; }
   .js-reveal .hero-text > *:nth-child(4) { animation-delay: 0.44s; }
   .js-reveal .hero-text > *:nth-child(5) { animation-delay: 0.57s; }
-  .js-reveal .hero-image {
+  .js-reveal .hero-media {
     opacity: 0;
     animation: heroFade 1.2s ease 0.15s forwards;
   }
@@ -2087,9 +2113,6 @@ html { overflow-x: hidden; }
 }
 
 @media (max-width: 600px) {
-  .hero-text { padding: 36px var(--pad) 52px; }
-  .hero-text h1,
-  .hero-text .subhead { max-width: 100%; }   /* never exceed the phone width */
   .hero-text h1 {
     font-size: clamp(30px, 8vw, 52px);
     line-height: 1.12;
