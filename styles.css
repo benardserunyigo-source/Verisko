@@ -1317,7 +1317,9 @@ a.ci-value:hover { color: var(--navy); }
   flex-direction: column;
   gap: 13px;
 }
-.footer-col li { color: #aab6ec; font-size: 15px; }
+.footer-col li { color: #aab6ec; font-size: 15px; line-height: 1.55; }
+.footer-col li strong { color: #fff; font-weight: 700; }
+.footer-col .addr-note { color: #7d8ac2; font-size: 13px; }
 .footer-col a {
   color: #aab6ec;
   font-size: 15px;
