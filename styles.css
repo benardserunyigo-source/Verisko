@@ -926,29 +926,6 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
 .fm-list strong { display: block; color: var(--ink); font-size: 15px; margin-bottom: 2px; }
 .fm-list div { color: var(--gray); font-size: 14px; line-height: 1.5; }
 
-.fm-hero { margin: 0 0 14px; }
-.fm-hero img {
-  width: 100%;
-  height: auto;
-  display: block;
-  border-radius: 14px;
-}
-.fm-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin: 0;
-}
-.fm-shot { margin: 0; }
-.fm-shot img {
-  width: 100%;
-  height: auto;
-  display: block;
-  border-radius: 14px;
-}
-@media (max-width: 520px) {
-  .fm-grid { grid-template-columns: 1fr; }
-}
 .fm-cta {
   display: inline-flex;
   align-items: center;
