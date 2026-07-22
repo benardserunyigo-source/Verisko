@@ -227,7 +227,7 @@
         .then(function () { showSuccess(); })
         .catch(function () {
           if (btn) { btn.disabled = false; btn.innerHTML = original; }
-          setSurveyStatus('Sorry, something went wrong. Please call or WhatsApp us on +256 761 480 347 instead.', 'err');
+          setSurveyStatus('Sorry, something went wrong. Please call us on +256 752 924 657, or WhatsApp +256 761 480 347 instead.', 'err');
         });
     });
   }
