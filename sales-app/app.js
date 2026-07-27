@@ -55,7 +55,8 @@
     appointments: [
       { id: "a1", prospectId: "p1", date: plusDays(1), time: "10:00", director: "Operations Director", status: "Confirmed", purpose: "Technical site survey", directions: "Ask for Grace at the dispensary counter. Parking on Kira Road.", created: plusDays(-2) },
       { id: "a2", prospectId: "p3", date: plusDays(2), time: "14:30", director: "Operations Director", status: "Proposed", purpose: "Technical site survey", directions: "Reception will call Dr. Amina. Enter from the side gate.", created: plusDays(-1) }
-    ]
+    ],
+    users: []
   };
 
   var state = loadData();
@@ -77,6 +78,7 @@
       var data = raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(seed));
       if (!data.prospects) data.prospects = [];
       if (!data.appointments) data.appointments = [];
+      if (!data.users) data.users = [];
       return data;
     } catch (e) { return JSON.parse(JSON.stringify(seed)); }
   }
@@ -188,6 +190,7 @@
   }
 
   function render() {
+    if (view === "settings" && !isAdmin()) view = "today"; // Settings is owner-only
     document.querySelectorAll(".nav-item").forEach(function (b) {
       var on = b.dataset.view === view;
       b.classList.toggle("is-active", on);
@@ -336,7 +339,9 @@
       '<div class="item-line"><span class="k">Phone</span><span class="v">' + (p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") + "</span></div>" +
       '<div class="item-line"><span class="k">Next action</span><span class="v">' + esc(p.nextAction || "Not set") + "</span></div>" +
       '<div class="item-line"><span class="k">Follow-up</span><span class="v">' + (isOverdue(p.followUp) ? '<span style="color:var(--red);font-weight:700">' + dateLabel(p.followUp) + " · overdue</span>" : dateLabel(p.followUp)) + "</span></div>" +
-      "</div><div class=\"item-actions\">" + actions + "</div></article>";
+      "</div>" +
+      (p.createdBy ? '<div class="added-by">Added by ' + esc(p.createdBy) + "</div>" : "") +
+      '<div class="item-actions">' + actions + "</div></article>";
   }
 
   /* ------------------------------- SITE VISITS ------------------------------- */
@@ -403,14 +408,22 @@
 
   /* -------------------------------- SETTINGS -------------------------------- */
   function renderSettings() {
-    setHead("App settings", "Settings", "Connection, backup, and data.", "", false);
-    var connected = !!settings.teamKey && connection.state === "connected";
+    setHead("Owner settings", "Settings", "Team, connection, and data.", "", false);
+    var users = state.users || [];
+    var teamRows = users.length ? '<div class="account-list">' + users.map(function (u) {
+      return '<div class="account-row" style="background:var(--fill-2)"><span class="user-avatar" aria-hidden="true">' + esc(initials(u.name)) + "</span>" +
+        '<span class="who"><strong>' + esc(u.name) + (u.role === "admin" ? " · Owner" : "") + "</strong><span>" + esc(u.email) + "</span></span></div>";
+    }).join("") + "</div>" : '<p class="settings-note">No accounts yet.</p>';
     content.innerHTML = '<div class="settings-grid">' +
-      '<section class="card settings-card"><h2>Shared team data</h2>' +
-      "<p>You're signed in with your team access code. Records sync securely through Netlify; the code lives only in the Netlify server, never in this browser.</p>" +
+      '<section class="card settings-card"><h2>Team members</h2>' +
+      "<p>Everyone with an account on this workspace. Each prospect records who added it.</p>" +
+      teamRows + "</section>" +
+
+      '<section class="card settings-card"><h2>Shared workspace</h2>' +
+      "<p>Records sync securely through Netlify. The team access code lives only in the Netlify server, never in this browser.</p>" +
       '<div class="conn-status" data-state="' + connection.state + '"><span class="dot"></span><span class="conn-label">' + esc(connection.text) + "</span></div>" +
       '<div class="button-row"><button class="btn btn-ghost" data-sync>Refresh shared data</button>' +
-      '<button class="btn btn-danger" data-signout>Sign out</button></div></section>' +
+      '<button class="btn btn-danger" data-disconnect>Disconnect this device</button></div></section>' +
 
       '<section class="card settings-card"><h2>Backup &amp; restore</h2>' +
       '<p>Download a JSON backup before clearing a device, or import one to recover your records. These stay on your device unless you are connected to the shared workbook.</p>' +
@@ -558,6 +571,7 @@
       data.id = uid();
       data.created = today;
       if (type === "prospect" && !data.owner) data.owner = "Sales";
+      if (settings.user) data.createdBy = settings.user.name; // who added it
       collection.push(data);
     }
 
@@ -606,7 +620,7 @@
       var result = await response.json();
       if (!result.ok) return "bad";
       if (result.data && result.data.prospects) {
-        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [] };
+        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [] };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       }
       return "ok";
@@ -617,8 +631,8 @@
     if (!settings.teamKey) return;
     setSync("syncing", "Refreshing shared data…");
     var result = await connectWithKey(settings.teamKey);
-    if (result === "ok") { setSync("connected", "Shared data is current"); toast("Shared data refreshed"); render(); }
-    else if (result === "bad") { settings.teamKey = ""; saveSettings(); setSync("error", "Access code no longer valid"); lock("Your access code is no longer valid. Please sign in again."); }
+    if (result === "ok") { setSync("connected", "Shared data is current"); toast("Shared data refreshed"); gate(); }
+    else if (result === "bad") { settings.teamKey = ""; settings.user = null; saveSettings(); setSync("error", "Access code no longer valid"); showLock("Your access code is no longer valid. Please sign in again."); }
     else { setSync("error", "Offline — using this device"); toast("Could not reach shared data. Your device copy is safe."); }
   }
 
@@ -638,25 +652,58 @@
     }
   }
 
-  /* ------------------------------ Lock screen ------------------------------- */
+  /* --------------------- Access gate: device + account ---------------------- */
+  // Two layers: a team access code unlocks the device (server-checked), then a
+  // per-person account identifies who is using it.
   var lockScreen = document.getElementById("lockScreen");
   var lockForm = document.getElementById("lockForm");
   var lockInput = document.getElementById("accessCode");
   var lockError = document.getElementById("lockError");
   var lockSubmit = document.getElementById("lockSubmit");
+  var accountScreen = document.getElementById("accountScreen");
+  var accountCard = document.getElementById("accountCard");
+  var userChip = document.getElementById("userChip");
+  var userMenu = document.getElementById("userMenu");
+  var accountMode = "list";
 
-  function lock(message) {
+  function currentUser() { return settings.user || null; }
+  function isAdmin() { return !!(settings.user && settings.user.role === "admin"); }
+  function initials(name) {
+    var p = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (!p.length) return "?";
+    return (p[0][0] + (p[1] ? p[1][0] : "")).toUpperCase();
+  }
+
+  // Which screen to show, based on device key and account.
+  function gate() {
+    if (!settings.teamKey) { showLock(); return; }
+    if (!settings.user) { showAccount(); return; }
+    showApp();
+  }
+  function showLock(message) {
+    accountScreen.hidden = true;
+    userChip.hidden = true; closeUserMenu();
     document.body.classList.add("locked");
     lockScreen.hidden = false;
     lockInput.value = "";
-    if (message) { lockError.textContent = message; lockError.hidden = false; }
-    else { lockError.hidden = true; }
+    if (message) { lockError.textContent = message; lockError.hidden = false; } else lockError.hidden = true;
     lockInput.focus();
   }
-  function unlock() {
-    document.body.classList.remove("locked");
+  function showAccount() {
     lockScreen.hidden = true;
-    lockError.hidden = true;
+    userChip.hidden = true; closeUserMenu();
+    document.body.classList.add("locked");
+    renderAccountScreen();
+    accountScreen.hidden = false;
+  }
+  function showApp() {
+    lockScreen.hidden = true;
+    accountScreen.hidden = true;
+    closeUserMenu();
+    document.body.classList.remove("locked");
+    applyRole();
+    renderUserChip();
+    render();
   }
 
   lockForm.addEventListener("submit", async function (e) {
@@ -672,13 +719,11 @@
     if (result === "ok") {
       settings.teamKey = code; saveSettings();
       setSync("connected", "Shared data is current");
-      unlock(); render();
+      gate();
     } else if (result === "bad") {
-      lockError.textContent = "Incorrect access code. Please try again.";
-      lockError.hidden = false;
+      lockError.textContent = "Incorrect access code. Please try again."; lockError.hidden = false;
     } else {
-      lockError.textContent = "Couldn't reach the server. Check your connection and try again.";
-      lockError.hidden = false;
+      lockError.textContent = "Couldn't reach the server. Check your connection and try again."; lockError.hidden = false;
     }
   });
 
@@ -689,11 +734,121 @@
     lockInput.focus();
   });
 
-  function signOut() {
-    settings.teamKey = ""; saveSettings();
-    setSync("local", "Saved on this device");
+  /* -------- Account screen (who's using the app) -------- */
+  function renderAccountScreen() {
+    var users = state.users || [];
+    var html = '<div class="lock-mark" aria-hidden="true">V</div>';
+    if (users.length && accountMode === "list") {
+      html += '<h1 id="accountTitle">Who\'s using the app?</h1>' +
+        '<p class="lock-sub">Choose your account to continue.</p>' +
+        '<div class="account-list">' + users.map(function (u) {
+          return '<button type="button" class="account-row" data-user="' + esc(u.id) + '">' +
+            '<span class="user-avatar" aria-hidden="true">' + esc(initials(u.name)) + '</span>' +
+            '<span class="who"><strong>' + esc(u.name) + (u.role === "admin" ? " · Owner" : "") + "</strong><span>" + esc(u.email) + "</span></span>" +
+            '<span class="chev" aria-hidden="true">›</span></button>';
+        }).join("") + "</div>" +
+        '<button type="button" class="account-toggle" data-account-create>+ Create new account</button>' +
+        '<p class="lock-error" id="accountError" role="alert" hidden></p>';
+    } else {
+      var first = users.length === 0;
+      html += '<h1 id="accountTitle">' + (first ? "Create your account" : "New account") + "</h1>" +
+        '<p class="lock-sub">' + (first ? "You're the first user — you'll be the owner." : "Add yourself so the team knows who's working.") + "</p>" +
+        '<form id="accountForm" class="account-fields">' +
+        '<div class="field"><label for="acctName">Your name <span class="req" aria-hidden="true">*</span></label>' +
+        '<input id="acctName" name="name" type="text" autocomplete="name" placeholder="e.g. Grace Namubiru" required></div>' +
+        '<div class="field"><label for="acctEmail">Email <span class="req" aria-hidden="true">*</span></label>' +
+        '<input id="acctEmail" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" placeholder="you@example.com" required></div>' +
+        '<p class="lock-error" id="accountError" role="alert" hidden></p>' +
+        '<button type="submit" class="btn btn-primary btn-block">Create account</button>' +
+        (first ? "" : '<button type="button" class="account-back" data-account-list>Back to accounts</button>') +
+        "</form>";
+    }
+    accountCard.innerHTML = html;
+    var n = document.getElementById("acctName");
+    if (n) n.focus();
+  }
+
+  accountCard.addEventListener("click", function (e) {
+    var pick = e.target.closest("[data-user]");
+    if (pick) { selectAccount(pick.dataset.user); return; }
+    if (e.target.closest("[data-account-create]")) { accountMode = "create"; renderAccountScreen(); return; }
+    if (e.target.closest("[data-account-list]")) { accountMode = "list"; renderAccountScreen(); return; }
+  });
+  accountCard.addEventListener("submit", function (e) {
+    if (e.target.id !== "accountForm") return;
+    e.preventDefault();
+    createAccount();
+  });
+
+  function createAccount() {
+    var name = (document.getElementById("acctName").value || "").trim();
+    var email = (document.getElementById("acctEmail").value || "").trim();
+    var err = document.getElementById("accountError");
+    if (!name || !email) { err.textContent = "Enter your name and email."; err.hidden = false; return; }
+    if ((state.users || []).some(function (u) { return u.email.toLowerCase() === email.toLowerCase(); })) {
+      err.textContent = "An account with that email already exists — choose it from the list."; err.hidden = false; return;
+    }
+    var user = { id: uid(), name: name, email: email, role: (state.users || []).length ? "user" : "admin", created: today };
+    if (!state.users) state.users = [];
+    state.users.push(user);
+    settings.user = user; saveSettings();
+    accountMode = "list";
+    saveData();        // persist + push the new user to the shared store
+    showApp();
+    toast("Welcome, " + name.split(/\s+/)[0] + "!");
+  }
+
+  function selectAccount(id) {
+    var u = (state.users || []).find(function (x) { return x.id === id; });
+    if (!u) return;
+    settings.user = u; saveSettings();
+    showApp();
+    toast("Signed in as " + u.name.split(/\s+/)[0]);
+  }
+
+  /* -------- Header user chip + menu -------- */
+  function renderUserChip() {
+    var u = settings.user;
+    if (!u) { userChip.hidden = true; return; }
+    userChip.hidden = false;
+    userChip.setAttribute("aria-label", "Account: " + u.name);
+    document.getElementById("userAvatar").textContent = initials(u.name);
+    document.getElementById("userMenuAvatar").textContent = initials(u.name);
+    document.getElementById("userMenuName").textContent = u.name + (u.role === "admin" ? " · Owner" : "");
+    document.getElementById("userMenuEmail").textContent = u.email;
+  }
+  function closeUserMenu() { userMenu.hidden = true; userChip.setAttribute("aria-expanded", "false"); }
+  userChip.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (userMenu.hidden) { userMenu.hidden = false; userChip.setAttribute("aria-expanded", "true"); }
+    else closeUserMenu();
+  });
+  document.addEventListener("click", function (e) {
+    if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
+  });
+  userMenu.addEventListener("click", function (e) {
+    if (e.target.closest("[data-logout]")) logout();
+  });
+
+  function logout() {
+    settings.user = null; saveSettings();
+    accountMode = "list";
     view = "today";
-    lock();
+    showAccount();
+  }
+  // Admin-only: leave the shared workspace on this device (needs the code to return).
+  function disconnectDevice() {
+    if (!confirm("Sign out of the shared workspace on this device? You'll need the team access code to reconnect.")) return;
+    settings.teamKey = ""; settings.user = null; saveSettings();
+    setSync("local", "Saved on this device");
+    showLock();
+  }
+
+  function applyRole() {
+    var admin = isAdmin();
+    var settingsNav = document.querySelector('.nav-item[data-view="settings"]');
+    if (settingsNav) settingsNav.hidden = !admin;
+    if (!admin && view === "settings") view = "today";
   }
 
   /* --------------------------- Backup / import / CSV ------------------------ */
@@ -712,7 +867,7 @@
       try {
         var parsed = JSON.parse(reader.result);
         if (!parsed.prospects || !parsed.appointments) throw new Error();
-        state = { prospects: parsed.prospects, appointments: parsed.appointments };
+        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [] };
         saveData("Backup imported");
         render();
       } catch (e) { toast("That file is not a valid Verisko backup."); }
@@ -753,7 +908,7 @@
     if (e.target.closest("[data-export]")) exportJson();
     if (e.target.closest("[data-import]")) document.getElementById("importInput").click();
     if (e.target.closest("[data-sync]")) pullShared();
-    if (e.target.closest("[data-signout]")) signOut();
+    if (e.target.closest("[data-disconnect]")) disconnectDevice();
     if (e.target.closest("[data-reset]") && confirm("Replace the data on this device with the demonstration records?")) {
       state = JSON.parse(JSON.stringify(seed));
       saveData("Demonstration data restored");
@@ -762,17 +917,15 @@
   });
 
   /* -------------------------------- Start ----------------------------------- */
-  render(); // render behind the lock so there is no flash when we unlock
   if (settings.teamKey) {
-    // Already signed in on this device — open straight away, verify in background.
-    unlock();
-    setSync("connected", "Shared data is current");
+    gate(); // open straight to the app or account picker from cached data
+    setSync("syncing", "Checking…");
     connectWithKey(settings.teamKey).then(function (result) {
-      if (result === "ok") { setSync("connected", "Shared data is current"); render(); }
-      else if (result === "bad") { settings.teamKey = ""; saveSettings(); lock("Your access code is no longer valid. Please sign in again."); }
+      if (result === "bad") { settings.teamKey = ""; settings.user = null; saveSettings(); showLock("Your access code is no longer valid. Please sign in again."); }
+      else if (result === "ok") { setSync("connected", "Shared data is current"); gate(); }
       else { setSync("error", "Offline — using this device"); }
     });
   } else {
-    lock();
+    showLock();
   }
 })();

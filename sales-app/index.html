@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0d1748">
   <meta name="description" content="Verisko Sales Visit Planner — find and qualify prospects, follow up, and hand confirmed site visits to the Operations Director.">
   <title>Verisko Sales Visit Planner</title>
-  <link rel="stylesheet" href="app.css?v=6">
+  <link rel="stylesheet" href="app.css?v=7">
 </head>
 <body class="locked">
   <div id="lockScreen" class="lockscreen" role="dialog" aria-modal="true" aria-labelledby="lockTitle">
@@ -25,6 +25,10 @@
     </form>
   </div>
 
+  <div id="accountScreen" class="lockscreen" role="dialog" aria-modal="true" aria-labelledby="accountTitle" hidden>
+    <div class="lock-card" id="accountCard"><!-- rendered by app.js --></div>
+  </div>
+
   <a class="skip-link" href="#main">Skip to content</a>
 
   <header class="topbar">
@@ -32,11 +36,25 @@
       <span class="brand-mark" aria-hidden="true">V</span>
       <span class="brand-name">Verisko</span>
     </a>
+    <button class="user-chip" id="userChip" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Your account" hidden>
+      <span class="user-avatar" id="userAvatar" aria-hidden="true"></span>
+    </button>
+  </header>
+
+  <div class="user-menu" id="userMenu" role="menu" hidden>
+    <div class="user-menu-head">
+      <span class="user-avatar lg" id="userMenuAvatar" aria-hidden="true"></span>
+      <div class="user-menu-id">
+        <strong id="userMenuName"></strong>
+        <span id="userMenuEmail"></span>
+      </div>
+    </div>
     <p class="sync-state" id="syncState" data-state="local">
       <span class="sync-dot" aria-hidden="true"></span>
       <span class="sync-text" id="syncText">Saved on this device</span>
     </p>
-  </header>
+    <button class="btn btn-danger btn-block" type="button" data-logout>Log out</button>
+  </div>
 
   <div class="app-shell">
     <nav class="mainnav" aria-label="Primary">
@@ -95,6 +113,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <input type="file" id="importInput" accept=".json,application/json" hidden>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

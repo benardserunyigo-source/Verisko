@@ -8,7 +8,7 @@ import { getStore } from "@netlify/blobs";
 
 const STORE = "verisko-sales";
 const KEY = "app-data";
-const EMPTY = { prospects: [], appointments: [] };
+const EMPTY = { prospects: [], appointments: [], users: [] };
 
 export default async (request) => {
   const headers = {
@@ -34,7 +34,8 @@ export default async (request) => {
       if (!payload || !payload.data) throw new Error("Missing application data.");
       const clean = {
         prospects: Array.isArray(payload.data.prospects) ? payload.data.prospects : [],
-        appointments: Array.isArray(payload.data.appointments) ? payload.data.appointments : []
+        appointments: Array.isArray(payload.data.appointments) ? payload.data.appointments : [],
+        users: Array.isArray(payload.data.users) ? payload.data.users : []
       };
       await store.setJSON(KEY, clean);
       return new Response(JSON.stringify({ ok: true }), { status: 200, headers });

@@ -41,7 +41,12 @@ here.
 
 The app opens on a **lock screen**. The access code is the `TEAM_KEY` set in
 Netlify; it is checked on the server, so no data loads without a valid code.
-Once signed in, a device stays unlocked (and works offline) until **Sign out**.
+After the code, each person signs in with a lightweight **account** (name +
+email, no password) so every prospect records **who added it**. The first
+account created is the **owner** (admin) — only the owner sees the **Settings**
+tab (team list, connection, backup). Everyone can **Log out** from the avatar
+menu in the top-right; the device stays connected until the owner uses
+**Disconnect this device** in Settings.
 
 ## Deploy (Netlify Blobs backend)
 
