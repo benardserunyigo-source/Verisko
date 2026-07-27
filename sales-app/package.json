@@ -1,0 +1,10 @@
+{
+  "name": "verisko-sales-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Verisko Sales Visit Planner — static frontend + Netlify function backed by Netlify Blobs.",
+  "dependencies": {
+    "@netlify/blobs": "^10.7.10"
+  }
+}
