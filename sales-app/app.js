@@ -410,13 +410,16 @@
   function renderSettings() {
     setHead("Owner settings", "Settings", "Team, connection, and data.", "", false);
     var users = state.users || [];
+    var me = settings.user || {};
     var teamRows = users.length ? '<div class="account-list">' + users.map(function (u) {
+      var removable = u.role !== "admin" && u.id !== me.id;
       return '<div class="account-row" style="background:var(--fill-2)"><span class="user-avatar" aria-hidden="true">' + esc(initials(u.name)) + "</span>" +
-        '<span class="who"><strong>' + esc(u.name) + (u.role === "admin" ? " · Owner" : "") + "</strong><span>" + esc(u.email) + "</span></span></div>";
+        '<span class="who"><strong>' + esc(u.name) + (u.role === "admin" ? " · Owner" : "") + "</strong><span>" + esc(u.email) + "</span></span>" +
+        (removable ? '<button type="button" class="account-remove" data-remove-user="' + esc(u.id) + '" aria-label="Remove ' + esc(u.name) + '">Remove</button>' : "") + "</div>";
     }).join("") + "</div>" : '<p class="settings-note">No accounts yet.</p>';
     content.innerHTML = '<div class="settings-grid">' +
       '<section class="card settings-card"><h2>Team members</h2>' +
-      "<p>Everyone with an account on this workspace. Each prospect records who added it.</p>" +
+      "<p>Everyone with an account on this workspace. Each prospect records who added it. Removing a person deletes their account and signs them out on their devices.</p>" +
       teamRows + "</section>" +
 
       '<section class="card settings-card"><h2>Shared workspace</h2>' +
@@ -426,10 +429,13 @@
       '<button class="btn btn-danger" data-disconnect>Disconnect this device</button></div></section>' +
 
       '<section class="card settings-card"><h2>Backup &amp; restore</h2>' +
-      '<p>Download a JSON backup before clearing a device, or import one to recover your records. These stay on your device unless you are connected to the shared workbook.</p>' +
+      '<p>Download a JSON backup any time, or import one to recover your records.</p>' +
       '<div class="button-row"><button class="btn btn-ghost" data-export>Download JSON backup</button>' +
-      '<button class="btn btn-ghost" data-import>Import backup</button>' +
-      '<button class="btn btn-danger" data-reset>Restore demo data</button></div></section>' +
+      '<button class="btn btn-ghost" data-import>Import backup</button></div></section>' +
+
+      '<section class="card settings-card"><h2>Danger zone</h2>' +
+      '<p class="settings-note">Resetting erases <strong>all prospects, visits and team accounts — for everyone</strong> — and loads sample data. It cannot be undone. Download a backup first if unsure.</p>' +
+      '<div class="button-row"><button class="btn btn-danger" data-reset>Reset to demo data…</button></div></section>' +
 
       '<section class="card settings-card"><h2>How this app is used</h2>' +
       '<p class="settings-note"><strong>The salesperson</strong> finds and qualifies prospects, follows up, and books confirmed site visits. Technical surveys, cable quantities, official quotations and equipment lists are handled by the Operations Director after handoff — they are not entered here.</p>' +
@@ -631,7 +637,7 @@
     if (!settings.teamKey) return;
     setSync("syncing", "Refreshing shared data…");
     var result = await connectWithKey(settings.teamKey);
-    if (result === "ok") { setSync("connected", "Shared data is current"); toast("Shared data refreshed"); gate(); }
+    if (result === "ok") { reconcileUser(); setSync("connected", "Shared data is current"); toast("Shared data refreshed"); gate(); }
     else if (result === "bad") { settings.teamKey = ""; settings.user = null; saveSettings(); setSync("error", "Access code no longer valid"); showLock("Your access code is no longer valid. Please sign in again."); }
     else { setSync("error", "Offline — using this device"); toast("Could not reach shared data. Your device copy is safe."); }
   }
@@ -851,6 +857,28 @@
     if (!admin && view === "settings") view = "today";
   }
 
+  // Owner removes a team member (individual offboarding).
+  function removeUser(id) {
+    var u = (state.users || []).find(function (x) { return x.id === id; });
+    if (!u) return;
+    if (u.role === "admin") { toast("The owner account can't be removed."); return; }
+    if (settings.user && u.id === settings.user.id) { toast("You can't remove your own account."); return; }
+    if (!confirm("Remove " + u.name + " (" + u.email + ") from the team?\n\nTheir account is deleted and they're signed out on their devices. This can't be undone.")) return;
+    state.users = state.users.filter(function (x) { return x.id !== id; });
+    saveData();     // persist + push the updated team to the shared store
+    render();       // refresh the Team list
+    toast(u.name.split(/\s+/)[0] + " removed from the team");
+  }
+
+  // If the signed-in person was removed elsewhere, sign them out on this device.
+  function reconcileUser() {
+    if (settings.user && (state.users || []).length && !state.users.some(function (u) { return u.id === settings.user.id; })) {
+      settings.user = null; saveSettings();
+      return false;
+    }
+    return true;
+  }
+
   /* --------------------------- Backup / import / CSV ------------------------ */
   function download(name, text, type) {
     var a = document.createElement("a");
@@ -909,10 +937,16 @@
     if (e.target.closest("[data-import]")) document.getElementById("importInput").click();
     if (e.target.closest("[data-sync]")) pullShared();
     if (e.target.closest("[data-disconnect]")) disconnectDevice();
-    if (e.target.closest("[data-reset]") && confirm("Replace the data on this device with the demonstration records?")) {
-      state = JSON.parse(JSON.stringify(seed));
-      saveData("Demonstration data restored");
-      render();
+    var rm = e.target.closest("[data-remove-user]"); if (rm) { removeUser(rm.dataset.removeUser); return; }
+    if (e.target.closest("[data-reset]")) {
+      var ans = prompt("This ERASES all prospects, visits and team accounts for everyone, and loads sample data. It cannot be undone.\n\nType RESET to confirm.");
+      if (ans && ans.trim().toUpperCase() === "RESET") {
+        state = JSON.parse(JSON.stringify(seed));
+        settings.user = null; saveSettings();   // accounts wiped — re-onboard
+        accountMode = "list";
+        saveData("Reset to demo data");
+        showAccount();
+      }
     }
   });
 
@@ -922,7 +956,7 @@
     setSync("syncing", "Checking…");
     connectWithKey(settings.teamKey).then(function (result) {
       if (result === "bad") { settings.teamKey = ""; settings.user = null; saveSettings(); showLock("Your access code is no longer valid. Please sign in again."); }
-      else if (result === "ok") { setSync("connected", "Shared data is current"); gate(); }
+      else if (result === "ok") { reconcileUser(); setSync("connected", "Shared data is current"); gate(); }
       else { setSync("error", "Offline — using this device"); }
     });
   } else {
