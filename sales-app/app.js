@@ -407,12 +407,10 @@
     var connected = !!settings.teamKey && connection.state === "connected";
     content.innerHTML = '<div class="settings-grid">' +
       '<section class="card settings-card"><h2>Shared team data</h2>' +
-      '<p>Your records sync securely through Netlify using a private team key. Enter the key from your administrator to load and save the shared data. The key is never stored in this browser.</p>' +
+      "<p>You're signed in with your team access code. Records sync securely through Netlify; the code lives only in the Netlify server, never in this browser.</p>" +
       '<div class="conn-status" data-state="' + connection.state + '"><span class="dot"></span><span class="conn-label">' + esc(connection.text) + "</span></div>" +
-      '<div class="field"><label for="teamKey">Team key</label><input id="teamKey" type="password" autocomplete="off" placeholder="Your private team key" value="' + esc(settings.teamKey || "") + '"></div>' +
-      '<div class="button-row"><button class="btn btn-primary" data-settings-connect>' + (settings.teamKey ? "Reconnect" : "Connect") + '</button>' +
-      '<button class="btn btn-ghost" data-sync>Refresh shared data</button>' +
-      (settings.teamKey ? '<button class="btn btn-danger" data-disconnect>Disconnect</button>' : "") + "</div></section>" +
+      '<div class="button-row"><button class="btn btn-ghost" data-sync>Refresh shared data</button>' +
+      '<button class="btn btn-danger" data-signout>Sign out</button></div></section>' +
 
       '<section class="card settings-card"><h2>Backup &amp; restore</h2>' +
       '<p>Download a JSON backup before clearing a device, or import one to recover your records. These stay on your device unless you are connected to the shared workbook.</p>' +
@@ -599,28 +597,34 @@
   }
 
   /* -------------------------------- Sharing --------------------------------- */
-  async function pullShared() {
-    if (!settings.teamKey) { toast("Enter the team key first."); return; }
+  // Validate an access code against the server and, on success, load the shared
+  // data. Returns "ok" (valid), "bad" (wrong code), or "offline" (unreachable).
+  async function connectWithKey(key) {
     try {
-      setSync("syncing", "Refreshing shared data…");
-      var response = await fetch("/api/data", { headers: { "X-Team-Key": settings.teamKey } });
+      var response = await fetch("/api/data", { headers: { "X-Team-Key": key } });
+      if (response.status === 401) return "bad";
       var result = await response.json();
-      if (!result.ok) throw new Error(result.error || "Sync failed");
+      if (!result.ok) return "bad";
       if (result.data && result.data.prospects) {
         state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [] };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       }
-      setSync("connected", "Shared data is current");
-      toast("Shared data refreshed");
-      render();
-    } catch (e) {
-      setSync("error", "Offline — using this device");
-      toast("Could not reach the shared workbook. Your device copy is safe.");
-    }
+      return "ok";
+    } catch (e) { return "offline"; }
   }
+
+  async function pullShared() {
+    if (!settings.teamKey) return;
+    setSync("syncing", "Refreshing shared data…");
+    var result = await connectWithKey(settings.teamKey);
+    if (result === "ok") { setSync("connected", "Shared data is current"); toast("Shared data refreshed"); render(); }
+    else if (result === "bad") { settings.teamKey = ""; saveSettings(); setSync("error", "Access code no longer valid"); lock("Your access code is no longer valid. Please sign in again."); }
+    else { setSync("error", "Offline — using this device"); toast("Could not reach shared data. Your device copy is safe."); }
+  }
+
   async function pushShared() {
     try {
-      setSync("syncing", "Saving to shared workbook…");
+      setSync("syncing", "Saving shared data…");
       var response = await fetch("/api/data", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Team-Key": settings.teamKey },
@@ -632,6 +636,64 @@
     } catch (e) {
       setSync("error", "Saved on device — shared sync pending");
     }
+  }
+
+  /* ------------------------------ Lock screen ------------------------------- */
+  var lockScreen = document.getElementById("lockScreen");
+  var lockForm = document.getElementById("lockForm");
+  var lockInput = document.getElementById("accessCode");
+  var lockError = document.getElementById("lockError");
+  var lockSubmit = document.getElementById("lockSubmit");
+
+  function lock(message) {
+    document.body.classList.add("locked");
+    lockScreen.hidden = false;
+    lockInput.value = "";
+    if (message) { lockError.textContent = message; lockError.hidden = false; }
+    else { lockError.hidden = true; }
+    lockInput.focus();
+  }
+  function unlock() {
+    document.body.classList.remove("locked");
+    lockScreen.hidden = true;
+    lockError.hidden = true;
+  }
+
+  lockForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var code = lockInput.value.trim();
+    if (!code) { lockError.textContent = "Enter your access code."; lockError.hidden = false; return; }
+    lockError.hidden = true;
+    lockSubmit.disabled = true;
+    lockSubmit.textContent = "Checking…";
+    var result = await connectWithKey(code);
+    lockSubmit.disabled = false;
+    lockSubmit.textContent = "Unlock";
+    if (result === "ok") {
+      settings.teamKey = code; saveSettings();
+      setSync("connected", "Shared data is current");
+      unlock(); render();
+    } else if (result === "bad") {
+      lockError.textContent = "Incorrect access code. Please try again.";
+      lockError.hidden = false;
+    } else {
+      lockError.textContent = "Couldn't reach the server. Check your connection and try again.";
+      lockError.hidden = false;
+    }
+  });
+
+  document.getElementById("lockShow").addEventListener("click", function () {
+    var showing = lockInput.type === "text";
+    lockInput.type = showing ? "password" : "text";
+    this.textContent = showing ? "Show" : "Hide";
+    lockInput.focus();
+  });
+
+  function signOut() {
+    settings.teamKey = ""; saveSettings();
+    setSync("local", "Saved on this device");
+    view = "today";
+    lock();
   }
 
   /* --------------------------- Backup / import / CSV ------------------------ */
@@ -690,15 +752,8 @@
 
     if (e.target.closest("[data-export]")) exportJson();
     if (e.target.closest("[data-import]")) document.getElementById("importInput").click();
-    if (e.target.closest("[data-settings-connect]")) {
-      settings.teamKey = document.getElementById("teamKey").value.trim();
-      saveSettings();
-      if (settings.teamKey) pullShared(); else { setSync("local", "Saved on this device"); toast("Enter a team key to connect."); }
-    }
     if (e.target.closest("[data-sync]")) pullShared();
-    if (e.target.closest("[data-disconnect]")) {
-      settings.teamKey = ""; saveSettings(); setSync("local", "Saved on this device"); toast("Disconnected from shared workbook"); render();
-    }
+    if (e.target.closest("[data-signout]")) signOut();
     if (e.target.closest("[data-reset]") && confirm("Replace the data on this device with the demonstration records?")) {
       state = JSON.parse(JSON.stringify(seed));
       saveData("Demonstration data restored");
@@ -707,7 +762,17 @@
   });
 
   /* -------------------------------- Start ----------------------------------- */
-  render();
-  if (settings.teamKey) pullShared();
-  else setSync("local", "Saved on this device");
+  render(); // render behind the lock so there is no flash when we unlock
+  if (settings.teamKey) {
+    // Already signed in on this device — open straight away, verify in background.
+    unlock();
+    setSync("connected", "Shared data is current");
+    connectWithKey(settings.teamKey).then(function (result) {
+      if (result === "ok") { setSync("connected", "Shared data is current"); render(); }
+      else if (result === "bad") { settings.teamKey = ""; saveSettings(); lock("Your access code is no longer valid. Please sign in again."); }
+      else { setSync("error", "Offline — using this device"); }
+    });
+  } else {
+    lock();
+  }
 })();

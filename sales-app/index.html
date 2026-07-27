@@ -6,9 +6,25 @@
   <meta name="theme-color" content="#0d1748">
   <meta name="description" content="Verisko Sales Visit Planner — find and qualify prospects, follow up, and hand confirmed site visits to the Operations Director.">
   <title>Verisko Sales Visit Planner</title>
-  <link rel="stylesheet" href="app.css?v=4">
+  <link rel="stylesheet" href="app.css?v=6">
 </head>
-<body>
+<body class="locked">
+  <div id="lockScreen" class="lockscreen" role="dialog" aria-modal="true" aria-labelledby="lockTitle">
+    <form class="lock-card" id="lockForm">
+      <div class="lock-mark" aria-hidden="true">V</div>
+      <h1 id="lockTitle">Verisko Sales</h1>
+      <p class="lock-sub">Enter your access code to continue.</p>
+      <div class="lock-field">
+        <label for="accessCode">Access code</label>
+        <input id="accessCode" name="accessCode" type="password" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Your team access code" required>
+        <button type="button" class="lock-show" id="lockShow" aria-label="Show access code">Show</button>
+      </div>
+      <p class="lock-error" id="lockError" role="alert" hidden></p>
+      <button type="submit" class="btn btn-primary btn-block" id="lockSubmit">Unlock</button>
+      <p class="lock-help">One code for your team. Ask your administrator if you don't have it.</p>
+    </form>
+  </div>
+
   <a class="skip-link" href="#main">Skip to content</a>
 
   <header class="topbar">
@@ -79,6 +95,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <input type="file" id="importInput" accept=".json,application/json" hidden>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

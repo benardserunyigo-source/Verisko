@@ -34,6 +34,7 @@
 }
 
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{background:var(--bg);-webkit-text-size-adjust:100%}
 body{
   margin:0;color:var(--ink);background:var(--bg);
@@ -50,6 +51,30 @@ svg{display:block}
 
 .skip-link{position:absolute;left:-999px;top:0;z-index:100;background:var(--navy);color:#fff;padding:10px 16px;border-radius:0 0 10px 0}
 .skip-link:focus{left:0}
+
+/* ---------- Lock screen (access code) ---------- */
+body.locked{overflow:hidden}
+.lockscreen{
+  position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+  padding:24px;padding-top:calc(24px + env(safe-area-inset-top));background:var(--bg)
+}
+.lockscreen[hidden]{display:none}
+.lock-card{
+  width:100%;max-width:390px;background:var(--card);border-radius:22px;box-shadow:var(--shadow);
+  padding:34px 26px 26px;text-align:center;display:flex;flex-direction:column
+}
+.lock-mark{width:58px;height:58px;margin:0 auto 20px;display:grid;place-items:center;border-radius:16px;background:var(--navy);color:#fff;font-weight:800;font-size:27px}
+.lock-card h1{font-size:24px;font-weight:700;margin-bottom:6px}
+.lock-sub{color:var(--muted);font-size:15px;margin-bottom:24px}
+.lock-field{position:relative;text-align:left;margin-bottom:14px}
+.lock-field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:7px}
+.lock-field input{width:100%;min-height:54px;padding:0 68px 0 15px;border:0;border-radius:13px;background:var(--fill);font-size:16px}
+.lock-field input::placeholder{color:var(--faint)}
+.lock-show{position:absolute;right:8px;bottom:9px;height:36px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--accent);font-weight:600;font-size:13px}
+.lock-show:hover{background:var(--accent-soft)}
+.lock-error{color:var(--red);background:var(--red-bg);border-radius:11px;padding:11px 13px;font-size:13.5px;font-weight:500;margin-bottom:14px;text-align:left}
+#lockSubmit{min-height:54px;font-size:16px}
+.lock-help{margin-top:18px;color:var(--faint);font-size:12.5px;line-height:1.5}
 :focus-visible{outline:3px solid rgba(14,120,173,.5);outline-offset:2px;border-radius:8px}
 
 /* ---------- Top bar (light, translucent) ---------- */

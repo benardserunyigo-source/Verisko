@@ -36,8 +36,12 @@ here.
 - **Site visits** — schedule a visit for the Operations Director; confirmed
   visits are shown as distinct "ready for handoff" cards. A visit can only be
   confirmed once its handoff details are complete.
-- **Settings** — enter the shared team key, refresh shared data, download or
-  import a JSON backup, or restore the demonstration data.
+- **Settings** — see the connection status, refresh shared data, sign out,
+  download or import a JSON backup, or restore the demonstration data.
+
+The app opens on a **lock screen**. The access code is the `TEAM_KEY` set in
+Netlify; it is checked on the server, so no data loads without a valid code.
+Once signed in, a device stays unlocked (and works offline) until **Sign out**.
 
 ## Deploy (Netlify Blobs backend)
 
@@ -54,8 +58,9 @@ drag-and-drop uploader will not build the function.
    - `TEAM_KEY` — a private phrase the salesperson enters in the app.
 4. Deploy. Netlify installs `@netlify/blobs`, builds the function, and gives you
    an HTTPS address.
-5. Open the site → **Settings**, enter the same `TEAM_KEY`, and tap
-   **Connect to Excel** to load and start syncing the shared data.
+5. Open the site. On the **lock screen**, enter the same `TEAM_KEY` as the
+   access code to sign in — this loads and starts syncing the shared data.
+   The device stays signed in until you use **Sign out** in Settings.
 
 Netlify Blobs requires no separate setup — storage is enabled by default and the
 function is authorised automatically inside Netlify's environment.
