@@ -74,6 +74,19 @@ body.locked{overflow:hidden}
 .lockup-lg .lockup-mark{width:44px;height:44px}
 .lockup-lg .lockup-word{font-size:26px;letter-spacing:.1em}
 .lock-eyebrow{margin:0 0 8px;color:var(--cyan);font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+
+/* Onboarding / welcome tour */
+.onb-card{position:relative;padding-top:30px}
+.onb-skip{position:absolute;top:12px;right:12px;min-height:auto;border:0;background:transparent;color:var(--faint);font-weight:600;font-size:14px;padding:8px 10px;border-radius:9px}
+.onb-skip:empty{display:none}
+.onb-icon{width:66px;height:66px;margin:8px auto 20px;display:grid;place-items:center;border-radius:18px;background:var(--accent-soft);color:var(--accent)}
+.onb-icon svg{width:34px;height:34px}
+.onb-card .lockup-lg{margin:8px auto 20px}
+.onb-title{font-size:22px;font-weight:700;margin-bottom:10px}
+.onb-body{color:var(--muted);font-size:15px;line-height:1.55;margin-bottom:24px}
+.onb-dots{display:flex;justify-content:center;gap:7px;margin-bottom:20px}
+.onb-dot{width:7px;height:7px;border-radius:50%;background:var(--line);transition:.2s}
+.onb-dot.on{background:var(--cyan);width:22px;border-radius:4px}
 .lock-card h1{font-size:24px;font-weight:700;margin-bottom:6px}
 .lock-sub{color:var(--muted);font-size:15px;margin-bottom:24px}
 .lock-field{position:relative;text-align:left;margin-bottom:14px}

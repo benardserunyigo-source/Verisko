@@ -814,8 +814,8 @@
       state.users.push(owner);
       settings.user = owner; saveSettings();
       saveData();
-      showApp();
       toast("Welcome, " + name.split(/\s+/)[0] + "!");
+      enterApp();
     }
   });
 
@@ -826,7 +826,7 @@
     if (s === "unauth") { signOutLocal(); renderLogin("email", "That email isn't on the team yet. Ask the owner to add " + email + "."); return; }
     if (s === "offline") { renderLogin("email", "Signed in, but the workspace is unreachable. Check your connection."); return; }
     var existing = (state.users || []).find(function (u) { return u.email.toLowerCase() === email.toLowerCase(); });
-    if (existing) { settings.user = existing; saveSettings(); showApp(); toast("Signed in as " + existing.name.split(/\s+/)[0]); return; }
+    if (existing) { settings.user = existing; saveSettings(); toast("Signed in as " + existing.name.split(/\s+/)[0]); enterApp(); return; }
     if ((state.users || []).length === 0) { renderLogin("name"); return; } // bootstrap the owner
     signOutLocal(); renderLogin("email", "That email isn't on the team yet. Ask the owner to add " + email + ".");
   }
@@ -838,6 +838,53 @@
     if (u) { settings.user = u; saveSettings(); }
     else if ((state.users || []).length) { signOutLocal(); showLogin("Your access was removed. Ask the owner to re-add you."); }
   }
+
+  /* -------- Onboarding / welcome tour -------- */
+  var ONB_STEPS = [
+    { welcome: true, title: "Welcome to Verisko Sales", body: "Your simple tool for finding prospects, following up, and booking confirmed site visits for the Operations Director." },
+    { icon: ICON_CALENDAR, title: "Start on Today", body: "Each day, Today shows who to call, which visits to confirm, and what's overdue — most urgent first. Work from the top down." },
+    { icon: ICON_PEOPLE, title: "Add & qualify prospects", body: "Capture the business, contact, phone and location. Most answers are quick taps — no long forms. Mark them Qualified when they're ready." },
+    { icon: ICON_PIN, title: "Book & confirm visits", body: "Schedule a site visit and confirm it — a confirmed visit is ready to hand to the Operations Director. A visit can only be confirmed once it has a contact, phone, location, date, time and owner." }
+  ];
+  var onbScreen = document.getElementById("onboarding");
+  var onbCard = document.getElementById("onbCard");
+  var onbStep = 0;
+
+  function enterApp() { if (settings.onboarded) showApp(); else showOnboarding(); }
+  function showOnboarding() {
+    onbStep = 0;
+    lockScreen.hidden = true;
+    userChip.hidden = true; closeUserMenu();
+    document.body.classList.add("locked");
+    renderOnboarding();
+    onbScreen.hidden = false;
+  }
+  function finishOnboarding() {
+    settings.onboarded = true; saveSettings();
+    onbScreen.hidden = true;
+    showApp();
+  }
+  function renderOnboarding() {
+    var s = ONB_STEPS[onbStep];
+    var last = onbStep === ONB_STEPS.length - 1;
+    var mark = s.welcome
+      ? '<div class="lockup lockup-lg" role="img" aria-label="Verisko"><img class="lockup-mark" src="logo.svg" alt=""><span class="lockup-word">VERISKO</span></div>'
+      : '<div class="onb-icon" aria-hidden="true">' + s.icon + "</div>";
+    onbCard.innerHTML =
+      '<button type="button" class="onb-skip" data-onb-skip>' + (last ? "" : "Skip") + "</button>" + mark +
+      '<h1 class="onb-title">' + esc(s.title) + "</h1>" +
+      '<p class="onb-body">' + esc(s.body) + "</p>" +
+      '<div class="onb-dots" aria-hidden="true">' + ONB_STEPS.map(function (_, k) { return '<span class="onb-dot' + (k === onbStep ? " on" : "") + '"></span>'; }).join("") + "</div>" +
+      '<button type="button" class="btn btn-primary btn-block" data-onb-next>' + (last ? "Get started" : "Next") + "</button>";
+  }
+  onbCard.addEventListener("click", function (e) {
+    if (e.target.closest("[data-onb-skip]")) { finishOnboarding(); return; }
+    if (e.target.closest("[data-onb-next]")) {
+      if (onbStep >= ONB_STEPS.length - 1) finishOnboarding();
+      else { onbStep++; renderOnboarding(); }
+    }
+  });
+  function replayOnboarding() { closeUserMenu(); showOnboarding(); }
 
   /* -------- Header user chip + menu -------- */
   function renderUserChip() {
@@ -860,6 +907,7 @@
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
   userMenu.addEventListener("click", function (e) {
+    if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }
     if (e.target.closest("[data-logout]")) logout();
   });
 
@@ -983,7 +1031,7 @@
 
   /* -------------------------------- Start ----------------------------------- */
   if (settings.auth && settings.user) {
-    showApp(); // open straight to the app from cached data (offline-friendly)
+    enterApp(); // open straight to the app from cached data (offline-friendly)
     setSync("syncing", "Checking…");
     loadShared().then(function (result) {
       if (result === "signin") { signOutLocal(); showLogin("Your session expired. Please sign in again."); }

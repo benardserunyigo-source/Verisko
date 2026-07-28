@@ -8,11 +8,15 @@
   <title>Verisko Sales Visit Planner</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="apple-touch-icon" href="logo.svg">
-  <link rel="stylesheet" href="app.css?v=11">
+  <link rel="stylesheet" href="app.css?v=12">
 </head>
 <body class="locked">
   <div id="lockScreen" class="lockscreen" role="dialog" aria-modal="true" aria-labelledby="lockTitle">
     <div class="lock-card" id="lockCard"><!-- rendered by app.js --></div>
+  </div>
+
+  <div id="onboarding" class="lockscreen" role="dialog" aria-modal="true" aria-label="Welcome tour" hidden>
+    <div class="lock-card onb-card" id="onbCard"><!-- rendered by app.js --></div>
   </div>
 
   <a class="skip-link" href="#main">Skip to content</a>
@@ -39,6 +43,7 @@
       <span class="sync-dot" aria-hidden="true"></span>
       <span class="sync-text" id="syncText">Saved on this device</span>
     </p>
+    <button class="btn btn-ghost btn-block" type="button" data-howto>How it works</button>
     <button class="btn btn-danger btn-block" type="button" data-logout>Log out</button>
   </div>
 
@@ -99,6 +104,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <input type="file" id="importInput" accept=".json,application/json" hidden>
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>
