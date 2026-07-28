@@ -63,7 +63,7 @@ body.locked{overflow:hidden}
   width:100%;max-width:390px;background:var(--card);border-radius:22px;box-shadow:var(--shadow);
   padding:34px 26px 26px;text-align:center;display:flex;flex-direction:column
 }
-.lock-mark{width:58px;height:58px;margin:0 auto 20px;display:grid;place-items:center;border-radius:16px;background:var(--navy);color:#fff;font-weight:800;font-size:27px}
+.lock-mark{width:58px;height:58px;margin:0 auto 20px;display:block}
 .lock-card h1{font-size:24px;font-weight:700;margin-bottom:6px}
 .lock-sub{color:var(--muted);font-size:15px;margin-bottom:24px}
 .lock-field{position:relative;text-align:left;margin-bottom:14px}
@@ -111,11 +111,7 @@ body.locked{overflow:hidden}
   border-bottom:.5px solid var(--hair);
 }
 .brand{display:flex;align-items:center;gap:9px;color:var(--navy);text-decoration:none;font-weight:700}
-.brand-mark{
-  display:grid;place-items:center;width:28px;height:28px;
-  border-radius:8px;color:#fff;background:var(--navy);
-  font-weight:800;font-size:15px;transform:none
-}
+.brand-mark{width:28px;height:28px;display:block;flex:none}
 .brand-name{font-size:17px;letter-spacing:-.01em;text-transform:none}
 /* Header user chip + dropdown menu */
 .user-chip{display:flex;align-items:center;gap:8px;border:0;background:transparent;padding:2px;border-radius:100px}

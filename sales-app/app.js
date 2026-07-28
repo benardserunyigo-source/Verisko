@@ -743,7 +743,7 @@
   /* -------- Email + 6-digit code login -------- */
   function renderLogin(step, message) {
     var errHtml = message ? '<p class="lock-error">' + esc(message) + "</p>" : '<p class="lock-error" id="loginError" role="alert" hidden></p>';
-    var html = '<div class="lock-mark" aria-hidden="true">V</div>';
+    var html = '<img class="lock-mark" src="logo.svg" alt="" aria-hidden="true">';
     if (step === "code") {
       html += '<h1 id="lockTitle">Enter your code</h1>' +
         '<p class="lock-sub">We emailed a 6-digit code to <strong>' + esc(loginEmail) + "</strong>.</p>" +

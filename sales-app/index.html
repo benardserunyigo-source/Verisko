@@ -3,10 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#0d1748">
+  <meta name="theme-color" content="#012169">
   <meta name="description" content="Verisko Sales Visit Planner — find and qualify prospects, follow up, and hand confirmed site visits to the Operations Director.">
   <title>Verisko Sales Visit Planner</title>
-  <link rel="stylesheet" href="app.css?v=9">
+  <link rel="icon" type="image/svg+xml" href="logo.svg">
+  <link rel="apple-touch-icon" href="logo.svg">
+  <link rel="stylesheet" href="app.css?v=10">
 </head>
 <body class="locked">
   <div id="lockScreen" class="lockscreen" role="dialog" aria-modal="true" aria-labelledby="lockTitle">
@@ -17,7 +19,7 @@
 
   <header class="topbar">
     <a class="brand" href="#today" aria-label="Verisko Sales Visit Planner — go to Today">
-      <span class="brand-mark" aria-hidden="true">V</span>
+      <img class="brand-mark" src="logo.svg" alt="" width="28" height="28">
       <span class="brand-name">Verisko</span>
     </a>
     <button class="user-chip" id="userChip" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Your account" hidden>
@@ -97,6 +99,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <input type="file" id="importInput" accept=".json,application/json" hidden>
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>
