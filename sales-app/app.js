@@ -88,7 +88,7 @@
   function saveData(message) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     if (message) toast(message);
-    if (settings.teamKey) pushShared();
+    if (settings.auth) pushShared();
     else setSync("local", "Saved on this device");
   }
   function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
@@ -419,14 +419,18 @@
     }).join("") + "</div>" : '<p class="settings-note">No accounts yet.</p>';
     content.innerHTML = '<div class="settings-grid">' +
       '<section class="card settings-card"><h2>Team members</h2>' +
-      "<p>Everyone with an account on this workspace. Each prospect records who added it. Removing a person deletes their account and signs them out on their devices.</p>" +
-      teamRows + "</section>" +
+      "<p>People who can sign in with their email. Each prospect records who added it. Removing someone revokes their access immediately.</p>" +
+      teamRows +
+      '<form id="addMemberForm" class="add-member">' +
+      '<div class="field"><label for="memberName">Name</label><input id="memberName" name="name" type="text" autocomplete="off" placeholder="e.g. Grace Namubiru" required></div>' +
+      '<div class="field"><label for="memberEmail">Email</label><input id="memberEmail" name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" placeholder="grace@example.com" required></div>' +
+      '<button type="submit" class="btn btn-ghost btn-block">Add team member</button>' +
+      "</form></section>" +
 
       '<section class="card settings-card"><h2>Shared workspace</h2>' +
-      "<p>Records sync securely through Netlify. The team access code lives only in the Netlify server, never in this browser.</p>" +
+      "<p>Everyone signs in with their own email, verified by Supabase. Records sync securely through Netlify.</p>" +
       '<div class="conn-status" data-state="' + connection.state + '"><span class="dot"></span><span class="conn-label">' + esc(connection.text) + "</span></div>" +
-      '<div class="button-row"><button class="btn btn-ghost" data-sync>Refresh shared data</button>' +
-      '<button class="btn btn-danger" data-disconnect>Disconnect this device</button></div></section>' +
+      '<div class="button-row"><button class="btn btn-ghost" data-sync>Refresh shared data</button></div></section>' +
 
       '<section class="card settings-card"><h2>Backup &amp; restore</h2>' +
       '<p>Download a JSON backup any time, or import one to recover your records.</p>' +
@@ -616,15 +620,63 @@
     render();
   }
 
-  /* -------------------------------- Sharing --------------------------------- */
-  // Validate an access code against the server and, on success, load the shared
-  // data. Returns "ok" (valid), "bad" (wrong code), or "offline" (unreachable).
-  async function connectWithKey(key) {
+  /* ---------------------------- Supabase auth ------------------------------- */
+  // Verified email sign-in (6-digit code). Both values below are public.
+  var SUPABASE_URL = "https://cepernltrzrmupgegcib.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_hj2NsI1YGmpeQg815ET2Kg_CwznowqE";
+
+  function sbFetch(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ apikey: SUPABASE_KEY, "Content-Type": "application/json" }, opts.headers || {});
+    return fetch(SUPABASE_URL + path, opts);
+  }
+  async function requestCode(email) {
+    var res = await sbFetch("/auth/v1/otp", { method: "POST", body: JSON.stringify({ email: email, create_user: true }) });
+    if (!res.ok) { var e = await res.json().catch(function () { return {}; }); throw new Error(e.msg || e.error_description || "Couldn't send the code. Please try again."); }
+    return true;
+  }
+  async function verifyCode(email, token) {
+    var res = await sbFetch("/auth/v1/verify", { method: "POST", body: JSON.stringify({ type: "email", email: email, token: token }) });
+    var data = await res.json().catch(function () { return {}; });
+    if (!res.ok || !data.access_token) throw new Error(data.msg || data.error_description || "That code didn't work. Check it and try again.");
+    return data;
+  }
+  async function refreshSession() {
+    if (!settings.auth || !settings.auth.refresh_token) return false;
     try {
-      var response = await fetch("/api/data", { headers: { "X-Team-Key": key } });
-      if (response.status === 401) return "bad";
-      var result = await response.json();
-      if (!result.ok) return "bad";
+      var res = await sbFetch("/auth/v1/token?grant_type=refresh_token", { method: "POST", body: JSON.stringify({ refresh_token: settings.auth.refresh_token }) });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok || !data.access_token) return false;
+      settings.auth = { access_token: data.access_token, refresh_token: data.refresh_token, expires_at: data.expires_at, email: settings.auth.email };
+      saveSettings();
+      return true;
+    } catch (e) { return false; }
+  }
+
+  /* -------------------------------- Sharing --------------------------------- */
+  // Call the workspace API with the Supabase bearer token; refresh once on 401.
+  async function apiData(method, body) {
+    if (settings.auth && settings.auth.expires_at && settings.auth.expires_at * 1000 - Date.now() < 60000) await refreshSession();
+    var doFetch = function () {
+      return fetch("/api/data", {
+        method: method,
+        headers: Object.assign({ "Content-Type": "application/json" }, settings.auth ? { Authorization: "Bearer " + settings.auth.access_token } : {}),
+        body: body ? JSON.stringify(body) : undefined
+      });
+    };
+    var res = await doFetch();
+    if (res.status === 401 && await refreshSession()) res = await doFetch();
+    return res;
+  }
+
+  // Returns "ok", "signin" (session invalid), "unauth" (not on team), "offline".
+  async function loadShared() {
+    try {
+      var res = await apiData("GET");
+      if (res.status === 401) return "signin";
+      if (res.status === 403) return "unauth";
+      var result = await res.json();
+      if (!result.ok) return "unauth";
       if (result.data && result.data.prospects) {
         state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [] };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -634,43 +686,31 @@
   }
 
   async function pullShared() {
-    if (!settings.teamKey) return;
-    setSync("syncing", "Refreshing shared data…");
-    var result = await connectWithKey(settings.teamKey);
-    if (result === "ok") { reconcileUser(); setSync("connected", "Shared data is current"); toast("Shared data refreshed"); gate(); }
-    else if (result === "bad") { settings.teamKey = ""; settings.user = null; saveSettings(); setSync("error", "Access code no longer valid"); showLock("Your access code is no longer valid. Please sign in again."); }
-    else { setSync("error", "Offline — using this device"); toast("Could not reach shared data. Your device copy is safe."); }
+    if (!settings.auth) return;
+    setSync("syncing", "Refreshing…");
+    var result = await loadShared();
+    if (result === "ok") { resolveUser(); setSync("connected", "Synced"); toast("Data refreshed"); render(); }
+    else if (result === "signin") { signOutLocal(); showLogin("Your session expired. Please sign in again."); }
+    else if (result === "unauth") { signOutLocal(); showLogin("Your access was removed. Ask the owner to re-add you."); }
+    else { setSync("error", "Offline — using this device"); toast("Couldn't reach the workspace. Your device copy is safe."); }
   }
 
   async function pushShared() {
     try {
-      setSync("syncing", "Saving shared data…");
-      var response = await fetch("/api/data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Team-Key": settings.teamKey },
-        body: JSON.stringify({ data: state })
-      });
-      var result = await response.json();
-      if (!result.ok) throw new Error();
-      setSync("connected", "Shared data is current");
-    } catch (e) {
-      setSync("error", "Saved on device — shared sync pending");
-    }
+      setSync("syncing", "Saving…");
+      var res = await apiData("POST", { data: state });
+      var result = await res.json().catch(function () { return {}; });
+      if (!res.ok || !result.ok) throw new Error();
+      setSync("connected", "Synced");
+    } catch (e) { setSync("error", "Saved on device — sync pending"); }
   }
 
-  /* --------------------- Access gate: device + account ---------------------- */
-  // Two layers: a team access code unlocks the device (server-checked), then a
-  // per-person account identifies who is using it.
+  /* ------------------------------- Access gate ------------------------------ */
   var lockScreen = document.getElementById("lockScreen");
-  var lockForm = document.getElementById("lockForm");
-  var lockInput = document.getElementById("accessCode");
-  var lockError = document.getElementById("lockError");
-  var lockSubmit = document.getElementById("lockSubmit");
-  var accountScreen = document.getElementById("accountScreen");
-  var accountCard = document.getElementById("accountCard");
+  var lockCard = document.getElementById("lockCard");
   var userChip = document.getElementById("userChip");
   var userMenu = document.getElementById("userMenu");
-  var accountMode = "list";
+  var loginEmail = "";   // remembered between the two login steps
 
   function currentUser() { return settings.user || null; }
   function isAdmin() { return !!(settings.user && settings.user.role === "admin"); }
@@ -680,136 +720,121 @@
     return (p[0][0] + (p[1] ? p[1][0] : "")).toUpperCase();
   }
 
-  // Which screen to show, based on device key and account.
   function gate() {
-    if (!settings.teamKey) { showLock(); return; }
-    if (!settings.user) { showAccount(); return; }
-    showApp();
-  }
-  function showLock(message) {
-    accountScreen.hidden = true;
-    userChip.hidden = true; closeUserMenu();
-    document.body.classList.add("locked");
-    lockScreen.hidden = false;
-    lockInput.value = "";
-    if (message) { lockError.textContent = message; lockError.hidden = false; } else lockError.hidden = true;
-    lockInput.focus();
-  }
-  function showAccount() {
-    lockScreen.hidden = true;
-    userChip.hidden = true; closeUserMenu();
-    document.body.classList.add("locked");
-    renderAccountScreen();
-    accountScreen.hidden = false;
+    if (settings.auth && settings.user) showApp();
+    else showLogin();
   }
   function showApp() {
     lockScreen.hidden = true;
-    accountScreen.hidden = true;
     closeUserMenu();
     document.body.classList.remove("locked");
     applyRole();
     renderUserChip();
     render();
   }
+  function showLogin(message) {
+    userChip.hidden = true; closeUserMenu();
+    document.body.classList.add("locked");
+    renderLogin("email", message);
+    lockScreen.hidden = false;
+  }
+  function signOutLocal() { settings.auth = null; settings.user = null; saveSettings(); }
 
-  lockForm.addEventListener("submit", async function (e) {
-    e.preventDefault();
-    var code = lockInput.value.trim();
-    if (!code) { lockError.textContent = "Enter your access code."; lockError.hidden = false; return; }
-    lockError.hidden = true;
-    lockSubmit.disabled = true;
-    lockSubmit.textContent = "Checking…";
-    var result = await connectWithKey(code);
-    lockSubmit.disabled = false;
-    lockSubmit.textContent = "Unlock";
-    if (result === "ok") {
-      settings.teamKey = code; saveSettings();
-      setSync("connected", "Shared data is current");
-      gate();
-    } else if (result === "bad") {
-      lockError.textContent = "Incorrect access code. Please try again."; lockError.hidden = false;
-    } else {
-      lockError.textContent = "Couldn't reach the server. Check your connection and try again."; lockError.hidden = false;
-    }
-  });
-
-  document.getElementById("lockShow").addEventListener("click", function () {
-    var showing = lockInput.type === "text";
-    lockInput.type = showing ? "password" : "text";
-    this.textContent = showing ? "Show" : "Hide";
-    lockInput.focus();
-  });
-
-  /* -------- Account screen (who's using the app) -------- */
-  function renderAccountScreen() {
-    var users = state.users || [];
+  /* -------- Email + 6-digit code login -------- */
+  function renderLogin(step, message) {
+    var errHtml = message ? '<p class="lock-error">' + esc(message) + "</p>" : '<p class="lock-error" id="loginError" role="alert" hidden></p>';
     var html = '<div class="lock-mark" aria-hidden="true">V</div>';
-    if (users.length && accountMode === "list") {
-      html += '<h1 id="accountTitle">Who\'s using the app?</h1>' +
-        '<p class="lock-sub">Choose your account to continue.</p>' +
-        '<div class="account-list">' + users.map(function (u) {
-          return '<button type="button" class="account-row" data-user="' + esc(u.id) + '">' +
-            '<span class="user-avatar" aria-hidden="true">' + esc(initials(u.name)) + '</span>' +
-            '<span class="who"><strong>' + esc(u.name) + (u.role === "admin" ? " · Owner" : "") + "</strong><span>" + esc(u.email) + "</span></span>" +
-            '<span class="chev" aria-hidden="true">›</span></button>';
-        }).join("") + "</div>" +
-        '<button type="button" class="account-toggle" data-account-create>+ Create new account</button>' +
-        '<p class="lock-error" id="accountError" role="alert" hidden></p>';
+    if (step === "code") {
+      html += '<h1 id="lockTitle">Enter your code</h1>' +
+        '<p class="lock-sub">We emailed a 6-digit code to <strong>' + esc(loginEmail) + "</strong>.</p>" +
+        '<form id="loginForm" class="account-fields" data-step="code">' +
+        '<div class="field"><label for="loginCode">6-digit code</label>' +
+        '<input id="loginCode" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="123456" required></div>' +
+        errHtml +
+        '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Verify &amp; sign in</button>' +
+        '<button type="button" class="account-back" data-login-restart>Use a different email</button></form>';
+    } else if (step === "name") {
+      html += '<h1 id="lockTitle">Welcome — you\'re the owner</h1>' +
+        '<p class="lock-sub">You\'re the first person here. What\'s your name?</p>' +
+        '<form id="loginForm" class="account-fields" data-step="name">' +
+        '<div class="field"><label for="ownerName">Your name</label>' +
+        '<input id="ownerName" name="name" type="text" autocomplete="name" placeholder="e.g. Benard Serunyigo" required></div>' +
+        errHtml +
+        '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Continue</button></form>';
     } else {
-      var first = users.length === 0;
-      html += '<h1 id="accountTitle">' + (first ? "Create your account" : "New account") + "</h1>" +
-        '<p class="lock-sub">' + (first ? "You're the first user — you'll be the owner." : "Add yourself so the team knows who's working.") + "</p>" +
-        '<form id="accountForm" class="account-fields">' +
-        '<div class="field"><label for="acctName">Your name <span class="req" aria-hidden="true">*</span></label>' +
-        '<input id="acctName" name="name" type="text" autocomplete="name" placeholder="e.g. Grace Namubiru" required></div>' +
-        '<div class="field"><label for="acctEmail">Email <span class="req" aria-hidden="true">*</span></label>' +
-        '<input id="acctEmail" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" placeholder="you@example.com" required></div>' +
-        '<p class="lock-error" id="accountError" role="alert" hidden></p>' +
-        '<button type="submit" class="btn btn-primary btn-block">Create account</button>' +
-        (first ? "" : '<button type="button" class="account-back" data-account-list>Back to accounts</button>') +
-        "</form>";
+      html += '<h1 id="lockTitle">Verisko Sales</h1>' +
+        '<p class="lock-sub">Sign in with your email — we\'ll send you a 6-digit code.</p>' +
+        '<form id="loginForm" class="account-fields" data-step="email">' +
+        '<div class="field"><label for="loginEmailInput">Email</label>' +
+        '<input id="loginEmailInput" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com" value="' + esc(loginEmail) + '" required></div>' +
+        errHtml +
+        '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Send code</button></form>' +
+        '<p class="lock-help">Ask the owner to add your email if you can\'t get in.</p>';
     }
-    accountCard.innerHTML = html;
-    var n = document.getElementById("acctName");
-    if (n) n.focus();
+    lockCard.innerHTML = html;
+    var first = lockCard.querySelector("input");
+    if (first) first.focus();
+  }
+  function loginError(msg) {
+    var el = lockCard.querySelector("#loginError") || lockCard.querySelector(".lock-error");
+    if (el) { el.textContent = msg; el.hidden = false; }
+  }
+  function loginBusy(on, label) {
+    var b = lockCard.querySelector("#loginBtn");
+    if (b) { b.disabled = on; if (label) b.textContent = label; }
   }
 
-  accountCard.addEventListener("click", function (e) {
-    var pick = e.target.closest("[data-user]");
-    if (pick) { selectAccount(pick.dataset.user); return; }
-    if (e.target.closest("[data-account-create]")) { accountMode = "create"; renderAccountScreen(); return; }
-    if (e.target.closest("[data-account-list]")) { accountMode = "list"; renderAccountScreen(); return; }
+  lockCard.addEventListener("click", function (e) {
+    if (e.target.closest("[data-login-restart]")) renderLogin("email");
   });
-  accountCard.addEventListener("submit", function (e) {
-    if (e.target.id !== "accountForm") return;
+  lockCard.addEventListener("submit", async function (e) {
+    var form = e.target.closest("#loginForm");
+    if (!form) return;
     e.preventDefault();
-    createAccount();
+    var step = form.getAttribute("data-step");
+    if (step === "email") {
+      loginEmail = form.querySelector("[name=email]").value.trim().toLowerCase();
+      if (!loginEmail) return;
+      loginBusy(true, "Sending…");
+      try { await requestCode(loginEmail); renderLogin("code"); }
+      catch (err) { loginBusy(false, "Send code"); loginError(err.message); }
+    } else if (step === "code") {
+      var code = form.querySelector("[name=code]").value.trim();
+      if (!code) return;
+      loginBusy(true, "Verifying…");
+      try { var session = await verifyCode(loginEmail, code); await afterVerify(loginEmail, session); }
+      catch (err) { loginBusy(false, "Verify & sign in"); loginError(err.message); }
+    } else if (step === "name") {
+      var name = form.querySelector("[name=name]").value.trim();
+      if (!name) return;
+      var owner = { id: uid(), name: name, email: loginEmail, role: "admin", created: today };
+      if (!state.users) state.users = [];
+      state.users.push(owner);
+      settings.user = owner; saveSettings();
+      saveData();
+      showApp();
+      toast("Welcome, " + name.split(/\s+/)[0] + "!");
+    }
   });
 
-  function createAccount() {
-    var name = (document.getElementById("acctName").value || "").trim();
-    var email = (document.getElementById("acctEmail").value || "").trim();
-    var err = document.getElementById("accountError");
-    if (!name || !email) { err.textContent = "Enter your name and email."; err.hidden = false; return; }
-    if ((state.users || []).some(function (u) { return u.email.toLowerCase() === email.toLowerCase(); })) {
-      err.textContent = "An account with that email already exists — choose it from the list."; err.hidden = false; return;
-    }
-    var user = { id: uid(), name: name, email: email, role: (state.users || []).length ? "user" : "admin", created: today };
-    if (!state.users) state.users = [];
-    state.users.push(user);
-    settings.user = user; saveSettings();
-    accountMode = "list";
-    saveData();        // persist + push the new user to the shared store
-    showApp();
-    toast("Welcome, " + name.split(/\s+/)[0] + "!");
+  async function afterVerify(email, session) {
+    settings.auth = { access_token: session.access_token, refresh_token: session.refresh_token, expires_at: session.expires_at, email: email };
+    saveSettings();
+    var s = await loadShared();
+    if (s === "unauth") { signOutLocal(); renderLogin("email", "That email isn't on the team yet. Ask the owner to add " + email + "."); return; }
+    if (s === "offline") { renderLogin("email", "Signed in, but the workspace is unreachable. Check your connection."); return; }
+    var existing = (state.users || []).find(function (u) { return u.email.toLowerCase() === email.toLowerCase(); });
+    if (existing) { settings.user = existing; saveSettings(); showApp(); toast("Signed in as " + existing.name.split(/\s+/)[0]); return; }
+    if ((state.users || []).length === 0) { renderLogin("name"); return; } // bootstrap the owner
+    signOutLocal(); renderLogin("email", "That email isn't on the team yet. Ask the owner to add " + email + ".");
   }
 
-  function selectAccount(id) {
-    var u = (state.users || []).find(function (x) { return x.id === id; });
-    if (!u) return;
-    settings.user = u; saveSettings();
-    showApp();
-    toast("Signed in as " + u.name.split(/\s+/)[0]);
+  // Refresh the local identity from the shared team list (handles rename/removal).
+  function resolveUser() {
+    if (!settings.auth) return;
+    var u = (state.users || []).find(function (x) { return x.email.toLowerCase() === settings.auth.email.toLowerCase(); });
+    if (u) { settings.user = u; saveSettings(); }
+    else if ((state.users || []).length) { signOutLocal(); showLogin("Your access was removed. Ask the owner to re-add you."); }
   }
 
   /* -------- Header user chip + menu -------- */
@@ -836,18 +861,13 @@
     if (e.target.closest("[data-logout]")) logout();
   });
 
-  function logout() {
-    settings.user = null; saveSettings();
-    accountMode = "list";
+  async function logout() {
+    try { if (settings.auth) await sbFetch("/auth/v1/logout", { method: "POST", headers: { Authorization: "Bearer " + settings.auth.access_token } }); } catch (e) {}
+    signOutLocal();
+    closeUserMenu();
     view = "today";
-    showAccount();
-  }
-  // Admin-only: leave the shared workspace on this device (needs the code to return).
-  function disconnectDevice() {
-    if (!confirm("Sign out of the shared workspace on this device? You'll need the team access code to reconnect.")) return;
-    settings.teamKey = ""; settings.user = null; saveSettings();
-    setSync("local", "Saved on this device");
-    showLock();
+    loginEmail = "";
+    showLogin();
   }
 
   function applyRole() {
@@ -857,26 +877,31 @@
     if (!admin && view === "settings") view = "today";
   }
 
-  // Owner removes a team member (individual offboarding).
+  // Owner adds a teammate by email — they can then sign in with that email.
+  function addMember(name, email) {
+    name = (name || "").trim(); email = (email || "").trim().toLowerCase();
+    if (!name || !email) { toast("Enter a name and email."); return false; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast("Enter a valid email."); return false; }
+    if ((state.users || []).some(function (u) { return u.email.toLowerCase() === email; })) { toast("That email is already on the team."); return false; }
+    if (!state.users) state.users = [];
+    state.users.push({ id: uid(), name: name, email: email, role: "user", created: today });
+    saveData();
+    render();
+    toast(name.split(/\s+/)[0] + " added — they can sign in with " + email);
+    return true;
+  }
+
+  // Owner removes a team member (airtight offboarding — they lose access at once).
   function removeUser(id) {
     var u = (state.users || []).find(function (x) { return x.id === id; });
     if (!u) return;
     if (u.role === "admin") { toast("The owner account can't be removed."); return; }
     if (settings.user && u.id === settings.user.id) { toast("You can't remove your own account."); return; }
-    if (!confirm("Remove " + u.name + " (" + u.email + ") from the team?\n\nTheir account is deleted and they're signed out on their devices. This can't be undone.")) return;
+    if (!confirm("Remove " + u.name + " (" + u.email + ") from the team?\n\nThey lose access immediately and can't sign in again unless you re-add them. This can't be undone.")) return;
     state.users = state.users.filter(function (x) { return x.id !== id; });
-    saveData();     // persist + push the updated team to the shared store
-    render();       // refresh the Team list
+    saveData();
+    render();
     toast(u.name.split(/\s+/)[0] + " removed from the team");
-  }
-
-  // If the signed-in person was removed elsewhere, sign them out on this device.
-  function reconcileUser() {
-    if (settings.user && (state.users || []).length && !state.users.some(function (u) { return u.id === settings.user.id; })) {
-      settings.user = null; saveSettings();
-      return false;
-    }
-    return true;
   }
 
   /* --------------------------- Backup / import / CSV ------------------------ */
@@ -936,30 +961,35 @@
     if (e.target.closest("[data-export]")) exportJson();
     if (e.target.closest("[data-import]")) document.getElementById("importInput").click();
     if (e.target.closest("[data-sync]")) pullShared();
-    if (e.target.closest("[data-disconnect]")) disconnectDevice();
     var rm = e.target.closest("[data-remove-user]"); if (rm) { removeUser(rm.dataset.removeUser); return; }
     if (e.target.closest("[data-reset]")) {
       var ans = prompt("This ERASES all prospects, visits and team accounts for everyone, and loads sample data. It cannot be undone.\n\nType RESET to confirm.");
       if (ans && ans.trim().toUpperCase() === "RESET") {
         state = JSON.parse(JSON.stringify(seed));
-        settings.user = null; saveSettings();   // accounts wiped — re-onboard
-        accountMode = "list";
         saveData("Reset to demo data");
-        showAccount();
+        logout(); // wiped the team — sign out and re-onboard
       }
+    }
+  });
+  content.addEventListener("submit", function (e) {
+    var addForm = e.target.closest("#addMemberForm");
+    if (addForm) {
+      e.preventDefault();
+      if (addMember(addForm.querySelector("[name=name]").value, addForm.querySelector("[name=email]").value)) addForm.reset();
     }
   });
 
   /* -------------------------------- Start ----------------------------------- */
-  if (settings.teamKey) {
-    gate(); // open straight to the app or account picker from cached data
+  if (settings.auth && settings.user) {
+    showApp(); // open straight to the app from cached data (offline-friendly)
     setSync("syncing", "Checking…");
-    connectWithKey(settings.teamKey).then(function (result) {
-      if (result === "bad") { settings.teamKey = ""; settings.user = null; saveSettings(); showLock("Your access code is no longer valid. Please sign in again."); }
-      else if (result === "ok") { reconcileUser(); setSync("connected", "Shared data is current"); gate(); }
+    loadShared().then(function (result) {
+      if (result === "signin") { signOutLocal(); showLogin("Your session expired. Please sign in again."); }
+      else if (result === "unauth") { signOutLocal(); showLogin("Your access was removed. Ask the owner to re-add you."); }
+      else if (result === "ok") { resolveUser(); setSync("connected", "Synced"); render(); }
       else { setSync("error", "Offline — using this device"); }
     });
   } else {
-    showLock();
+    showLogin();
   }
 })();

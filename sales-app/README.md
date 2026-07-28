@@ -39,14 +39,27 @@ here.
 - **Settings** — see the connection status, refresh shared data, sign out,
   download or import a JSON backup, or restore the demonstration data.
 
-The app opens on a **lock screen**. The access code is the `TEAM_KEY` set in
-Netlify; it is checked on the server, so no data loads without a valid code.
-After the code, each person signs in with a lightweight **account** (name +
-email, no password) so every prospect records **who added it**. The first
-account created is the **owner** (admin) — only the owner sees the **Settings**
-tab (team list, connection, backup). Everyone can **Log out** from the avatar
-menu in the top-right; the device stays connected until the owner uses
-**Disconnect this device** in Settings.
+## Sign-in (Supabase email login)
+
+Each person signs in with **their own email + a 6-digit code** (Supabase email
+OTP — no passwords). The Netlify function verifies every request against
+Supabase and checks the email against the team **allow-list**, so nothing loads
+for an email that isn't on the team.
+
+- The **first** person to sign in on an empty workspace becomes the **owner**
+  (admin) and is asked for their name.
+- The owner adds teammates by **name + email** in **Settings → Team members**;
+  that person can then sign in with that email.
+- **Removing** a teammate revokes their access immediately (the server rejects
+  their token) — airtight offboarding, no shared code to rotate.
+- Only the owner sees the **Settings** tab. Everyone can **Log out** from the
+  avatar menu (top-right). Once signed in, a device works offline until logout.
+- Every prospect records **who added it**.
+
+The two public Supabase values (project URL and publishable key) are compiled
+into `app.js` and `netlify/functions/data.mjs`; both are safe to ship. The
+`{{ .Token }}` Supabase "Magic Link" email template turns the email into a code.
+No shared `TEAM_KEY` is used anymore.
 
 ## Deploy (Netlify Blobs backend)
 
@@ -59,31 +72,30 @@ drag-and-drop uploader will not build the function.
    storefront; the app lives in this subfolder). Netlify then reads
    `sales-app/netlify.toml`, so build command, publish directory and functions
    are configured automatically.
-3. Under **Site configuration → Environment variables**, add one variable:
-   - `TEAM_KEY` — a private phrase the salesperson enters in the app.
-4. Deploy. Netlify installs `@netlify/blobs`, builds the function, and gives you
+3. Deploy. Netlify installs `@netlify/blobs`, builds the function, and gives you
    an HTTPS address.
-5. Open the site. On the **lock screen**, enter the same `TEAM_KEY` as the
-   access code to sign in — this loads and starts syncing the shared data.
-   The device stays signed in until you use **Sign out** in Settings.
+4. In the **Supabase** project, set the **Magic Link** email template to include
+   `{{ .Token }}` (so the email carries a 6-digit code), and set the **Site URL**
+   to your Netlify address.
+5. Open the site and sign in with your email — the first sign-in becomes the
+   **owner**. Add teammates in **Settings → Team members**.
 
 Netlify Blobs requires no separate setup — storage is enabled by default and the
 function is authorised automatically inside Netlify's environment.
 
-## Required Netlify variable
+## Configuration
 
-- `TEAM_KEY` — the only variable needed for the Netlify Blobs backend.
+- **No Netlify environment variables are required.** Auth uses the two public
+  Supabase values (project URL + publishable key) compiled into `app.js` and
+  `netlify/functions/data.mjs`. To point at a different Supabase project, edit
+  the `SUPABASE_URL` / `SUPABASE_KEY` constants in both files.
 
-(The Microsoft Excel alternative in `excel-backend/` needs `MS_TENANT_ID`,
-`MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `EXCEL_DRIVE_ID`, `EXCEL_FILE_ID` and
-`TEAM_KEY` instead; swap `netlify/functions/data.mjs` for
-`excel-backend/data.graph.mjs`.)
+(The Microsoft Excel alternative in `excel-backend/` is unchanged and still uses
+the Microsoft Graph env vars; swap `netlify/functions/data.mjs` for
+`excel-backend/data.graph.mjs` to use it.)
 
 ## Data safety
 
-The browser keeps a local copy as a fallback. The team key lives only in the
-Netlify environment, never in browser code. Download a JSON backup before
-resetting or importing data.
-
-This prototype uses one shared team key; it does not provide individual user
-accounts or a per-user audit trail.
+The browser keeps a local copy as a fallback and works offline once signed in.
+Access is controlled per-email through Supabase and the owner's team allow-list.
+Download a JSON backup before resetting or importing data.

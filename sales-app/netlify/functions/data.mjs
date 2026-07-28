@@ -1,10 +1,15 @@
-// Verisko Sales Visit Planner — shared data API backed by Netlify Blobs.
-// The whole app dataset ({ prospects, appointments }) is stored as one JSON
-// blob. Every request must send the shared X-Team-Key header, which is checked
-// against the TEAM_KEY environment variable set in the Netlify dashboard.
+// Verisko Sales Visit Planner — shared data API backed by Netlify Blobs,
+// gated by Supabase email auth.
 //
-// Only ONE environment variable is required to go live: TEAM_KEY.
+// Every request must carry a valid Supabase access token (Authorization:
+// Bearer <token>). The token is verified with Supabase; the verified email
+// must be on the team allow-list (the `users` list). The very first sign-in on
+// an empty workspace bootstraps the owner. Non-admins cannot alter the team
+// list. Both Supabase values below are public (publishable) and safe to ship.
 import { getStore } from "@netlify/blobs";
+
+const SUPABASE_URL = "https://cepernltrzrmupgegcib.supabase.co";
+const SUPABASE_KEY = "sb_publishable_hj2NsI1YGmpeQg815ET2Kg_CwznowqE";
 
 const STORE = "verisko-sales";
 const KEY = "app-data";
@@ -17,33 +22,56 @@ export default async (request) => {
     "X-Content-Type-Options": "nosniff"
   };
   try {
-    // Simple shared-key gate. Keep TEAM_KEY private; never ship it to the browser.
-    if (!process.env.TEAM_KEY || (request.headers.get("x-team-key") || "") !== process.env.TEAM_KEY) {
-      return new Response(JSON.stringify({ ok: false, error: "Invalid team key." }), { status: 401, headers });
-    }
+    // 1) Verify the caller's Supabase session.
+    const authHeader = request.headers.get("authorization") || "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+    if (!token) return json({ ok: false, error: "not_signed_in" }, 401, headers);
 
+    const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}` }
+    });
+    if (!userRes.ok) return json({ ok: false, error: "session_expired" }, 401, headers);
+    const account = await userRes.json();
+    const email = String(account.email || "").toLowerCase();
+    if (!email) return json({ ok: false, error: "no_email" }, 401, headers);
+
+    // 2) Load data and check the allow-list.
     const store = getStore(STORE);
+    const data = (await store.get(KEY, { type: "json" })) || EMPTY;
+    const users = Array.isArray(data.users) ? data.users : [];
+    const bootstrap = users.length === 0;                              // brand-new workspace
+    const me = users.find((u) => String(u.email || "").toLowerCase() === email);
+    if (!me && !bootstrap) return json({ ok: false, error: "not_authorized" }, 403, headers);
 
     if (request.method === "GET") {
-      const data = (await store.get(KEY, { type: "json" })) || EMPTY;
-      return new Response(JSON.stringify({ ok: true, data }), { status: 200, headers });
+      return json({ ok: true, data: { ...EMPTY, ...data } }, 200, headers);
     }
 
     if (request.method === "POST") {
       const payload = await request.json().catch(() => ({}));
       if (!payload || !payload.data) throw new Error("Missing application data.");
+      const incoming = payload.data;
       const clean = {
-        prospects: Array.isArray(payload.data.prospects) ? payload.data.prospects : [],
-        appointments: Array.isArray(payload.data.appointments) ? payload.data.appointments : [],
-        users: Array.isArray(payload.data.users) ? payload.data.users : []
+        prospects: Array.isArray(incoming.prospects) ? incoming.prospects : [],
+        appointments: Array.isArray(incoming.appointments) ? incoming.appointments : [],
+        users: Array.isArray(incoming.users) ? incoming.users : []
       };
+      // Only an admin (or the bootstrapping owner) may change the team list.
+      const isAdmin = bootstrap || (me && me.role === "admin");
+      if (!isAdmin && JSON.stringify(clean.users) !== JSON.stringify(users)) {
+        clean.users = users; // ignore team-list tampering from non-admins
+      }
       await store.setJSON(KEY, clean);
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
+      return json({ ok: true }, 200, headers);
     }
 
-    return new Response(JSON.stringify({ ok: false, error: "Method not allowed." }), { status: 405, headers });
+    return json({ ok: false, error: "method_not_allowed" }, 405, headers);
   } catch (error) {
     console.error(error);
-    return new Response(JSON.stringify({ ok: false, error: error.message || "Storage error." }), { status: 500, headers });
+    return json({ ok: false, error: error.message || "Storage error." }, 500, headers);
   }
 };
+
+function json(body, status, headers) {
+  return new Response(JSON.stringify(body), { status, headers });
+}
