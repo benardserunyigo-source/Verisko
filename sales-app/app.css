@@ -3,6 +3,7 @@
   /* Brand */
   --navy:#16266b;
   --navy2:#0d1748;
+  --logo-navy:#012169;   /* exact navy of the Verisko logo symbol */
   --cyan:#169bd7;
 
   /* Neutrals (Apple-style light) */
@@ -64,6 +65,15 @@ body.locked{overflow:hidden}
   padding:34px 26px 26px;text-align:center;display:flex;flex-direction:column
 }
 .lock-mark{width:58px;height:58px;margin:0 auto 20px;display:block}
+
+/* Horizontal lockup (logo + VERISKO wordmark) */
+.lockup{display:inline-flex;align-items:center;gap:10px}
+.lockup-mark{display:block;flex:none}
+.lockup-word{font-weight:800;text-transform:uppercase;color:var(--logo-navy);line-height:1}
+.lockup-lg{margin:0 auto 18px}
+.lockup-lg .lockup-mark{width:44px;height:44px}
+.lockup-lg .lockup-word{font-size:26px;letter-spacing:.1em}
+.lock-eyebrow{margin:0 0 8px;color:var(--cyan);font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
 .lock-card h1{font-size:24px;font-weight:700;margin-bottom:6px}
 .lock-sub{color:var(--muted);font-size:15px;margin-bottom:24px}
 .lock-field{position:relative;text-align:left;margin-bottom:14px}
@@ -112,7 +122,7 @@ body.locked{overflow:hidden}
 }
 .brand{display:flex;align-items:center;gap:9px;color:var(--navy);text-decoration:none;font-weight:700}
 .brand-mark{width:28px;height:28px;display:block;flex:none}
-.brand-name{font-size:17px;letter-spacing:-.01em;text-transform:none}
+.brand-name{font-size:16px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--logo-navy)}
 /* Header user chip + dropdown menu */
 .user-chip{display:flex;align-items:center;gap:8px;border:0;background:transparent;padding:2px;border-radius:100px}
 .user-avatar{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--navy);color:#fff;font-weight:700;font-size:14px;text-transform:uppercase}

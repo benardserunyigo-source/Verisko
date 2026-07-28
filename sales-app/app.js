@@ -743,7 +743,9 @@
   /* -------- Email + 6-digit code login -------- */
   function renderLogin(step, message) {
     var errHtml = message ? '<p class="lock-error">' + esc(message) + "</p>" : '<p class="lock-error" id="loginError" role="alert" hidden></p>';
-    var html = '<img class="lock-mark" src="logo.svg" alt="" aria-hidden="true">';
+    var html = (step === "code" || step === "name")
+      ? '<img class="lock-mark" src="logo.svg" alt="" aria-hidden="true">'
+      : '<div class="lockup lockup-lg" role="img" aria-label="Verisko"><img class="lockup-mark" src="logo.svg" alt=""><span class="lockup-word">VERISKO</span></div>';
     if (step === "code") {
       html += '<h1 id="lockTitle">Enter your code</h1>' +
         '<p class="lock-sub">We emailed a 6-digit code to <strong>' + esc(loginEmail) + "</strong>.</p>" +
@@ -762,7 +764,7 @@
         errHtml +
         '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Continue</button></form>';
     } else {
-      html += '<h1 id="lockTitle">Verisko Sales</h1>' +
+      html += '<p class="lock-eyebrow" id="lockTitle">Sales Visit Planner</p>' +
         '<p class="lock-sub">Sign in with your email — we\'ll send you a 6-digit code.</p>' +
         '<form id="loginForm" class="account-fields" data-step="email">' +
         '<div class="field"><label for="loginEmailInput">Email</label>' +
