@@ -80,6 +80,7 @@ body.locked{overflow:hidden}
 .onb-skip{position:absolute;top:12px;right:12px;min-height:auto;border:0;background:transparent;color:var(--faint);font-weight:600;font-size:14px;padding:8px 10px;border-radius:9px}
 .onb-skip:empty{display:none}
 .onb-icon{width:66px;height:66px;margin:8px auto 20px;display:grid;place-items:center;border-radius:18px;background:var(--accent-soft);color:var(--accent)}
+.onb-icon.warn{background:var(--amber-bg);color:var(--amber)}
 .onb-icon svg{width:34px;height:34px}
 .onb-card .lockup-lg{margin:8px auto 20px}
 .onb-title{font-size:22px;font-weight:700;margin-bottom:10px}

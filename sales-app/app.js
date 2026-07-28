@@ -712,7 +712,7 @@
     var result = await loadShared();
     if (result === "ok") { resolveUser(); setSync("connected", "Synced"); toast("Data refreshed"); render(); }
     else if (result === "signin") { signOutLocal(); showLogin("Your session expired. Please sign in again."); }
-    else if (result === "unauth") { signOutLocal(); showLogin("Your access was removed. Ask the owner to re-add you."); }
+    else if (result === "unauth") { var _em = settings.auth && settings.auth.email; signOutLocal(); showDenied(_em, true); }
     else { setSync("error", "Offline — using this device"); toast("Couldn't reach the workspace. Your device copy is safe."); }
   }
 
@@ -759,15 +759,37 @@
     renderLogin("email", message);
     lockScreen.hidden = false;
   }
+  var deniedRemoved = false;
+  // Friendly "you're not on the team" (or "access removed") screen.
+  function showDenied(email, removed) {
+    loginEmail = email || loginEmail;
+    deniedRemoved = !!removed;
+    userChip.hidden = true; closeUserMenu();
+    document.body.classList.add("locked");
+    renderLogin("denied");
+    lockScreen.hidden = false;
+  }
   function signOutLocal() { settings.auth = null; settings.user = null; saveSettings(); }
 
   /* -------- Email magic-link login -------- */
   function renderLogin(step, message) {
     var errHtml = message ? '<p class="lock-error">' + esc(message) + "</p>" : '<p class="lock-error" id="loginError" role="alert" hidden></p>';
-    var html = (step === "sent" || step === "name")
-      ? '<img class="lock-mark" src="logo.svg" alt="" aria-hidden="true">'
-      : '<div class="lockup lockup-lg" role="img" aria-label="Verisko"><img class="lockup-mark" src="logo.svg" alt=""><span class="lockup-word">VERISKO</span></div>';
-    if (step === "sent") {
+    var html;
+    if (step === "denied") {
+      html = '<div class="onb-icon warn" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></div>';
+    } else if (step === "sent" || step === "name") {
+      html = '<img class="lock-mark" src="logo.svg" alt="" aria-hidden="true">';
+    } else {
+      html = '<div class="lockup lockup-lg" role="img" aria-label="Verisko"><img class="lockup-mark" src="logo.svg" alt=""><span class="lockup-word">VERISKO</span></div>';
+    }
+    if (step === "denied") {
+      html += '<h1 id="lockTitle">' + (deniedRemoved ? "Access was removed" : "You're not on the team yet") + "</h1>" +
+        '<p class="lock-sub">' + (deniedRemoved
+          ? "Your access to this workspace was removed. If you still need it, ask the owner to add <strong>" + esc(loginEmail) + "</strong> again."
+          : "The email <strong>" + esc(loginEmail) + "</strong> hasn't been approved for this workspace yet. Ask your team's owner to add it in <strong>Settings → Team members</strong>, then sign in again.") + "</p>" +
+        '<p class="lock-help">This keeps your team\'s data private — only approved emails can get in.</p>' +
+        '<button type="button" class="btn btn-primary btn-block" data-login-restart>Try a different email</button>';
+    } else if (step === "sent") {
       html += '<h1 id="lockTitle">Check your email</h1>' +
         '<p class="lock-sub">We sent a sign-in link to <strong>' + esc(loginEmail) + "</strong>. Open the email on this device and tap <strong>Sign in</strong> — you'll come right back here, signed in.</p>" +
         errHtml +
@@ -840,12 +862,12 @@
     settings.auth = { access_token: session.access_token, refresh_token: session.refresh_token, expires_at: session.expires_at, email: email };
     saveSettings();
     var s = await loadShared();
-    if (s === "unauth") { signOutLocal(); renderLogin("email", "That email isn't on the team yet. Ask the owner to add " + email + "."); return; }
+    if (s === "unauth") { signOutLocal(); showDenied(email, false); return; }
     if (s === "offline") { renderLogin("email", "Signed in, but the workspace is unreachable. Check your connection."); return; }
     var existing = (state.users || []).find(function (u) { return u.email.toLowerCase() === email.toLowerCase(); });
     if (existing) { settings.user = existing; saveSettings(); toast("Signed in as " + existing.name.split(/\s+/)[0]); enterApp(); return; }
     if ((state.users || []).length === 0) { renderLogin("name"); return; } // bootstrap the owner
-    signOutLocal(); renderLogin("email", "That email isn't on the team yet. Ask the owner to add " + email + ".");
+    signOutLocal(); showDenied(email, false);
   }
 
   // Refresh the local identity from the shared team list (handles rename/removal).
@@ -853,7 +875,7 @@
     if (!settings.auth) return;
     var u = (state.users || []).find(function (x) { return x.email.toLowerCase() === settings.auth.email.toLowerCase(); });
     if (u) { settings.user = u; saveSettings(); }
-    else if ((state.users || []).length) { signOutLocal(); showLogin("Your access was removed. Ask the owner to re-add you."); }
+    else if ((state.users || []).length) { var _em = settings.auth && settings.auth.email; signOutLocal(); showDenied(_em, true); }
   }
 
   /* -------- Onboarding / welcome tour -------- */
@@ -1077,7 +1099,7 @@
     setSync("syncing", "Checking…");
     loadShared().then(function (result) {
       if (result === "signin") { signOutLocal(); showLogin("Your session expired. Please sign in again."); }
-      else if (result === "unauth") { signOutLocal(); showLogin("Your access was removed. Ask the owner to re-add you."); }
+      else if (result === "unauth") { var _em = settings.auth && settings.auth.email; signOutLocal(); showDenied(_em, true); }
       else if (result === "ok") { resolveUser(); setSync("connected", "Synced"); render(); }
       else { setSync("error", "Offline — using this device"); }
     });
