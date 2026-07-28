@@ -411,19 +411,30 @@
     setHead("Owner settings", "Settings", "Team, connection, and data.", "", false);
     var users = state.users || [];
     var me = settings.user || {};
+    var ownId = ownerId();
     var teamRows = users.length ? '<div class="account-list">' + users.map(function (u) {
-      var removable = u.role !== "admin" && u.id !== me.id;
+      var manageable = u.id !== ownId && u.id !== me.id;
+      var actions = "";
+      if (manageable) {
+        actions += u.role === "admin"
+          ? '<button type="button" class="account-role" data-set-role="user" data-user-id="' + esc(u.id) + '">Make Sales/Ops</button>'
+          : '<button type="button" class="account-role" data-set-role="admin" data-user-id="' + esc(u.id) + '">Make Technical</button>';
+        actions += '<button type="button" class="account-remove" data-remove-user="' + esc(u.id) + '" aria-label="Remove ' + esc(u.name) + '">Remove</button>';
+      }
       return '<div class="account-row" style="background:var(--fill-2)"><span class="user-avatar" aria-hidden="true">' + esc(initials(u.name)) + "</span>" +
-        '<span class="who"><strong>' + esc(u.name) + (u.role === "admin" ? " · Owner" : "") + "</strong><span>" + esc(u.email) + "</span></span>" +
-        (removable ? '<button type="button" class="account-remove" data-remove-user="' + esc(u.id) + '" aria-label="Remove ' + esc(u.name) + '">Remove</button>' : "") + "</div>";
+        '<span class="who"><strong>' + esc(u.name) + " · " + esc(roleName(u)) + "</strong><span>" + esc(u.email) + "</span></span>" +
+        (actions ? '<span class="row-actions">' + actions + "</span>" : "") + "</div>";
     }).join("") + "</div>" : '<p class="settings-note">No accounts yet.</p>';
     content.innerHTML = '<div class="settings-grid">' +
       '<section class="card settings-card"><h2>Team members</h2>' +
-      "<p>People who can sign in with their email. Each prospect records who added it. Removing someone revokes their access immediately.</p>" +
+      "<p><strong>Technical</strong> members can open this Settings page; <strong>Sales &amp; Operations</strong> cannot. Each prospect records who added it. Removing someone revokes their access immediately.</p>" +
       teamRows +
       '<form id="addMemberForm" class="add-member">' +
       '<div class="field"><label for="memberName">Name</label><input id="memberName" name="name" type="text" autocomplete="off" placeholder="e.g. Grace Namubiru" required></div>' +
       '<div class="field"><label for="memberEmail">Email</label><input id="memberEmail" name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" placeholder="grace@example.com" required></div>' +
+      '<div class="field"><label for="memberRole">Role</label><select id="memberRole" name="role">' +
+      '<option value="user">Sales / Operations — no Settings access</option>' +
+      '<option value="admin">Technical — can open Settings</option></select></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Add team member</button>' +
       "</form></section>" +
 
@@ -900,7 +911,7 @@
     userChip.setAttribute("aria-label", "Account: " + u.name);
     document.getElementById("userAvatar").textContent = initials(u.name);
     document.getElementById("userMenuAvatar").textContent = initials(u.name);
-    document.getElementById("userMenuName").textContent = u.name + (u.role === "admin" ? " · Owner" : "");
+    document.getElementById("userMenuName").textContent = u.name + (u.id === ownerId() ? " · Owner" : (u.role === "admin" ? " · Technical" : ""));
     document.getElementById("userMenuEmail").textContent = u.email;
   }
   function closeUserMenu() { userMenu.hidden = true; userChip.setAttribute("aria-expanded", "false"); }
@@ -933,25 +944,41 @@
     if (!admin && view === "settings") view = "today";
   }
 
-  // Owner adds a teammate by email — they can then sign in with that email.
-  function addMember(name, email) {
+  // The first member on the workspace is the owner (protected).
+  function ownerId() { return (state.users && state.users[0]) ? state.users[0].id : null; }
+  function roleName(u) { return u.id === ownerId() ? "Owner" : (u.role === "admin" ? "Technical" : "Sales / Operations"); }
+
+  // Add a teammate by email. role: "admin" (Technical, sees Settings) or "user" (Sales/Operations).
+  function addMember(name, email, role) {
     name = (name || "").trim(); email = (email || "").trim().toLowerCase();
+    role = role === "admin" ? "admin" : "user";
     if (!name || !email) { toast("Enter a name and email."); return false; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast("Enter a valid email."); return false; }
     if ((state.users || []).some(function (u) { return u.email.toLowerCase() === email; })) { toast("That email is already on the team."); return false; }
     if (!state.users) state.users = [];
-    state.users.push({ id: uid(), name: name, email: email, role: "user", created: today });
+    state.users.push({ id: uid(), name: name, email: email, role: role, created: today });
     saveData();
     render();
-    toast(name.split(/\s+/)[0] + " added — they can sign in with " + email);
+    toast(name.split(/\s+/)[0] + " added as " + (role === "admin" ? "Technical" : "Sales / Operations"));
     return true;
   }
 
-  // Owner removes a team member (airtight offboarding — they lose access at once).
+  // Switch a member between Sales/Operations and Technical (Settings access).
+  function setMemberRole(id, role) {
+    var u = (state.users || []).find(function (x) { return x.id === id; });
+    if (!u) return;
+    if (u.id === ownerId()) { toast("The owner's role can't be changed."); return; }
+    u.role = role === "admin" ? "admin" : "user";
+    saveData();
+    render();
+    toast(u.name.split(/\s+/)[0] + (u.role === "admin" ? " can now open Settings" : " no longer sees Settings"));
+  }
+
+  // Remove a team member (airtight offboarding — they lose access at once).
   function removeUser(id) {
     var u = (state.users || []).find(function (x) { return x.id === id; });
     if (!u) return;
-    if (u.role === "admin") { toast("The owner account can't be removed."); return; }
+    if (u.id === ownerId()) { toast("The owner account can't be removed."); return; }
     if (settings.user && u.id === settings.user.id) { toast("You can't remove your own account."); return; }
     if (!confirm("Remove " + u.name + " (" + u.email + ") from the team?\n\nThey lose access immediately and can't sign in again unless you re-add them. This can't be undone.")) return;
     state.users = state.users.filter(function (x) { return x.id !== id; });
@@ -1018,6 +1045,7 @@
     if (e.target.closest("[data-import]")) document.getElementById("importInput").click();
     if (e.target.closest("[data-sync]")) pullShared();
     var rm = e.target.closest("[data-remove-user]"); if (rm) { removeUser(rm.dataset.removeUser); return; }
+    var sr = e.target.closest("[data-set-role]"); if (sr) { setMemberRole(sr.dataset.userId, sr.dataset.setRole); return; }
     if (e.target.closest("[data-reset]")) {
       var ans = prompt("This ERASES all prospects, visits and team accounts for everyone, and loads sample data. It cannot be undone.\n\nType RESET to confirm.");
       if (ans && ans.trim().toUpperCase() === "RESET") {
@@ -1031,7 +1059,7 @@
     var addForm = e.target.closest("#addMemberForm");
     if (addForm) {
       e.preventDefault();
-      if (addMember(addForm.querySelector("[name=name]").value, addForm.querySelector("[name=email]").value)) addForm.reset();
+      if (addMember(addForm.querySelector("[name=name]").value, addForm.querySelector("[name=email]").value, addForm.querySelector("[name=role]").value)) addForm.reset();
     }
   });
 
