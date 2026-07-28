@@ -541,6 +541,8 @@
         field("purpose", "Purpose", "segmented", source.purpose || PURPOSES[0], { full: true, options: PURPOSES }) +
         field("directions", "Directions and access instructions", "textarea", source.directions, { full: true, optional: true, placeholder: "How to reach the site and who to ask for." });
     }
+    // When editing an existing record, offer a delete at the bottom of the form.
+    if (id) html += '<button type="button" class="btn btn-danger btn-block delete-record" data-delete>Delete this ' + (type === "appointment" ? "site visit" : "prospect") + "</button>";
     formContent.innerHTML = html + "</div>";
     document.getElementById("saveButton").textContent = id ? "Save changes" : "Save";
     if (!dialog.open) dialog.showModal();
@@ -551,8 +553,23 @@
   function showFormError(msg) { formError.textContent = msg; formError.hidden = false; }
   function hideFormError() { formError.hidden = true; formError.textContent = ""; }
 
+  // Delete the record being edited (prospect also removes its site visits).
+  function deleteRecord() {
+    if (!editing || !editing.id) return;
+    var type = editing.type;
+    var label = type === "appointment" ? "site visit" : "prospect";
+    if (!confirm("Delete this " + label + "? This can't be undone.")) return;
+    state[type + "s"] = state[type + "s"].filter(function (x) { return x.id !== editing.id; });
+    if (type === "prospect") state.appointments = state.appointments.filter(function (a) { return a.prospectId !== editing.id; });
+    hideFormError();
+    dialog.close();
+    saveData(label.charAt(0).toUpperCase() + label.slice(1) + " deleted");
+    render();
+  }
+
   // Segmented (tap) controls: set the hidden value and move the selection.
   form.addEventListener("click", function (e) {
+    if (e.target.closest("[data-delete]")) { deleteRecord(); return; }
     var btn = e.target.closest(".seg-btn");
     if (!btn) return;
     var name = btn.getAttribute("data-seg-target");
