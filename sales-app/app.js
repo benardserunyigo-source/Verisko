@@ -630,16 +630,26 @@
     opts.headers = Object.assign({ apikey: SUPABASE_KEY, "Content-Type": "application/json" }, opts.headers || {});
     return fetch(SUPABASE_URL + path, opts);
   }
-  async function requestCode(email) {
+  async function sendMagicLink(email) {
     var res = await sbFetch("/auth/v1/otp", { method: "POST", body: JSON.stringify({ email: email, create_user: true }) });
-    if (!res.ok) { var e = await res.json().catch(function () { return {}; }); throw new Error(e.msg || e.error_description || "Couldn't send the code. Please try again."); }
+    if (!res.ok) { var e = await res.json().catch(function () { return {}; }); throw new Error(e.msg || e.error_description || "Couldn't send the sign-in link. Please try again."); }
     return true;
   }
-  async function verifyCode(email, token) {
-    var res = await sbFetch("/auth/v1/verify", { method: "POST", body: JSON.stringify({ type: "email", email: email, token: token }) });
-    var data = await res.json().catch(function () { return {}; });
-    if (!res.ok || !data.access_token) throw new Error(data.msg || data.error_description || "That code didn't work. Check it and try again.");
-    return data;
+  // After a magic link, Supabase redirects back with the session in the URL hash.
+  function readAuthFromHash() {
+    var h = window.location.hash || "";
+    if (h.indexOf("access_token=") === -1 && h.indexOf("error") === -1) return null;
+    var p = {};
+    h.replace(/^#/, "").split("&").forEach(function (kv) { var i = kv.indexOf("="); if (i > -1) p[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1)); });
+    history.replaceState(null, "", window.location.pathname + window.location.search); // strip tokens from the URL
+    return p;
+  }
+  function emailFromJwt(token) {
+    try {
+      var b = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      b += "=".repeat((4 - (b.length % 4)) % 4);
+      return (JSON.parse(atob(b)).email || "").toLowerCase();
+    } catch (e) { return ""; }
   }
   async function refreshSession() {
     if (!settings.auth || !settings.auth.refresh_token) return false;
@@ -740,21 +750,18 @@
   }
   function signOutLocal() { settings.auth = null; settings.user = null; saveSettings(); }
 
-  /* -------- Email + 6-digit code login -------- */
+  /* -------- Email magic-link login -------- */
   function renderLogin(step, message) {
     var errHtml = message ? '<p class="lock-error">' + esc(message) + "</p>" : '<p class="lock-error" id="loginError" role="alert" hidden></p>';
-    var html = (step === "code" || step === "name")
+    var html = (step === "sent" || step === "name")
       ? '<img class="lock-mark" src="logo.svg" alt="" aria-hidden="true">'
       : '<div class="lockup lockup-lg" role="img" aria-label="Verisko"><img class="lockup-mark" src="logo.svg" alt=""><span class="lockup-word">VERISKO</span></div>';
-    if (step === "code") {
-      html += '<h1 id="lockTitle">Enter your code</h1>' +
-        '<p class="lock-sub">We emailed a 6-digit code to <strong>' + esc(loginEmail) + "</strong>.</p>" +
-        '<form id="loginForm" class="account-fields" data-step="code">' +
-        '<div class="field"><label for="loginCode">6-digit code</label>' +
-        '<input id="loginCode" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="123456" required></div>' +
+    if (step === "sent") {
+      html += '<h1 id="lockTitle">Check your email</h1>' +
+        '<p class="lock-sub">We sent a sign-in link to <strong>' + esc(loginEmail) + "</strong>. Open the email on this device and tap <strong>Sign in</strong> — you'll come right back here, signed in.</p>" +
         errHtml +
-        '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Verify &amp; sign in</button>' +
-        '<button type="button" class="account-back" data-login-restart>Use a different email</button></form>';
+        '<button type="button" class="btn btn-ghost btn-block" data-login-resend id="loginBtn">Resend the link</button>' +
+        '<button type="button" class="account-back" data-login-restart>Use a different email</button>';
     } else if (step === "name") {
       html += '<h1 id="lockTitle">Welcome — you\'re the owner</h1>' +
         '<p class="lock-sub">You\'re the first person here. What\'s your name?</p>' +
@@ -765,12 +772,12 @@
         '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Continue</button></form>';
     } else {
       html += '<p class="lock-eyebrow" id="lockTitle">Sales Visit Planner</p>' +
-        '<p class="lock-sub">Sign in with your email — we\'ll send you a 6-digit code.</p>' +
+        '<p class="lock-sub">Sign in with your email — we\'ll send you a secure sign-in link.</p>' +
         '<form id="loginForm" class="account-fields" data-step="email">' +
         '<div class="field"><label for="loginEmailInput">Email</label>' +
         '<input id="loginEmailInput" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com" value="' + esc(loginEmail) + '" required></div>' +
         errHtml +
-        '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Send code</button></form>' +
+        '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Email me a sign-in link</button></form>' +
         '<p class="lock-help">Ask the owner to add your email if you can\'t get in.</p>';
     }
     lockCard.innerHTML = html;
@@ -786,8 +793,13 @@
     if (b) { b.disabled = on; if (label) b.textContent = label; }
   }
 
-  lockCard.addEventListener("click", function (e) {
-    if (e.target.closest("[data-login-restart]")) renderLogin("email");
+  lockCard.addEventListener("click", async function (e) {
+    if (e.target.closest("[data-login-restart]")) { renderLogin("email"); return; }
+    if (e.target.closest("[data-login-resend]")) {
+      loginBusy(true, "Sending…");
+      try { await sendMagicLink(loginEmail); loginBusy(false, "Resend the link"); toast("Sign-in link sent again"); }
+      catch (err) { loginBusy(false, "Resend the link"); loginError(err.message); }
+    }
   });
   lockCard.addEventListener("submit", async function (e) {
     var form = e.target.closest("#loginForm");
@@ -798,14 +810,8 @@
       loginEmail = form.querySelector("[name=email]").value.trim().toLowerCase();
       if (!loginEmail) return;
       loginBusy(true, "Sending…");
-      try { await requestCode(loginEmail); renderLogin("code"); }
-      catch (err) { loginBusy(false, "Send code"); loginError(err.message); }
-    } else if (step === "code") {
-      var code = form.querySelector("[name=code]").value.trim();
-      if (!code) return;
-      loginBusy(true, "Verifying…");
-      try { var session = await verifyCode(loginEmail, code); await afterVerify(loginEmail, session); }
-      catch (err) { loginBusy(false, "Verify & sign in"); loginError(err.message); }
+      try { await sendMagicLink(loginEmail); renderLogin("sent"); }
+      catch (err) { loginBusy(false, "Email me a sign-in link"); loginError(err.message); }
     } else if (step === "name") {
       var name = form.querySelector("[name=name]").value.trim();
       if (!name) return;
@@ -1030,7 +1036,15 @@
   });
 
   /* -------------------------------- Start ----------------------------------- */
-  if (settings.auth && settings.user) {
+  var hashAuth = readAuthFromHash();
+  if (hashAuth && hashAuth.access_token) {
+    // Landed back from a magic link — complete sign-in.
+    showLogin(); setSync("syncing", "Signing you in…");
+    loginEmail = emailFromJwt(hashAuth.access_token);
+    afterVerify(loginEmail, { access_token: hashAuth.access_token, refresh_token: hashAuth.refresh_token, expires_at: Number(hashAuth.expires_at) });
+  } else if (hashAuth && hashAuth.error) {
+    showLogin(hashAuth.error_description ? decodeURIComponent(hashAuth.error_description.replace(/\+/g, " ")) : "That sign-in link didn't work — please request a new one.");
+  } else if (settings.auth && settings.user) {
     enterApp(); // open straight to the app from cached data (offline-friendly)
     setSync("syncing", "Checking…");
     loadShared().then(function (result) {
