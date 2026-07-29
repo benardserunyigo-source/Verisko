@@ -472,7 +472,7 @@
 
   /* ------------------------------- SITE VISITS ------------------------------- */
   function renderVisits() {
-    setHead("Site-visit handoffs", "Site visits", "Book and confirm visits to hand over.", "Schedule visit", true);
+    setHead("Field visits", "Site visits", "Book and confirm site visits, then hand them to Operations.", "Schedule visit", true);
     content.innerHTML =
       '<div class="toolbar"><div class="field-inline" style="flex:1"><label for="visitFilter">Show</label>' +
       '<select id="visitFilter"><option value="">All visits</option>' + APPT_STATUSES.map(function (s) { return '<option value="' + esc(s) + '">' + esc(s) + "</option>"; }).join("") + "</select></div></div>" +
@@ -498,7 +498,7 @@
       rows.length + (rows.length === 1 ? " visit" : " visits") + (filter ? " · " + filter : "");
 
     listEl.innerHTML = rows.length ? rows.map(function (a) { return handoffCard(a, false); }).join("") :
-      emptyState(ICON_PIN, "No site visits yet", "Qualify a prospect, then schedule a visit for the Operations Director.", "Schedule visit", 'data-new="appointment"');
+      emptyState(ICON_PIN, "No site visits yet", "Qualify a prospect, then schedule a site visit.", "Schedule visit", 'data-new="appointment"');
   }
 
   // Full visit card. Confirmed visits get the distinct "ready for handoff" style.
@@ -1281,9 +1281,9 @@
       '<p class="settings-note">Resetting erases <strong>all prospects, visits and team accounts — for everyone</strong> — and loads sample data. It cannot be undone. Download a backup first if unsure.</p>' +
       '<div class="button-row"><button class="btn btn-danger" data-reset>Reset to demo data…</button></div></section>' +
 
-      '<section class="card settings-card"><h2>How this app is used</h2>' +
-      '<p class="settings-note"><strong>The salesperson</strong> finds and qualifies prospects, follows up, and books confirmed site visits. Technical surveys, cable quantities, official quotations and equipment lists are handled by the Operations Director after handoff — they are not entered here.</p>' +
-      '<p class="settings-note">Before a visit can be confirmed, the prospect needs a contact person, telephone number and location, and the visit needs a date, time and Operations owner.</p></section>' +
+      '<section class="card settings-card"><h2>How Verisko Operations works</h2>' +
+      '<p class="settings-note">One connected platform for the whole team. <strong>Sales</strong> capture and qualify leads and book site visits. <strong>Operations</strong> review them, run the cash-flow float, verify closed sales, and manage installations end to end. The <strong>Owner</strong> and Technical see the whole picture. Each person sees only what their role needs — and data captured once flows through, so nobody re-enters it.</p>' +
+      '<p class="settings-note">Set each person\'s role above. As the business grows — installers, accounts, more field teams — add them here and they work from the same records.</p></section>' +
       "</div>";
   }
 
@@ -2161,10 +2161,10 @@
 
   /* -------- Onboarding / welcome tour -------- */
   var ONB_STEPS = [
-    { welcome: true, title: "Welcome to Verisko Operations", body: "Your simple tool for finding prospects, following up, and booking confirmed site visits for the Operations Director." },
-    { icon: ICON_CALENDAR, title: "Start on Today", body: "Each day, Today shows who to call, which visits to confirm, and what's overdue — most urgent first. Work from the top down." },
-    { icon: ICON_PEOPLE, title: "Add & qualify prospects", body: "Capture the business, contact, phone and location. Most answers are quick taps — no long forms. Mark them Qualified when they're ready." },
-    { icon: ICON_PIN, title: "Book & confirm visits", body: "Schedule a site visit and confirm it — a confirmed visit is ready to hand to the Operations Director. A visit can only be confirmed once it has a contact, phone, location, date, time and owner." }
+    { welcome: true, title: "Welcome to Verisko Operations", body: "One place for the whole Verisko team to run the business — leads and site visits, cash flow, installations and payments, all connected, on your phone." },
+    { icon: ICON_CALENDAR, title: "Start on Today", body: "Today shows what needs you now — a call, a visit, an approval — most urgent first. Work from the top down." },
+    { icon: ICON_PEOPLE, title: "You see what your role needs", body: "The app shows each person only their part of the work. As the team grows — sales, operations, installers, accounts — everyone works from the same connected records." },
+    { icon: ICON_INSTALL, title: "Quick taps, saved for everyone", body: "Most things are a tap, not typing. Add with the + button; your work saves and syncs to the team automatically — and keeps working offline." }
   ];
   var onbScreen = document.getElementById("onboarding");
   var onbCard = document.getElementById("onbCard");
