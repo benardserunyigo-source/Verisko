@@ -22,6 +22,14 @@
   var NEXT_ACTIONS = ["Call back", "Book a site visit", "Confirm the visit", "Send a quotation", "Visit the site", "Follow up next week", "Wait for their decision"];
   // CCTV installation job lifecycle.
   var INSTALL_STATUSES = ["Quoted", "Scheduled", "In progress", "Installed", "Handed over", "Cancelled"];
+  // Completion checklist — all must be ticked before a job can be "Handed over".
+  var INSTALL_CHECKLIST = [
+    { key: "cameras", label: "All cameras installed & aimed" },
+    { key: "tested", label: "Recording & playback tested" },
+    { key: "remote", label: "Remote / phone viewing set up" },
+    { key: "trained", label: "Client trained on the system" },
+    { key: "credentials", label: "Login & warranty handed over" }
+  ];
   // Operations/admin extras live behind the bottom-nav "More" sheet.
   var MORE_VIEWS = ["cashflow", "installs", "settings"];
   var DECISION = ["Unknown", "Yes", "No"];
@@ -733,6 +741,15 @@
   }
   function materialsCount(job) { return (job.materials || []).length; }
 
+  // Completion checklist helpers.
+  function checklistDone(job) { var cl = job.checklist || {}; return INSTALL_CHECKLIST.filter(function (i) { return cl[i.key]; }).length; }
+  function checklistComplete(cl) { cl = cl || {}; return INSTALL_CHECKLIST.every(function (i) { return cl[i.key]; }); }
+  function collectChecklist() {
+    var out = {};
+    document.querySelectorAll("#chkList [data-check]").forEach(function (el) { out[el.getAttribute("data-check")] = el.checked; });
+    return out;
+  }
+
   // Client details resolve from the linked prospect (one source of truth) —
   // standalone jobs keep their own. Nothing is re-typed by Operations.
   function jobClient(job) {
@@ -785,6 +802,7 @@
       (Number(j.quote) > 0 ? '<div class="item-line"><span class="k">Quote</span><span class="v">' + money(j.quote) + "</span></div>" : "") +
       ((Number(j.quote) > 0 || paidForJob(j.id) > 0) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (Number(j.quote) > 0 ? " · " + money(Math.max(0, Number(j.quote) - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
       (matTotal > 0 ? '<div class="item-line"><span class="k">Materials</span><span class="v">' + materialsCount(j) + " item" + (materialsCount(j) === 1 ? "" : "s") + " · " + money(matTotal) + "</span></div>" : "") +
+      (checklistDone(j) > 0 || /progress|installed|handed/i.test(j.status || "") ? '<div class="item-line"><span class="k">Checklist</span><span class="v">' + checklistDone(j) + " / " + INSTALL_CHECKLIST.length + (checklistComplete(j.checklist) ? " · done" : "") + "</span></div>" : "") +
       "</div></article>";
   }
 
@@ -869,11 +887,18 @@
       : { business: (data.business || "").trim(), contact: (data.contact || "").trim(), phone: (data.phone || "").trim(), location: (data.location || "").trim() };
     if (!isLinked && !client.business) { showFormError("Enter the client / business name."); return; }
     var status = INSTALL_STATUSES.indexOf(data.status) >= 0 ? data.status : "Quoted";
+    var checklist = collectChecklist();
+    // Can't hand over until the completion checklist is done.
+    if (status === "Handed over" && !checklistComplete(checklist)) {
+      var missing = INSTALL_CHECKLIST.filter(function (i) { return !checklist[i.key]; }).map(function (i) { return i.label.toLowerCase(); });
+      showFormError("Not ready to hand over — first tick: " + listAnd(missing) + ".");
+      return;
+    }
     var quote = Math.max(0, Math.round(Number(data.quote) || 0));
     var fields = {
       prospectId: prospectId, business: client.business, contact: client.contact, phone: client.phone,
       location: client.location, status: status, scheduledDate: data.scheduledDate || "", scheduledTime: data.scheduledTime || "",
-      technicianId: data.technicianId || "", quote: quote, siteNotes: (data.siteNotes || "").trim(), materials: collectMaterials()
+      technicianId: data.technicianId || "", quote: quote, siteNotes: (data.siteNotes || "").trim(), materials: collectMaterials(), checklist: checklist
     };
     if (editing.id) {
       var idx = state.installations.findIndex(function (x) { return x.id === editing.id; });
@@ -1449,6 +1474,11 @@
         '<div class="mat-list" id="matList">' + ((source.materials && source.materials.length) ? source.materials.map(materialRow).join("") : materialRow()) + "</div>" +
         '<button type="button" class="btn btn-ghost btn-sm" data-mat-add style="margin-top:8px">Add item</button>' +
         '<p class="mat-total" id="matTotal" aria-live="polite"></p></div>' +
+        // Completion checklist — gates "Handed over".
+        '<div class="field full"><label>Completion checklist <span class="optional-tag">tick before handover</span></label>' +
+        '<div class="chk-list" id="chkList">' + INSTALL_CHECKLIST.map(function (i) {
+          return '<label class="chk-item"><input type="checkbox" data-check="' + esc(i.key) + '"' + ((source.checklist && source.checklist[i.key]) ? " checked" : "") + "><span>" + esc(i.label) + "</span></label>";
+        }).join("") + "</div></div>" +
         (id ? jobPaymentsSection(source) : "") +
         '<input type="hidden" name="prospectId" value="' + esc(linkedId) + '">';
     }
