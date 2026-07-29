@@ -417,6 +417,10 @@
     in: ["Customer deposit", "Customer payment", "Float top-up", "Refund", "Other"],
     out: ["Equipment", "Cable & materials", "Transport & fuel", "Labour", "Airtime & data", "Other"]
   };
+  // How the money moved — matters for reconciliation in Uganda (most field
+  // payments are Mobile Money, not cash) and for what counts as proof.
+  var TX_METHODS = ["Cash", "MTN MoMo", "Airtel Money", "Bank"];
+  var LARGE_AMOUNT = 1000000; // nudge for a confirm above this, to catch zero slips
   var money = function (n) { return "UGX " + Number(n || 0).toLocaleString("en-US"); };
   var cashFilter = "all";
   var pendingProof = null; // resized photo chosen in the form, not yet uploaded
@@ -480,16 +484,24 @@
     hydrateProofThumbs();
   }
 
+  // "Category · Paid by · Business" line shared by both card styles.
+  function txMeta(t) {
+    var p = t.prospectId ? prospect(t.prospectId) : null;
+    var bits = [esc(t.category || "Uncategorised")];
+    if (t.method) bits.push(esc(t.method));
+    if (p && p.business) bits.push(esc(p.business));
+    return bits.join(" · ");
+  }
+
   // A single card in the admin review queue: receipt inline + quick actions.
   function reviewCard(t) {
-    var p = t.prospectId ? prospect(t.prospectId) : null;
     var sign = t.direction === "in" ? "+" : "−";
     var proof = t.proofId
       ? '<button type="button" class="rev-proof" data-photo data-proof-id="' + esc(t.proofId) + '" aria-label="View receipt full screen"><span class="rev-proof-load">Loading receipt…</span></button>'
       : '<p class="rev-noproof">No receipt attached. Send it back and ask for a photo before approving.</p>';
     return '<article class="card rev-card" data-id="' + t.id + '">' +
       '<div class="item-top"><div><div class="item-title"><span class="tx-dir ' + (t.direction === "in" ? "in" : "out") + '">' + (t.direction === "in" ? "In" : "Out") + "</span> " + sign + money(t.amount) + "</div>" +
-      '<div class="item-meta">' + esc(t.category || "Uncategorised") + (p && p.business ? " · " + esc(p.business) : "") + "</div></div></div>" +
+      '<div class="item-meta">' + txMeta(t) + "</div></div></div>" +
       '<div class="item-lines"><div class="item-line"><span class="k">Added by</span><span class="v">' + esc(t.createdBy || "—") + "</span></div>" +
       '<div class="item-line"><span class="k">Date</span><span class="v">' + dateLabel(t.date) + "</span></div>" +
       (t.note ? '<div class="item-line"><span class="k">Note</span><span class="v">' + esc(t.note) + "</span></div>" : "") + "</div>" +
@@ -514,11 +526,10 @@
   }
 
   function txCard(t) {
-    var p = t.prospectId ? prospect(t.prospectId) : null;
     var sign = t.direction === "in" ? "+" : "−";
     return '<article class="item tx-item" data-edit="transaction" data-id="' + t.id + '">' +
       '<div class="item-top"><div><div class="item-title"><span class="tx-dir ' + (t.direction === "in" ? "in" : "out") + '">' + (t.direction === "in" ? "In" : "Out") + "</span> " + sign + money(t.amount) + "</div>" +
-      '<div class="item-meta">' + esc(t.category || "Uncategorised") + (p && p.business ? " · " + esc(p.business) : "") + "</div></div>" + txStatusChip(t.status) + "</div>" +
+      '<div class="item-meta">' + txMeta(t) + "</div></div>" + txStatusChip(t.status) + "</div>" +
       '<div class="item-lines"><div class="item-line"><span class="k">Date</span><span class="v">' + dateLabel(t.date) + "</span></div>" +
       '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(t.createdBy || "—") + "</span></div>" +
       (t.status === "query" && t.reviewNote ? '<div class="item-line"><span class="k">Sent back</span><span class="v" style="color:var(--red)">' + esc(t.reviewNote) + "</span></div>" : "") +
@@ -580,12 +591,15 @@
     var amount = Math.round(Number(data.amount) || 0);
     if (amount <= 0) { showFormError("Enter an amount greater than zero."); return; }
     var direction = data.direction === "out" ? "out" : "in";
+    var method = TX_METHODS.indexOf(data.method) >= 0 ? data.method : TX_METHODS[0];
     // Money out can never exceed the cash on hand — the float can't go negative.
     if (direction === "out") {
       var avail = availableForOut(editing.id);
       if (avail <= 0) { showFormError("There's no cash in the float yet. Record the money coming in first, then you can record what goes out."); return; }
       if (amount > avail) { showFormError("That's more than the float holds. You can record up to " + money(avail) + " out right now."); return; }
     }
+    // A large amount is easy to fat-finger — confirm before saving.
+    if (amount >= LARGE_AMOUNT && !window.confirm("Record " + money(amount) + " " + (direction === "in" ? "coming in" : "going out") + "?\n\nDouble-check the amount is right.")) return;
     var saveBtn = document.getElementById("saveButton");
     var proofId = data.proofId || "";
     try {
@@ -595,12 +609,12 @@
     if (editing.id) {
       var idx = state.transactions.findIndex(function (x) { return x.id === editing.id; });
       var prev = state.transactions[idx];
-      var upd = Object.assign({}, prev, { direction: direction, amount: amount, date: data.date, category: data.category, prospectId: data.prospectId || "", note: data.note || "", proofId: proofId });
+      var upd = Object.assign({}, prev, { direction: direction, amount: amount, date: data.date, category: data.category, method: method, prospectId: data.prospectId || "", note: data.note || "", proofId: proofId });
       if (!isAdmin() && prev.status === "query") { upd.status = "pending"; upd.reviewNote = ""; } // resubmit after a send-back
       state.transactions[idx] = upd;
     } else {
       state.transactions.push({
-        id: uid(), direction: direction, amount: amount, date: data.date || today, category: data.category,
+        id: uid(), direction: direction, amount: amount, date: data.date || today, category: data.category, method: method,
         prospectId: data.prospectId || "", note: data.note || "", proofId: proofId,
         createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "",
         createdAt: today, status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: ""
@@ -803,13 +817,18 @@
       var cats = TX_CATS[dir] || TX_CATS.in;
       html +=
         field("direction", "Direction", "segmented", dir, { full: true, options: [{ value: "in", label: "Money in" }, { value: "out", label: "Money out" }] }) +
-        field("amount", "Amount (UGX)", "number", source.amount || "", { required: true, help: "In the float now: " + money(availableForOut(id)) + ". Money out can't go past this." }) +
+        // Amount: numeric keypad, a live "= UGX 500,000" echo, and the float hint.
+        '<div class="field full"><label for="f_amount">Amount (UGX) <span class="req" aria-hidden="true">*</span></label>' +
+        '<input id="f_amount" name="amount" type="number" inputmode="numeric" min="0" step="1" required aria-required="true" value="' + esc(source.amount || "") + '">' +
+        '<p class="amount-echo" id="amountEcho" aria-live="polite"></p>' +
+        '<p class="helper">In the float now: ' + money(availableForOut(id)) + ". Money out can't go past this.</p></div>" +
         field("date", "Date", "date", source.date || today, { required: true }) +
         field("category", "Category", "select", source.category || cats[0], { options: cats, full: true }) +
+        field("method", "Paid by", "select", source.method || TX_METHODS[0], { options: TX_METHODS, full: true }) +
         '<div class="field full"><label for="f_prospectId">Link to a prospect (optional)</label><select id="f_prospectId" name="prospectId"><option value="">— none —</option>' +
         state.prospects.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === source.prospectId ? " selected" : "") + ">" + esc(p.business) + "</option>"; }).join("") + "</select></div>" +
         field("note", "Note", "textarea", source.note, { full: true, optional: true }) +
-        '<div class="field full"><label>Proof of payment</label>' + proofControl(source) + "</div>";
+        '<div class="field full"><label>Proof of payment <span class="optional-tag">photo or MoMo SMS</span></label>' + proofControl(source) + "</div>";
       if (id && isAdmin() && source.status !== "approved") {
         html += '<div class="field full tx-review"><button type="button" class="btn btn-primary btn-block" data-approve>Approve entry</button><button type="button" class="btn btn-ghost btn-block" data-sendback>Send back with a note</button></div>';
       }
@@ -819,6 +838,7 @@
     formContent.innerHTML = html + "</div>";
     if (type === "transaction") {
       pendingProof = null;
+      updateAmountEcho();
       var pIn = document.getElementById("proofInput");
       if (pIn) pIn.addEventListener("change", onProofPick);
       if (source && source.proofId) {
@@ -852,6 +872,18 @@
   }
 
   // Segmented (tap) controls: set the hidden value and move the selection.
+  // Live "= UGX 500,000" under the amount field — catches missing/extra zeros.
+  function updateAmountEcho() {
+    var inp = document.getElementById("f_amount"), echo = document.getElementById("amountEcho");
+    if (!inp || !echo) return;
+    var n = Math.round(Number(inp.value) || 0);
+    echo.textContent = n > 0 ? "= " + money(n) : "";
+    echo.classList.toggle("big", n >= LARGE_AMOUNT);
+  }
+  form.addEventListener("input", function (e) {
+    if (e.target.id === "f_amount") updateAmountEcho();
+  });
+
   form.addEventListener("click", function (e) {
     if (e.target.closest("[data-delete]")) { deleteRecord(); return; }
     if (e.target.closest("[data-proof-pick]")) { var pi = document.getElementById("proofInput"); if (pi) pi.click(); return; }
