@@ -674,7 +674,9 @@
   // Manage the sales roster from the console (Operations + admins). Scoped to
   // Sales/Operations members — Owner and Technical accounts stay in Settings.
   function rosterCard() {
-    var users = state.users || [];
+    // Only the Sales/Operations roster — Owner and Technical (super-admins)
+    // are managed by the Owner in Settings, not shown here.
+    var users = (state.users || []).filter(function (u) { return u.id !== ownerId() && u.role !== "admin"; });
     var manageableRoleOpts = function (sel) {
       return [["sales", "Sales"], ["operations", "Operations"]].map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === normRole(sel) ? " selected" : "") + ">" + o[1] + "</option>";
@@ -692,7 +694,7 @@
     }).join("");
     return '<section class="card settings-card"><h2>Manage the team</h2>' +
       "<p>Add or remove salespeople and Operations, and switch their roles. Owner and Technical accounts are managed by the Owner in Settings. Removing someone revokes access immediately.</p>" +
-      '<div class="account-list">' + rows + "</div>" +
+      (users.length ? '<div class="account-list">' + rows + "</div>" : '<p class="settings-note">No sales or operations members yet — add the first one below.</p>') +
       '<form id="addMemberForm" class="add-member">' +
       '<div class="field"><label for="memberName">Name</label><input id="memberName" name="name" type="text" autocomplete="off" placeholder="e.g. Grace Namubiru" required></div>' +
       '<div class="field"><label for="memberEmail">Email</label><input id="memberEmail" name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" placeholder="grace@example.com" required></div>' +
@@ -885,7 +887,7 @@
     // standalone jobs store their own.
     var client = isLinked ? { business: "", contact: "", phone: "", location: "" }
       : { business: (data.business || "").trim(), contact: (data.contact || "").trim(), phone: (data.phone || "").trim(), location: (data.location || "").trim() };
-    if (!isLinked && !client.business) { showFormError("Enter the client / business name."); return; }
+    if (!isLinked && !client.business) { showFormError(editing.id ? "Enter the client / business name." : "Choose the client for this installation — pick one from Sales, or add a walk-in with a name."); return; }
     var status = INSTALL_STATUSES.indexOf(data.status) >= 0 ? data.status : "Quoted";
     var checklist = collectChecklist();
     // Can't hand over until the completion checklist is done.
@@ -1432,15 +1434,16 @@
     }
     if (type === "installation") {
       document.getElementById("dialogTitle").textContent = id ? "Installation" : "New installation";
-      var preset = (!id && presetProspect) ? prospect(presetProspect) : null;
+      var isWalkin = presetProspect === "__walkin__";
+      var preset = (!id && presetProspect && !isWalkin) ? prospect(presetProspect) : null;
       var linkedId = source.prospectId || (preset ? preset.id : "");
       var linkedProspect = linkedId ? prospect(linkedId) : null;
       var isLinked = !!(linkedProspect && linkedProspect.id);
       var techOpts = (state.technicians || []).filter(function (t) { return t.active !== false || t.id === source.technicianId; })
         .map(function (t) { return '<option value="' + esc(t.id) + '"' + (t.id === source.technicianId ? " selected" : "") + ">" + esc(t.name) + (t.active === false ? " (inactive)" : "") + "</option>"; }).join("");
-      // Linked to a sale → client + survey details come straight from Sales
-      // (read-only, no re-entry). Standalone → enter the client here.
-      var clientBlock;
+      // Client + survey details come straight from the sales record (read-only,
+      // no re-entry). A walk-in that isn't in the pipeline can be typed instead.
+      var roClient = "";
       if (isLinked) {
         var visit = appointmentFor(linkedId);
         var ctx = line("Contact", esc(linkedProspect.contact || "—") + (linkedProspect.phone ? " · " + esc(linkedProspect.phone) : "")) +
@@ -1449,16 +1452,30 @@
           (linkedProspect.areas ? line("Areas to cover", esc(linkedProspect.areas)) : "") +
           (linkedProspect.concern ? line("Security concern", esc(linkedProspect.concern)) : "") +
           (visit && visit.directions ? line("Site access", esc(visit.directions)) : "");
-        clientBlock = '<div class="field full"><label>Client <span class="optional-tag">from the sales record</span></label>' +
+        roClient = '<div class="field full"><label>Client <span class="optional-tag">from the sales record</span></label>' +
           '<div class="ro-card"><div class="ro-title">' + esc(linkedProspect.business) + '</div><div class="item-lines">' + ctx + "</div>" +
           (linkedProspect.photoId ? '<button type="button" class="btn btn-ghost btn-sm" data-job-photo="' + esc(linkedProspect.photoId) + '" style="margin-top:10px">View business photo</button>' : "") + "</div>" +
           '<p class="helper">These come from the prospect — edit them in Prospects if they change.</p></div>';
+      }
+      var manualClient =
+        field("business", "Client / business", "text", source.business, { required: true, full: true, placeholder: "e.g. Acacia Pharmacy" }) +
+        field("contact", "Contact person", "text", source.contact, { placeholder: "Who to ask for" }) +
+        field("phone", "Phone", "tel", source.phone) +
+        field("location", "Site location", "text", source.location, { full: true, placeholder: "Area, street or landmark" });
+      var clientBlock;
+      if (!id) {
+        // New job: pick the client from Sales (closed sales first), or a walk-in.
+        var pickVal = isLinked ? linkedId : (isWalkin ? "__walkin__" : "");
+        var prospectOpts = (state.prospects || []).slice()
+          .sort(function (a, b) { return (b.closedSale ? 1 : 0) - (a.closedSale ? 1 : 0) || (a.business || "").localeCompare(b.business || ""); })
+          .map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === pickVal ? " selected" : "") + ">" + esc(p.business) + (p.closedSale ? " — closed sale" : "") + "</option>"; }).join("");
+        clientBlock = '<div class="field full"><label for="f_clientPick">Client <span class="req" aria-hidden="true">*</span></label>' +
+          '<select id="f_clientPick"><option value="">Choose the client…</option>' + prospectOpts +
+          '<option value="__walkin__"' + (isWalkin ? " selected" : "") + ">+ Walk-in / not in the sales list</option></select>" +
+          '<p class="helper">An installation belongs to a client. Pick one from Sales, or add a walk-in.</p></div>' +
+          (isLinked ? roClient : (isWalkin ? manualClient : '<div class="field full"><p class="rev-petty">Pick a client above to continue.</p></div>'));
       } else {
-        clientBlock =
-          field("business", "Client / business", "text", source.business, { required: true, full: true, placeholder: "e.g. Acacia Pharmacy" }) +
-          field("contact", "Contact person", "text", source.contact, { placeholder: "Who to ask for" }) +
-          field("phone", "Phone", "tel", source.phone) +
-          field("location", "Site location", "text", source.location, { full: true, placeholder: "Area, street or landmark" });
+        clientBlock = isLinked ? roClient : manualClient;
       }
       html += clientBlock +
         field("status", "Status", "select", source.status || "Quoted", { options: INSTALL_STATUSES, full: true }) +
@@ -1546,6 +1563,14 @@
   form.addEventListener("input", function (e) {
     if (e.target.id === "f_amount") updateAmountEcho();
     if (e.target.classList.contains("mat-qty") || e.target.classList.contains("mat-cost")) updateMatTotal();
+  });
+
+  form.addEventListener("change", function (e) {
+    // Picking the client on a new installation re-renders the form with it.
+    if (e.target.id === "f_clientPick") {
+      var v = e.target.value;
+      openForm("installation", null, v === "__walkin__" ? "__walkin__" : (v || undefined));
+    }
   });
 
   form.addEventListener("click", function (e) {
