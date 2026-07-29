@@ -13,7 +13,7 @@ const SUPABASE_KEY = "sb_publishable_hj2NsI1YGmpeQg815ET2Kg_CwznowqE";
 
 const STORE = "verisko-sales";
 const KEY = "app-data";
-const EMPTY = { prospects: [], appointments: [], users: [], transactions: [], config: {} };
+const EMPTY = { prospects: [], appointments: [], users: [], transactions: [], installations: [], technicians: [], config: {} };
 
 export default async (request) => {
   const headers = {
@@ -54,12 +54,16 @@ export default async (request) => {
       const storedTx = Array.isArray(data.transactions) ? data.transactions : [];
       const storedProspects = Array.isArray(data.prospects) ? data.prospects : [];
       const storedAppointments = Array.isArray(data.appointments) ? data.appointments : [];
+      const storedInstalls = Array.isArray(data.installations) ? data.installations : [];
+      const storedTechs = Array.isArray(data.technicians) ? data.technicians : [];
       const storedConfig = data.config && typeof data.config === "object" && !Array.isArray(data.config) ? data.config : {};
       const clean = {
         prospects: Array.isArray(incoming.prospects) ? incoming.prospects : [],
         appointments: Array.isArray(incoming.appointments) ? incoming.appointments : [],
         users: Array.isArray(incoming.users) ? incoming.users : [],
         transactions: Array.isArray(incoming.transactions) ? incoming.transactions : [],
+        installations: Array.isArray(incoming.installations) ? incoming.installations : [],
+        technicians: Array.isArray(incoming.technicians) ? incoming.technicians : [],
         config: incoming.config && typeof incoming.config === "object" && !Array.isArray(incoming.config) ? incoming.config : {}
       };
       const isAdmin = bootstrap || (me && me.role === "admin");
@@ -108,6 +112,11 @@ export default async (request) => {
       // limit stays admin-only; Sales can't change any of it.
       if (!isAdmin && JSON.stringify(clean.config) !== JSON.stringify(storedConfig)) {
         clean.config = canReview ? { ...clean.config, pettyLimit: storedConfig.pettyLimit } : storedConfig;
+      }
+      // Installations & technicians are Operations/admin only — Sales can't touch them.
+      if (!canReview) {
+        if (JSON.stringify(clean.installations) !== JSON.stringify(storedInstalls)) clean.installations = storedInstalls;
+        if (JSON.stringify(clean.technicians) !== JSON.stringify(storedTechs)) clean.technicians = storedTechs;
       }
 
       // Cash flow: Sales cannot touch transactions; only admins may approve.

@@ -520,6 +520,12 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .ask-actions{display:flex;gap:10px;margin-top:20px}
 .ask-actions .btn{flex:1;min-height:48px}
 
+/* "More" nav sheet */
+.more-list{display:flex;flex-direction:column;gap:4px;margin-top:14px}
+.more-item{display:flex;align-items:center;gap:14px;width:100%;min-height:52px;padding:0 12px;border:0;border-radius:13px;background:var(--fill);color:var(--ink);font-size:16px;font-weight:600;text-align:left}
+.more-item:hover{background:#e6e9ef}
+.more-item .nav-icon{width:22px;height:22px;color:var(--muted);flex:none}
+
 @media(min-width:860px){
   .nav-badge{position:static;margin-left:auto;box-shadow:none}
 }

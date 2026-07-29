@@ -20,6 +20,10 @@
   var SOURCES = ["Cold visit", "Walk-in prospecting", "Referral", "Website enquiry", "Phone enquiry", "Existing customer", "Other"];
   // Common next actions — offered as tap-or-type suggestions to cut typing.
   var NEXT_ACTIONS = ["Call back", "Book a site visit", "Confirm the visit", "Send a quotation", "Visit the site", "Follow up next week", "Wait for their decision"];
+  // CCTV installation job lifecycle.
+  var INSTALL_STATUSES = ["Quoted", "Scheduled", "In progress", "Installed", "Handed over", "Cancelled"];
+  // Operations/admin extras live behind the bottom-nav "More" sheet.
+  var MORE_VIEWS = ["cashflow", "installs", "settings"];
   var DECISION = ["Unknown", "Yes", "No"];
   var APPT_STATUSES = ["Proposed", "Confirmed", "Completed", "Rescheduled", "Cancelled", "No-show"];
   var PURPOSES = ["Technical site survey", "Follow-up visit", "Installation planning"];
@@ -72,6 +76,8 @@
     ],
     users: [],
     transactions: [],
+    installations: [],
+    technicians: [],
     config: defaultConfig()
   };
 
@@ -96,6 +102,8 @@
       if (!data.appointments) data.appointments = [];
       if (!data.users) data.users = [];
       if (!data.transactions) data.transactions = [];
+      if (!data.installations) data.installations = [];
+      if (!data.technicians) data.technicians = [];
       if (!data.config || typeof data.config !== "object") data.config = defaultConfig();
       return data;
     } catch (e) { return JSON.parse(JSON.stringify(seed)); }
@@ -274,19 +282,26 @@
   function render() {
     if (view === "settings" && !isAdmin()) view = "today";      // Settings is admin-only
     if (view === "cashflow" && !canCashflow()) view = "today";  // Cash flow is Operations + admin
-    document.querySelectorAll(".nav-item").forEach(function (b) {
-      var on = b.dataset.view === view;
-      b.classList.toggle("is-active", on);
-      if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
-    });
+    if (view === "installs" && !canInstalls()) view = "today";  // Installations is Operations + admin
+    updateNavActive();
     updateCashBadge();
     updateProspectBadge();
     if (view === "today") renderToday();
     else if (view === "dashboard") renderDashboard();
     else if (view === "prospects") renderProspects();
     else if (view === "visits") renderVisits();
+    else if (view === "installs") renderInstalls();
     else if (view === "cashflow") renderCashflow();
     else if (view === "settings") renderSettings();
+  }
+  // Highlight the current tab — or the More button when the view lives there.
+  function updateNavActive() {
+    var inMore = MORE_VIEWS.indexOf(view) !== -1 && !!document.querySelector('[data-more]:not([hidden])');
+    document.querySelectorAll(".mainnav .nav-item").forEach(function (b) {
+      var on = b.dataset.view === view || (b.hasAttribute("data-more") && inMore);
+      b.classList.toggle("is-active", on);
+      if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
   }
 
   /* --------------------------------- TODAY ---------------------------------- */
@@ -511,6 +526,7 @@
 
   /* -------------------------------- CASH FLOW ------------------------------- */
   var ICON_CASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.4"/></svg>';
+  var ICON_INSTALL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5z"/><path d="M12 12v8M4 8.5 12 12l8-3.5"/></svg>';
   var TX_CATS = {
     in: ["Customer deposit", "Customer payment", "Float top-up", "Refund", "Other"],
     out: ["Equipment", "Cable & materials", "Transport & fuel", "Labour", "Airtime & data", "Other"]
@@ -675,6 +691,114 @@
       '<option value="sales">Sales — prospects &amp; visits</option>' +
       '<option value="operations">Operations — also Cash flow</option></select></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Add team member</button></form></section>';
+  }
+
+  /* ------------------------------ INSTALLATIONS ----------------------------- */
+  function canInstalls() { return isAdmin() || !!(settings.user && settings.user.role === "operations"); }
+  function technician(id) { return (state.technicians || []).find(function (t) { return t.id === id; }) || null; }
+  function activeTechnicians() { return (state.technicians || []).filter(function (t) { return t.active !== false; }); }
+  function installStatusChip(s) {
+    if (s === "Handed over") return chip(s, "green", "✓");
+    if (s === "Installed") return chip(s, "green", "✓");
+    if (s === "In progress") return chip(s, "cyan", "★");
+    if (s === "Scheduled") return chip(s, "amber", "◔");
+    if (s === "Cancelled") return chip(s, "red", "✕");
+    return chip(s || "Quoted", "grey", "•");
+  }
+  var installFilter = "all";
+
+  function renderInstalls() {
+    setHead("Operations", "Installations", "Schedule and run CCTV jobs — client, technician and status.", "New installation", true);
+    var jobs = state.installations || [];
+    var open = jobs.filter(function (j) { return j.status !== "Handed over" && j.status !== "Cancelled"; }).length;
+
+    var summary = '<section class="card cash-summary"><div class="cash-bal"><span class="k">Open jobs</span><strong>' + open + "</strong>" +
+      "<small>" + jobs.length + " total · " + activeTechnicians().length + " active " + (activeTechnicians().length === 1 ? "technician" : "technicians") + "</small></div></section>";
+
+    var filterBar = '<div class="toolbar"><div class="field-inline" style="flex:1"><label for="installFilter">Show</label><select id="installFilter">' +
+      [["all", "All jobs"]].concat(INSTALL_STATUSES.map(function (s) { return [s, s]; })).map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === installFilter ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></div></div>";
+
+    var rows = jobs.filter(function (j) { return installFilter === "all" || j.status === installFilter; })
+      .sort(function (a, b) { return (a.scheduledDate || "9").localeCompare(b.scheduledDate || "9") || (b.createdAt || "").localeCompare(a.createdAt || ""); });
+    var list = rows.length ? '<div class="list">' + rows.map(installCard).join("") + "</div>" :
+      emptyState(ICON_INSTALL, "No jobs yet", "Turn a closed sale into an installation, or add a standalone job.", "New installation", 'data-new="installation"');
+
+    content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " job" : " jobs") + "</p>" + list + technicianRosterCard();
+  }
+
+  function installCard(j) {
+    var tech = j.technicianId ? technician(j.technicianId) : null;
+    return '<article class="item" data-edit="installation" data-id="' + j.id + '">' +
+      '<div class="item-top"><div><div class="item-title">' + esc(j.business || "Untitled job") + "</div>" +
+      '<div class="item-meta">' + esc(j.location || "No site") + "</div></div>" + installStatusChip(j.status) + "</div>" +
+      '<div class="item-lines">' +
+      '<div class="item-line"><span class="k">Scheduled</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Not set") + "</span></div>" +
+      '<div class="item-line"><span class="k">Technician</span><span class="v">' + (tech ? esc(tech.name) : '<span style="color:var(--amber)">Unassigned</span>') + "</span></div>" +
+      '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc(j.contact || "—") + (j.phone ? " · " + esc(j.phone) : "") + "</span></div>" +
+      (Number(j.quote) > 0 ? '<div class="item-line"><span class="k">Quote</span><span class="v">' + money(j.quote) + "</span></div>" : "") +
+      "</div></article>";
+  }
+
+  // Onboard/manage technicians (Operations + admin).
+  function technicianRosterCard() {
+    var techs = state.technicians || [];
+    var rows = techs.map(function (t) {
+      return '<div class="account-row" style="background:var(--fill-2)"><span class="user-avatar" aria-hidden="true">' + esc(initials(t.name)) + "</span>" +
+        '<span class="who"><strong>' + esc(t.name) + (t.active === false ? " · Inactive" : "") + "</strong><span>" + esc([t.phone, t.skills].filter(Boolean).join(" · ") || "No details") + "</span></span>" +
+        '<span class="row-actions"><button type="button" class="account-role" data-tech-toggle="' + esc(t.id) + '">' + (t.active === false ? "Activate" : "Deactivate") + "</button>" +
+        '<button type="button" class="account-remove" data-tech-remove="' + esc(t.id) + '">Remove</button></span></div>';
+    }).join("");
+    return '<section class="card settings-card" style="margin-top:20px"><h2>Technicians</h2>' +
+      "<p>Onboard the field technicians you assign to installations. Deactivate anyone who has left.</p>" +
+      (techs.length ? '<div class="account-list">' + rows + "</div>" : '<p class="settings-note">No technicians yet.</p>') +
+      '<form id="technicianForm" class="add-member">' +
+      '<div class="field"><label for="techName">Name</label><input id="techName" name="name" type="text" autocomplete="off" placeholder="e.g. Joseph Okello" required></div>' +
+      '<div class="field"><label for="techPhone">Phone</label><input id="techPhone" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="+256 7…"></div>' +
+      '<div class="field"><label for="techSkills">Skills (optional)</label><input id="techSkills" name="skills" type="text" autocomplete="off" placeholder="e.g. IP cameras, networking"></div>' +
+      '<button type="submit" class="btn btn-ghost btn-block">Add technician</button></form></section>';
+  }
+
+  function addTechnician(name, phone, skills) {
+    if (!canInstalls()) return false;
+    name = (name || "").trim();
+    if (!name) { toast("Enter the technician's name."); return false; }
+    if (!state.technicians) state.technicians = [];
+    state.technicians.push({ id: uid(), name: name, phone: (phone || "").trim(), skills: (skills || "").trim(), active: true, createdAt: today });
+    saveData(name.split(/\s+/)[0] + " added as a technician"); render();
+    return true;
+  }
+  function toggleTechnician(id) {
+    if (!canInstalls()) return;
+    var t = technician(id); if (!t) return;
+    t.active = t.active === false; saveData(); render();
+  }
+  async function removeTechnician(id) {
+    if (!canInstalls()) return;
+    var t = technician(id); if (!t) return;
+    if (!(await confirmSheet("Remove " + t.name + "?", "They'll no longer appear in the technician list. Jobs already assigned keep their record.", "Remove", true))) return;
+    state.technicians = state.technicians.filter(function (x) { return x.id !== id; });
+    saveData(t.name.split(/\s+/)[0] + " removed"); render();
+  }
+
+  async function saveInstallation(data) {
+    if (!canInstalls()) return;
+    var business = (data.business || "").trim();
+    if (!business) { showFormError("Enter the client / business name."); return; }
+    var status = INSTALL_STATUSES.indexOf(data.status) >= 0 ? data.status : "Quoted";
+    var quote = Math.max(0, Math.round(Number(data.quote) || 0));
+    var fields = {
+      prospectId: data.prospectId || "", business: business, contact: (data.contact || "").trim(), phone: (data.phone || "").trim(),
+      location: (data.location || "").trim(), status: status, scheduledDate: data.scheduledDate || "", scheduledTime: data.scheduledTime || "",
+      technicianId: data.technicianId || "", quote: quote, siteNotes: (data.siteNotes || "").trim()
+    };
+    if (editing.id) {
+      var idx = state.installations.findIndex(function (x) { return x.id === editing.id; });
+      state.installations[idx] = Object.assign({}, state.installations[idx], fields);
+    } else {
+      state.installations.push(Object.assign({ id: uid(), createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "", createdAt: today }, fields));
+    }
+    hideFormError(); dialog.close();
+    saveData(editing.id ? "Installation updated" : "Installation created"); render();
   }
 
   function renderCashflow() {
@@ -1131,9 +1255,12 @@
         }
         // Operations verify a closed sale here — earns the rep their commission.
         if (canReviewProspects()) {
+          var hasInstall = (state.installations || []).some(function (j) { return j.prospectId === id; });
           html += '<div class="field full">' +
             (source.closedSale ? '<p class="helper" style="color:var(--green);font-weight:600">Verified closed sale — ' + money(commissionRate()) + " commission to " + esc(source.createdBy || "the rep") + ".</p>" : "") +
-            '<button type="button" class="btn ' + (source.closedSale ? "btn-ghost" : "btn-primary") + ' btn-block" data-toggle-closed="' + esc(id) + '">' + (source.closedSale ? "Remove closed sale" : "Mark as closed sale (" + money(commissionRate()) + ")") + "</button></div>";
+            '<button type="button" class="btn ' + (source.closedSale ? "btn-ghost" : "btn-primary") + ' btn-block" data-toggle-closed="' + esc(id) + '">' + (source.closedSale ? "Remove closed sale" : "Mark as closed sale (" + money(commissionRate()) + ")") + "</button>" +
+            (source.closedSale && !hasInstall ? '<button type="button" class="btn btn-cyan btn-block" data-make-install="' + esc(id) + '" style="margin-top:10px">Create installation from this sale</button>' : "") +
+            (source.closedSale && hasInstall ? '<p class="helper">An installation already exists for this client.</p>' : "") + "</div>";
         }
         html += '<div class="field full followup-block"><label>Follow-ups</label>' + followUpHistory(source) +
           '<button type="button" class="btn btn-ghost btn-block" data-log-followup="' + esc(id) + '" style="margin-top:10px">Log a follow-up (with location)</button></div>';
@@ -1179,9 +1306,33 @@
         html += '<div class="field full tx-review"><button type="button" class="btn btn-primary btn-block" data-approve>Approve entry</button><button type="button" class="btn btn-ghost btn-block" data-sendback>Send back with a note</button></div>';
       }
     }
-    // Delete is offered for prospects & site visits (not cash entries), and not
-    // once approved (Sales can't remove audited records).
-    if (id && (type === "prospect" || type === "appointment") && canDeleteRecord(type, source)) html += '<button type="button" class="btn btn-danger btn-block delete-record" data-delete>Delete this ' + (type === "appointment" ? "site visit" : "prospect") + "</button>";
+    if (type === "installation") {
+      document.getElementById("dialogTitle").textContent = id ? "Installation" : "New installation";
+      var preset = (!id && presetProspect) ? prospect(presetProspect) : null;
+      var biz = source.business || (preset ? preset.business : "");
+      var con = source.contact || (preset ? preset.contact : "");
+      var iph = source.phone || (preset ? preset.phone : "");
+      var iloc = source.location || (preset ? preset.location : "");
+      var linkedId = source.prospectId || (preset ? preset.id : "");
+      var techOpts = (state.technicians || []).filter(function (t) { return t.active !== false || t.id === source.technicianId; })
+        .map(function (t) { return '<option value="' + esc(t.id) + '"' + (t.id === source.technicianId ? " selected" : "") + ">" + esc(t.name) + (t.active === false ? " (inactive)" : "") + "</option>"; }).join("");
+      html +=
+        field("business", "Client / business", "text", biz, { required: true, full: true, placeholder: "e.g. Acacia Pharmacy" }) +
+        field("contact", "Contact person", "text", con, { placeholder: "Who to ask for" }) +
+        field("phone", "Phone", "tel", iph) +
+        field("location", "Site location", "text", iloc, { full: true, placeholder: "Area, street or landmark" }) +
+        field("status", "Status", "select", source.status || "Quoted", { options: INSTALL_STATUSES, full: true }) +
+        field("scheduledDate", "Install date", "date", source.scheduledDate || "") +
+        field("scheduledTime", "Time", "time", source.scheduledTime || "") +
+        '<div class="field full"><label for="f_technicianId">Technician</label><select id="f_technicianId" name="technicianId"><option value="">— unassigned —</option>' + techOpts + "</select>" +
+        (techOpts ? "" : '<p class="helper">Add technicians in the Technicians card to assign one.</p>') + "</div>" +
+        field("quote", "Quote (UGX)", "number", source.quote || "", { help: "Wired into the cash-flow float in a later update." }) +
+        field("siteNotes", "Site notes", "textarea", source.siteNotes, { full: true, optional: true, placeholder: "Access, cameras, cabling, power…" }) +
+        '<input type="hidden" name="prospectId" value="' + esc(linkedId) + '">';
+    }
+    // Delete is offered for prospects, site visits and installations (not cash
+    // entries), and not once a prospect/visit is approved (Sales can't remove audited records).
+    if (id && (type === "prospect" || type === "appointment" || type === "installation") && canDeleteRecord(type, source)) html += '<button type="button" class="btn btn-danger btn-block delete-record" data-delete>Delete this ' + (type === "appointment" ? "site visit" : type === "installation" ? "installation" : "prospect") + "</button>";
     formContent.innerHTML = html + "</div>";
     if (type === "transaction" || type === "prospect") {
       pendingProof = null;
@@ -1215,7 +1366,7 @@
   async function deleteRecord() {
     if (!editing || !editing.id) return;
     var type = editing.type;
-    var label = type === "appointment" ? "site visit" : "prospect";
+    var label = type === "appointment" ? "site visit" : type === "installation" ? "installation" : "prospect";
     var rec = state[type + "s"].find(function (x) { return x.id === editing.id; });
     if (!canDeleteRecord(type, rec)) {
       showFormError("This " + label + " has been approved, so it can't be deleted here. Ask Operations if it really needs removing.");
@@ -1247,6 +1398,7 @@
     if (e.target.closest("[data-delete]")) { deleteRecord(); return; }
     var lf = e.target.closest("[data-log-followup]"); if (lf) { logFollowUp(lf.getAttribute("data-log-followup")); return; }
     var tcf = e.target.closest("[data-toggle-closed]"); if (tcf) { toggleClosedSale(tcf.getAttribute("data-toggle-closed")); return; }
+    var mi = e.target.closest("[data-make-install]"); if (mi) { openForm("installation", null, mi.getAttribute("data-make-install")); return; }
     if (e.target.closest("[data-proof-pick]")) { var pi = document.getElementById("proofInput"); if (pi) pi.click(); return; }
     if (e.target.closest("[data-approve]")) { approveTransaction(); return; }
     if (e.target.closest("[data-sendback]")) { sendBackTransaction(); return; }
@@ -1277,6 +1429,7 @@
     var type = editing.type;
     if (type === "transaction") { saveTransaction(data); return; }
     if (type === "prospect") { saveProspect(data); return; }
+    if (type === "installation") { saveInstallation(data); return; }
     var collection = state[type + "s"];
 
     // Client-side guard: confirming a visit requires a complete handoff.
@@ -1559,7 +1712,7 @@
       var result = await res.json();
       if (!result.ok) return "unauth";
       if (result.data && result.data.prospects) {
-        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], config: result.data.config && typeof result.data.config === "object" ? result.data.config : defaultConfig() };
+        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], installations: result.data.installations || [], technicians: result.data.technicians || [], config: result.data.config && typeof result.data.config === "object" ? result.data.config : defaultConfig() };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       }
       return "ok";
@@ -1927,13 +2080,46 @@
     showLogin();
   }
 
+  // Which "More" destinations apply to the current role.
+  function moreViewsForRole() {
+    var v = [];
+    if (canInstalls()) { v.push("installs"); v.push("cashflow"); }
+    if (isAdmin()) v.push("settings");
+    return v;
+  }
   function applyRole() {
-    var settingsNav = document.querySelector('.nav-item[data-view="settings"]');
-    if (settingsNav) settingsNav.hidden = !isAdmin();
-    var cashNav = document.querySelector('.nav-item[data-view="cashflow"]');
-    if (cashNav) cashNav.hidden = !canCashflow();
+    // Operations/admin extras (cash flow, installs, settings) live in "More",
+    // so they're always hidden from the bar itself; the More button reveals them.
+    MORE_VIEWS.forEach(function (v) {
+      var btn = document.querySelector('.mainnav .nav-item[data-view="' + v + '"]');
+      if (btn) btn.hidden = true;
+    });
+    var moreBtn = document.querySelector(".mainnav [data-more]");
+    if (moreBtn) moreBtn.hidden = moreViewsForRole().length === 0;
     if (view === "settings" && !isAdmin()) view = "today";
-    if (view === "cashflow" && !canCashflow()) view = "today";
+    if ((view === "cashflow" || view === "installs") && !canInstalls()) view = "today";
+    updateNavActive();
+  }
+  function openMoreMenu() {
+    var views = moreViewsForRole();
+    if (!views.length) return;
+    var dlg = document.getElementById("askDialog");
+    dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">More</h2></div><div class="more-list">' +
+      views.map(function (v) {
+        var btn = document.querySelector('.mainnav .nav-item[data-view="' + v + '"]');
+        var icon = btn && btn.querySelector(".nav-icon") ? btn.querySelector(".nav-icon").outerHTML : "";
+        var label = btn && btn.querySelector(".nav-label") ? btn.querySelector(".nav-label").textContent : v;
+        return '<button type="button" class="more-item" data-goview="' + v + '">' + icon + "<span>" + esc(label) + "</span></button>";
+      }).join("") + "</div><div class=\"ask-actions\"><button type=\"button\" class=\"btn btn-ghost btn-block\" id=\"askCancel\">Close</button></div>";
+    var onCancel = function (e) { if (e) e.preventDefault(); finish(); };
+    function finish() { dlg.removeEventListener("cancel", onCancel); dlg.close(); }
+    dlg.querySelector("#askCancel").addEventListener("click", finish);
+    dlg.querySelectorAll("[data-goview]").forEach(function (b) {
+      b.addEventListener("click", function () { view = b.getAttribute("data-goview"); finish(); render(); document.getElementById("main").focus(); });
+    });
+    dlg.addEventListener("cancel", onCancel);
+    dlg.showModal();
+    var first = dlg.querySelector(".more-item"); if (first) first.focus();
   }
 
   // The first member on the workspace is the owner (protected).
@@ -2035,7 +2221,7 @@
       try {
         var parsed = JSON.parse(reader.result);
         if (!parsed.prospects || !parsed.appointments) throw new Error();
-        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [], transactions: parsed.transactions || state.transactions || [], config: parsed.config && typeof parsed.config === "object" ? parsed.config : (state.config || defaultConfig()) };
+        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [], transactions: parsed.transactions || state.transactions || [], installations: parsed.installations || state.installations || [], technicians: parsed.technicians || state.technicians || [], config: parsed.config && typeof parsed.config === "object" ? parsed.config : (state.config || defaultConfig()) };
         saveData("Backup imported");
         render();
       } catch (e) { toast("That file is not a valid Verisko backup."); }
@@ -2049,12 +2235,14 @@
   });
 
   document.querySelector(".mainnav").addEventListener("click", function (e) {
+    if (e.target.closest("[data-more]")) { openMoreMenu(); return; }
     var b = e.target.closest("[data-view]");
     if (b) { view = b.dataset.view; render(); document.getElementById("main").focus(); }
   });
 
   document.getElementById("primaryAction").addEventListener("click", function () {
     if (view === "cashflow") openForm("transaction");
+    else if (view === "installs") openForm("installation");
     else if (view === "visits") openForm("appointment");
     else openForm("prospect");
   });
@@ -2066,6 +2254,7 @@
     if (e.target.id === "stageFilter") updateProspectGrid();
     if (e.target.id === "visitFilter") updateVisitList();
     if (e.target.id === "cashFilter") { cashFilter = e.target.value; renderCashflow(); }
+    if (e.target.id === "installFilter") { installFilter = e.target.value; renderInstalls(); }
     if (e.target.matches("[data-set-role]")) setMemberRole(e.target.dataset.userId, e.target.value);
   });
 
@@ -2075,6 +2264,9 @@
     var back = e.target.closest("[data-sendback-id]"); if (back) { sendBackTx(back.getAttribute("data-sendback-id")); return; }
     var apprP = e.target.closest("[data-approve-prospect]"); if (apprP) { approveProspect(apprP.getAttribute("data-approve-prospect")); return; }
     var backP = e.target.closest("[data-sendback-prospect]"); if (backP) { sendBackProspect(backP.getAttribute("data-sendback-prospect")); return; }
+    var tt = e.target.closest("[data-tech-toggle]"); if (tt) { toggleTechnician(tt.getAttribute("data-tech-toggle")); return; }
+    var tr = e.target.closest("[data-tech-remove]"); if (tr) { removeTechnician(tr.getAttribute("data-tech-remove")); return; }
+    var mkInstall = e.target.closest("[data-make-install]"); if (mkInstall) { openForm("installation", null, mkInstall.getAttribute("data-make-install")); return; }
     var fup = e.target.closest("[data-log-followup]"); if (fup) { logFollowUp(fup.getAttribute("data-log-followup")); return; }
     var tc = e.target.closest("[data-toggle-closed]"); if (tc) { toggleClosedSale(tc.getAttribute("data-toggle-closed")); return; }
     var go = e.target.closest("[data-go]"); if (go) { view = go.dataset.go; render(); return; }
@@ -2115,6 +2307,12 @@
       state.config.commissionTarget = Math.max(0, Math.round(Number(commForm.querySelector("[name=commTarget]").value) || 0));
       saveData("Commission settings saved");
       render();
+      return;
+    }
+    var techForm = e.target.closest("#technicianForm");
+    if (techForm) {
+      e.preventDefault();
+      if (addTechnician(techForm.querySelector("[name=name]").value, techForm.querySelector("[name=phone]").value, techForm.querySelector("[name=skills]").value)) techForm.reset();
     }
   });
 
