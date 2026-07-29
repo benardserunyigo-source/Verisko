@@ -31,7 +31,87 @@
     { key: "credentials", label: "Login & warranty handed over" }
   ];
   // Operations/admin extras live behind the bottom-nav "More" sheet.
-  var MORE_VIEWS = ["cashflow", "installs", "settings"];
+  var MORE_VIEWS = ["quotes", "cashflow", "installs", "settings"];
+
+  /* ---------------------------- Quote calculator ---------------------------- */
+  // Site-scoring rubric (answer points drive the site tier).
+  var QUOTE_RUBRIC = [
+    { key: "q1", q: "How many buildings need cameras?", opts: [["0", "1 building"], ["3", "2–3 buildings"], ["5", "4+ buildings"]] },
+    { key: "q2", q: "Longest cable run (camera → NVR)", opts: [["0", "Under 15m"], ["1", "15–30m"], ["2", "30–50m"], ["3", "50–80m"], ["5", "Over 80m"]] },
+    { key: "q3", q: "Where does the cable run?", opts: [["0", "Fully interior"], ["2", "Partial exterior"], ["4", "Fully exterior / exposed"]] },
+    { key: "q4", q: "Wall type", opts: [["0", "Drywall / wood"], ["2", "Block / brick, unpainted"], ["4", "Painted block"], ["6", "Reinforced concrete"]] },
+    { key: "q5", q: "Mounting height", opts: [["0", "Ground / single storey"], ["1", "First floor"], ["3", "Second floor+"], ["4", "Roof / tower"]] }
+  ];
+  function quoteTier(pts) { return pts <= 5 ? "Simple" : pts <= 10 ? "Standard" : pts <= 18 ? "Complex" : "Very Complex"; }
+  // Base pricing matrix (UGX): [cameras][tier]. Very Complex uses a formula; 12+ is a custom quote.
+  var QUOTE_MATRIX = {
+    2: { Simple: 1650000, Standard: 1850000, Complex: 2050000 },
+    4: { Simple: 2200000, Standard: 2500000, Complex: 2700000 },
+    6: { Simple: 2700000, Standard: 3050000, Complex: 3350000 },
+    8: { Simple: 3250000, Standard: 3600000, Complex: 4000000 }
+  };
+  var QUOTE_PACKAGE = { 2: "Basic", 4: "Essential", 6: "Standard", 8: "Premium" };
+  function basePriceFor(cameras, tier, pts) {
+    var m = QUOTE_MATRIX[cameras];
+    if (!m) return null; // 12+ / custom → Ben approves
+    if (tier === "Very Complex") return m.Complex + 150000 * Math.max(0, pts - 18);
+    return m[tier];
+  }
+  // Add-on rate card. qty: true = count field; surge/hdmi are auto-added in compute.
+  var QUOTE_ADDONS = [
+    { key: "hdd2tb", label: "Hard drive 2TB", price: 500000 },
+    { key: "hdd4tb", label: "Hard drive 4TB", price: 700000 },
+    { key: "tv32", label: "32\" LED TV", price: 550000 },
+    { key: "tv43", label: "43\" LED TV", price: 850000 },
+    { key: "powerpack", label: "Power Pack (UPS + battery)", price: 450000 },
+    { key: "lights", label: "Perimeter Light Pack", price: 380000 },
+    { key: "router4g", label: "4G Router", price: 250000 },
+    { key: "camFixed", label: "Extra camera (outdoor/ceiling)", price: 400000, qty: true },
+    { key: "camWide", label: "Extra camera (moving/wide)", price: 500000, qty: true },
+    { key: "pole", label: "Metal pole (mounting)", price: 130000, qty: true },
+    { key: "welder", label: "Welder site visit", price: 35000 },
+    { key: "structural", label: "Structural work bundle", price: 160000 }
+  ];
+  var QUOTE_ZONES = [
+    { key: "1", label: "Zone 1 — Kampala Central", surcharge: 0 },
+    { key: "2", label: "Zone 2 — Greater Kampala / Wakiso", surcharge: 0 },
+    { key: "3", label: "Zone 3 — Entebbe / Mukono / Matugga", surcharge: 50000 },
+    { key: "beyond", label: "Beyond Zone 3 — regional", surcharge: 300000 }
+  ];
+  var QUOTE_STATUSES = ["Draft", "Sent", "Accepted", "Rejected", "Expired"];
+
+  // Turn a saved quote's inputs into every derived figure. Pure — easy to test.
+  function computeQuote(q) {
+    var addons = q.addons || {};
+    var pts = QUOTE_RUBRIC.reduce(function (s, r) { return s + (Number(q.rubric && q.rubric[r.key]) || 0); }, 0);
+    var tier = quoteTier(pts);
+    var cameras = Number(q.cameraCount) || 0;
+    var base = basePriceFor(cameras, tier, pts);
+    var lines = [];
+    QUOTE_ADDONS.forEach(function (a) {
+      var v = addons[a.key];
+      if (a.qty) { var n = Math.max(0, Math.round(Number(v) || 0)); if (n > 0) lines.push({ key: a.key, label: a.label, qty: n, price: a.price, total: n * a.price }); }
+      else if (v) lines.push({ key: a.key, label: a.label, qty: 1, price: a.price, total: a.price });
+    });
+    if (tier === "Complex" || tier === "Very Complex") lines.push({ key: "surge", label: "Surge protector", qty: 1, price: 80000, total: 80000, auto: true });
+    if (addons.tv32 || addons.tv43) lines.push({ key: "hdmi", label: "HDMI 5m cable", qty: 1, price: 40000, total: 40000, auto: true });
+    var addonsTotal = lines.reduce(function (s, l) { return s + l.total; }, 0);
+    var zone = QUOTE_ZONES.filter(function (z) { return z.key === q.zone; })[0] || QUOTE_ZONES[0];
+    var bundle = cameras === 4 && tier === "Standard" && !!addons.hdd2tb && !!addons.tv32 && !!addons.powerpack;
+    var bundleDiscount = bundle ? 150000 : 0;
+    var subtotal = (base || 0) + addonsTotal + zone.surcharge - bundleDiscount;
+    var discountPct = Math.max(0, Math.min(100, Number(q.discountPct) || 0));
+    var discountAmount = Math.round(subtotal * discountPct / 100);
+    var cash = Math.max(0, subtotal - discountAmount);
+    var financed = cash + 250000;
+    return {
+      pts: pts, tier: tier, cameras: cameras, packageTier: QUOTE_PACKAGE[cameras] || "Custom",
+      base: base, custom: base === null, lines: lines, addonsTotal: addonsTotal, zone: zone,
+      bundle: bundle, bundleDiscount: bundleDiscount, subtotal: subtotal,
+      discountPct: discountPct, discountAmount: discountAmount, cash: cash, financed: financed,
+      financingAvailable: cash >= 1500000, needsApproval: tier === "Very Complex" || base === null
+    };
+  }
   var DECISION = ["Unknown", "Yes", "No"];
   var APPT_STATUSES = ["Proposed", "Confirmed", "Completed", "Rescheduled", "Cancelled", "No-show"];
   var PURPOSES = ["Technical site survey", "Follow-up visit", "Installation planning"];
@@ -85,6 +165,7 @@
     users: [],
     transactions: [],
     installations: [],
+    quotes: [],
     technicians: [],
     config: defaultConfig()
   };
@@ -111,6 +192,7 @@
       if (!data.users) data.users = [];
       if (!data.transactions) data.transactions = [];
       if (!data.installations) data.installations = [];
+      if (!data.quotes) data.quotes = [];
       if (!data.technicians) data.technicians = [];
       if (!data.config || typeof data.config !== "object") data.config = defaultConfig();
       return data;
@@ -291,6 +373,7 @@
     if (view === "settings" && !isAdmin()) view = "today";      // Settings is admin-only
     if (view === "cashflow" && !canCashflow()) view = "today";  // Cash flow is Operations + admin
     if (view === "installs" && !canInstalls()) view = "today";  // Installations is Operations + admin
+    if (view === "quotes" && !canInstalls()) view = "today";    // Quotes is Operations + admin
     updateNavActive();
     updateCashBadge();
     updateProspectBadge();
@@ -299,6 +382,7 @@
     else if (view === "prospects") renderProspects();
     else if (view === "visits") renderVisits();
     else if (view === "installs") renderInstalls();
+    else if (view === "quotes") renderQuotes();
     else if (view === "cashflow") renderCashflow();
     else if (view === "settings") renderSettings();
   }
@@ -706,6 +790,160 @@
 
   /* ------------------------------ INSTALLATIONS ----------------------------- */
   function canInstalls() { return isAdmin() || !!(settings.user && settings.user.role === "operations"); }
+
+  // Shared client block used by installations AND quotes: pick a client from
+  // the sales pipeline (read-only, no re-entry), or add a walk-in.
+  function renderClientBlock(id, presetProspect, source) {
+    var isWalkin = presetProspect === "__walkin__";
+    var preset = (!id && presetProspect && !isWalkin) ? prospect(presetProspect) : null;
+    var linkedId = source.prospectId || (preset ? preset.id : "");
+    var lp = linkedId ? prospect(linkedId) : null;
+    var isLinked = !!(lp && lp.id);
+    var roClient = "";
+    if (isLinked) {
+      var visit = appointmentFor(linkedId);
+      var ctx = line("Contact", esc(lp.contact || "—") + (lp.phone ? " · " + esc(lp.phone) : "")) +
+        line("Site", esc(lp.location || "—") + (lp.geo ? " · " + mapLink(lp.geo) : "")) +
+        (lp.vertical ? line("Type", esc(lp.vertical)) : "") +
+        (lp.existing ? line("Existing cameras", esc(lp.existing)) : "") +
+        (lp.areas ? line("Areas to cover", esc(lp.areas)) : "") +
+        (lp.concern ? line("Security concern", esc(lp.concern)) : "") +
+        (visit && visit.directions ? line("Site access", esc(visit.directions)) : "");
+      roClient = '<div class="field full"><label>Client <span class="optional-tag">from the sales record</span></label>' +
+        '<div class="ro-card"><div class="ro-title">' + esc(lp.business) + '</div><div class="item-lines">' + ctx + "</div>" +
+        (lp.photoId ? '<button type="button" class="btn btn-ghost btn-sm" data-job-photo="' + esc(lp.photoId) + '" style="margin-top:10px">View business photo</button>' : "") + "</div>" +
+        '<p class="helper">These come from the prospect — edit them in Prospects if they change.</p></div>';
+    }
+    var manualClient =
+      field("business", "Client / business", "text", source.business, { required: true, full: true, placeholder: "e.g. Acacia Pharmacy" }) +
+      field("contact", "Contact person", "text", source.contact, { placeholder: "Who to ask for" }) +
+      field("phone", "Phone", "tel", source.phone) +
+      field("location", "Site location", "text", source.location, { full: true, placeholder: "Area, street or landmark" });
+    var block;
+    if (!id) {
+      var pickVal = isLinked ? linkedId : (isWalkin ? "__walkin__" : "");
+      var opts = (state.prospects || []).slice()
+        .sort(function (a, b) { return (b.closedSale ? 1 : 0) - (a.closedSale ? 1 : 0) || (a.business || "").localeCompare(b.business || ""); })
+        .map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === pickVal ? " selected" : "") + ">" + esc(p.business) + (p.closedSale ? " — closed sale" : "") + "</option>"; }).join("");
+      block = '<div class="field full"><label for="f_clientPick">Client <span class="req" aria-hidden="true">*</span></label>' +
+        '<select id="f_clientPick"><option value="">Choose the client…</option>' + opts +
+        '<option value="__walkin__"' + (isWalkin ? " selected" : "") + ">+ Walk-in / not in the sales list</option></select>" +
+        '<p class="helper">Pick a client from Sales, or add a walk-in.</p></div>' +
+        (isLinked ? roClient : (isWalkin ? manualClient : '<div class="field full"><p class="rev-petty">Pick a client above to continue.</p></div>'));
+    } else {
+      block = isLinked ? roClient : manualClient;
+    }
+    return block + '<input type="hidden" name="prospectId" value="' + esc(linkedId) + '">';
+  }
+
+  /* -------------------------------- QUOTES ---------------------------------- */
+  function quoteTierChip(t) { return t === "Very Complex" ? chip(t, "red", "!") : t === "Complex" ? chip(t, "amber", "◔") : t === "Standard" ? chip(t, "cyan", "★") : chip(t || "Simple", "grey", "•"); }
+  function quoteStatusChip(s) { if (s === "Accepted") return chip(s, "green", "✓"); if (s === "Rejected") return chip(s, "red", "✕"); if (s === "Sent") return chip(s, "cyan", "→"); if (s === "Expired") return chip(s, "grey", "•"); return chip(s || "Draft", "amber", "◔"); }
+  function newQuoteRef() { var n = (state.quotes || []).length + 1; return "Q-" + String(today || "2026").slice(0, 4) + "-" + ("000" + n).slice(-4); }
+  var quoteFilter = "all";
+
+  function renderQuotes() {
+    setHead("Operations", "Quotes", "Build a professional site quote in minutes — priced by the rubric.", "New quote", true);
+    var qs = state.quotes || [];
+    var open = qs.filter(function (q) { return q.status !== "Rejected" && q.status !== "Expired"; });
+    var pipeline = open.reduce(function (s, q) { return s + computeQuote(q).cash; }, 0);
+    var summary = '<section class="card cash-summary"><div class="cash-bal"><span class="k">Open pipeline</span><strong>' + money(pipeline) + "</strong>" +
+      "<small>" + open.length + " open · " + qs.length + " total</small></div></section>";
+    var filterBar = '<div class="toolbar"><div class="field-inline" style="flex:1"><label for="quoteFilter">Show</label><select id="quoteFilter">' +
+      [["all", "All quotes"]].concat(QUOTE_STATUSES.map(function (s) { return [s, s]; })).map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === quoteFilter ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></div></div>";
+    var rows = qs.filter(function (q) { return quoteFilter === "all" || q.status === quoteFilter; })
+      .sort(function (a, b) { return (b.createdAt || "").localeCompare(a.createdAt || "") || (b.quoteRef || "").localeCompare(a.quoteRef || ""); });
+    var list = rows.length ? '<div class="list">' + rows.map(quoteCard).join("") + "</div>" :
+      emptyState(ICON_INSTALL, "No quotes yet", "Tap New quote to price a site with the rubric.", "New quote", 'data-new="quote"');
+    content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " quote" : " quotes") + "</p>" + list;
+  }
+
+  function quoteCard(q) {
+    var c = jobClient(q);
+    var r = computeQuote(q);
+    return '<article class="item" data-edit="quote" data-id="' + q.id + '">' +
+      '<div class="item-top"><div><div class="item-title">' + esc(c.business || "Untitled") + "</div>" +
+      '<div class="item-meta">' + esc(q.quoteRef || "") + " · " + (r.custom ? "12+ cam" : r.cameras + "-cam") + " · " + esc(r.tier) + "</div></div>" + quoteStatusChip(q.status) + "</div>" +
+      '<div class="item-lines">' +
+      (r.custom ? '<div class="item-line"><span class="k">Total</span><span class="v">Custom — Ben quotes</span></div>' :
+        '<div class="item-line"><span class="k">Total (cash)</span><span class="v">' + money(r.cash) + "</span></div>") +
+      (r.financingAvailable ? '<div class="item-line"><span class="k">Financed</span><span class="v">' + money(r.financed) + "</span></div>" : "") +
+      '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(q.createdBy || "—") + "</span></div>" +
+      (r.needsApproval ? '<div class="item-line"><span class="k">Flag</span><span class="v" style="color:var(--red)">Needs Ben approval</span></div>' : "") +
+      "</div></article>";
+  }
+
+  // Read the live quote inputs off the form.
+  function readQuoteInputs() {
+    var rubric = {};
+    QUOTE_RUBRIC.forEach(function (r) { var el = document.getElementById("f_" + r.key); rubric[r.key] = el ? el.value : "0"; });
+    var camEl = document.getElementById("f_cameraCount");
+    var addons = {};
+    QUOTE_ADDONS.forEach(function (a) {
+      if (a.qty) { var qi = document.querySelector('[data-addon-qty="' + a.key + '"]'); addons[a.key] = qi ? Math.max(0, Math.round(Number(qi.value) || 0)) : 0; }
+      else { var ci = document.querySelector('[data-addon="' + a.key + '"]'); addons[a.key] = ci ? ci.checked : false; }
+    });
+    var zoneEl = document.getElementById("f_zone");
+    var discEl = document.getElementById("f_discountPct");
+    return { rubric: rubric, cameraCount: camEl ? Number(camEl.value) || 0 : 0, addons: addons, zone: zoneEl ? zoneEl.value : "1", discountPct: discEl ? Math.max(0, Number(discEl.value) || 0) : 0 };
+  }
+  function quoteSummaryHtml(r) {
+    var rows = (r.custom ? '<div class="pay-line"><span>Base (12+ cameras)</span><strong>Custom — Ben quotes</strong></div>' :
+      '<div class="pay-line"><span>Base (' + r.cameras + "-cam " + esc(r.tier) + ")</span><strong>" + money(r.base) + "</strong></div>") +
+      r.lines.map(function (l) { return '<div class="pay-line"><span>' + esc(l.label) + (l.qty > 1 ? " ×" + l.qty : "") + (l.auto ? " (auto)" : "") + "</span><strong>" + money(l.total) + "</strong></div>"; }).join("") +
+      (r.zone.surcharge > 0 ? '<div class="pay-line"><span>' + esc(r.zone.label.split(" — ")[0]) + " surcharge</span><strong>" + money(r.zone.surcharge) + "</strong></div>" : "") +
+      (r.bundle ? '<div class="pay-line"><span>Complete Home Bundle</span><strong class="pos">−' + money(r.bundleDiscount) + "</strong></div>" : "") +
+      (r.discountAmount > 0 ? '<div class="pay-line"><span>Discount ' + r.discountPct + "%</span><strong class=\"pos\">−" + money(r.discountAmount) + "</strong></div>" : "");
+    var total = '<div class="pay-line pay-grand"><span><strong>Total (cash)</strong></span><strong>' + (r.custom ? "—" : money(r.cash)) + "</strong></div>";
+    var fin = (!r.custom && r.financingAvailable) ?
+      '<div class="quote-fin"><div class="quote-fin-col"><div class="qf-h">Cash · 60/40</div>' +
+      '<div class="qf-row"><span>Install day</span><strong>' + money(Math.round(r.cash * 0.6)) + "</strong></div>" +
+      '<div class="qf-row"><span>Completion</span><strong>' + money(Math.round(r.cash * 0.4)) + "</strong></div></div>" +
+      '<div class="quote-fin-col"><div class="qf-h">3 months · 40/30/30 <small>+250k</small></div>' +
+      '<div class="qf-row"><span>Install day</span><strong>' + money(Math.round(r.financed * 0.4)) + "</strong></div>" +
+      '<div class="qf-row"><span>Month 2</span><strong>' + money(Math.round(r.financed * 0.3)) + "</strong></div>" +
+      '<div class="qf-row"><span>Month 3</span><strong>' + money(Math.round(r.financed * 0.3)) + "</strong></div></div></div>" :
+      (r.custom ? "" : '<p class="helper">Financing options show at ' + money(1500000) + " and above.</p>");
+    return '<div class="pay-summary">' + rows + total + "</div>" + fin;
+  }
+  function recalcQuoteForm() {
+    var el = document.getElementById("quoteSummary"); if (!el) return;
+    var r = computeQuote(readQuoteInputs());
+    el.innerHTML = quoteSummaryHtml(r);
+    var tc = document.getElementById("quoteTier"); if (tc) tc.innerHTML = quoteTierChip(r.tier) + ' <span class="quote-pts">' + r.pts + " pts</span>";
+    var gov = document.getElementById("quoteGov");
+    if (gov) gov.innerHTML = r.needsApproval ? '<div class="rev-noproof">' + (r.custom ? "12+ cameras is a custom quote — " : "This site scored Very Complex — ") + "send it to Ben to approve before quoting." + (isAdmin() ? " (You can approve as admin.)" : "") + "</div>" : "";
+    var save = document.getElementById("saveButton");
+    if (save) save.disabled = (r.needsApproval && !isAdmin()) || (!isAdmin() && r.discountPct > 5);
+  }
+
+  async function saveQuote(data) {
+    if (!canInstalls()) return;
+    var prospectId = data.prospectId || "";
+    var linked = prospectId ? prospect(prospectId) : null;
+    var isLinked = !!(linked && linked.id);
+    if (!isLinked && !(data.business || "").trim()) { showFormError("Choose the client for this quote — pick one, or add a walk-in with a name."); return; }
+    var inputs = readQuoteInputs();
+    var r = computeQuote(inputs);
+    if (!isAdmin() && r.discountPct > 5) { showFormError("A discount above 5% needs the Owner — ask Ben to apply it."); return; }
+    if (r.needsApproval && !isAdmin()) { showFormError("This scored Very Complex (or 12+ cameras). Send it to Ben to approve before quoting."); return; }
+    var status = QUOTE_STATUSES.indexOf(data.status) >= 0 ? data.status : "Draft";
+    var fields = Object.assign({
+      prospectId: prospectId,
+      business: isLinked ? "" : (data.business || "").trim(), contact: isLinked ? "" : (data.contact || "").trim(),
+      phone: isLinked ? "" : (data.phone || "").trim(), location: isLinked ? "" : (data.location || "").trim(),
+      status: status, notes: (data.notes || "").trim()
+    }, inputs);
+    if (editing.id) {
+      var idx = state.quotes.findIndex(function (x) { return x.id === editing.id; });
+      state.quotes[idx] = Object.assign({}, state.quotes[idx], fields);
+    } else {
+      state.quotes.push(Object.assign({ id: uid(), quoteRef: newQuoteRef(), createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "", createdAt: today }, fields));
+    }
+    hideFormError(); dialog.close();
+    saveData(editing.id ? "Quote updated" : "Quote created"); render();
+  }
+
   function technician(id) { return (state.technicians || []).find(function (t) { return t.id === id; }) || null; }
   function activeTechnicians() { return (state.technicians || []).filter(function (t) { return t.active !== false; }); }
   function installStatusChip(s) {
@@ -1434,50 +1672,9 @@
     }
     if (type === "installation") {
       document.getElementById("dialogTitle").textContent = id ? "Installation" : "New installation";
-      var isWalkin = presetProspect === "__walkin__";
-      var preset = (!id && presetProspect && !isWalkin) ? prospect(presetProspect) : null;
-      var linkedId = source.prospectId || (preset ? preset.id : "");
-      var linkedProspect = linkedId ? prospect(linkedId) : null;
-      var isLinked = !!(linkedProspect && linkedProspect.id);
       var techOpts = (state.technicians || []).filter(function (t) { return t.active !== false || t.id === source.technicianId; })
         .map(function (t) { return '<option value="' + esc(t.id) + '"' + (t.id === source.technicianId ? " selected" : "") + ">" + esc(t.name) + (t.active === false ? " (inactive)" : "") + "</option>"; }).join("");
-      // Client + survey details come straight from the sales record (read-only,
-      // no re-entry). A walk-in that isn't in the pipeline can be typed instead.
-      var roClient = "";
-      if (isLinked) {
-        var visit = appointmentFor(linkedId);
-        var ctx = line("Contact", esc(linkedProspect.contact || "—") + (linkedProspect.phone ? " · " + esc(linkedProspect.phone) : "")) +
-          line("Site", esc(linkedProspect.location || "—") + (linkedProspect.geo ? " · " + mapLink(linkedProspect.geo) : "")) +
-          (linkedProspect.existing ? line("Existing cameras", esc(linkedProspect.existing)) : "") +
-          (linkedProspect.areas ? line("Areas to cover", esc(linkedProspect.areas)) : "") +
-          (linkedProspect.concern ? line("Security concern", esc(linkedProspect.concern)) : "") +
-          (visit && visit.directions ? line("Site access", esc(visit.directions)) : "");
-        roClient = '<div class="field full"><label>Client <span class="optional-tag">from the sales record</span></label>' +
-          '<div class="ro-card"><div class="ro-title">' + esc(linkedProspect.business) + '</div><div class="item-lines">' + ctx + "</div>" +
-          (linkedProspect.photoId ? '<button type="button" class="btn btn-ghost btn-sm" data-job-photo="' + esc(linkedProspect.photoId) + '" style="margin-top:10px">View business photo</button>' : "") + "</div>" +
-          '<p class="helper">These come from the prospect — edit them in Prospects if they change.</p></div>';
-      }
-      var manualClient =
-        field("business", "Client / business", "text", source.business, { required: true, full: true, placeholder: "e.g. Acacia Pharmacy" }) +
-        field("contact", "Contact person", "text", source.contact, { placeholder: "Who to ask for" }) +
-        field("phone", "Phone", "tel", source.phone) +
-        field("location", "Site location", "text", source.location, { full: true, placeholder: "Area, street or landmark" });
-      var clientBlock;
-      if (!id) {
-        // New job: pick the client from Sales (closed sales first), or a walk-in.
-        var pickVal = isLinked ? linkedId : (isWalkin ? "__walkin__" : "");
-        var prospectOpts = (state.prospects || []).slice()
-          .sort(function (a, b) { return (b.closedSale ? 1 : 0) - (a.closedSale ? 1 : 0) || (a.business || "").localeCompare(b.business || ""); })
-          .map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === pickVal ? " selected" : "") + ">" + esc(p.business) + (p.closedSale ? " — closed sale" : "") + "</option>"; }).join("");
-        clientBlock = '<div class="field full"><label for="f_clientPick">Client <span class="req" aria-hidden="true">*</span></label>' +
-          '<select id="f_clientPick"><option value="">Choose the client…</option>' + prospectOpts +
-          '<option value="__walkin__"' + (isWalkin ? " selected" : "") + ">+ Walk-in / not in the sales list</option></select>" +
-          '<p class="helper">An installation belongs to a client. Pick one from Sales, or add a walk-in.</p></div>' +
-          (isLinked ? roClient : (isWalkin ? manualClient : '<div class="field full"><p class="rev-petty">Pick a client above to continue.</p></div>'));
-      } else {
-        clientBlock = isLinked ? roClient : manualClient;
-      }
-      html += clientBlock +
+      html += renderClientBlock(id, presetProspect, source) +
         field("status", "Status", "select", source.status || "Quoted", { options: INSTALL_STATUSES, full: true }) +
         field("scheduledDate", "Install date", "date", source.scheduledDate || "") +
         field("scheduledTime", "Time", "time", source.scheduledTime || "") +
@@ -1496,8 +1693,32 @@
         '<div class="chk-list" id="chkList">' + INSTALL_CHECKLIST.map(function (i) {
           return '<label class="chk-item"><input type="checkbox" data-check="' + esc(i.key) + '"' + ((source.checklist && source.checklist[i.key]) ? " checked" : "") + "><span>" + esc(i.label) + "</span></label>";
         }).join("") + "</div></div>" +
-        (id ? jobPaymentsSection(source) : "") +
-        '<input type="hidden" name="prospectId" value="' + esc(linkedId) + '">';
+        (id ? jobPaymentsSection(source) : "");
+    }
+    if (type === "quote") {
+      document.getElementById("dialogTitle").textContent = id ? (esc(source.quoteRef || "Quote")) : "New quote";
+      var qInputs = id ? source : {};
+      html += renderClientBlock(id, presetProspect, source) +
+        '<div class="field full"><label>Site scoring <span class="optional-tag" id="quoteTier"></span></label>' +
+        QUOTE_RUBRIC.map(function (r) {
+          return '<div class="field full" style="margin-bottom:10px"><label for="f_' + r.key + '">' + esc(r.q) + "</label><select id=\"f_" + r.key + '" class="quote-input">' +
+            r.opts.map(function (o) { return '<option value="' + o[0] + '"' + ((String((qInputs.rubric || {})[r.key] || "0")) === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></div>";
+        }).join("") + "</div>" +
+        field("cameraCount", "Cameras", "segmented", String(qInputs.cameraCount || 4), { full: true, options: [{ value: "2", label: "2" }, { value: "4", label: "4" }, { value: "6", label: "6" }, { value: "8", label: "8" }, { value: "12", label: "12+" }] }) +
+        '<div class="field full"><label>Add-ons</label><div class="quote-addons">' +
+        QUOTE_ADDONS.map(function (a) {
+          if (a.qty) {
+            return '<div class="qa-row"><span class="qa-label">' + esc(a.label) + " · " + money(a.price) + '</span><input class="quote-input qa-qty" type="number" inputmode="numeric" min="0" step="1" data-addon-qty="' + a.key + '" value="' + esc((qInputs.addons || {})[a.key] || "") + '" placeholder="0" aria-label="' + esc(a.label) + ' quantity"></div>';
+          }
+          return '<label class="chk-item"><input type="checkbox" class="quote-input" data-addon="' + a.key + '"' + ((qInputs.addons || {})[a.key] ? " checked" : "") + "><span>" + esc(a.label) + " · " + money(a.price) + "</span></label>";
+        }).join("") + '<p class="helper">Surge protector auto-adds on Complex+ sites; an HDMI cable auto-adds with a TV.</p></div></div>' +
+        '<div class="field full"><label for="f_zone">Zone</label><select id="f_zone" class="quote-input">' +
+        QUOTE_ZONES.map(function (z) { return '<option value="' + z.key + '"' + ((qInputs.zone || "1") === z.key ? " selected" : "") + ">" + esc(z.label) + (z.surcharge ? " (+" + money(z.surcharge) + ")" : "") + "</option>"; }).join("") + "</select></div>" +
+        (isAdmin() ? '<div class="field full"><label for="f_discountPct">Discount %</label><input id="f_discountPct" class="quote-input" type="number" inputmode="numeric" min="0" max="100" step="1" value="' + esc(qInputs.discountPct || "") + '" placeholder="0"><p class="helper">Owner only. Above 5% is your call.</p></div>' : "") +
+        '<div class="field full" id="quoteGov"></div>' +
+        '<div class="field full"><label>Quote</label><div id="quoteSummary"></div></div>' +
+        field("status", "Status", "select", source.status || "Draft", { options: QUOTE_STATUSES, full: true }) +
+        field("notes", "Notes", "textarea", source.notes, { full: true, optional: true, placeholder: "Anything the customer or Ben should know." });
     }
     // Delete is offered for prospects, site visits and installations (not cash
     // entries), and not once a prospect/visit is approved (Sales can't remove audited records).
@@ -1523,6 +1744,7 @@
       }
     }
     if (type === "installation") updateMatTotal();
+    if (type === "quote") recalcQuoteForm();
     document.getElementById("saveButton").textContent = id ? "Save changes" : "Save";
     if (!dialog.open) dialog.showModal();
     var first = formContent.querySelector('input:not([type=hidden]),select,textarea');
@@ -1563,14 +1785,17 @@
   form.addEventListener("input", function (e) {
     if (e.target.id === "f_amount") updateAmountEcho();
     if (e.target.classList.contains("mat-qty") || e.target.classList.contains("mat-cost")) updateMatTotal();
+    if (editing && editing.type === "quote" && e.target.classList.contains("quote-input")) recalcQuoteForm();
   });
 
   form.addEventListener("change", function (e) {
-    // Picking the client on a new installation re-renders the form with it.
+    // Picking the client on a new installation/quote re-renders the form with it.
     if (e.target.id === "f_clientPick") {
       var v = e.target.value;
-      openForm("installation", null, v === "__walkin__" ? "__walkin__" : (v || undefined));
+      openForm(editing ? editing.type : "installation", null, v === "__walkin__" ? "__walkin__" : (v || undefined));
+      return;
     }
+    if (editing && editing.type === "quote" && e.target.classList.contains("quote-input")) recalcQuoteForm();
   });
 
   form.addEventListener("click", function (e) {
@@ -1605,6 +1830,8 @@
       var outOnly = document.getElementById("txOutOnly");
       if (outOnly) outOnly.hidden = hidden.value !== "out";
     }
+    // Quote: the camera-count segmented control re-prices the quote live.
+    if (name === "cameraCount" && editing && editing.type === "quote") recalcQuoteForm();
   });
 
   form.addEventListener("submit", function (e) {
@@ -1614,6 +1841,7 @@
     if (type === "transaction") { saveTransaction(data); return; }
     if (type === "prospect") { saveProspect(data); return; }
     if (type === "installation") { saveInstallation(data); return; }
+    if (type === "quote") { saveQuote(data); return; }
     var collection = state[type + "s"];
 
     // Client-side guard: confirming a visit requires a complete handoff.
@@ -1897,7 +2125,7 @@
       var result = await res.json();
       if (!result.ok) return "unauth";
       if (result.data && result.data.prospects) {
-        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], installations: result.data.installations || [], technicians: result.data.technicians || [], config: result.data.config && typeof result.data.config === "object" ? result.data.config : defaultConfig() };
+        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], installations: result.data.installations || [], technicians: result.data.technicians || [], quotes: result.data.quotes || [], config: result.data.config && typeof result.data.config === "object" ? result.data.config : defaultConfig() };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       }
       return "ok";
@@ -2268,7 +2496,7 @@
   // Which "More" destinations apply to the current role.
   function moreViewsForRole() {
     var v = [];
-    if (canInstalls()) { v.push("installs"); v.push("cashflow"); }
+    if (canInstalls()) { v.push("quotes"); v.push("installs"); v.push("cashflow"); }
     if (isAdmin()) v.push("settings");
     return v;
   }
@@ -2282,7 +2510,7 @@
     var moreBtn = document.querySelector(".mainnav [data-more]");
     if (moreBtn) moreBtn.hidden = moreViewsForRole().length === 0;
     if (view === "settings" && !isAdmin()) view = "today";
-    if ((view === "cashflow" || view === "installs") && !canInstalls()) view = "today";
+    if ((view === "cashflow" || view === "installs" || view === "quotes") && !canInstalls()) view = "today";
     updateNavActive();
   }
   function openMoreMenu() {
@@ -2406,7 +2634,7 @@
       try {
         var parsed = JSON.parse(reader.result);
         if (!parsed.prospects || !parsed.appointments) throw new Error();
-        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [], transactions: parsed.transactions || state.transactions || [], installations: parsed.installations || state.installations || [], technicians: parsed.technicians || state.technicians || [], config: parsed.config && typeof parsed.config === "object" ? parsed.config : (state.config || defaultConfig()) };
+        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [], transactions: parsed.transactions || state.transactions || [], installations: parsed.installations || state.installations || [], technicians: parsed.technicians || state.technicians || [], quotes: parsed.quotes || state.quotes || [], config: parsed.config && typeof parsed.config === "object" ? parsed.config : (state.config || defaultConfig()) };
         saveData("Backup imported");
         render();
       } catch (e) { toast("That file is not a valid Verisko backup."); }
@@ -2428,6 +2656,7 @@
   document.getElementById("primaryAction").addEventListener("click", function () {
     if (view === "cashflow") openForm("transaction");
     else if (view === "installs") openForm("installation");
+    else if (view === "quotes") openForm("quote");
     else if (view === "visits") openForm("appointment");
     else openForm("prospect");
   });
@@ -2440,6 +2669,7 @@
     if (e.target.id === "visitFilter") updateVisitList();
     if (e.target.id === "cashFilter") { cashFilter = e.target.value; renderCashflow(); }
     if (e.target.id === "installFilter") { installFilter = e.target.value; renderInstalls(); }
+    if (e.target.id === "quoteFilter") { quoteFilter = e.target.value; renderQuotes(); }
     if (e.target.matches("[data-set-role]")) setMemberRole(e.target.dataset.userId, e.target.value);
   });
 
