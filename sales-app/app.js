@@ -56,7 +56,8 @@
       { id: "a1", prospectId: "p1", date: plusDays(1), time: "10:00", director: "Operations Director", status: "Confirmed", purpose: "Technical site survey", directions: "Ask for Grace at the dispensary counter. Parking on Kira Road.", created: plusDays(-2) },
       { id: "a2", prospectId: "p3", date: plusDays(2), time: "14:30", director: "Operations Director", status: "Proposed", purpose: "Technical site survey", directions: "Reception will call Dr. Amina. Enter from the side gate.", created: plusDays(-1) }
     ],
-    users: []
+    users: [],
+    transactions: []
   };
 
   var state = loadData();
@@ -79,6 +80,7 @@
       if (!data.prospects) data.prospects = [];
       if (!data.appointments) data.appointments = [];
       if (!data.users) data.users = [];
+      if (!data.transactions) data.transactions = [];
       return data;
     } catch (e) { return JSON.parse(JSON.stringify(seed)); }
   }
@@ -190,7 +192,8 @@
   }
 
   function render() {
-    if (view === "settings" && !isAdmin()) view = "today"; // Settings is owner-only
+    if (view === "settings" && !isAdmin()) view = "today";      // Settings is admin-only
+    if (view === "cashflow" && !canCashflow()) view = "today";  // Cash flow is Operations + admin
     document.querySelectorAll(".nav-item").forEach(function (b) {
       var on = b.dataset.view === view;
       b.classList.toggle("is-active", on);
@@ -199,6 +202,7 @@
     if (view === "today") renderToday();
     else if (view === "prospects") renderProspects();
     else if (view === "visits") renderVisits();
+    else if (view === "cashflow") renderCashflow();
     else if (view === "settings") renderSettings();
   }
 
@@ -406,19 +410,172 @@
   function line(k, v) { return '<div class="item-line"><span class="k">' + k + '</span><span class="v">' + v + "</span></div>"; }
   function lineHtml(k, v) { return line(k, v); }
 
+  /* -------------------------------- CASH FLOW ------------------------------- */
+  var ICON_CASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.4"/></svg>';
+  var TX_CATS = {
+    in: ["Customer deposit", "Customer payment", "Float top-up", "Refund", "Other"],
+    out: ["Equipment", "Cable & materials", "Transport & fuel", "Labour", "Airtime & data", "Other"]
+  };
+  var money = function (n) { return "UGX " + Number(n || 0).toLocaleString("en-US"); };
+  var cashFilter = "all";
+  var pendingProof = null; // resized photo chosen in the form, not yet uploaded
+
+  function txStatusChip(s) {
+    if (s === "approved") return chip("Approved", "green", "✓");
+    if (s === "query") return chip("Sent back", "red", "!");
+    return chip("Pending", "amber", "◔");
+  }
+
+  function renderCashflow() {
+    setHead("Operations", "Cash flow", "Record money in and out, back each with proof, and keep the float reconciled.", "Add money", true);
+    var txs = state.transactions || [];
+    var sumBy = function (dir) { return txs.filter(function (t) { return t.status === "approved" && t.direction === dir; }).reduce(function (s, t) { return s + Number(t.amount || 0); }, 0); };
+    var approvedIn = sumBy("in"), approvedOut = sumBy("out"), balance = approvedIn - approvedOut;
+    var pending = txs.filter(function (t) { return t.status !== "approved"; });
+
+    var summary = '<section class="card cash-summary"><div class="cash-bal"><span class="k">Float balance</span><strong>' + money(balance) + "</strong>" +
+      '<small>Approved in ' + money(approvedIn) + " · out " + money(approvedOut) + "</small></div>" +
+      (pending.length ? '<div class="cash-pending">' + chip(pending.length + " awaiting review", "amber", "◔") + "</div>" : "") + "</section>";
+
+    var filterBar = '<div class="toolbar"><div class="field-inline" style="flex:1"><label for="cashFilter">Show</label><select id="cashFilter">' +
+      [["all", "All entries"], ["pending", "Pending"], ["approved", "Approved"], ["query", "Sent back"]].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === cashFilter ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select></div></div>";
+
+    var rows = txs.filter(function (t) { return cashFilter === "all" || t.status === cashFilter; })
+      .sort(function (a, b) { return (b.date || "").localeCompare(a.date || "") || (b.createdAt || "").localeCompare(a.createdAt || ""); });
+
+    var list = rows.length ? '<div class="list">' + rows.map(txCard).join("") + "</div>" :
+      emptyState(ICON_CASH, "No entries yet", "Tap Add money to record your first cash movement.", "Add money", 'data-new="transaction"');
+
+    content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " entry" : " entries") + "</p>" + list;
+  }
+
+  function txCard(t) {
+    var p = t.prospectId ? prospect(t.prospectId) : null;
+    var sign = t.direction === "in" ? "+" : "−";
+    return '<article class="item tx-item" data-edit="transaction" data-id="' + t.id + '">' +
+      '<div class="item-top"><div><div class="item-title"><span class="tx-dir ' + (t.direction === "in" ? "in" : "out") + '">' + (t.direction === "in" ? "In" : "Out") + "</span> " + sign + money(t.amount) + "</div>" +
+      '<div class="item-meta">' + esc(t.category || "Uncategorised") + (p && p.business ? " · " + esc(p.business) : "") + "</div></div>" + txStatusChip(t.status) + "</div>" +
+      '<div class="item-lines"><div class="item-line"><span class="k">Date</span><span class="v">' + dateLabel(t.date) + "</span></div>" +
+      '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(t.createdBy || "—") + "</span></div>" +
+      (t.status === "query" && t.reviewNote ? '<div class="item-line"><span class="k">Sent back</span><span class="v" style="color:var(--red)">' + esc(t.reviewNote) + "</span></div>" : "") +
+      '<div class="item-line"><span class="k">Proof</span><span class="v">' + (t.proofId ? "Attached" : '<span style="color:var(--amber)">No proof yet</span>') + "</span></div></div></article>";
+  }
+
+  /* -------- Receipt photo helpers -------- */
+  function resizeImage(file, maxDim, quality) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          var c = document.createElement("canvas");
+          c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+          c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+          resolve(c.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = reject; img.src = reader.result;
+      };
+      reader.onerror = reject; reader.readAsDataURL(file);
+    });
+  }
+  async function uploadProof(dataUrl) {
+    if (settings.auth && settings.auth.expires_at && settings.auth.expires_at * 1000 - Date.now() < 60000) await refreshSession();
+    var res = await fetch("/api/receipt", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + (settings.auth ? settings.auth.access_token : "") }, body: JSON.stringify({ image: dataUrl }) });
+    var j = await res.json().catch(function () { return {}; });
+    if (!res.ok || !j.ok) throw new Error(j.error === "Image too large — please retake it." ? j.error : "Couldn't upload the photo. Check your connection.");
+    return j.id;
+  }
+  async function fetchProof(id) {
+    try {
+      var res = await fetch("/api/receipt?id=" + encodeURIComponent(id), { headers: { Authorization: "Bearer " + (settings.auth ? settings.auth.access_token : "") } });
+      var j = await res.json(); return res.ok && j.ok ? j.image : null;
+    } catch (e) { return null; }
+  }
+  function proofControl(source) {
+    var has = source && source.proofId;
+    return '<div class="proof" id="proofBox"><input type="hidden" name="proofId" value="' + esc((source && source.proofId) || "") + '">' +
+      '<div class="proof-preview" id="proofPreview">' + (has ? '<span class="proof-none">Loading photo…</span>' : '<span class="proof-none">No photo yet</span>') + "</div>" +
+      '<input type="file" id="proofInput" accept="image/*" hidden>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-proof-pick>' + (has ? "Replace photo" : "Add photo") + "</button></div>";
+  }
+  async function onProofPick() {
+    var file = this.files && this.files[0]; if (!file) return;
+    var pv = document.getElementById("proofPreview");
+    if (pv) pv.innerHTML = '<span class="proof-none">Processing…</span>';
+    try {
+      pendingProof = await resizeImage(file, 1200, 0.7);
+      if (pv) pv.innerHTML = '<img src="' + pendingProof + '" alt="Proof photo" class="proof-img">';
+      var btn = document.querySelector("[data-proof-pick]"); if (btn) btn.textContent = "Replace photo";
+    } catch (e) { if (pv) pv.innerHTML = '<span class="proof-none">Couldn\'t read that image</span>'; }
+    this.value = "";
+  }
+
+  /* -------- Save / approve / send back a cash entry -------- */
+  async function saveTransaction(data) {
+    var amount = Math.round(Number(data.amount) || 0);
+    if (amount <= 0) { showFormError("Enter an amount greater than zero."); return; }
+    var direction = data.direction === "out" ? "out" : "in";
+    var saveBtn = document.getElementById("saveButton");
+    var proofId = data.proofId || "";
+    try {
+      if (pendingProof) { saveBtn.disabled = true; saveBtn.textContent = "Uploading photo…"; proofId = await uploadProof(pendingProof); }
+    } catch (e) { saveBtn.disabled = false; saveBtn.textContent = editing.id ? "Save changes" : "Save"; showFormError(e.message); return; }
+
+    if (editing.id) {
+      var idx = state.transactions.findIndex(function (x) { return x.id === editing.id; });
+      var prev = state.transactions[idx];
+      var upd = Object.assign({}, prev, { direction: direction, amount: amount, date: data.date, category: data.category, prospectId: data.prospectId || "", note: data.note || "", proofId: proofId });
+      if (!isAdmin() && prev.status === "query") { upd.status = "pending"; upd.reviewNote = ""; } // resubmit after a send-back
+      state.transactions[idx] = upd;
+    } else {
+      state.transactions.push({
+        id: uid(), direction: direction, amount: amount, date: data.date || today, category: data.category,
+        prospectId: data.prospectId || "", note: data.note || "", proofId: proofId,
+        createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "",
+        createdAt: today, status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: ""
+      });
+    }
+    pendingProof = null;
+    saveBtn.disabled = false;
+    hideFormError(); dialog.close();
+    saveData(editing.id ? "Cash entry updated" : "Cash entry added");
+    render();
+  }
+  function approveTransaction() {
+    if (!editing || !editing.id || !isAdmin()) return;
+    var t = state.transactions.find(function (x) { return x.id === editing.id; });
+    if (!t) return;
+    if (!t.proofId && !pendingProof) { showFormError("Attach a proof photo before approving."); return; }
+    t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.reviewNote = "";
+    dialog.close(); saveData("Entry approved"); render();
+  }
+  function sendBackTransaction() {
+    if (!editing || !editing.id || !isAdmin()) return;
+    var t = state.transactions.find(function (x) { return x.id === editing.id; });
+    if (!t) return;
+    var note = prompt("Send this back to whoever recorded it. What needs fixing?");
+    if (note === null) return;
+    t.status = "query"; t.reviewNote = (note || "").trim(); t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today;
+    dialog.close(); saveData("Sent back for changes"); render();
+  }
+
   /* -------------------------------- SETTINGS -------------------------------- */
   function renderSettings() {
     setHead("Owner settings", "Settings", "Team, connection, and data.", "", false);
     var users = state.users || [];
     var me = settings.user || {};
     var ownId = ownerId();
+    var roleOpts = function (sel) {
+      return [["sales", "Sales"], ["operations", "Operations"], ["admin", "Technical"]].map(function (o) {
+        return '<option value="' + o[0] + '"' + (o[0] === sel ? " selected" : "") + ">" + o[1] + "</option>";
+      }).join("");
+    };
     var teamRows = users.length ? '<div class="account-list">' + users.map(function (u) {
       var manageable = u.id !== ownId && u.id !== me.id;
       var actions = "";
       if (manageable) {
-        actions += u.role === "admin"
-          ? '<button type="button" class="account-role" data-set-role="user" data-user-id="' + esc(u.id) + '">Make Sales/Ops</button>'
-          : '<button type="button" class="account-role" data-set-role="admin" data-user-id="' + esc(u.id) + '">Make Technical</button>';
+        actions += '<select class="account-role-select" data-set-role data-user-id="' + esc(u.id) + '" aria-label="Role for ' + esc(u.name) + '">' + roleOpts(normRole(u.role)) + "</select>";
         actions += '<button type="button" class="account-remove" data-remove-user="' + esc(u.id) + '" aria-label="Remove ' + esc(u.name) + '">Remove</button>';
       }
       return '<div class="account-row" style="background:var(--fill-2)"><span class="user-avatar" aria-hidden="true">' + esc(initials(u.name)) + "</span>" +
@@ -427,14 +584,15 @@
     }).join("") + "</div>" : '<p class="settings-note">No accounts yet.</p>';
     content.innerHTML = '<div class="settings-grid">' +
       '<section class="card settings-card"><h2>Team members</h2>' +
-      "<p><strong>Technical</strong> members can open this Settings page; <strong>Sales &amp; Operations</strong> cannot. Each prospect records who added it. Removing someone revokes their access immediately.</p>" +
+      "<p><strong>Sales</strong> see prospects and visits. <strong>Operations</strong> also get the Cash flow tab. <strong>Technical</strong> can also open this Settings page. Removing someone revokes access immediately.</p>" +
       teamRows +
       '<form id="addMemberForm" class="add-member">' +
       '<div class="field"><label for="memberName">Name</label><input id="memberName" name="name" type="text" autocomplete="off" placeholder="e.g. Grace Namubiru" required></div>' +
       '<div class="field"><label for="memberEmail">Email</label><input id="memberEmail" name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" placeholder="grace@example.com" required></div>' +
       '<div class="field"><label for="memberRole">Role</label><select id="memberRole" name="role">' +
-      '<option value="user">Sales / Operations — no Settings access</option>' +
-      '<option value="admin">Technical — can open Settings</option></select></div>' +
+      '<option value="sales">Sales — prospects &amp; visits</option>' +
+      '<option value="operations">Operations — also Cash flow</option>' +
+      '<option value="admin">Technical — also Settings</option></select></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Add team member</button>' +
       "</form></section>" +
 
@@ -541,12 +699,40 @@
         field("purpose", "Purpose", "segmented", source.purpose || PURPOSES[0], { full: true, options: PURPOSES }) +
         field("directions", "Directions and access instructions", "textarea", source.directions, { full: true, optional: true, placeholder: "How to reach the site and who to ask for." });
     }
-    // When editing an existing record, offer a delete at the bottom of the form.
-    if (id) html += '<button type="button" class="btn btn-danger btn-block delete-record" data-delete>Delete this ' + (type === "appointment" ? "site visit" : "prospect") + "</button>";
+    if (type === "transaction") {
+      document.getElementById("dialogTitle").textContent = id ? "Cash entry" : "Add money";
+      var dir = source.direction || "in";
+      var cats = TX_CATS[dir] || TX_CATS.in;
+      html +=
+        field("direction", "Direction", "segmented", dir, { full: true, options: [{ value: "in", label: "Money in" }, { value: "out", label: "Money out" }] }) +
+        field("amount", "Amount (UGX)", "number", source.amount || "", { required: true }) +
+        field("date", "Date", "date", source.date || today, { required: true }) +
+        field("category", "Category", "select", source.category || cats[0], { options: cats, full: true }) +
+        '<div class="field full"><label for="f_prospectId">Link to a prospect (optional)</label><select id="f_prospectId" name="prospectId"><option value="">— none —</option>' +
+        state.prospects.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === source.prospectId ? " selected" : "") + ">" + esc(p.business) + "</option>"; }).join("") + "</select></div>" +
+        field("note", "Note", "textarea", source.note, { full: true, optional: true }) +
+        '<div class="field full"><label>Proof of payment</label>' + proofControl(source) + "</div>";
+      if (id && isAdmin() && source.status !== "approved") {
+        html += '<div class="field full tx-review"><button type="button" class="btn btn-primary btn-block" data-approve>Approve entry</button><button type="button" class="btn btn-ghost btn-block" data-sendback>Send back with a note</button></div>';
+      }
+    }
+    // Delete is offered for prospects & site visits (not cash entries).
+    if (id && (type === "prospect" || type === "appointment")) html += '<button type="button" class="btn btn-danger btn-block delete-record" data-delete>Delete this ' + (type === "appointment" ? "site visit" : "prospect") + "</button>";
     formContent.innerHTML = html + "</div>";
+    if (type === "transaction") {
+      pendingProof = null;
+      var pIn = document.getElementById("proofInput");
+      if (pIn) pIn.addEventListener("change", onProofPick);
+      if (source && source.proofId) {
+        fetchProof(source.proofId).then(function (img) {
+          var pv = document.getElementById("proofPreview");
+          if (pv) pv.innerHTML = img ? '<img src="' + img + '" alt="Proof photo" class="proof-img">' : '<span class="proof-none">Couldn\'t load photo</span>';
+        });
+      }
+    }
     document.getElementById("saveButton").textContent = id ? "Save changes" : "Save";
     if (!dialog.open) dialog.showModal();
-    var first = formContent.querySelector("input,select,textarea");
+    var first = formContent.querySelector('input:not([type=hidden]),select,textarea');
     if (first) first.focus();
   }
 
@@ -570,6 +756,9 @@
   // Segmented (tap) controls: set the hidden value and move the selection.
   form.addEventListener("click", function (e) {
     if (e.target.closest("[data-delete]")) { deleteRecord(); return; }
+    if (e.target.closest("[data-proof-pick]")) { var pi = document.getElementById("proofInput"); if (pi) pi.click(); return; }
+    if (e.target.closest("[data-approve]")) { approveTransaction(); return; }
+    if (e.target.closest("[data-sendback]")) { sendBackTransaction(); return; }
     var btn = e.target.closest(".seg-btn");
     if (!btn) return;
     var name = btn.getAttribute("data-seg-target");
@@ -578,12 +767,21 @@
     });
     var hidden = document.getElementById("f_" + name);
     if (hidden) hidden.value = btn.getAttribute("data-val");
+    // Cash flow: switching In/Out re-populates the category list to match.
+    if (name === "direction" && editing && editing.type === "transaction") {
+      var sel = document.getElementById("f_category");
+      if (sel) {
+        var cats = TX_CATS[hidden.value] || TX_CATS.in;
+        sel.innerHTML = cats.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + "</option>"; }).join("");
+      }
+    }
   });
 
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     var data = Object.fromEntries(new FormData(form).entries());
     var type = editing.type;
+    if (type === "transaction") { saveTransaction(data); return; }
     var collection = state[type + "s"];
 
     // Client-side guard: confirming a visit requires a complete handoff.
@@ -716,7 +914,7 @@
       var result = await res.json();
       if (!result.ok) return "unauth";
       if (result.data && result.data.prospects) {
-        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [] };
+        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [] };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       }
       return "ok";
@@ -752,6 +950,7 @@
 
   function currentUser() { return settings.user || null; }
   function isAdmin() { return !!(settings.user && settings.user.role === "admin"); }
+  function canCashflow() { return isAdmin() || !!(settings.user && settings.user.role === "operations"); }
   function initials(name) {
     var p = String(name || "").trim().split(/\s+/).filter(Boolean);
     if (!p.length) return "?";
@@ -950,7 +1149,7 @@
     userChip.setAttribute("aria-label", "Account: " + u.name);
     document.getElementById("userAvatar").textContent = initials(u.name);
     document.getElementById("userMenuAvatar").textContent = initials(u.name);
-    document.getElementById("userMenuName").textContent = u.name + (u.id === ownerId() ? " · Owner" : (u.role === "admin" ? " · Technical" : ""));
+    document.getElementById("userMenuName").textContent = u.name + " · " + roleName(u);
     document.getElementById("userMenuEmail").textContent = u.email;
   }
   function closeUserMenu() { userMenu.hidden = true; userChip.setAttribute("aria-expanded", "false"); }
@@ -977,40 +1176,51 @@
   }
 
   function applyRole() {
-    var admin = isAdmin();
     var settingsNav = document.querySelector('.nav-item[data-view="settings"]');
-    if (settingsNav) settingsNav.hidden = !admin;
-    if (!admin && view === "settings") view = "today";
+    if (settingsNav) settingsNav.hidden = !isAdmin();
+    var cashNav = document.querySelector('.nav-item[data-view="cashflow"]');
+    if (cashNav) cashNav.hidden = !canCashflow();
+    if (view === "settings" && !isAdmin()) view = "today";
+    if (view === "cashflow" && !canCashflow()) view = "today";
   }
 
   // The first member on the workspace is the owner (protected).
   function ownerId() { return (state.users && state.users[0]) ? state.users[0].id : null; }
-  function roleName(u) { return u.id === ownerId() ? "Owner" : (u.role === "admin" ? "Technical" : "Sales / Operations"); }
+  function roleName(u) {
+    if (u.id === ownerId()) return "Owner";
+    if (u.role === "admin") return "Technical";
+    if (u.role === "operations") return "Operations";
+    return "Sales";
+  }
 
-  // Add a teammate by email. role: "admin" (Technical, sees Settings) or "user" (Sales/Operations).
+  // Normalise a role input to one of: admin (Technical), operations, sales.
+  function normRole(role) { return role === "admin" ? "admin" : role === "operations" ? "operations" : "sales"; }
+
+  // Add a teammate by email with a role: sales, operations, or admin (Technical).
   function addMember(name, email, role) {
     name = (name || "").trim(); email = (email || "").trim().toLowerCase();
-    role = role === "admin" ? "admin" : "user";
+    role = normRole(role);
     if (!name || !email) { toast("Enter a name and email."); return false; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast("Enter a valid email."); return false; }
     if ((state.users || []).some(function (u) { return u.email.toLowerCase() === email; })) { toast("That email is already on the team."); return false; }
     if (!state.users) state.users = [];
-    state.users.push({ id: uid(), name: name, email: email, role: role, created: today });
+    var user = { id: uid(), name: name, email: email, role: role, created: today };
+    state.users.push(user);
     saveData();
     render();
-    toast(name.split(/\s+/)[0] + " added as " + (role === "admin" ? "Technical" : "Sales / Operations"));
+    toast(name.split(/\s+/)[0] + " added as " + roleName(user));
     return true;
   }
 
-  // Switch a member between Sales/Operations and Technical (Settings access).
+  // Change a member's role (Sales / Operations / Technical).
   function setMemberRole(id, role) {
     var u = (state.users || []).find(function (x) { return x.id === id; });
     if (!u) return;
     if (u.id === ownerId()) { toast("The owner's role can't be changed."); return; }
-    u.role = role === "admin" ? "admin" : "user";
+    u.role = normRole(role);
     saveData();
     render();
-    toast(u.name.split(/\s+/)[0] + (u.role === "admin" ? " can now open Settings" : " no longer sees Settings"));
+    toast(u.name.split(/\s+/)[0] + " is now " + roleName(u));
   }
 
   // Remove a team member (airtight offboarding — they lose access at once).
@@ -1042,7 +1252,7 @@
       try {
         var parsed = JSON.parse(reader.result);
         if (!parsed.prospects || !parsed.appointments) throw new Error();
-        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [] };
+        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [], transactions: parsed.transactions || state.transactions || [] };
         saveData("Backup imported");
         render();
       } catch (e) { toast("That file is not a valid Verisko backup."); }
@@ -1061,7 +1271,8 @@
   });
 
   document.getElementById("primaryAction").addEventListener("click", function () {
-    if (view === "visits") openForm("appointment");
+    if (view === "cashflow") openForm("transaction");
+    else if (view === "visits") openForm("appointment");
     else openForm("prospect");
   });
 
@@ -1071,6 +1282,8 @@
   content.addEventListener("change", function (e) {
     if (e.target.id === "stageFilter") updateProspectGrid();
     if (e.target.id === "visitFilter") updateVisitList();
+    if (e.target.id === "cashFilter") { cashFilter = e.target.value; renderCashflow(); }
+    if (e.target.matches("[data-set-role]")) setMemberRole(e.target.dataset.userId, e.target.value);
   });
 
   content.addEventListener("click", function (e) {
@@ -1084,7 +1297,6 @@
     if (e.target.closest("[data-import]")) document.getElementById("importInput").click();
     if (e.target.closest("[data-sync]")) pullShared();
     var rm = e.target.closest("[data-remove-user]"); if (rm) { removeUser(rm.dataset.removeUser); return; }
-    var sr = e.target.closest("[data-set-role]"); if (sr) { setMemberRole(sr.dataset.userId, sr.dataset.setRole); return; }
     if (e.target.closest("[data-reset]")) {
       var ans = prompt("This ERASES all prospects, visits and team accounts for everyone, and loads sample data. It cannot be undone.\n\nType RESET to confirm.");
       if (ans && ans.trim().toUpperCase() === "RESET") {

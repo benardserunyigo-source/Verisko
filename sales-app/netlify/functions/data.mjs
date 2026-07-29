@@ -13,7 +13,7 @@ const SUPABASE_KEY = "sb_publishable_hj2NsI1YGmpeQg815ET2Kg_CwznowqE";
 
 const STORE = "verisko-sales";
 const KEY = "app-data";
-const EMPTY = { prospects: [], appointments: [], users: [] };
+const EMPTY = { prospects: [], appointments: [], users: [], transactions: [] };
 
 export default async (request) => {
   const headers = {
@@ -51,16 +51,38 @@ export default async (request) => {
       const payload = await request.json().catch(() => ({}));
       if (!payload || !payload.data) throw new Error("Missing application data.");
       const incoming = payload.data;
+      const storedTx = Array.isArray(data.transactions) ? data.transactions : [];
       const clean = {
         prospects: Array.isArray(incoming.prospects) ? incoming.prospects : [],
         appointments: Array.isArray(incoming.appointments) ? incoming.appointments : [],
-        users: Array.isArray(incoming.users) ? incoming.users : []
+        users: Array.isArray(incoming.users) ? incoming.users : [],
+        transactions: Array.isArray(incoming.transactions) ? incoming.transactions : []
       };
-      // Only an admin (or the bootstrapping owner) may change the team list.
       const isAdmin = bootstrap || (me && me.role === "admin");
+      const canCash = isAdmin || (me && me.role === "operations");
+
+      // Only an admin (or the bootstrapping owner) may change the team list.
       if (!isAdmin && JSON.stringify(clean.users) !== JSON.stringify(users)) {
         clean.users = users; // ignore team-list tampering from non-admins
       }
+
+      // Cash flow: Sales cannot touch transactions; only admins may approve.
+      if (JSON.stringify(clean.transactions) !== JSON.stringify(storedTx)) {
+        if (!canCash) {
+          clean.transactions = storedTx; // Sales roles cannot write cash entries at all
+        } else if (!isAdmin) {
+          const prevById = Object.fromEntries(storedTx.map((t) => [t.id, t]));
+          clean.transactions = clean.transactions.map((t) => {
+            const prev = prevById[t.id];
+            // Operations cannot approve — revert any new/changed approval to its prior state (pending).
+            if (t && t.status === "approved" && (!prev || prev.status !== "approved")) {
+              return prev || { ...t, status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: "" };
+            }
+            return t;
+          });
+        }
+      }
+
       await store.setJSON(KEY, clean);
       return json({ ok: true }, 200, headers);
     }

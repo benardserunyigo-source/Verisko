@@ -7,6 +7,11 @@
   to = "/.netlify/functions/data"
   status = 200
 
+[[redirects]]
+  from = "/api/receipt"
+  to = "/.netlify/functions/receipt"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]
