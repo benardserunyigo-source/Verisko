@@ -526,6 +526,18 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .more-item:hover{background:#e6e9ef}
 .more-item .nav-icon{width:22px;height:22px;color:var(--muted);flex:none}
 
+/* Bill of materials editor */
+.mat-head,.mat-row{display:grid;grid-template-columns:minmax(0,1fr) 44px 82px 28px;gap:5px;align-items:center}
+.mat-head{margin-bottom:6px;padding:0 2px}
+.mat-head span{font-size:11px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.03em}
+.mat-head span:nth-child(2),.mat-head span:nth-child(3){text-align:right}
+.mat-list{display:flex;flex-direction:column;gap:7px}
+.mat-row input{min-height:44px;border:0;border-radius:10px;background:var(--fill);font:inherit;font-size:16px;padding:0 9px;min-width:0}
+.mat-row .mat-qty,.mat-row .mat-cost{text-align:right;padding:0 7px}
+.mat-del{min-height:44px;border:0;background:transparent;color:var(--red);font-size:22px;line-height:1;border-radius:8px;padding:0}
+.mat-del:hover{background:var(--red-bg)}
+.mat-total{margin:12px 0 0;font-weight:650;font-size:15px;color:var(--ink);min-height:1em}
+
 @media(min-width:860px){
   .nav-badge{position:static;margin-left:auto;box-shadow:none}
 }

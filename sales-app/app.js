@@ -726,8 +726,15 @@
     content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " job" : " jobs") + "</p>" + list + technicianRosterCard();
   }
 
+  // Bill of materials helpers.
+  function materialsTotal(job) {
+    return (job.materials || []).reduce(function (s, m) { return s + (Number(m.qty) || 0) * (Number(m.unitCost) || 0); }, 0);
+  }
+  function materialsCount(job) { return (job.materials || []).length; }
+
   function installCard(j) {
     var tech = j.technicianId ? technician(j.technicianId) : null;
+    var matTotal = materialsTotal(j);
     return '<article class="item" data-edit="installation" data-id="' + j.id + '">' +
       '<div class="item-top"><div><div class="item-title">' + esc(j.business || "Untitled job") + "</div>" +
       '<div class="item-meta">' + esc(j.location || "No site") + "</div></div>" + installStatusChip(j.status) + "</div>" +
@@ -736,6 +743,7 @@
       '<div class="item-line"><span class="k">Technician</span><span class="v">' + (tech ? esc(tech.name) : '<span style="color:var(--amber)">Unassigned</span>') + "</span></div>" +
       '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc(j.contact || "—") + (j.phone ? " · " + esc(j.phone) : "") + "</span></div>" +
       (Number(j.quote) > 0 ? '<div class="item-line"><span class="k">Quote</span><span class="v">' + money(j.quote) + "</span></div>" : "") +
+      (matTotal > 0 ? '<div class="item-line"><span class="k">Materials</span><span class="v">' + materialsCount(j) + " item" + (materialsCount(j) === 1 ? "" : "s") + " · " + money(matTotal) + "</span></div>" : "") +
       "</div></article>";
   }
 
@@ -780,6 +788,35 @@
     saveData(t.name.split(/\s+/)[0] + " removed"); render();
   }
 
+  // One editable material line in the job form's bill of materials.
+  function materialRow(m) {
+    m = m || {};
+    return '<div class="mat-row" data-mat-row data-mat-id="' + esc(m.id || "") + '">' +
+      '<input class="mat-name" type="text" placeholder="Item, e.g. 4MP dome camera" value="' + esc(m.name || "") + '" aria-label="Item">' +
+      '<input class="mat-qty" type="number" inputmode="numeric" min="0" step="1" placeholder="Qty" value="' + esc(m.qty || "") + '" aria-label="Quantity">' +
+      '<input class="mat-cost" type="number" inputmode="numeric" min="0" step="1" placeholder="Unit UGX" value="' + esc(m.unitCost || "") + '" aria-label="Unit cost">' +
+      '<button type="button" class="mat-del" data-mat-del aria-label="Remove item">×</button></div>';
+  }
+  function collectMaterials() {
+    var out = [];
+    document.querySelectorAll("#matList .mat-row").forEach(function (r) {
+      var name = (r.querySelector(".mat-name").value || "").trim();
+      var qty = Math.max(0, Math.round(Number(r.querySelector(".mat-qty").value) || 0));
+      var cost = Math.max(0, Math.round(Number(r.querySelector(".mat-cost").value) || 0));
+      if (!name && !qty && !cost) return; // skip fully-blank rows
+      out.push({ id: r.getAttribute("data-mat-id") || uid(), name: name, qty: qty, unitCost: cost });
+    });
+    return out;
+  }
+  function updateMatTotal() {
+    var el = document.getElementById("matTotal"); if (!el) return;
+    var total = 0;
+    document.querySelectorAll("#matList .mat-row").forEach(function (r) {
+      total += (Number(r.querySelector(".mat-qty").value) || 0) * (Number(r.querySelector(".mat-cost").value) || 0);
+    });
+    el.textContent = total > 0 ? "Materials total: " + money(total) : "";
+  }
+
   async function saveInstallation(data) {
     if (!canInstalls()) return;
     var business = (data.business || "").trim();
@@ -789,7 +826,7 @@
     var fields = {
       prospectId: data.prospectId || "", business: business, contact: (data.contact || "").trim(), phone: (data.phone || "").trim(),
       location: (data.location || "").trim(), status: status, scheduledDate: data.scheduledDate || "", scheduledTime: data.scheduledTime || "",
-      technicianId: data.technicianId || "", quote: quote, siteNotes: (data.siteNotes || "").trim()
+      technicianId: data.technicianId || "", quote: quote, siteNotes: (data.siteNotes || "").trim(), materials: collectMaterials()
     };
     if (editing.id) {
       var idx = state.installations.findIndex(function (x) { return x.id === editing.id; });
@@ -1328,6 +1365,12 @@
         (techOpts ? "" : '<p class="helper">Add technicians in the Technicians card to assign one.</p>') + "</div>" +
         field("quote", "Quote (UGX)", "number", source.quote || "", { help: "Wired into the cash-flow float in a later update." }) +
         field("siteNotes", "Site notes", "textarea", source.siteNotes, { full: true, optional: true, placeholder: "Access, cameras, cabling, power…" }) +
+        // Bill of materials — editable line items with a live total.
+        '<div class="field full"><label>Materials <span class="optional-tag">bill of materials</span></label>' +
+        '<div class="mat-head"><span>Item</span><span>Qty</span><span>Unit</span><span></span></div>' +
+        '<div class="mat-list" id="matList">' + ((source.materials && source.materials.length) ? source.materials.map(materialRow).join("") : materialRow()) + "</div>" +
+        '<button type="button" class="btn btn-ghost btn-sm" data-mat-add style="margin-top:8px">Add item</button>' +
+        '<p class="mat-total" id="matTotal" aria-live="polite"></p></div>' +
         '<input type="hidden" name="prospectId" value="' + esc(linkedId) + '">';
     }
     // Delete is offered for prospects, site visits and installations (not cash
@@ -1353,6 +1396,7 @@
         });
       }
     }
+    if (type === "installation") updateMatTotal();
     document.getElementById("saveButton").textContent = id ? "Save changes" : "Save";
     if (!dialog.open) dialog.showModal();
     var first = formContent.querySelector('input:not([type=hidden]),select,textarea');
@@ -1392,10 +1436,13 @@
   }
   form.addEventListener("input", function (e) {
     if (e.target.id === "f_amount") updateAmountEcho();
+    if (e.target.classList.contains("mat-qty") || e.target.classList.contains("mat-cost")) updateMatTotal();
   });
 
   form.addEventListener("click", function (e) {
     if (e.target.closest("[data-delete]")) { deleteRecord(); return; }
+    if (e.target.closest("[data-mat-add]")) { var ml = document.getElementById("matList"); if (ml) { ml.insertAdjacentHTML("beforeend", materialRow()); var last = ml.querySelector(".mat-row:last-child .mat-name"); if (last) last.focus(); } return; }
+    var md = e.target.closest("[data-mat-del]"); if (md) { var row = md.closest(".mat-row"); if (row) row.remove(); updateMatTotal(); return; }
     var lf = e.target.closest("[data-log-followup]"); if (lf) { logFollowUp(lf.getAttribute("data-log-followup")); return; }
     var tcf = e.target.closest("[data-toggle-closed]"); if (tcf) { toggleClosedSale(tcf.getAttribute("data-toggle-closed")); return; }
     var mi = e.target.closest("[data-make-install]"); if (mi) { openForm("installation", null, mi.getAttribute("data-make-install")); return; }
