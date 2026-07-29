@@ -82,7 +82,6 @@
     { key: "3", label: "Zone 3 — Entebbe / Mukono / Matugga", surcharge: 50000 },
     { key: "beyond", label: "Beyond Zone 3 — regional", surcharge: 300000 }
   ];
-  var QUOTE_STATUSES = ["Draft", "Sent", "Accepted", "Rejected", "Expired"];
 
   // Turn a saved quote's inputs into every derived figure. Pure — easy to test.
   function computeQuote(q) {
@@ -883,42 +882,9 @@
     return block + '<input type="hidden" name="prospectId" value="' + esc(linkedId) + '">';
   }
 
-  /* -------------------------------- QUOTES ---------------------------------- */
+  /* ------------------------------ QUOTE ENGINE ------------------------------ */
+  // Shared pricing UI used by the job form (the "quote" step of a job).
   function quoteTierChip(t) { return t === "Very Complex" ? chip(t, "red", "!") : t === "Complex" ? chip(t, "amber", "◔") : t === "Standard" ? chip(t, "cyan", "★") : chip(t || "Simple", "grey", "•"); }
-  function quoteStatusChip(s) { if (s === "Accepted") return chip(s, "green", "✓"); if (s === "Rejected") return chip(s, "red", "✕"); if (s === "Sent") return chip(s, "cyan", "→"); if (s === "Expired") return chip(s, "grey", "•"); return chip(s || "Draft", "amber", "◔"); }
-  function newQuoteRef() { var n = (state.quotes || []).length + 1; return "Q-" + String(today || "2026").slice(0, 4) + "-" + ("000" + n).slice(-4); }
-  var quoteFilter = "all";
-
-  function renderQuotes() {
-    setHead("Operations", "Quotes", "Build a professional site quote in minutes — priced by the rubric.", "New quote", true);
-    var qs = state.quotes || [];
-    var open = qs.filter(function (q) { return q.status !== "Rejected" && q.status !== "Expired"; });
-    var pipeline = open.reduce(function (s, q) { return s + computeQuote(q).cash; }, 0);
-    var summary = '<section class="card cash-summary"><div class="cash-bal"><span class="k">Open pipeline</span><strong>' + money(pipeline) + "</strong>" +
-      "<small>" + open.length + " open · " + qs.length + " total</small></div></section>";
-    var filterBar = '<div class="toolbar"><div class="field-inline" style="flex:1"><label for="quoteFilter">Show</label><select id="quoteFilter">' +
-      [["all", "All quotes"]].concat(QUOTE_STATUSES.map(function (s) { return [s, s]; })).map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === quoteFilter ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></div></div>";
-    var rows = qs.filter(function (q) { return quoteFilter === "all" || q.status === quoteFilter; })
-      .sort(function (a, b) { return (b.createdAt || "").localeCompare(a.createdAt || "") || (b.quoteRef || "").localeCompare(a.quoteRef || ""); });
-    var list = rows.length ? '<div class="list">' + rows.map(quoteCard).join("") + "</div>" :
-      emptyState(ICON_INSTALL, "No quotes yet", "Tap New quote to price a site with the rubric.", "New quote", 'data-new="quote"');
-    content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " quote" : " quotes") + "</p>" + list;
-  }
-
-  function quoteCard(q) {
-    var c = jobClient(q);
-    var r = computeQuote(q);
-    return '<article class="item" data-edit="quote" data-id="' + q.id + '">' +
-      '<div class="item-top"><div><div class="item-title">' + esc(c.business || "Untitled") + "</div>" +
-      '<div class="item-meta">' + esc(q.quoteRef || "") + " · " + (r.custom ? "12+ cam" : r.cameras + "-cam") + " · " + esc(r.tier) + "</div></div>" + quoteStatusChip(q.status) + "</div>" +
-      '<div class="item-lines">' +
-      (r.custom ? '<div class="item-line"><span class="k">Total</span><span class="v">Custom — Ben quotes</span></div>' :
-        '<div class="item-line"><span class="k">Total (cash)</span><span class="v">' + money(r.cash) + "</span></div>") +
-      (r.financingAvailable ? '<div class="item-line"><span class="k">Financed</span><span class="v">' + money(r.financed) + "</span></div>" : "") +
-      '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(q.createdBy || "—") + "</span></div>" +
-      (r.needsApproval ? '<div class="item-line"><span class="k">Flag</span><span class="v" style="color:var(--red)">Needs Ben approval</span></div>' : "") +
-      "</div></article>";
-  }
 
   // Read the live quote inputs off the form.
   function readQuoteInputs() {
@@ -970,33 +936,6 @@
       var hasVal = fpInput && String(fpInput.value || "").trim() !== "";
       fp.hidden = !(r.custom || hasVal);
     }
-  }
-
-  async function saveQuote(data) {
-    if (!canInstalls()) return;
-    var prospectId = data.prospectId || "";
-    var linked = prospectId ? prospect(prospectId) : null;
-    var isLinked = !!(linked && linked.id);
-    if (!isLinked && !(data.business || "").trim()) { showFormError("Choose the client for this quote — pick one, or add a walk-in with a name."); return; }
-    var inputs = readQuoteInputs();
-    var r = computeQuote(inputs);
-    if (!isAdmin() && r.discountPct > 5) { showFormError("A discount above 5% needs the Owner — ask Ben to apply it."); return; }
-    if (r.needsApproval && !isAdmin()) { showFormError("This scored Very Complex (or 12+ cameras). Send it to Ben to approve before quoting."); return; }
-    var status = QUOTE_STATUSES.indexOf(data.status) >= 0 ? data.status : "Draft";
-    var fields = Object.assign({
-      prospectId: prospectId,
-      business: isLinked ? "" : (data.business || "").trim(), contact: isLinked ? "" : (data.contact || "").trim(),
-      phone: isLinked ? "" : (data.phone || "").trim(), location: isLinked ? "" : (data.location || "").trim(),
-      status: status, notes: (data.notes || "").trim()
-    }, inputs);
-    if (editing.id) {
-      var idx = state.quotes.findIndex(function (x) { return x.id === editing.id; });
-      state.quotes[idx] = Object.assign({}, state.quotes[idx], fields);
-    } else {
-      state.quotes.push(Object.assign({ id: uid(), quoteRef: newQuoteRef(), createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "", createdAt: today }, fields));
-    }
-    hideFormError(); dialog.close();
-    saveData(editing.id ? "Quote updated" : "Quote created"); render();
   }
 
   // Delete-safe reference: derive the next number from the highest existing one,
@@ -1056,34 +995,6 @@
   function job(id) { return (state.jobs || []).find(function (x) { return x.id === id; }) || null; }
   function technician(id) { return (state.technicians || []).find(function (t) { return t.id === id; }) || null; }
   function activeTechnicians() { return (state.technicians || []).filter(function (t) { return t.active !== false; }); }
-  function installStatusChip(s) {
-    if (s === "Handed over") return chip(s, "green", "✓");
-    if (s === "Installed") return chip(s, "green", "✓");
-    if (s === "In progress") return chip(s, "cyan", "★");
-    if (s === "Scheduled") return chip(s, "amber", "◔");
-    if (s === "Cancelled") return chip(s, "red", "✕");
-    return chip(s || "Quoted", "grey", "•");
-  }
-  var installFilter = "all";
-
-  function renderInstalls() {
-    setHead("Operations", "Installations", "Schedule and run CCTV jobs — client, technician and status.", "New installation", true);
-    var jobs = state.installations || [];
-    var open = jobs.filter(function (j) { return j.status !== "Handed over" && j.status !== "Cancelled"; }).length;
-
-    var summary = '<section class="card cash-summary"><div class="cash-bal"><span class="k">Open jobs</span><strong>' + open + "</strong>" +
-      "<small>" + jobs.length + " total · " + activeTechnicians().length + " active " + (activeTechnicians().length === 1 ? "technician" : "technicians") + "</small></div></section>";
-
-    var filterBar = '<div class="toolbar"><div class="field-inline" style="flex:1"><label for="installFilter">Show</label><select id="installFilter">' +
-      [["all", "All jobs"]].concat(INSTALL_STATUSES.map(function (s) { return [s, s]; })).map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === installFilter ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></div></div>";
-
-    var rows = jobs.filter(function (j) { return installFilter === "all" || j.status === installFilter; })
-      .sort(function (a, b) { return (a.scheduledDate || "9").localeCompare(b.scheduledDate || "9") || (b.createdAt || "").localeCompare(a.createdAt || ""); });
-    var list = rows.length ? '<div class="list">' + rows.map(installCard).join("") + "</div>" :
-      emptyState(ICON_INSTALL, "No jobs yet", "Turn a closed sale into an installation, or add a standalone job.", "New installation", 'data-new="installation"');
-
-    content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " job" : " jobs") + "</p>" + list + technicianRosterCard();
-  }
 
   // Bill of materials helpers.
   function materialsTotal(job) {
@@ -1110,8 +1021,8 @@
     return { business: (job && job.business) || "", contact: (job && job.contact) || "", phone: (job && job.phone) || "", location: (job && job.location) || "", prospect: null };
   }
 
-  // Job money — all recorded through the cash-flow float, linked by installId.
-  function installation(id) { return (state.installations || []).find(function (x) { return x.id === id; }) || null; }
+  // Job money — all recorded through the cash-flow float, linked by installId
+  // (the field name is kept; it now points to a job id).
   function jobPayments(jobId) { return (state.transactions || []).filter(function (t) { return t.installId === jobId; }); }
   function paidForJob(jobId) { return jobPayments(jobId).filter(function (t) { return t.direction === "in" && t.status === "approved"; }).reduce(function (s, t) { return s + Number(t.amount || 0); }, 0); }
   function pendingInForJob(jobId) { return jobPayments(jobId).filter(function (t) { return t.direction === "in" && t.status !== "approved"; }).reduce(function (s, t) { return s + Number(t.amount || 0); }, 0); }
@@ -1194,24 +1105,6 @@
       "</div></article>";
   }
 
-  function installCard(j) {
-    var tech = j.technicianId ? technician(j.technicianId) : null;
-    var matTotal = materialsTotal(j);
-    var c = jobClient(j);
-    return '<article class="item" data-edit="installation" data-id="' + j.id + '">' +
-      '<div class="item-top"><div><div class="item-title">' + esc(c.business || "Untitled job") + "</div>" +
-      '<div class="item-meta">' + esc(c.location || "No site") + "</div></div>" + installStatusChip(j.status) + "</div>" +
-      '<div class="item-lines">' +
-      '<div class="item-line"><span class="k">Scheduled</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Not set") + "</span></div>" +
-      '<div class="item-line"><span class="k">Technician</span><span class="v">' + (tech ? esc(tech.name) : '<span style="color:var(--amber)">Unassigned</span>') + "</span></div>" +
-      '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc(c.contact || "—") + (c.phone ? " · " + esc(c.phone) : "") + "</span></div>" +
-      (Number(j.quote) > 0 ? '<div class="item-line"><span class="k">Quote</span><span class="v">' + money(j.quote) + "</span></div>" : "") +
-      ((Number(j.quote) > 0 || paidForJob(j.id) > 0) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (Number(j.quote) > 0 ? " · " + money(Math.max(0, Number(j.quote) - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
-      (matTotal > 0 ? '<div class="item-line"><span class="k">Materials</span><span class="v">' + materialsCount(j) + " item" + (materialsCount(j) === 1 ? "" : "s") + " · " + money(matTotal) + "</span></div>" : "") +
-      (checklistDone(j) > 0 || /progress|installed|handed/i.test(j.status || "") ? '<div class="item-line"><span class="k">Checklist</span><span class="v">' + checklistDone(j) + " / " + INSTALL_CHECKLIST.length + (checklistComplete(j.checklist) ? " · done" : "") + "</span></div>" : "") +
-      "</div></article>";
-  }
-
   // Onboard/manage technicians (Operations + admin).
   function technicianRosterCard() {
     var techs = state.technicians || [];
@@ -1280,40 +1173,6 @@
       total += (Number(r.querySelector(".mat-qty").value) || 0) * (Number(r.querySelector(".mat-cost").value) || 0);
     });
     el.textContent = total > 0 ? "Materials total: " + money(total) : "";
-  }
-
-  async function saveInstallation(data) {
-    if (!canInstalls()) return;
-    var prospectId = data.prospectId || "";
-    var linked = prospectId ? prospect(prospectId) : null;
-    var isLinked = !!(linked && linked.id);
-    // Linked jobs take client details from the prospect (not stored here);
-    // standalone jobs store their own.
-    var client = isLinked ? { business: "", contact: "", phone: "", location: "" }
-      : { business: (data.business || "").trim(), contact: (data.contact || "").trim(), phone: (data.phone || "").trim(), location: (data.location || "").trim() };
-    if (!isLinked && !client.business) { showFormError(editing.id ? "Enter the client / business name." : "Choose the client for this installation — pick one from Sales, or add a walk-in with a name."); return; }
-    var status = INSTALL_STATUSES.indexOf(data.status) >= 0 ? data.status : "Quoted";
-    var checklist = collectChecklist();
-    // Can't hand over until the completion checklist is done.
-    if (status === "Handed over" && !checklistComplete(checklist)) {
-      var missing = INSTALL_CHECKLIST.filter(function (i) { return !checklist[i.key]; }).map(function (i) { return i.label.toLowerCase(); });
-      showFormError("Not ready to hand over — first tick: " + listAnd(missing) + ".");
-      return;
-    }
-    var quote = Math.max(0, Math.round(Number(data.quote) || 0));
-    var fields = {
-      prospectId: prospectId, business: client.business, contact: client.contact, phone: client.phone,
-      location: client.location, status: status, scheduledDate: data.scheduledDate || "", scheduledTime: data.scheduledTime || "",
-      technicianId: data.technicianId || "", quote: quote, siteNotes: (data.siteNotes || "").trim(), materials: collectMaterials(), checklist: checklist
-    };
-    if (editing.id) {
-      var idx = state.installations.findIndex(function (x) { return x.id === editing.id; });
-      state.installations[idx] = Object.assign({}, state.installations[idx], fields);
-    } else {
-      state.installations.push(Object.assign({ id: uid(), createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "", createdAt: today }, fields));
-    }
-    hideFormError(); dialog.close();
-    saveData(editing.id ? "Installation updated" : "Installation created"); render();
   }
 
   function renderCashflow() {
