@@ -2,11 +2,12 @@
   "use strict";
 
   /* ---------------------------------------------------------------------------
-   * Verisko Sales Visit Planner
-   * One salesperson finds and qualifies prospects, then hands confirmed site
-   * visits to the Operations Director. Data lives in a shared Excel workbook
-   * (via the Netlify /api/data function + X-Team-Key) with a localStorage
-   * fallback. Excel field names and record ids are preserved exactly.
+   * Verisko Uganda Operations
+   * The Verisko field team: Sales find and qualify prospects and log visits;
+   * Operations review prospects, verify closed sales & commission, and run the
+   * cash-flow float. Data syncs through the Netlify /api/data function (Supabase
+   * auth) with a localStorage fallback, and receipt/business photos through
+   * /api/receipt; offline photos queue in IndexedDB until back online.
    * ------------------------------------------------------------------------- */
 
   var STORAGE_KEY = "verisko_sales_app_v1";
@@ -765,7 +766,7 @@
       '<div class="item-lines"><div class="item-line"><span class="k">Date</span><span class="v">' + dateLabel(t.date) + "</span></div>" +
       '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(t.createdBy || "—") + "</span></div>" +
       (t.status === "query" && t.reviewNote ? '<div class="item-line"><span class="k">Sent back</span><span class="v" style="color:var(--red)">' + esc(t.reviewNote) + "</span></div>" : "") +
-      (t.direction === "out" ? '<div class="item-line"><span class="k">Proof</span><span class="v">' + (t.proofId ? "Attached" : (queuedPhotoFor(t.id) ? '<span style="color:var(--muted)">Photo waiting to upload</span>' : '<span style="color:var(--amber)">No proof yet</span>')) + "</span></div>" : "") + "</div></article>";
+      (t.direction === "out" ? '<div class="item-line"><span class="k">Proof</span><span class="v">' + (t.proofId ? "Attached" : (hasQueuedPhoto(t.id) ? '<span style="color:var(--muted)">Photo waiting to upload</span>' : '<span style="color:var(--amber)">No proof yet</span>')) + "</span></div>" : "") + "</div></article>";
   }
 
   /* -------- Receipt photo helpers -------- */
@@ -874,7 +875,7 @@
         createdAt: today, status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: ""
       });
     }
-    if (queuePhoto) queueUpload(txId, pendingProof);
+    if (queuePhoto) await queueUpload(txId, pendingProof);
     pendingProof = null;
     saveBtn.disabled = false;
     hideFormError(); dialog.close();
@@ -927,7 +928,7 @@
         reviewedAt: reviewer ? today : "", reviewNote: ""
       }));
     }
-    if (queuePhoto) queueUpload(pid, pendingProof);
+    if (queuePhoto) await queueUpload(pid, pendingProof);
     pendingProof = null;
     saveBtn.disabled = false;
     hideFormError(); dialog.close();
@@ -1188,16 +1189,17 @@
       var pIn = document.getElementById("proofInput");
       if (pIn) pIn.addEventListener("change", onProofPick);
       var existingPhoto = type === "transaction" ? source.proofId : source.photoId;
-      var queued = id ? queuedPhotoFor(id) : null;
       if (existingPhoto) {
         fetchProof(existingPhoto).then(function (img) {
           var pv = document.getElementById("proofPreview");
           if (pv) pv.innerHTML = img ? '<img src="' + img + '" alt="Photo" class="proof-img">' : '<span class="proof-none">Couldn\'t load photo</span>';
         });
-      } else if (queued) {
-        var pv0 = document.getElementById("proofPreview");
-        if (pv0) pv0.innerHTML = '<img src="' + queued + '" alt="Photo (waiting to upload)" class="proof-img">';
+      } else if (id && hasQueuedPhoto(id)) {
         var pk = document.querySelector("[data-proof-pick]"); if (pk) pk.textContent = "Replace photo";
+        getQueuedPhoto(id).then(function (img) {
+          var pv0 = document.getElementById("proofPreview");
+          if (pv0 && img) pv0.innerHTML = '<img src="' + img + '" alt="Photo (waiting to upload)" class="proof-img">';
+        });
       }
     }
     document.getElementById("saveButton").textContent = id ? "Save changes" : "Save";
@@ -1584,35 +1586,81 @@
     } catch (e) { setSync("error", "Saved on device — sync pending"); }
   }
 
-  /* -------- Offline photo queue (receipts saved on-device until online) ----- */
-  var UPLOAD_KEY = STORAGE_KEY + "_uploads_v1";
-  function loadUploads() { try { return JSON.parse(localStorage.getItem(UPLOAD_KEY) || "[]"); } catch (e) { return []; } }
-  function saveUploads(q) { try { localStorage.setItem(UPLOAD_KEY, JSON.stringify(q)); } catch (e) {} }
-  function pendingUploadCount() { return loadUploads().length; }
-  function queueUpload(txId, dataUrl) {
-    var q = loadUploads().filter(function (x) { return x.txId !== txId; }); // one photo per entry
-    q.push({ txId: txId, dataUrl: dataUrl });
-    saveUploads(q);
-  }
-  function queuedPhotoFor(txId) { var x = loadUploads().find(function (u) { return u.txId === txId; }); return x ? x.dataUrl : null; }
+  /* -------- Offline photo queue (IndexedDB — photos until back online) ------- */
+  // Photos are large (~0.3-0.5MB each); IndexedDB avoids the ~5MB localStorage
+  // cap. A small in-memory Set of pending ids lets the UI check "is a photo
+  // waiting?" synchronously during render; the bytes stay in IndexedDB.
+  var UPLOAD_KEY = STORAGE_KEY + "_uploads_v1"; // legacy localStorage queue (migrated once)
+  var IDB_NAME = "verisko_uploads", IDB_STORE = "photos";
+  var pendingSet = new Set(); // ids (transaction or prospect) with a photo waiting
 
-  // Try to upload every queued receipt; attach its id to the entry on success.
+  function idbOpen() {
+    return new Promise(function (resolve, reject) {
+      if (!window.indexedDB) return reject(new Error("no-idb"));
+      var req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = function () { var db = req.result; if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE, { keyPath: "id" }); };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+  function idbRun(mode, run) {
+    return idbOpen().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(IDB_STORE, mode), store = tx.objectStore(IDB_STORE), out;
+        run(store, function (v) { out = v; });
+        tx.oncomplete = function () { resolve(out); };
+        tx.onerror = function () { reject(tx.error); };
+        tx.onabort = function () { reject(tx.error); };
+      });
+    });
+  }
+  function idbPut(id, dataUrl) { return idbRun("readwrite", function (s) { s.put({ id: id, dataUrl: dataUrl }); }); } // put replaces — one photo per id
+  function idbDelete(id) { return idbRun("readwrite", function (s) { s.delete(id); }); }
+  function idbGet(id) { return idbRun("readonly", function (s, set) { var r = s.get(id); r.onsuccess = function () { set(r.result || null); }; }); }
+  function idbGetAll() { return idbRun("readonly", function (s, set) { var r = s.getAll(); r.onsuccess = function () { set(r.result || []); }; }); }
+
+  function pendingUploadCount() { return pendingSet.size; }
+  function hasQueuedPhoto(id) { return pendingSet.has(id); }
+  function getQueuedPhoto(id) { return idbGet(id).then(function (r) { return r ? r.dataUrl : null; }).catch(function () { return null; }); }
+  async function queueUpload(id, dataUrl) {
+    try { await idbPut(id, dataUrl); pendingSet.add(id); }
+    catch (e) { toast("Couldn't save the photo on this device."); }
+  }
+
+  // Load the queue (migrating any legacy localStorage queue) at startup.
+  async function initUploadQueue() {
+    try {
+      var legacy = [];
+      try { legacy = JSON.parse(localStorage.getItem(UPLOAD_KEY) || "[]"); } catch (e) {}
+      for (var i = 0; i < legacy.length; i++) {
+        if (legacy[i] && legacy[i].txId && legacy[i].dataUrl) await idbPut(legacy[i].txId, legacy[i].dataUrl);
+      }
+      if (legacy.length) { try { localStorage.removeItem(UPLOAD_KEY); } catch (e) {} }
+      var all = await idbGetAll();
+      pendingSet = new Set(all.map(function (r) { return r.id; }));
+      if (pendingSet.size) render();
+    } catch (e) { /* IndexedDB unavailable — degrade quietly */ }
+  }
+
+  // Upload every queued photo; attach its id to the transaction (proofId) or
+  // prospect (photoId), then remove it from the queue. Returns real uploads.
   async function flushUploads() {
     if (!settings.auth || !navigator.onLine) return 0;
-    var q = loadUploads();
-    if (!q.length) return 0;
-    var remaining = [], done = 0;
-    for (var i = 0; i < q.length; i++) {
-      var item = q[i];
-      var tx = (state.transactions || []).find(function (x) { return x.id === item.txId; });
-      if (!tx) { done++; continue; }         // entry deleted — drop the orphan photo
-      if (tx.proofId) { done++; continue; }   // already has proof — drop
-      try { tx.proofId = await uploadProof(item.dataUrl); done++; }
-      catch (e) { remaining.push(item); }     // still offline / failing — keep for next time
+    var all;
+    try { all = await idbGetAll(); } catch (e) { return 0; }
+    if (!all.length) return 0;
+    var uploaded = 0;
+    for (var i = 0; i < all.length; i++) {
+      var item = all[i];
+      var tx = (state.transactions || []).find(function (x) { return x.id === item.id; });
+      var pr = tx ? null : (state.prospects || []).find(function (x) { return x.id === item.id; });
+      var target = tx || pr, field = tx ? "proofId" : "photoId";
+      if (!target || target[field]) { await idbDelete(item.id); pendingSet.delete(item.id); continue; } // orphan / already set
+      try { target[field] = await uploadProof(item.dataUrl); await idbDelete(item.id); pendingSet.delete(item.id); uploaded++; }
+      catch (e) { /* still offline / failing — keep for next time */ }
     }
-    saveUploads(remaining);
-    if (done) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    return done;
+    if (uploaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return uploaded;
   }
 
   // Push local changes and flush queued photos — called on reconnect.
@@ -1724,7 +1772,7 @@
         errHtml +
         '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Continue</button></form>';
     } else {
-      html += '<p class="lock-eyebrow" id="lockTitle">Sales Visit Planner</p>' +
+      html += '<p class="lock-eyebrow" id="lockTitle">Uganda Operations</p>' +
         '<p class="lock-sub">Sign in with your email — we\'ll send you a secure sign-in link.</p>' +
         '<form id="loginForm" class="account-fields" data-step="email">' +
         '<div class="field"><label for="loginEmailInput">Email</label>' +
@@ -1800,7 +1848,7 @@
 
   /* -------- Onboarding / welcome tour -------- */
   var ONB_STEPS = [
-    { welcome: true, title: "Welcome to Verisko Sales", body: "Your simple tool for finding prospects, following up, and booking confirmed site visits for the Operations Director." },
+    { welcome: true, title: "Welcome to Verisko Operations", body: "Your simple tool for finding prospects, following up, and booking confirmed site visits for the Operations Director." },
     { icon: ICON_CALENDAR, title: "Start on Today", body: "Each day, Today shows who to call, which visits to confirm, and what's overdue — most urgent first. Work from the top down." },
     { icon: ICON_PEOPLE, title: "Add & qualify prospects", body: "Capture the business, contact, phone and location. Most answers are quick taps — no long forms. Mark them Qualified when they're ready." },
     { icon: ICON_PIN, title: "Book & confirm visits", body: "Schedule a site visit and confirm it — a confirmed visit is ready to hand to the Operations Director. A visit can only be confirmed once it has a contact, phone, location, date, time and owner." }
@@ -2071,6 +2119,9 @@
   });
 
   /* -------------------------------- Start ----------------------------------- */
+  // Load any offline photos waiting to upload (migrates the old localStorage
+  // queue into IndexedDB on first run).
+  initUploadQueue();
   // Recover automatically when the phone gets signal back.
   window.addEventListener("online", function () { setSync("syncing", "Back online — syncing…"); syncNow(); });
   window.addEventListener("offline", function () { setSync("error", "Offline — saved on this device"); });
