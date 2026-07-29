@@ -20,8 +20,12 @@
   var SOURCES = ["Cold visit", "Walk-in prospecting", "Referral", "Website enquiry", "Phone enquiry", "Existing customer", "Other"];
   // Common next actions — offered as tap-or-type suggestions to cut typing.
   var NEXT_ACTIONS = ["Call back", "Book a site visit", "Confirm the visit", "Send a quotation", "Visit the site", "Follow up next week", "Wait for their decision"];
-  // CCTV installation job lifecycle.
-  var INSTALL_STATUSES = ["Quoted", "Scheduled", "In progress", "Installed", "Handed over", "Cancelled"];
+  // A job's full lifecycle — from the quote through to handover. One pipeline
+  // (replaces the old separate quote statuses + installation statuses).
+  var JOB_STAGES = ["Draft", "Sent", "Accepted", "Scheduled", "In progress", "Installed", "Handed over", "Rejected", "Cancelled"];
+  // Delivery fields (schedule/technician/materials) only matter once won.
+  var JOB_DELIVERY_STAGES = ["Accepted", "Scheduled", "In progress", "Installed", "Handed over"];
+  function jobIsDelivery(stage) { return JOB_DELIVERY_STAGES.indexOf(stage) >= 0; }
   // Completion checklist — all must be ticked before a job can be "Handed over".
   var INSTALL_CHECKLIST = [
     { key: "cameras", label: "All cameras installed & aimed" },
@@ -31,7 +35,7 @@
     { key: "credentials", label: "Login & warranty handed over" }
   ];
   // Operations/admin extras live behind the bottom-nav "More" sheet.
-  var MORE_VIEWS = ["quotes", "cashflow", "installs", "settings"];
+  var MORE_VIEWS = ["jobs", "cashflow", "settings"];
 
   /* ---------------------------- Quote calculator ---------------------------- */
   // Site-scoring rubric (answer points drive the site tier).
@@ -112,6 +116,52 @@
       financingAvailable: cash >= 1500000, needsApproval: tier === "Very Complex" || base === null
     };
   }
+  // Single source of truth for a job's contract value. Rubric-priced normally; a
+  // manual finalPrice only for custom (12+ cam) or an explicit admin override.
+  function jobValue(job) {
+    if (!job) return 0;
+    var r = computeQuote(job);
+    if (r.custom || job.priceOverride) return Math.max(0, Math.round(Number(job.finalPrice) || 0));
+    return r.cash;
+  }
+  // Fold legacy quotes[] + installations[] into a single jobs[] once. Installation
+  // ids are reused as job ids so existing installId payment links keep resolving.
+  // Idempotent: a no-op once jobs[] exists.
+  function migrateToJobs(data) {
+    if (!data || Array.isArray(data.jobs)) return data;
+    var jobs = [];
+    var instStage = { "Quoted": "Accepted", "Scheduled": "Scheduled", "In progress": "In progress", "Installed": "Installed", "Handed over": "Handed over", "Cancelled": "Cancelled" };
+    var quoteStage = { "Draft": "Draft", "Sent": "Sent", "Accepted": "Accepted", "Rejected": "Rejected", "Expired": "Rejected" };
+    (data.installations || []).forEach(function (i) {
+      jobs.push({
+        id: i.id, prospectId: i.prospectId || "",
+        business: i.business || "", contact: i.contact || "", phone: i.phone || "", location: i.location || "",
+        stage: instStage[i.status] || "Accepted",
+        rubric: {}, cameraCount: 0, addons: {}, zone: "1", discountPct: 0,
+        finalPrice: Number(i.quote) || 0, priceOverride: (Number(i.quote) || 0) > 0,
+        scheduledDate: i.scheduledDate || "", scheduledTime: i.scheduledTime || "",
+        technicianId: i.technicianId || "", materials: i.materials || [], checklist: i.checklist || {},
+        notes: i.siteNotes || "", createdBy: i.createdBy || "", createdByEmail: i.createdByEmail || "", createdAt: i.createdAt || ""
+      });
+    });
+    (data.quotes || []).forEach(function (q) {
+      jobs.push({
+        id: q.id, prospectId: q.prospectId || "",
+        business: q.business || "", contact: q.contact || "", phone: q.phone || "", location: q.location || "",
+        stage: quoteStage[q.status] || "Draft",
+        rubric: q.rubric || {}, cameraCount: q.cameraCount || 0, addons: q.addons || {}, zone: q.zone || "1", discountPct: q.discountPct || 0,
+        finalPrice: 0, priceOverride: false,
+        scheduledDate: "", scheduledTime: "", technicianId: "", materials: [], checklist: {},
+        notes: q.notes || "", createdBy: q.createdBy || "", createdByEmail: q.createdByEmail || "", createdAt: q.createdAt || ""
+      });
+    });
+    jobs.sort(function (a, b) { return (a.createdAt || "").localeCompare(b.createdAt || ""); });
+    var yr = String(today || "2026").slice(0, 4);
+    jobs.forEach(function (j, k) { j.ref = "J-" + yr + "-" + ("000" + (k + 1)).slice(-4); });
+    data.jobs = jobs;
+    data.quotes = []; data.installations = [];
+    return data;
+  }
   var DECISION = ["Unknown", "Yes", "No"];
   var APPT_STATUSES = ["Proposed", "Confirmed", "Completed", "Rescheduled", "Cancelled", "No-show"];
   var PURPOSES = ["Technical site survey", "Follow-up visit", "Installation planning"];
@@ -164,8 +214,7 @@
     ],
     users: [],
     transactions: [],
-    installations: [],
-    quotes: [],
+    jobs: [],
     technicians: [],
     config: defaultConfig()
   };
@@ -191,8 +240,8 @@
       if (!data.appointments) data.appointments = [];
       if (!data.users) data.users = [];
       if (!data.transactions) data.transactions = [];
-      if (!data.installations) data.installations = [];
-      if (!data.quotes) data.quotes = [];
+      migrateToJobs(data);                 // fold any legacy quotes/installations
+      if (!data.jobs) data.jobs = [];
       if (!data.technicians) data.technicians = [];
       if (!data.config || typeof data.config !== "object") data.config = defaultConfig();
       return data;
@@ -2131,7 +2180,9 @@
       var result = await res.json();
       if (!result.ok) return "unauth";
       if (result.data && result.data.prospects) {
-        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], installations: result.data.installations || [], technicians: result.data.technicians || [], quotes: result.data.quotes || [], config: result.data.config && typeof result.data.config === "object" ? result.data.config : defaultConfig() };
+        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], jobs: result.data.jobs, installations: result.data.installations || [], quotes: result.data.quotes || [], technicians: result.data.technicians || [], config: result.data.config && typeof result.data.config === "object" ? result.data.config : defaultConfig() };
+        migrateToJobs(state);              // fold any legacy quotes/installations the server still holds
+        if (!state.jobs) state.jobs = [];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       }
       return "ok";
@@ -2640,7 +2691,9 @@
       try {
         var parsed = JSON.parse(reader.result);
         if (!parsed.prospects || !parsed.appointments) throw new Error();
-        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [], transactions: parsed.transactions || state.transactions || [], installations: parsed.installations || state.installations || [], technicians: parsed.technicians || state.technicians || [], quotes: parsed.quotes || state.quotes || [], config: parsed.config && typeof parsed.config === "object" ? parsed.config : (state.config || defaultConfig()) };
+        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [], transactions: parsed.transactions || state.transactions || [], jobs: parsed.jobs, installations: parsed.installations || [], quotes: parsed.quotes || [], technicians: parsed.technicians || state.technicians || [], config: parsed.config && typeof parsed.config === "object" ? parsed.config : (state.config || defaultConfig()) };
+        migrateToJobs(state);              // support importing an older backup
+        if (!state.jobs) state.jobs = [];
         saveData("Backup imported");
         render();
       } catch (e) { toast("That file is not a valid Verisko backup."); }
