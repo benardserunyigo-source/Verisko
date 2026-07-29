@@ -1688,8 +1688,9 @@
         '<div class="mat-list" id="matList">' + ((source.materials && source.materials.length) ? source.materials.map(materialRow).join("") : materialRow()) + "</div>" +
         '<button type="button" class="btn btn-ghost btn-sm" data-mat-add style="margin-top:8px">Add item</button>' +
         '<p class="mat-total" id="matTotal" aria-live="polite"></p></div>' +
-        // Completion checklist — gates "Handed over".
-        '<div class="field full"><label>Completion checklist <span class="optional-tag">tick before handover</span></label>' +
+        // Completion checklist — only shown when handing the job over (it gates
+        // the "Handed over" status), so it stays out of the way until then.
+        '<div class="field full" id="chkField"' + ((source.status === "Handed over") ? "" : " hidden") + '><label>Completion checklist <span class="optional-tag">tick before handover</span></label>' +
         '<div class="chk-list" id="chkList">' + INSTALL_CHECKLIST.map(function (i) {
           return '<label class="chk-item"><input type="checkbox" data-check="' + esc(i.key) + '"' + ((source.checklist && source.checklist[i.key]) ? " checked" : "") + "><span>" + esc(i.label) + "</span></label>";
         }).join("") + "</div></div>" +
@@ -1796,6 +1797,11 @@
       return;
     }
     if (editing && editing.type === "quote" && e.target.classList.contains("quote-input")) recalcQuoteForm();
+    // Installations: the completion checklist only appears at handover.
+    if (e.target.id === "f_status" && editing && editing.type === "installation") {
+      var cf = document.getElementById("chkField");
+      if (cf) cf.hidden = e.target.value !== "Handed over";
+    }
   });
 
   form.addEventListener("click", function (e) {
