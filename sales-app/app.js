@@ -964,6 +964,14 @@
     if (gov) gov.innerHTML = r.needsApproval ? '<div class="rev-noproof">' + (r.custom ? "12+ cameras is a custom quote — " : "This site scored Very Complex — ") + "send it to Ben to approve before quoting." + (isAdmin() ? " (You can approve as admin.)" : "") + "</div>" : "";
     var save = document.getElementById("saveButton");
     if (save) save.disabled = (r.needsApproval && !isAdmin()) || (!isAdmin() && r.discountPct > 5);
+    // The Final-price field appears for a custom (12+) job, or whenever an admin
+    // has typed an override value.
+    var fp = document.getElementById("finalPriceField");
+    if (fp) {
+      var fpInput = document.getElementById("f_finalPrice");
+      var hasVal = fpInput && String(fpInput.value || "").trim() !== "";
+      fp.hidden = !(r.custom || hasVal);
+    }
   }
 
   async function saveQuote(data) {
@@ -993,6 +1001,61 @@
     saveData(editing.id ? "Quote updated" : "Quote created"); render();
   }
 
+  // Delete-safe reference: derive the next number from the highest existing one,
+  // not the array length (so removing a job can't cause a collision).
+  function newJobRef() {
+    var yr = String(today || "2026").slice(0, 4);
+    var max = (state.jobs || []).reduce(function (m, j) {
+      var n = parseInt(String(j.ref || "").replace(/^J-\d{4}-/, ""), 10);
+      return (n > m ? n : m);
+    }, 0);
+    return "J-" + yr + "-" + ("000" + (max + 1)).slice(-4);
+  }
+
+  async function saveJob(data) {
+    if (!canInstalls()) return;
+    var prospectId = data.prospectId || "";
+    var linked = prospectId ? prospect(prospectId) : null;
+    var isLinked = !!(linked && linked.id);
+    // Linked jobs take client details from the prospect (not stored here);
+    // walk-in/standalone jobs store their own.
+    var client = isLinked ? { business: "", contact: "", phone: "", location: "" }
+      : { business: (data.business || "").trim(), contact: (data.contact || "").trim(), phone: (data.phone || "").trim(), location: (data.location || "").trim() };
+    if (!isLinked && !client.business) { showFormError(editing.id ? "Enter the client / business name." : "Choose the client for this job — pick one from Sales, or add a walk-in with a name."); return; }
+    var inputs = readQuoteInputs();
+    var r = computeQuote(inputs);
+    if (!isAdmin() && r.discountPct > 5) { showFormError("A discount above 5% needs the Owner — ask Ben to apply it."); return; }
+    if (r.needsApproval && !isAdmin()) { showFormError("This scored Very Complex (or 12+ cameras). Send it to Ben to approve before quoting."); return; }
+    var stage = JOB_STAGES.indexOf(data.stage) >= 0 ? data.stage : "Draft";
+    var checklist = collectChecklist();
+    if (stage === "Handed over" && !checklistComplete(checklist)) {
+      var missing = INSTALL_CHECKLIST.filter(function (i) { return !checklist[i.key]; }).map(function (i) { return i.label.toLowerCase(); });
+      showFormError("Not ready to hand over — first tick: " + listAnd(missing) + ".");
+      return;
+    }
+    // Preserve an existing manual price when the (admin-only) field isn't shown.
+    var existing = editing.id ? (state.jobs.find(function (x) { return x.id === editing.id; }) || {}) : {};
+    var fpEl = document.getElementById("f_finalPrice");
+    var finalPrice = fpEl ? Math.max(0, Math.round(Number(fpEl.value) || 0)) : (Number(existing.finalPrice) || 0);
+    var priceOverride = r.custom || (fpEl ? finalPrice > 0 : !!existing.priceOverride);
+    var fields = Object.assign({
+      prospectId: prospectId, business: client.business, contact: client.contact, phone: client.phone, location: client.location,
+      stage: stage, finalPrice: finalPrice, priceOverride: priceOverride,
+      scheduledDate: data.scheduledDate || "", scheduledTime: data.scheduledTime || "",
+      technicianId: data.technicianId || "", materials: collectMaterials(), checklist: checklist,
+      notes: (data.notes || "").trim()
+    }, inputs);
+    if (editing.id) {
+      var idx = state.jobs.findIndex(function (x) { return x.id === editing.id; });
+      state.jobs[idx] = Object.assign({}, state.jobs[idx], fields);
+    } else {
+      state.jobs.push(Object.assign({ id: uid(), ref: newJobRef(), createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "", createdAt: today }, fields));
+    }
+    hideFormError(); dialog.close();
+    saveData(editing.id ? "Job updated" : "Job created"); render();
+  }
+
+  function job(id) { return (state.jobs || []).find(function (x) { return x.id === id; }) || null; }
   function technician(id) { return (state.technicians || []).find(function (t) { return t.id === id; }) || null; }
   function activeTechnicians() { return (state.technicians || []).filter(function (t) { return t.active !== false; }); }
   function installStatusChip(s) {
@@ -1775,36 +1838,18 @@
         html += '<div class="field full tx-review"><button type="button" class="btn btn-primary btn-block" data-approve>Approve entry</button><button type="button" class="btn btn-ghost btn-block" data-sendback>Send back with a note</button></div>';
       }
     }
-    if (type === "installation") {
-      document.getElementById("dialogTitle").textContent = id ? "Installation" : "New installation";
+    if (type === "job") {
+      // One record for the whole lifecycle. Pricing (the quote) is always shown;
+      // delivery fields reveal at "Accepted"; the checklist reveals at handover.
+      document.getElementById("dialogTitle").textContent = id ? esc(source.ref || "Job") : "New job";
+      var qInputs = id ? source : {};
+      var jobStage = source.stage || "Draft";
+      var jr = computeQuote(qInputs);
+      var showFinal = jr.custom || !!source.priceOverride;
       var techOpts = (state.technicians || []).filter(function (t) { return t.active !== false || t.id === source.technicianId; })
         .map(function (t) { return '<option value="' + esc(t.id) + '"' + (t.id === source.technicianId ? " selected" : "") + ">" + esc(t.name) + (t.active === false ? " (inactive)" : "") + "</option>"; }).join("");
       html += renderClientBlock(id, presetProspect, source) +
-        field("status", "Status", "select", source.status || "Quoted", { options: INSTALL_STATUSES, full: true }) +
-        field("scheduledDate", "Install date", "date", source.scheduledDate || "") +
-        field("scheduledTime", "Time", "time", source.scheduledTime || "") +
-        '<div class="field full"><label for="f_technicianId">Technician</label><select id="f_technicianId" name="technicianId"><option value="">— unassigned —</option>' + techOpts + "</select>" +
-        (techOpts ? "" : '<p class="helper">Add technicians in the Technicians card to assign one.</p>') + "</div>" +
-        field("quote", "Quote (UGX)", "number", source.quote || "", { help: "Client payments track against this." }) +
-        field("siteNotes", "Site notes", "textarea", source.siteNotes, { full: true, optional: true, placeholder: "Access, cameras, cabling, power…" }) +
-        // Bill of materials — editable line items with a live total.
-        '<div class="field full"><label>Materials <span class="optional-tag">bill of materials</span></label>' +
-        '<div class="mat-head"><span>Item</span><span>Qty</span><span>Unit</span><span></span></div>' +
-        '<div class="mat-list" id="matList">' + ((source.materials && source.materials.length) ? source.materials.map(materialRow).join("") : materialRow()) + "</div>" +
-        '<button type="button" class="btn btn-ghost btn-sm" data-mat-add style="margin-top:8px">Add item</button>' +
-        '<p class="mat-total" id="matTotal" aria-live="polite"></p></div>' +
-        // Completion checklist — only shown when handing the job over (it gates
-        // the "Handed over" status), so it stays out of the way until then.
-        '<div class="field full" id="chkField"' + ((source.status === "Handed over") ? "" : " hidden") + '><label>Completion checklist <span class="optional-tag">tick before handover</span></label>' +
-        '<div class="chk-list" id="chkList">' + INSTALL_CHECKLIST.map(function (i) {
-          return '<label class="chk-item"><input type="checkbox" data-check="' + esc(i.key) + '"' + ((source.checklist && source.checklist[i.key]) ? " checked" : "") + "><span>" + esc(i.label) + "</span></label>";
-        }).join("") + "</div></div>" +
-        (id ? jobPaymentsSection(source) : "");
-    }
-    if (type === "quote") {
-      document.getElementById("dialogTitle").textContent = id ? (esc(source.quoteRef || "Quote")) : "New quote";
-      var qInputs = id ? source : {};
-      html += renderClientBlock(id, presetProspect, source) +
+        // ---- Pricing (the quote) ----
         '<div class="field full"><label>Site scoring <span class="optional-tag" id="quoteTier"></span></label>' +
         QUOTE_RUBRIC.map(function (r) {
           return '<div class="field full" style="margin-bottom:10px"><label for="f_' + r.key + '">' + esc(r.q) + "</label><select id=\"f_" + r.key + '" class="quote-input">' +
@@ -1823,12 +1868,36 @@
         (isAdmin() ? '<div class="field full"><label for="f_discountPct">Discount %</label><input id="f_discountPct" class="quote-input" type="number" inputmode="numeric" min="0" max="100" step="1" value="' + esc(qInputs.discountPct || "") + '" placeholder="0"><p class="helper">Owner only. Above 5% is your call.</p></div>' : "") +
         '<div class="field full" id="quoteGov"></div>' +
         '<div class="field full"><label>Quote</label><div id="quoteSummary"></div></div>' +
-        field("status", "Status", "select", source.status || "Draft", { options: QUOTE_STATUSES, full: true }) +
+        // Final price — only for a custom (12+) job or an admin override. Admin-only.
+        (isAdmin()
+          ? '<div class="field full" id="finalPriceField"' + (showFinal ? "" : " hidden") + '><label for="f_finalPrice">Final price (UGX) <span class="optional-tag">custom / override</span></label>' +
+            '<input id="f_finalPrice" class="quote-input" type="number" inputmode="numeric" min="0" step="1000" value="' + esc(source.finalPrice || "") + '" placeholder="0"><p class="helper">Set this for a 12+ camera custom job, or to override the rubric price.</p></div>'
+          : '<div id="finalPriceField" hidden></div>') +
+        // ---- Stage ----
+        field("stage", "Stage", "select", jobStage, { options: JOB_STAGES, full: true }) +
+        // ---- Delivery (revealed once Accepted) ----
+        '<div id="deliveryFields"' + (jobIsDelivery(jobStage) ? "" : " hidden") + ">" +
+        field("scheduledDate", "Install date", "date", source.scheduledDate || "") +
+        field("scheduledTime", "Time", "time", source.scheduledTime || "") +
+        '<div class="field full"><label for="f_technicianId">Technician</label><select id="f_technicianId" name="technicianId"><option value="">— unassigned —</option>' + techOpts + "</select>" +
+        (techOpts ? "" : '<p class="helper">Add technicians in the Technicians card to assign one.</p>') + "</div>" +
+        '<div class="field full"><label>Materials <span class="optional-tag">bill of materials</span></label>' +
+        '<div class="mat-head"><span>Item</span><span>Qty</span><span>Unit</span><span></span></div>' +
+        '<div class="mat-list" id="matList">' + ((source.materials && source.materials.length) ? source.materials.map(materialRow).join("") : materialRow()) + "</div>" +
+        '<button type="button" class="btn btn-ghost btn-sm" data-mat-add style="margin-top:8px">Add item</button>' +
+        '<p class="mat-total" id="matTotal" aria-live="polite"></p></div>' +
+        "</div>" +
+        // ---- Completion checklist (revealed at handover; gates it) ----
+        '<div class="field full" id="chkField"' + ((jobStage === "Handed over") ? "" : " hidden") + '><label>Completion checklist <span class="optional-tag">tick before handover</span></label>' +
+        '<div class="chk-list" id="chkList">' + INSTALL_CHECKLIST.map(function (i) {
+          return '<label class="chk-item"><input type="checkbox" data-check="' + esc(i.key) + '"' + ((source.checklist && source.checklist[i.key]) ? " checked" : "") + "><span>" + esc(i.label) + "</span></label>";
+        }).join("") + "</div></div>" +
+        ((id && jobIsDelivery(jobStage)) ? jobPaymentsSection(source) : "") +
         field("notes", "Notes", "textarea", source.notes, { full: true, optional: true, placeholder: "Anything the customer or Ben should know." });
     }
-    // Delete is offered for prospects, site visits and installations (not cash
-    // entries), and not once a prospect/visit is approved (Sales can't remove audited records).
-    if (id && (type === "prospect" || type === "appointment" || type === "installation") && canDeleteRecord(type, source)) html += '<button type="button" class="btn btn-danger btn-block delete-record" data-delete>Delete this ' + (type === "appointment" ? "site visit" : type === "installation" ? "installation" : "prospect") + "</button>";
+    // Delete is offered for prospects, site visits and jobs (not cash entries),
+    // and not once a prospect/visit is approved (Sales can't remove audited records).
+    if (id && (type === "prospect" || type === "appointment" || type === "job") && canDeleteRecord(type, source)) html += '<button type="button" class="btn btn-danger btn-block delete-record" data-delete>Delete this ' + (type === "appointment" ? "site visit" : type === "job" ? "job" : "prospect") + "</button>";
     formContent.innerHTML = html + "</div>";
     if (type === "transaction" || type === "prospect") {
       pendingProof = null;
@@ -1849,8 +1918,7 @@
         });
       }
     }
-    if (type === "installation") updateMatTotal();
-    if (type === "quote") recalcQuoteForm();
+    if (type === "job") { recalcQuoteForm(); updateMatTotal(); }
     document.getElementById("saveButton").textContent = id ? "Save changes" : "Save";
     if (!dialog.open) dialog.showModal();
     var first = formContent.querySelector('input:not([type=hidden]),select,textarea');
@@ -1864,7 +1932,7 @@
   async function deleteRecord() {
     if (!editing || !editing.id) return;
     var type = editing.type;
-    var label = type === "appointment" ? "site visit" : type === "installation" ? "installation" : "prospect";
+    var label = type === "appointment" ? "site visit" : type === "job" ? "job" : "prospect";
     var rec = state[type + "s"].find(function (x) { return x.id === editing.id; });
     if (!canDeleteRecord(type, rec)) {
       showFormError("This " + label + " has been approved, so it can't be deleted here. Ask Operations if it really needs removing.");
@@ -1891,19 +1959,21 @@
   form.addEventListener("input", function (e) {
     if (e.target.id === "f_amount") updateAmountEcho();
     if (e.target.classList.contains("mat-qty") || e.target.classList.contains("mat-cost")) updateMatTotal();
-    if (editing && editing.type === "quote" && e.target.classList.contains("quote-input")) recalcQuoteForm();
+    if (editing && editing.type === "job" && e.target.classList.contains("quote-input")) recalcQuoteForm();
   });
 
   form.addEventListener("change", function (e) {
-    // Picking the client on a new installation/quote re-renders the form with it.
+    // Picking the client on a new job re-renders the form with it.
     if (e.target.id === "f_clientPick") {
       var v = e.target.value;
-      openForm(editing ? editing.type : "installation", null, v === "__walkin__" ? "__walkin__" : (v || undefined));
+      openForm(editing ? editing.type : "job", null, v === "__walkin__" ? "__walkin__" : (v || undefined));
       return;
     }
-    if (editing && editing.type === "quote" && e.target.classList.contains("quote-input")) recalcQuoteForm();
-    // Installations: the completion checklist only appears at handover.
-    if (e.target.id === "f_status" && editing && editing.type === "installation") {
+    if (editing && editing.type === "job" && e.target.classList.contains("quote-input")) recalcQuoteForm();
+    // Jobs: delivery fields appear once won; the checklist appears at handover.
+    if (e.target.id === "f_stage" && editing && editing.type === "job") {
+      var df = document.getElementById("deliveryFields");
+      if (df) df.hidden = !jobIsDelivery(e.target.value);
       var cf = document.getElementById("chkField");
       if (cf) cf.hidden = e.target.value !== "Handed over";
     }
@@ -1915,10 +1985,10 @@
     var md = e.target.closest("[data-mat-del]"); if (md) { var row = md.closest(".mat-row"); if (row) row.remove(); updateMatTotal(); return; }
     var lf = e.target.closest("[data-log-followup]"); if (lf) { logFollowUp(lf.getAttribute("data-log-followup")); return; }
     var tcf = e.target.closest("[data-toggle-closed]"); if (tcf) { toggleClosedSale(tcf.getAttribute("data-toggle-closed")); return; }
-    var mi = e.target.closest("[data-make-install]"); if (mi) { openForm("installation", null, mi.getAttribute("data-make-install")); return; }
+    var mi = e.target.closest("[data-make-install]"); if (mi) { openForm("job", null, mi.getAttribute("data-make-install")); return; }
     var jph = e.target.closest("[data-job-photo]"); if (jph) { fetchProof(jph.getAttribute("data-job-photo")).then(function (img) { if (img) openPhoto(img); }); return; }
     var jpay = e.target.closest("[data-job-pay]"); if (jpay) { txPreset = { direction: "in", category: "Customer payment", installId: jpay.getAttribute("data-job-pay") }; openForm("transaction"); return; }
-    var jspend = e.target.closest("[data-job-spend]"); if (jspend) { var jid = jspend.getAttribute("data-job-spend"); var jb = installation(jid); txPreset = { direction: "out", category: "Cable & materials", installId: jid, amount: jb ? materialsTotal(jb) : "" }; openForm("transaction"); return; }
+    var jspend = e.target.closest("[data-job-spend]"); if (jspend) { var jid = jspend.getAttribute("data-job-spend"); var jb = job(jid); txPreset = { direction: "out", category: "Cable & materials", installId: jid, amount: jb ? materialsTotal(jb) : "" }; openForm("transaction"); return; }
     if (e.target.closest("[data-proof-pick]")) { var pi = document.getElementById("proofInput"); if (pi) pi.click(); return; }
     if (e.target.closest("[data-approve]")) { approveTransaction(); return; }
     if (e.target.closest("[data-sendback]")) { sendBackTransaction(); return; }
@@ -1941,8 +2011,8 @@
       var outOnly = document.getElementById("txOutOnly");
       if (outOnly) outOnly.hidden = hidden.value !== "out";
     }
-    // Quote: the camera-count segmented control re-prices the quote live.
-    if (name === "cameraCount" && editing && editing.type === "quote") recalcQuoteForm();
+    // Job: the camera-count segmented control re-prices the quote live.
+    if (name === "cameraCount" && editing && editing.type === "job") recalcQuoteForm();
   });
 
   form.addEventListener("submit", function (e) {
@@ -1951,8 +2021,7 @@
     var type = editing.type;
     if (type === "transaction") { saveTransaction(data); return; }
     if (type === "prospect") { saveProspect(data); return; }
-    if (type === "installation") { saveInstallation(data); return; }
-    if (type === "quote") { saveQuote(data); return; }
+    if (type === "job") { saveJob(data); return; }
     var collection = state[type + "s"];
 
     // Client-side guard: confirming a visit requires a complete handoff.
