@@ -542,7 +542,7 @@
       '<div class="item-lines"><div class="item-line"><span class="k">Date</span><span class="v">' + dateLabel(t.date) + "</span></div>" +
       '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(t.createdBy || "—") + "</span></div>" +
       (t.status === "query" && t.reviewNote ? '<div class="item-line"><span class="k">Sent back</span><span class="v" style="color:var(--red)">' + esc(t.reviewNote) + "</span></div>" : "") +
-      '<div class="item-line"><span class="k">Proof</span><span class="v">' + (t.proofId ? "Attached" : '<span style="color:var(--amber)">No proof yet</span>') + "</span></div></div></article>";
+      '<div class="item-line"><span class="k">Proof</span><span class="v">' + (t.proofId ? "Attached" : (queuedPhotoFor(t.id) ? '<span style="color:var(--muted)">Photo waiting to upload</span>' : '<span style="color:var(--amber)">No proof yet</span>')) + "</span></div></div></article>";
   }
 
   /* -------- Receipt photo helpers -------- */
@@ -610,10 +610,26 @@
     // A large amount is easy to fat-finger — confirm before saving.
     if (amount >= LARGE_AMOUNT && !window.confirm("Record " + money(amount) + " " + (direction === "in" ? "coming in" : "going out") + "?\n\nDouble-check the amount is right.")) return;
     var saveBtn = document.getElementById("saveButton");
+    var txId = editing.id || uid();
     var proofId = data.proofId || "";
-    try {
-      if (pendingProof) { saveBtn.disabled = true; saveBtn.textContent = "Uploading photo…"; proofId = await uploadProof(pendingProof); }
-    } catch (e) { saveBtn.disabled = false; saveBtn.textContent = editing.id ? "Save changes" : "Save"; showFormError(e.message); return; }
+    var queuePhoto = false;
+    // Offline-safe: never lose the entry because a photo won't upload.
+    // Online → upload now. Offline (or a network hiccup) → save the entry and
+    // queue the photo on this device to upload automatically later.
+    if (pendingProof) {
+      if (navigator.onLine) {
+        try {
+          saveBtn.disabled = true; saveBtn.textContent = "Uploading photo…";
+          proofId = await uploadProof(pendingProof);
+        } catch (e) {
+          if (/too large/i.test(e.message || "")) { saveBtn.disabled = false; saveBtn.textContent = editing.id ? "Save changes" : "Save"; showFormError(e.message); return; }
+          queuePhoto = true; // couldn't reach the server — keep the photo locally
+        }
+      } else {
+        queuePhoto = true; // no signal — keep the photo locally
+      }
+    }
+    if (queuePhoto) proofId = ""; // photo isn't on the server yet
 
     if (editing.id) {
       var idx = state.transactions.findIndex(function (x) { return x.id === editing.id; });
@@ -623,16 +639,17 @@
       state.transactions[idx] = upd;
     } else {
       state.transactions.push({
-        id: uid(), direction: direction, amount: amount, date: data.date || today, category: data.category, method: method,
+        id: txId, direction: direction, amount: amount, date: data.date || today, category: data.category, method: method,
         prospectId: data.prospectId || "", note: data.note || "", proofId: proofId,
         createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "",
         createdAt: today, status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: ""
       });
     }
+    if (queuePhoto) queueUpload(txId, pendingProof);
     pendingProof = null;
     saveBtn.disabled = false;
     hideFormError(); dialog.close();
-    saveData(editing.id ? "Cash entry updated" : "Cash entry added");
+    saveData(queuePhoto ? "Saved on this device. The photo will upload when you're back online." : (editing.id ? "Cash entry updated" : "Cash entry added"));
     render();
   }
   function approveTransaction() {
@@ -857,11 +874,16 @@
       updateAmountEcho();
       var pIn = document.getElementById("proofInput");
       if (pIn) pIn.addEventListener("change", onProofPick);
+      var queued = id ? queuedPhotoFor(id) : null;
       if (source && source.proofId) {
         fetchProof(source.proofId).then(function (img) {
           var pv = document.getElementById("proofPreview");
           if (pv) pv.innerHTML = img ? '<img src="' + img + '" alt="Proof photo" class="proof-img">' : '<span class="proof-none">Couldn\'t load photo</span>';
         });
+      } else if (queued) {
+        var pv0 = document.getElementById("proofPreview");
+        if (pv0) pv0.innerHTML = '<img src="' + queued + '" alt="Proof photo (waiting to upload)" class="proof-img">';
+        var pk = document.querySelector("[data-proof-pick]"); if (pk) pk.textContent = "Replace photo";
       }
     }
     document.getElementById("saveButton").textContent = id ? "Save changes" : "Save";
@@ -1083,8 +1105,51 @@
       var res = await apiData("POST", { data: state });
       var result = await res.json().catch(function () { return {}; });
       if (!res.ok || !result.ok) throw new Error();
-      setSync("connected", "Synced");
+      setSync("connected", pendingUploadCount() ? pendingUploadCount() + " photo" + (pendingUploadCount() > 1 ? "s" : "") + " waiting to upload" : "Synced");
     } catch (e) { setSync("error", "Saved on device — sync pending"); }
+  }
+
+  /* -------- Offline photo queue (receipts saved on-device until online) ----- */
+  var UPLOAD_KEY = STORAGE_KEY + "_uploads_v1";
+  function loadUploads() { try { return JSON.parse(localStorage.getItem(UPLOAD_KEY) || "[]"); } catch (e) { return []; } }
+  function saveUploads(q) { try { localStorage.setItem(UPLOAD_KEY, JSON.stringify(q)); } catch (e) {} }
+  function pendingUploadCount() { return loadUploads().length; }
+  function queueUpload(txId, dataUrl) {
+    var q = loadUploads().filter(function (x) { return x.txId !== txId; }); // one photo per entry
+    q.push({ txId: txId, dataUrl: dataUrl });
+    saveUploads(q);
+  }
+  function queuedPhotoFor(txId) { var x = loadUploads().find(function (u) { return u.txId === txId; }); return x ? x.dataUrl : null; }
+
+  // Try to upload every queued receipt; attach its id to the entry on success.
+  async function flushUploads() {
+    if (!settings.auth || !navigator.onLine) return 0;
+    var q = loadUploads();
+    if (!q.length) return 0;
+    var remaining = [], done = 0;
+    for (var i = 0; i < q.length; i++) {
+      var item = q[i];
+      var tx = (state.transactions || []).find(function (x) { return x.id === item.txId; });
+      if (!tx) { done++; continue; }         // entry deleted — drop the orphan photo
+      if (tx.proofId) { done++; continue; }   // already has proof — drop
+      try { tx.proofId = await uploadProof(item.dataUrl); done++; }
+      catch (e) { remaining.push(item); }     // still offline / failing — keep for next time
+    }
+    saveUploads(remaining);
+    if (done) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return done;
+  }
+
+  // Push local changes and flush queued photos — called on reconnect.
+  var syncing = false;
+  async function syncNow() {
+    if (syncing || !settings.auth || !navigator.onLine) return;
+    syncing = true;
+    try {
+      var n = await flushUploads();
+      await pushShared();
+      if (n) { toast(n + " photo" + (n > 1 ? "s" : "") + " uploaded"); render(); }
+    } finally { syncing = false; }
   }
 
   /* ------------------------------- Access gate ------------------------------ */
@@ -1492,6 +1557,10 @@
   });
 
   /* -------------------------------- Start ----------------------------------- */
+  // Recover automatically when the phone gets signal back.
+  window.addEventListener("online", function () { setSync("syncing", "Back online — syncing…"); syncNow(); });
+  window.addEventListener("offline", function () { setSync("error", "Offline — saved on this device"); });
+
   var hashAuth = readAuthFromHash();
   if (hashAuth && hashAuth.access_token) {
     // Landed back from a magic link — complete sign-in.
@@ -1506,7 +1575,7 @@
     loadShared().then(function (result) {
       if (result === "signin") { signOutLocal(); showLogin("Your session expired. Please sign in again."); }
       else if (result === "unauth") { var _em = settings.auth && settings.auth.email; signOutLocal(); showDenied(_em, true); }
-      else if (result === "ok") { resolveUser(); setSync("connected", "Synced"); render(); }
+      else if (result === "ok") { resolveUser(); setSync("connected", "Synced"); render(); syncNow(); }
       else { setSync("error", "Offline — using this device"); }
     });
   } else {
