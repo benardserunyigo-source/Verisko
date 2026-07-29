@@ -1058,7 +1058,7 @@
 
   // Payments panel shown when editing a saved job.
   function jobPaymentsSection(job) {
-    var quote = Number(job.quote) || 0, paid = paidForJob(job.id), pend = pendingInForJob(job.id), spend = spendForJob(job.id);
+    var quote = jobValue(job), paid = paidForJob(job.id), pend = pendingInForJob(job.id), spend = spendForJob(job.id);
     var pays = jobPayments(job.id).slice().sort(function (a, b) { return (b.date || "").localeCompare(a.date || ""); });
     var rows = pays.length ? pays.map(function (t) {
       return '<div class="item-line"><span class="k">' + dateLabel(t.date) + " · " + (t.direction === "in" ? "In" : "Out") + '</span><span class="v">' + (t.direction === "in" ? "+" : "−") + money(t.amount) + " " + txStatusChip(t.status) + "</span></div>";
@@ -1075,6 +1075,62 @@
       '<button type="button" class="btn btn-primary btn-block" data-job-pay="' + esc(job.id) + '" style="margin-top:10px">Record a client payment</button>' +
       (materialsTotal(job) > 0 ? '<button type="button" class="btn btn-ghost btn-block" data-job-spend="' + esc(job.id) + '" style="margin-top:8px">Record materials spend (' + money(materialsTotal(job)) + ")</button>" : "") +
       '<p class="helper">Payments post to the Cash flow float and appear there for approval.</p></div>';
+  }
+
+  /* --------------------------------- JOBS ----------------------------------- */
+  // One screen for the whole lifecycle: a job is a "quote" early and a live
+  // install later — same record, same card, different stage.
+  var jobFilter = "all";
+  function jobStageChip(s) {
+    if (s === "Handed over" || s === "Installed") return chip(s, "green", "✓");
+    if (s === "Accepted") return chip(s, "green", "✓");
+    if (s === "In progress") return chip(s, "cyan", "★");
+    if (s === "Scheduled") return chip(s, "amber", "◔");
+    if (s === "Sent") return chip(s, "cyan", "→");
+    if (s === "Rejected" || s === "Cancelled") return chip(s, "red", "✕");
+    return chip(s || "Draft", "grey", "•");
+  }
+  // Stages that count toward the live pipeline (not lost, not fully handed over).
+  function jobIsOpen(j) { return j.stage !== "Handed over" && j.stage !== "Rejected" && j.stage !== "Cancelled"; }
+  function jobIsWon(j) { return jobIsDelivery(j.stage); }
+
+  function renderJobs() {
+    setHead("Operations", "Jobs", "Quote, schedule and run CCTV jobs — one place from quote to handover.", "New job", true);
+    var jobs = state.jobs || [];
+    var open = jobs.filter(jobIsOpen);
+    var pipeline = open.reduce(function (s, j) { return s + jobValue(j); }, 0);
+    var wonValue = jobs.filter(jobIsWon).reduce(function (s, j) { return s + jobValue(j); }, 0);
+    var summary = '<section class="card cash-summary"><div class="cash-bal"><span class="k">Open pipeline</span><strong>' + money(pipeline) + "</strong>" +
+      "<small>" + open.length + " open · " + money(wonValue) + " won/in progress · " + jobs.length + " total</small></div></section>";
+    var filterBar = '<div class="toolbar"><div class="field-inline" style="flex:1"><label for="jobFilter">Show</label><select id="jobFilter">' +
+      [["all", "All jobs"]].concat(JOB_STAGES.map(function (s) { return [s, s]; })).map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === jobFilter ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></div></div>";
+    var order = JOB_STAGES;
+    var rows = jobs.filter(function (j) { return jobFilter === "all" || j.stage === jobFilter; })
+      .sort(function (a, b) { return order.indexOf(a.stage) - order.indexOf(b.stage) || (b.createdAt || "").localeCompare(a.createdAt || ""); });
+    var list = rows.length ? '<div class="list">' + rows.map(jobCard).join("") + "</div>" :
+      emptyState(ICON_INSTALL, "No jobs yet", "Tap New job to price a site, or start one from a closed sale in Prospects.", "New job", 'data-new="job"');
+    content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " job" : " jobs") + "</p>" + list + technicianRosterCard();
+  }
+
+  function jobCard(j) {
+    var c = jobClient(j);
+    var r = computeQuote(j);
+    var val = jobValue(j);
+    var tech = j.technicianId ? technician(j.technicianId) : null;
+    var delivery = jobIsDelivery(j.stage);
+    var priceLine = (r.custom && !val) ? '<div class="item-line"><span class="k">Value</span><span class="v">Custom — Ben quotes</span></div>' :
+      '<div class="item-line"><span class="k">Value</span><span class="v">' + money(val) + "</span></div>";
+    return '<article class="item" data-edit="job" data-id="' + j.id + '">' +
+      '<div class="item-top"><div><div class="item-title">' + esc(c.business || "Untitled job") + "</div>" +
+      '<div class="item-meta">' + esc(j.ref || "") + " · " + (r.custom ? "12+ cam" : (r.cameras ? r.cameras + "-cam" : "—")) + (r.cameras || r.custom ? " · " + esc(r.tier) : "") + "</div></div>" + jobStageChip(j.stage) + "</div>" +
+      '<div class="item-lines">' +
+      priceLine +
+      (delivery ? '<div class="item-line"><span class="k">Scheduled</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Not set") + "</span></div>" : "") +
+      (delivery ? '<div class="item-line"><span class="k">Technician</span><span class="v">' + (tech ? esc(tech.name) : '<span style="color:var(--amber)">Unassigned</span>') + "</span></div>" : "") +
+      ((delivery && (val > 0 || paidForJob(j.id) > 0)) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (val > 0 ? " · " + money(Math.max(0, val - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
+      (j.stage === "Handed over" || (/progress|installed/i.test(j.stage || "") && checklistDone(j) > 0) ? '<div class="item-line"><span class="k">Checklist</span><span class="v">' + checklistDone(j) + " / " + INSTALL_CHECKLIST.length + (checklistComplete(j.checklist) ? " · done" : "") + "</span></div>" : "") +
+      '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(j.createdBy || "—") + "</span></div>" +
+      "</div></article>";
   }
 
   function installCard(j) {
