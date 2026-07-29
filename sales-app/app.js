@@ -64,11 +64,11 @@
   /* ---------- Seed / demonstration data (prospects + appointments only) ------ */
   var seed = {
     prospects: [
-      { id: "p1", business: "Acacia Pharmacy", vertical: "Pharmacy", contact: "Grace N.", phone: "+256 772 460 125", location: "Kira Road, Kampala", decisionMaker: "Yes", concern: "Blind spot at the dispensary entrance and after-hours access.", existing: "Yes", areas: "Entrance, dispensary, rear store", estimate: "", budget: "Has budget", stage: "Appointment confirmed", owner: "Operations Director", source: "Walk-in prospecting", nextAction: "Site visit with Operations Director", followUp: plusDays(1), notes: "Best time is before the lunch rush.", created: plusDays(-6) },
-      { id: "p2", business: "Luwum Mobile Money", vertical: "Mobile money", contact: "Brian S.", phone: "+256 701 908 412", location: "Luwum Street, Kampala", decisionMaker: "Yes", concern: "Cash handling and street-facing counter.", existing: "No", areas: "Counter and entrance", estimate: "", budget: "Has budget", stage: "Qualified", owner: "Sales", source: "Referral", nextAction: "Propose a site visit this week", followUp: today, notes: "Owner is usually present after 3pm.", created: plusDays(-3) },
-      { id: "p3", business: "Nakasero Family Clinic", vertical: "Clinic", contact: "Dr. Amina K.", phone: "+256 754 330 219", location: "Nakasero, Kampala", decisionMaker: "Yes", concern: "Night access, reception and medicine store.", existing: "Yes", areas: "Reception, corridors, pharmacy store, parking", estimate: "", budget: "Not discussed", stage: "Appointment proposed", owner: "Sales", source: "Website enquiry", nextAction: "Confirm the proposed Thursday visit", followUp: today, notes: "Wants the Operations Director to view the ceiling void.", created: plusDays(-10) },
-      { id: "p4", business: "Ntinda Fresh Mart", vertical: "Supermarket", contact: "Joel M.", phone: "+256 783 222 608", location: "Ntinda, Kampala", decisionMaker: "No", concern: "Till monitoring and stock loss.", existing: "No", areas: "Tills, aisles and stock room", estimate: "", budget: "Not discussed", stage: "Contact attempted", owner: "Sales", source: "Cold visit", nextAction: "Reach the proprietor, not only the supervisor", followUp: plusDays(-1), notes: "Branch supervisor cannot make the decision.", created: plusDays(-18) },
-      { id: "p5", business: "Kabalagala Hardware", vertical: "Retail shop", contact: "Sara T.", phone: "+256 776 114 900", location: "Kabalagala, Kampala", decisionMaker: "Unknown", concern: "Break-ins after closing.", existing: "No", areas: "Shopfront and yard", estimate: "", budget: "Price-sensitive", stage: "New prospect", owner: "Sales", source: "Cold visit", nextAction: "Call to introduce Verisko", followUp: plusDays(2), notes: "", created: plusDays(-1) }
+      { id: "p1", business: "Acacia Pharmacy", vertical: "Pharmacy", contact: "Grace N.", phone: "+256 772 460 125", location: "Kira Road, Kampala", decisionMaker: "Yes", concern: "Blind spot at the dispensary entrance and after-hours access.", existing: "Yes", areas: "Entrance, dispensary, rear store", budget: "Has budget", stage: "Appointment confirmed", source: "Walk-in prospecting", nextAction: "Site visit with Operations Director", followUp: plusDays(1), notes: "Best time is before the lunch rush.", created: plusDays(-6) },
+      { id: "p2", business: "Luwum Mobile Money", vertical: "Mobile money", contact: "Brian S.", phone: "+256 701 908 412", location: "Luwum Street, Kampala", decisionMaker: "Yes", concern: "Cash handling and street-facing counter.", existing: "No", areas: "Counter and entrance", budget: "Has budget", stage: "Qualified", source: "Referral", nextAction: "Propose a site visit this week", followUp: today, notes: "Owner is usually present after 3pm.", created: plusDays(-3) },
+      { id: "p3", business: "Nakasero Family Clinic", vertical: "Clinic", contact: "Dr. Amina K.", phone: "+256 754 330 219", location: "Nakasero, Kampala", decisionMaker: "Yes", concern: "Night access, reception and medicine store.", existing: "Yes", areas: "Reception, corridors, pharmacy store, parking", budget: "Not discussed", stage: "Appointment proposed", source: "Website enquiry", nextAction: "Confirm the proposed Thursday visit", followUp: today, notes: "Wants the Operations Director to view the ceiling void.", created: plusDays(-10) },
+      { id: "p4", business: "Ntinda Fresh Mart", vertical: "Supermarket", contact: "Joel M.", phone: "+256 783 222 608", location: "Ntinda, Kampala", decisionMaker: "No", concern: "Till monitoring and stock loss.", existing: "No", areas: "Tills, aisles and stock room", budget: "Not discussed", stage: "Contact attempted", source: "Cold visit", nextAction: "Reach the proprietor, not only the supervisor", followUp: plusDays(-1), notes: "Branch supervisor cannot make the decision.", created: plusDays(-18) },
+      { id: "p5", business: "Kabalagala Hardware", vertical: "Retail shop", contact: "Sara T.", phone: "+256 776 114 900", location: "Kabalagala, Kampala", decisionMaker: "Unknown", concern: "Break-ins after closing.", existing: "No", areas: "Shopfront and yard", budget: "Price-sensitive", stage: "New prospect", source: "Cold visit", nextAction: "Call to introduce Verisko", followUp: plusDays(2), notes: "", created: plusDays(-1) }
     ],
     appointments: [
       { id: "a1", prospectId: "p1", date: plusDays(1), time: "10:00", director: "Operations Director", status: "Confirmed", purpose: "Technical site survey", directions: "Ask for Grace at the dispensary counter. Parking on Kira Road.", created: plusDays(-2) },
@@ -733,6 +733,16 @@
   }
   function materialsCount(job) { return (job.materials || []).length; }
 
+  // Client details resolve from the linked prospect (one source of truth) —
+  // standalone jobs keep their own. Nothing is re-typed by Operations.
+  function jobClient(job) {
+    if (job && job.prospectId) {
+      var p = prospect(job.prospectId);
+      if (p && p.id) return { business: p.business, contact: p.contact, phone: p.phone, location: p.location, prospect: p };
+    }
+    return { business: (job && job.business) || "", contact: (job && job.contact) || "", phone: (job && job.phone) || "", location: (job && job.location) || "", prospect: null };
+  }
+
   // Job money — all recorded through the cash-flow float, linked by installId.
   function installation(id) { return (state.installations || []).find(function (x) { return x.id === id; }) || null; }
   function jobPayments(jobId) { return (state.transactions || []).filter(function (t) { return t.installId === jobId; }); }
@@ -764,13 +774,14 @@
   function installCard(j) {
     var tech = j.technicianId ? technician(j.technicianId) : null;
     var matTotal = materialsTotal(j);
+    var c = jobClient(j);
     return '<article class="item" data-edit="installation" data-id="' + j.id + '">' +
-      '<div class="item-top"><div><div class="item-title">' + esc(j.business || "Untitled job") + "</div>" +
-      '<div class="item-meta">' + esc(j.location || "No site") + "</div></div>" + installStatusChip(j.status) + "</div>" +
+      '<div class="item-top"><div><div class="item-title">' + esc(c.business || "Untitled job") + "</div>" +
+      '<div class="item-meta">' + esc(c.location || "No site") + "</div></div>" + installStatusChip(j.status) + "</div>" +
       '<div class="item-lines">' +
       '<div class="item-line"><span class="k">Scheduled</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Not set") + "</span></div>" +
       '<div class="item-line"><span class="k">Technician</span><span class="v">' + (tech ? esc(tech.name) : '<span style="color:var(--amber)">Unassigned</span>') + "</span></div>" +
-      '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc(j.contact || "—") + (j.phone ? " · " + esc(j.phone) : "") + "</span></div>" +
+      '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc(c.contact || "—") + (c.phone ? " · " + esc(c.phone) : "") + "</span></div>" +
       (Number(j.quote) > 0 ? '<div class="item-line"><span class="k">Quote</span><span class="v">' + money(j.quote) + "</span></div>" : "") +
       ((Number(j.quote) > 0 || paidForJob(j.id) > 0) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (Number(j.quote) > 0 ? " · " + money(Math.max(0, Number(j.quote) - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
       (matTotal > 0 ? '<div class="item-line"><span class="k">Materials</span><span class="v">' + materialsCount(j) + " item" + (materialsCount(j) === 1 ? "" : "s") + " · " + money(matTotal) + "</span></div>" : "") +
@@ -849,13 +860,19 @@
 
   async function saveInstallation(data) {
     if (!canInstalls()) return;
-    var business = (data.business || "").trim();
-    if (!business) { showFormError("Enter the client / business name."); return; }
+    var prospectId = data.prospectId || "";
+    var linked = prospectId ? prospect(prospectId) : null;
+    var isLinked = !!(linked && linked.id);
+    // Linked jobs take client details from the prospect (not stored here);
+    // standalone jobs store their own.
+    var client = isLinked ? { business: "", contact: "", phone: "", location: "" }
+      : { business: (data.business || "").trim(), contact: (data.contact || "").trim(), phone: (data.phone || "").trim(), location: (data.location || "").trim() };
+    if (!isLinked && !client.business) { showFormError("Enter the client / business name."); return; }
     var status = INSTALL_STATUSES.indexOf(data.status) >= 0 ? data.status : "Quoted";
     var quote = Math.max(0, Math.round(Number(data.quote) || 0));
     var fields = {
-      prospectId: data.prospectId || "", business: business, contact: (data.contact || "").trim(), phone: (data.phone || "").trim(),
-      location: (data.location || "").trim(), status: status, scheduledDate: data.scheduledDate || "", scheduledTime: data.scheduledTime || "",
+      prospectId: prospectId, business: client.business, contact: client.contact, phone: client.phone,
+      location: client.location, status: status, scheduledDate: data.scheduledDate || "", scheduledTime: data.scheduledTime || "",
       technicianId: data.technicianId || "", quote: quote, siteNotes: (data.siteNotes || "").trim(), materials: collectMaterials()
     };
     if (editing.id) {
@@ -1113,7 +1130,7 @@
       var geo = await captureGeo();
       var reviewer = canReviewProspects();
       state.prospects.push(Object.assign({}, data, {
-        id: pid, created: today, owner: data.owner || "Sales",
+        id: pid, created: today,
         createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "",
         photoId: photoId, geo: geo, followUps: [],
         reviewStatus: reviewer ? "approved" : "pending",
@@ -1339,13 +1356,19 @@
       document.getElementById("dialogTitle").textContent = id ? "Edit site visit" : "Schedule site visit";
       var options = state.prospects.map(function (p) { return { value: p.id, label: p.business }; });
       var selected = source.prospectId || presetProspect || "";
+      // Assign the visit to a real Operations/admin person, not a typed constant.
+      var meOps = settings.user && (settings.user.role === "operations" || settings.user.role === "admin") ? settings.user.name : "";
+      var dirNames = (state.users || []).filter(function (u) { return u.role === "operations" || u.role === "admin"; }).map(function (u) { return u.name; });
+      var curDir = source.director || meOps || dirNames[0] || "Operations Director";
+      if (curDir && dirNames.indexOf(curDir) === -1) dirNames.unshift(curDir);
       html +=
         '<div class="field full"><label for="f_prospectId">Prospect <span class="req" aria-hidden="true">*</span></label>' +
         '<select id="f_prospectId" name="prospectId" required aria-required="true"><option value="">Choose a prospect</option>' +
         options.map(function (o) { return '<option value="' + esc(o.value) + '"' + (o.value === selected ? " selected" : "") + ">" + esc(o.label) + "</option>"; }).join("") + "</select></div>" +
         field("date", "Visit date", "date", source.date || plusDays(1), { required: true }) +
         field("time", "Time", "time", source.time || "10:00", { required: true }) +
-        field("director", "Operations owner", "text", source.director || "Operations Director", { required: true, full: true }) +
+        '<div class="field full"><label for="f_director">Operations owner <span class="req" aria-hidden="true">*</span></label><select id="f_director" name="director" required aria-required="true">' +
+        dirNames.map(function (n) { return '<option value="' + esc(n) + '"' + (n === curDir ? " selected" : "") + ">" + esc(n) + "</option>"; }).join("") + "</select></div>" +
         field("status", "Appointment status", "select", source.status || "Proposed", { options: APPT_STATUSES }) +
         field("purpose", "Purpose", "segmented", source.purpose || PURPOSES[0], { full: true, options: PURPOSES }) +
         field("directions", "Directions and access instructions", "textarea", source.directions, { full: true, optional: true, placeholder: "How to reach the site and who to ask for." });
@@ -1369,9 +1392,10 @@
         field("category", "Category", "select", source.category || txp.category || cats[0], { options: cats, full: true }) +
         field("method", "Paid by", "select", source.method || TX_METHODS[0], { options: TX_METHODS, full: true }) +
         // Prospect link, note and proof only apply to money OUT — hidden for money in.
+        // When the entry belongs to a job, the client is already implied — skip the prospect link.
         '<div id="txOutOnly" class="tx-outonly"' + (dir === "out" ? "" : " hidden") + ">" +
-        '<div class="field full"><label for="f_prospectId">Link to a prospect (optional)</label><select id="f_prospectId" name="prospectId"><option value="">— none —</option>' +
-        state.prospects.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === source.prospectId ? " selected" : "") + ">" + esc(p.business) + "</option>"; }).join("") + "</select></div>" +
+        (linkInstall ? "" : '<div class="field full"><label for="f_prospectId">Link to a prospect (optional)</label><select id="f_prospectId" name="prospectId"><option value="">— none —</option>' +
+        state.prospects.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === source.prospectId ? " selected" : "") + ">" + esc(p.business) + "</option>"; }).join("") + "</select></div>") +
         field("note", "Note", "textarea", source.note, { full: true, optional: true }) +
         '<div class="field full"><label>Proof of payment <span class="optional-tag">photo or MoMo SMS</span></label>' + proofControl(source.proofId) +
         (pettyLimit() > 0 ? '<p class="helper">Optional for petty cash under ' + money(pettyLimit()) + " — a note is enough.</p>" : "") + "</div></div>" +
@@ -1384,24 +1408,40 @@
     if (type === "installation") {
       document.getElementById("dialogTitle").textContent = id ? "Installation" : "New installation";
       var preset = (!id && presetProspect) ? prospect(presetProspect) : null;
-      var biz = source.business || (preset ? preset.business : "");
-      var con = source.contact || (preset ? preset.contact : "");
-      var iph = source.phone || (preset ? preset.phone : "");
-      var iloc = source.location || (preset ? preset.location : "");
       var linkedId = source.prospectId || (preset ? preset.id : "");
+      var linkedProspect = linkedId ? prospect(linkedId) : null;
+      var isLinked = !!(linkedProspect && linkedProspect.id);
       var techOpts = (state.technicians || []).filter(function (t) { return t.active !== false || t.id === source.technicianId; })
         .map(function (t) { return '<option value="' + esc(t.id) + '"' + (t.id === source.technicianId ? " selected" : "") + ">" + esc(t.name) + (t.active === false ? " (inactive)" : "") + "</option>"; }).join("");
-      html +=
-        field("business", "Client / business", "text", biz, { required: true, full: true, placeholder: "e.g. Acacia Pharmacy" }) +
-        field("contact", "Contact person", "text", con, { placeholder: "Who to ask for" }) +
-        field("phone", "Phone", "tel", iph) +
-        field("location", "Site location", "text", iloc, { full: true, placeholder: "Area, street or landmark" }) +
+      // Linked to a sale → client + survey details come straight from Sales
+      // (read-only, no re-entry). Standalone → enter the client here.
+      var clientBlock;
+      if (isLinked) {
+        var visit = appointmentFor(linkedId);
+        var ctx = line("Contact", esc(linkedProspect.contact || "—") + (linkedProspect.phone ? " · " + esc(linkedProspect.phone) : "")) +
+          line("Site", esc(linkedProspect.location || "—") + (linkedProspect.geo ? " · " + mapLink(linkedProspect.geo) : "")) +
+          (linkedProspect.existing ? line("Existing cameras", esc(linkedProspect.existing)) : "") +
+          (linkedProspect.areas ? line("Areas to cover", esc(linkedProspect.areas)) : "") +
+          (linkedProspect.concern ? line("Security concern", esc(linkedProspect.concern)) : "") +
+          (visit && visit.directions ? line("Site access", esc(visit.directions)) : "");
+        clientBlock = '<div class="field full"><label>Client <span class="optional-tag">from the sales record</span></label>' +
+          '<div class="ro-card"><div class="ro-title">' + esc(linkedProspect.business) + '</div><div class="item-lines">' + ctx + "</div>" +
+          (linkedProspect.photoId ? '<button type="button" class="btn btn-ghost btn-sm" data-job-photo="' + esc(linkedProspect.photoId) + '" style="margin-top:10px">View business photo</button>' : "") + "</div>" +
+          '<p class="helper">These come from the prospect — edit them in Prospects if they change.</p></div>';
+      } else {
+        clientBlock =
+          field("business", "Client / business", "text", source.business, { required: true, full: true, placeholder: "e.g. Acacia Pharmacy" }) +
+          field("contact", "Contact person", "text", source.contact, { placeholder: "Who to ask for" }) +
+          field("phone", "Phone", "tel", source.phone) +
+          field("location", "Site location", "text", source.location, { full: true, placeholder: "Area, street or landmark" });
+      }
+      html += clientBlock +
         field("status", "Status", "select", source.status || "Quoted", { options: INSTALL_STATUSES, full: true }) +
         field("scheduledDate", "Install date", "date", source.scheduledDate || "") +
         field("scheduledTime", "Time", "time", source.scheduledTime || "") +
         '<div class="field full"><label for="f_technicianId">Technician</label><select id="f_technicianId" name="technicianId"><option value="">— unassigned —</option>' + techOpts + "</select>" +
         (techOpts ? "" : '<p class="helper">Add technicians in the Technicians card to assign one.</p>') + "</div>" +
-        field("quote", "Quote (UGX)", "number", source.quote || "", { help: "Wired into the cash-flow float in a later update." }) +
+        field("quote", "Quote (UGX)", "number", source.quote || "", { help: "Client payments track against this." }) +
         field("siteNotes", "Site notes", "textarea", source.siteNotes, { full: true, optional: true, placeholder: "Access, cameras, cabling, power…" }) +
         // Bill of materials — editable line items with a live total.
         '<div class="field full"><label>Materials <span class="optional-tag">bill of materials</span></label>' +
@@ -1485,6 +1525,7 @@
     var lf = e.target.closest("[data-log-followup]"); if (lf) { logFollowUp(lf.getAttribute("data-log-followup")); return; }
     var tcf = e.target.closest("[data-toggle-closed]"); if (tcf) { toggleClosedSale(tcf.getAttribute("data-toggle-closed")); return; }
     var mi = e.target.closest("[data-make-install]"); if (mi) { openForm("installation", null, mi.getAttribute("data-make-install")); return; }
+    var jph = e.target.closest("[data-job-photo]"); if (jph) { fetchProof(jph.getAttribute("data-job-photo")).then(function (img) { if (img) openPhoto(img); }); return; }
     var jpay = e.target.closest("[data-job-pay]"); if (jpay) { txPreset = { direction: "in", category: "Customer payment", installId: jpay.getAttribute("data-job-pay") }; openForm("transaction"); return; }
     var jspend = e.target.closest("[data-job-spend]"); if (jspend) { var jid = jspend.getAttribute("data-job-spend"); var jb = installation(jid); txPreset = { direction: "out", category: "Cable & materials", installId: jid, amount: jb ? materialsTotal(jb) : "" }; openForm("transaction"); return; }
     if (e.target.closest("[data-proof-pick]")) { var pi = document.getElementById("proofInput"); if (pi) pi.click(); return; }
@@ -1542,7 +1583,6 @@
     } else {
       data.id = uid();
       data.created = today;
-      if (type === "prospect" && !data.owner) data.owner = "Sales";
       if (settings.user) data.createdBy = settings.user.name; // who added it
       collection.push(data);
     }
@@ -1559,7 +1599,7 @@
   function syncProspectFromAppointment(a) {
     var p = prospect(a.prospectId);
     if (!p.id) return;
-    if (a.status === "Confirmed") { p.stage = "Appointment confirmed"; p.owner = "Operations Director"; p.nextAction = "Operations site visit"; p.followUp = a.date; }
+    if (a.status === "Confirmed") { p.stage = "Appointment confirmed"; p.nextAction = "Operations site visit"; p.followUp = a.date; }
     else if (/Proposed|Rescheduled/i.test(a.status)) { p.stage = "Appointment proposed"; p.nextAction = "Confirm the site visit"; p.followUp = a.date; }
     else if (/Cancelled|No-show/i.test(a.status)) { if (/Appointment/i.test(p.stage)) { p.stage = "Qualified"; p.nextAction = "Re-book the site visit"; } }
   }
@@ -1710,6 +1750,8 @@
       '<div class="item-lines"><div class="item-line"><span class="k">Contact</span><span class="v">' + esc(p.contact || "Unknown") + (p.phone ? " · " + esc(p.phone) : "") + "</span></div>" +
       '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(p.createdBy || "—") + "</span></div>" +
       '<div class="item-line"><span class="k">Location</span><span class="v">' + (p.geo ? mapLink(p.geo, "View on map") : '<span style="color:var(--muted)">not captured</span>') + "</span></div>" +
+      (p.decisionMaker && p.decisionMaker !== "Unknown" ? '<div class="item-line"><span class="k">Decision-maker</span><span class="v">' + esc(p.decisionMaker) + "</span></div>" : "") +
+      (p.budget ? '<div class="item-line"><span class="k">Budget</span><span class="v">' + esc(p.budget) + "</span></div>" : "") +
       (p.reviewStatus === "query" && p.reviewNote ? '<div class="item-line"><span class="k">Sent back</span><span class="v" style="color:var(--red)">' + esc(p.reviewNote) + "</span></div>" : "") + "</div>" +
       photo +
       '<div class="rev-actions"><button type="button" class="btn btn-primary" data-approve-prospect="' + p.id + '">Approve</button>' +
