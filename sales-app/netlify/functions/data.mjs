@@ -13,7 +13,10 @@ const SUPABASE_KEY = "sb_publishable_hj2NsI1YGmpeQg815ET2Kg_CwznowqE";
 
 const STORE = "verisko-sales";
 const KEY = "app-data";
-const EMPTY = { prospects: [], appointments: [], users: [], transactions: [], installations: [], technicians: [], quotes: [], config: {} };
+// `jobs` is the merged quote+installation record. `quotes`/`installations` are
+// kept (normally empty) so a mid-transition client still holding them isn't
+// rejected; they're deprecated and folded into `jobs` client-side on load.
+const EMPTY = { prospects: [], appointments: [], users: [], transactions: [], jobs: [], technicians: [], quotes: [], installations: [], config: {} };
 
 export default async (request) => {
   const headers = {
@@ -54,18 +57,19 @@ export default async (request) => {
       const storedTx = Array.isArray(data.transactions) ? data.transactions : [];
       const storedProspects = Array.isArray(data.prospects) ? data.prospects : [];
       const storedAppointments = Array.isArray(data.appointments) ? data.appointments : [];
-      const storedInstalls = Array.isArray(data.installations) ? data.installations : [];
+      const storedJobs = Array.isArray(data.jobs) ? data.jobs : [];
       const storedTechs = Array.isArray(data.technicians) ? data.technicians : [];
-      const storedQuotes = Array.isArray(data.quotes) ? data.quotes : [];
       const storedConfig = data.config && typeof data.config === "object" && !Array.isArray(data.config) ? data.config : {};
       const clean = {
         prospects: Array.isArray(incoming.prospects) ? incoming.prospects : [],
         appointments: Array.isArray(incoming.appointments) ? incoming.appointments : [],
         users: Array.isArray(incoming.users) ? incoming.users : [],
         transactions: Array.isArray(incoming.transactions) ? incoming.transactions : [],
-        installations: Array.isArray(incoming.installations) ? incoming.installations : [],
+        jobs: Array.isArray(incoming.jobs) ? incoming.jobs : [],
         technicians: Array.isArray(incoming.technicians) ? incoming.technicians : [],
+        // Deprecated — carried through (normally empty) until every client migrates.
         quotes: Array.isArray(incoming.quotes) ? incoming.quotes : [],
+        installations: Array.isArray(incoming.installations) ? incoming.installations : [],
         config: incoming.config && typeof incoming.config === "object" && !Array.isArray(incoming.config) ? incoming.config : {}
       };
       const isAdmin = bootstrap || (me && me.role === "admin");
@@ -115,11 +119,11 @@ export default async (request) => {
       if (!isAdmin && JSON.stringify(clean.config) !== JSON.stringify(storedConfig)) {
         clean.config = canReview ? { ...clean.config, pettyLimit: storedConfig.pettyLimit } : storedConfig;
       }
-      // Installations, technicians & quotes are Operations/admin only — Sales can't touch them.
+      // Jobs (quote→installation lifecycle) & technicians are Operations/admin
+      // only — Sales can't touch them.
       if (!canReview) {
-        if (JSON.stringify(clean.installations) !== JSON.stringify(storedInstalls)) clean.installations = storedInstalls;
+        if (JSON.stringify(clean.jobs) !== JSON.stringify(storedJobs)) clean.jobs = storedJobs;
         if (JSON.stringify(clean.technicians) !== JSON.stringify(storedTechs)) clean.technicians = storedTechs;
-        if (JSON.stringify(clean.quotes) !== JSON.stringify(storedQuotes)) clean.quotes = storedQuotes;
       }
 
       // Cash flow: Sales cannot touch transactions; only admins may approve.
