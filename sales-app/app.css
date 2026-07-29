@@ -86,7 +86,7 @@ body.locked{overflow:hidden}
 .onb-title{font-size:22px;font-weight:700;margin-bottom:10px}
 .onb-body{color:var(--muted);font-size:15px;line-height:1.55;margin-bottom:24px}
 .onb-dots{display:flex;justify-content:center;gap:7px;margin-bottom:20px}
-.onb-dot{width:7px;height:7px;border-radius:50%;background:var(--line);transition:.2s}
+.onb-dot{width:7px;height:7px;border-radius:50%;background:var(--faint);transition:.2s}
 .onb-dot.on{background:var(--cyan);width:22px;border-radius:4px}
 .lock-card h1{font-size:24px;font-weight:700;margin-bottom:6px}
 .lock-sub{color:var(--muted);font-size:15px;margin-bottom:24px}
