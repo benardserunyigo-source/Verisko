@@ -53,6 +53,7 @@ export default async (request) => {
       const incoming = payload.data;
       const storedTx = Array.isArray(data.transactions) ? data.transactions : [];
       const storedProspects = Array.isArray(data.prospects) ? data.prospects : [];
+      const storedAppointments = Array.isArray(data.appointments) ? data.appointments : [];
       const storedConfig = data.config && typeof data.config === "object" && !Array.isArray(data.config) ? data.config : {};
       const clean = {
         prospects: Array.isArray(incoming.prospects) ? incoming.prospects : [],
@@ -65,15 +66,30 @@ export default async (request) => {
       const canCash = isAdmin || (me && me.role === "operations");
       const canReview = isAdmin || (me && me.role === "operations"); // prospect audit
 
-      // Prospect audit: only Operations/admins may mark a prospect approved.
-      if (!canReview && JSON.stringify(clean.prospects) !== JSON.stringify(storedProspects)) {
+      // Prospect audit (Sales roles only): can't self-approve, and can't delete
+      // an approved prospect or a site visit tied to one — that would erase the
+      // audit trail. Operations/admins are unrestricted.
+      if (!canReview) {
         const prevById = Object.fromEntries(storedProspects.map((p) => [p.id, p]));
-        clean.prospects = clean.prospects.map((p) => {
-          const prev = prevById[p.id];
-          if (p && p.reviewStatus === "approved" && (!prev || prev.reviewStatus !== "approved")) {
-            return prev || { ...p, reviewStatus: "pending", reviewedBy: "", reviewedAt: "", reviewNote: "" };
-          }
-          return p;
+        if (JSON.stringify(clean.prospects) !== JSON.stringify(storedProspects)) {
+          clean.prospects = clean.prospects.map((p) => {
+            const prev = prevById[p.id];
+            if (p && p.reviewStatus === "approved" && (!prev || prev.reviewStatus !== "approved")) {
+              return prev || { ...p, reviewStatus: "pending", reviewedBy: "", reviewedAt: "", reviewNote: "" };
+            }
+            return p;
+          });
+        }
+        // Restore any approved prospect the caller tried to remove.
+        const keptIds = new Set(clean.prospects.map((p) => p.id));
+        storedProspects.forEach((prev) => {
+          if (prev.reviewStatus === "approved" && !keptIds.has(prev.id)) clean.prospects.push(prev);
+        });
+        // Restore site visits tied to a still-approved prospect if removed.
+        const approvedIds = new Set(clean.prospects.filter((p) => p.reviewStatus === "approved").map((p) => p.id));
+        const keptApptIds = new Set(clean.appointments.map((a) => a.id));
+        storedAppointments.forEach((prev) => {
+          if (approvedIds.has(prev.prospectId) && !keptApptIds.has(prev.id)) clean.appointments.push(prev);
         });
       }
 

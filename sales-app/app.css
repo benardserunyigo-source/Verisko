@@ -447,6 +447,30 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .followup-meta{font-size:12.5px;color:var(--faint);font-weight:500;margin-bottom:3px}
 .followup-note{font-size:14px;color:var(--ink);line-height:1.45}
 
+/* ---------- Dashboard ---------- */
+.dash-hero{padding:20px;margin-bottom:14px}
+.dash-eyebrow{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--faint);text-transform:none;margin-bottom:6px}
+.sample-tag{background:var(--fill);color:var(--muted);font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em}
+.dash-big{font-size:34px;font-weight:800;color:var(--ink);letter-spacing:-.03em;line-height:1.05}
+.dash-sub{color:var(--muted);font-size:14px;font-weight:450;margin-top:2px}
+.progress{height:10px;border-radius:999px;background:var(--fill);overflow:hidden;margin:14px 0 8px}
+.progress-bar{height:100%;border-radius:999px;background:var(--cyan);transition:width .4s ease}
+.dash-foot{font-size:13.5px;font-weight:600;color:var(--ink)}
+.dash-note{margin-top:12px;font-size:12.5px;color:var(--faint);line-height:1.5}
+
+.metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.metric-tile{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:16px}
+.metric-num{font-size:26px;font-weight:700;color:var(--ink);letter-spacing:-.02em}
+.metric-label{font-size:13px;color:var(--muted);font-weight:500;margin-top:2px}
+
+.dash-bars{padding:18px}
+.dash-h2{font-size:15px;font-weight:700;color:var(--ink);margin:0 0 14px}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.bar-label{flex:0 0 42%;font-size:13px;color:var(--muted);font-weight:450}
+.bar-track{flex:1;height:9px;border-radius:999px;background:var(--fill);overflow:hidden}
+.bar-fill{display:block;height:100%;border-radius:999px;background:var(--navy)}
+.bar-count{flex:none;font-size:13px;font-weight:700;color:var(--ink);min-width:18px;text-align:right}
+
 /* ---------- Cash flow: review queue ---------- */
 .nav-item{position:relative}
 .nav-badge{position:absolute;top:5px;right:calc(50% - 23px);min-width:17px;height:17px;padding:0 4px;

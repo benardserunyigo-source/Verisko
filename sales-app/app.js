@@ -211,6 +211,7 @@
     updateCashBadge();
     updateProspectBadge();
     if (view === "today") renderToday();
+    else if (view === "dashboard") renderDashboard();
     else if (view === "prospects") renderProspects();
     else if (view === "visits") renderVisits();
     else if (view === "cashflow") renderCashflow();
@@ -438,6 +439,9 @@
 
   /* -------------------------------- CASH FLOW ------------------------------- */
   var ICON_CASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.4"/></svg>';
+  // Sample commission targets — illustrative until real deal values are wired in.
+  var SAMPLE_TARGET = 3000000;    // monthly commission target (UGX)
+  var SAMPLE_COMMISSION_PER_DEAL = 150000; // per confirmed deal (UGX)
   var TX_CATS = {
     in: ["Customer deposit", "Customer payment", "Float top-up", "Refund", "Other"],
     out: ["Equipment", "Cable & materials", "Transport & fuel", "Labour", "Airtime & data", "Other"]
@@ -474,6 +478,50 @@
       else if (t.direction === "out") sum -= Number(t.amount || 0);
     });
     return sum;
+  }
+
+  /* -------------------------------- DASHBOARD ------------------------------- */
+  function metricTile(n, label) {
+    return '<div class="metric-tile"><div class="metric-num">' + n + '</div><div class="metric-label">' + esc(label) + "</div></div>";
+  }
+  function renderDashboard() {
+    setHead("Your performance", "Dashboard", "Your sales metrics at a glance.", "", false);
+    var email = ((settings.user || {}).email || "").toLowerCase();
+    var mine = (state.prospects || []).filter(function (p) { return (p.createdByEmail || "").toLowerCase() === email; });
+    var scopeAll = mine.length === 0;                 // fall back to team data so it isn't empty
+    var ps = scopeAll ? (state.prospects || []) : mine;
+    var total = ps.length;
+    var qualified = ps.filter(function (p) { return /qualified|appointment/i.test(p.stage || ""); }).length;
+    var confirmed = ps.filter(function (p) { return /confirmed/i.test(p.stage || ""); }).length;
+    var conv = total ? Math.round((confirmed / total) * 100) : 0;
+
+    // Sample commission: confirmed deals × a sample rate, against a sample target.
+    var earned = confirmed * SAMPLE_COMMISSION_PER_DEAL;
+    var target = SAMPLE_TARGET;
+    var pct = target ? Math.min(100, Math.round((earned / target) * 100)) : 0;
+    var remaining = Math.max(0, target - earned);
+
+    var hero = '<section class="card dash-hero">' +
+      '<p class="dash-eyebrow">Commission this month <span class="sample-tag">Sample</span></p>' +
+      '<div class="dash-big">' + money(earned) + "</div>" +
+      '<div class="dash-sub">of ' + money(target) + " target</div>" +
+      '<div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div>' +
+      '<div class="dash-foot">' + pct + "% reached · " + money(remaining) + " to go</div>" +
+      '<div class="dash-note">' + confirmed + " confirmed " + (confirmed === 1 ? "deal" : "deals") + " × " + money(SAMPLE_COMMISSION_PER_DEAL) + " (sample rate). We can connect this to real deal values later.</div></section>";
+
+    var tiles = '<div class="metric-grid">' +
+      metricTile(total, "Prospects") + metricTile(qualified, "Qualified+") +
+      metricTile(confirmed, "Visits confirmed") + metricTile(conv + "%", "Conversion") + "</div>";
+
+    var byStage = STAGES.map(function (s) { return { label: s, n: ps.filter(function (p) { return p.stage === s; }).length }; }).filter(function (x) { return x.n > 0; });
+    var maxN = byStage.reduce(function (m, x) { return Math.max(m, x.n); }, 1);
+    var bars = byStage.length ? '<section class="card dash-bars"><h2 class="dash-h2">Pipeline by stage</h2>' +
+      byStage.map(function (x) {
+        return '<div class="bar-row"><span class="bar-label">' + esc(x.label) + '</span><span class="bar-track"><span class="bar-fill" style="width:' + Math.round((x.n / maxN) * 100) + '%"></span></span><span class="bar-count">' + x.n + "</span></div>";
+      }).join("") + "</section>" : "";
+
+    var scopeNote = scopeAll ? '<p class="result-note">You haven\'t added prospects yet — showing the team pipeline as a sample.</p>' : "";
+    content.innerHTML = hero + scopeNote + tiles + bars;
   }
 
   function renderCashflow() {
@@ -685,6 +733,8 @@
     var photoId = data.proofId || "";   // existing business photo id (hidden input)
     delete data.proofId;                // stored as photoId on the prospect
     var queuePhoto = false;
+    var reopened = false;
+    var photoPicked = !!pendingProof;
     // Business photo, offline-safe (same machinery as receipts).
     if (pendingProof) {
       if (navigator.onLine) {
@@ -698,8 +748,14 @@
       var idx = state.prospects.findIndex(function (x) { return x.id === editing.id; });
       var prev = state.prospects[idx];
       var merged = Object.assign({}, prev, data, { id: editing.id, photoId: photoId });
-      // A sent-back prospect goes back into the queue when Sales re-submits it.
-      if (!canReviewProspects() && prev.reviewStatus === "query") { merged.reviewStatus = "pending"; merged.reviewNote = ""; }
+      // A Sales edit re-opens the audit: a sent-back prospect returns to the
+      // queue, and an approved one that actually changed goes back to pending.
+      if (!canReviewProspects()) {
+        if (prev.reviewStatus === "query") { merged.reviewStatus = "pending"; merged.reviewNote = ""; reopened = true; }
+        else if (prev.reviewStatus === "approved" && prospectChanged(prev, data, photoPicked)) {
+          merged.reviewStatus = "pending"; merged.reviewedBy = ""; merged.reviewedAt = ""; merged.reviewNote = ""; reopened = true;
+        }
+      }
       state.prospects[idx] = merged;
     } else {
       // Capture location on first submit (best-effort — never blocks).
@@ -719,7 +775,7 @@
     pendingProof = null;
     saveBtn.disabled = false;
     hideFormError(); dialog.close();
-    saveData(editing.id ? "Changes saved" : (canReviewProspects() ? "Prospect added" : "Prospect submitted for review"));
+    saveData(editing.id ? (reopened ? "Changes saved — sent back for review" : "Changes saved") : (canReviewProspects() ? "Prospect added" : "Prospect submitted for review"));
     render();
   }
 
@@ -948,8 +1004,9 @@
         html += '<div class="field full tx-review"><button type="button" class="btn btn-primary btn-block" data-approve>Approve entry</button><button type="button" class="btn btn-ghost btn-block" data-sendback>Send back with a note</button></div>';
       }
     }
-    // Delete is offered for prospects & site visits (not cash entries).
-    if (id && (type === "prospect" || type === "appointment")) html += '<button type="button" class="btn btn-danger btn-block delete-record" data-delete>Delete this ' + (type === "appointment" ? "site visit" : "prospect") + "</button>";
+    // Delete is offered for prospects & site visits (not cash entries), and not
+    // once approved (Sales can't remove audited records).
+    if (id && (type === "prospect" || type === "appointment") && canDeleteRecord(type, source)) html += '<button type="button" class="btn btn-danger btn-block delete-record" data-delete>Delete this ' + (type === "appointment" ? "site visit" : "prospect") + "</button>";
     formContent.innerHTML = html + "</div>";
     if (type === "transaction" || type === "prospect") {
       pendingProof = null;
@@ -983,6 +1040,11 @@
     if (!editing || !editing.id) return;
     var type = editing.type;
     var label = type === "appointment" ? "site visit" : "prospect";
+    var rec = state[type + "s"].find(function (x) { return x.id === editing.id; });
+    if (!canDeleteRecord(type, rec)) {
+      showFormError("This " + label + " has been approved, so it can't be deleted here. Ask Operations if it really needs removing.");
+      return;
+    }
     if (!confirm("Delete this " + label + "? This can't be undone.")) return;
     state[type + "s"] = state[type + "s"].filter(function (x) { return x.id !== editing.id; });
     if (type === "prospect") state.appointments = state.appointments.filter(function (a) { return a.prospectId !== editing.id; });
@@ -1104,6 +1166,24 @@
 
   // Operations and admins review prospects. (Sales record them.)
   function canReviewProspects() { return isAdmin() || !!(settings.user && settings.user.role === "operations"); }
+
+  // Sales may only delete prospects still in the review process (their own,
+  // not yet approved). Once approved, only Operations/admins can delete — this
+  // protects the audit trail. Legacy prospects (no reviewStatus) are locked too.
+  function salesCanDeleteProspect(p) { return p.reviewStatus === "pending" || p.reviewStatus === "query"; }
+  function canDeleteRecord(type, rec) {
+    if (canReviewProspects()) return true;        // Operations/admins can delete
+    if (type === "prospect") return salesCanDeleteProspect(rec || {});
+    if (type === "appointment") { var p = prospect((rec || {}).prospectId); return !p || !p.id || salesCanDeleteProspect(p); }
+    return true;
+  }
+  // Did a Sales edit change anything that should re-open the audit?
+  function prospectChanged(prev, data, photoChanged) {
+    if (photoChanged) return true;
+    return Object.keys(data).some(function (k) {
+      return String(prev[k] == null ? "" : prev[k]) !== String(data[k] == null ? "" : data[k]);
+    });
+  }
 
   // Best-effort GPS — resolves to {lat,lng,acc,at} or null. Never rejects, so
   // a denied permission or poor signal doesn't block the submission.
