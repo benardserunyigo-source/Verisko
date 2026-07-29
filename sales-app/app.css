@@ -538,6 +538,16 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .mat-del:hover{background:var(--red-bg)}
 .mat-total{margin:12px 0 0;font-weight:650;font-size:15px;color:var(--ink);min-height:1em}
 
+/* Job payments panel */
+.pay-summary{background:var(--fill);border-radius:12px;padding:12px 14px;margin-top:2px}
+.pay-line{display:flex;justify-content:space-between;align-items:center;font-size:14px;padding:3px 0}
+.pay-line span{color:var(--muted)}
+.pay-line strong{color:var(--ink);font-weight:650}
+.pay-line strong.pos{color:var(--green)}
+.pay-line strong.neg{color:var(--red)}
+.pay-line strong.amber{color:var(--amber)}
+.pay-list{margin-top:10px;display:flex;flex-direction:column;gap:1px}
+
 @media(min-width:860px){
   .nav-badge{position:static;margin-left:auto;box-shadow:none}
 }

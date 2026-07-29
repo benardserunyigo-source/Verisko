@@ -538,6 +538,7 @@
   var money = function (n) { return "UGX " + Number(n || 0).toLocaleString("en-US"); };
   var cashFilter = "all";
   var pendingProof = null; // resized photo chosen in the form, not yet uploaded
+  var txPreset = null;     // prefill for a cash entry opened from an installation
 
   function txStatusChip(s) {
     if (s === "approved") return chip("Approved", "green", "✓");
@@ -732,6 +733,34 @@
   }
   function materialsCount(job) { return (job.materials || []).length; }
 
+  // Job money — all recorded through the cash-flow float, linked by installId.
+  function installation(id) { return (state.installations || []).find(function (x) { return x.id === id; }) || null; }
+  function jobPayments(jobId) { return (state.transactions || []).filter(function (t) { return t.installId === jobId; }); }
+  function paidForJob(jobId) { return jobPayments(jobId).filter(function (t) { return t.direction === "in" && t.status === "approved"; }).reduce(function (s, t) { return s + Number(t.amount || 0); }, 0); }
+  function pendingInForJob(jobId) { return jobPayments(jobId).filter(function (t) { return t.direction === "in" && t.status !== "approved"; }).reduce(function (s, t) { return s + Number(t.amount || 0); }, 0); }
+  function spendForJob(jobId) { return jobPayments(jobId).filter(function (t) { return t.direction === "out" && t.status === "approved"; }).reduce(function (s, t) { return s + Number(t.amount || 0); }, 0); }
+
+  // Payments panel shown when editing a saved job.
+  function jobPaymentsSection(job) {
+    var quote = Number(job.quote) || 0, paid = paidForJob(job.id), pend = pendingInForJob(job.id), spend = spendForJob(job.id);
+    var pays = jobPayments(job.id).slice().sort(function (a, b) { return (b.date || "").localeCompare(a.date || ""); });
+    var rows = pays.length ? pays.map(function (t) {
+      return '<div class="item-line"><span class="k">' + dateLabel(t.date) + " · " + (t.direction === "in" ? "In" : "Out") + '</span><span class="v">' + (t.direction === "in" ? "+" : "−") + money(t.amount) + " " + txStatusChip(t.status) + "</span></div>";
+    }).join("") : '<p class="helper">No payments recorded yet.</p>';
+    return '<div class="field full"><label>Payments &amp; float</label>' +
+      '<div class="pay-summary">' +
+      (quote > 0 ? '<div class="pay-line"><span>Quote</span><strong>' + money(quote) + "</strong></div>" : "") +
+      '<div class="pay-line"><span>Paid (approved)</span><strong class="pos">' + money(paid) + "</strong></div>" +
+      (pend > 0 ? '<div class="pay-line"><span>Awaiting approval</span><strong class="amber">' + money(pend) + "</strong></div>" : "") +
+      (quote > 0 ? '<div class="pay-line"><span>Balance due</span><strong>' + money(Math.max(0, quote - paid)) + "</strong></div>" : "") +
+      (spend > 0 ? '<div class="pay-line"><span>Materials/labour out</span><strong class="neg">' + money(spend) + "</strong></div>" : "") +
+      "</div>" +
+      '<div class="pay-list">' + rows + "</div>" +
+      '<button type="button" class="btn btn-primary btn-block" data-job-pay="' + esc(job.id) + '" style="margin-top:10px">Record a client payment</button>' +
+      (materialsTotal(job) > 0 ? '<button type="button" class="btn btn-ghost btn-block" data-job-spend="' + esc(job.id) + '" style="margin-top:8px">Record materials spend (' + money(materialsTotal(job)) + ")</button>" : "") +
+      '<p class="helper">Payments post to the Cash flow float and appear there for approval.</p></div>';
+  }
+
   function installCard(j) {
     var tech = j.technicianId ? technician(j.technicianId) : null;
     var matTotal = materialsTotal(j);
@@ -743,6 +772,7 @@
       '<div class="item-line"><span class="k">Technician</span><span class="v">' + (tech ? esc(tech.name) : '<span style="color:var(--amber)">Unassigned</span>') + "</span></div>" +
       '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc(j.contact || "—") + (j.phone ? " · " + esc(j.phone) : "") + "</span></div>" +
       (Number(j.quote) > 0 ? '<div class="item-line"><span class="k">Quote</span><span class="v">' + money(j.quote) + "</span></div>" : "") +
+      ((Number(j.quote) > 0 || paidForJob(j.id) > 0) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (Number(j.quote) > 0 ? " · " + money(Math.max(0, Number(j.quote) - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
       (matTotal > 0 ? '<div class="item-line"><span class="k">Materials</span><span class="v">' + materialsCount(j) + " item" + (materialsCount(j) === 1 ? "" : "s") + " · " + money(matTotal) + "</span></div>" : "") +
       "</div></article>";
   }
@@ -879,9 +909,11 @@
   // "Category · Paid by · Business" line shared by both card styles.
   function txMeta(t) {
     var p = t.prospectId ? prospect(t.prospectId) : null;
+    var job = t.installId ? installation(t.installId) : null;
     var bits = [esc(t.category || "Uncategorised")];
     if (t.method) bits.push(esc(t.method));
-    if (p && p.business) bits.push(esc(p.business));
+    if (job && job.business) bits.push("Job: " + esc(job.business));
+    else if (p && p.business) bits.push(esc(p.business));
     return bits.join(" · ");
   }
 
@@ -1025,13 +1057,13 @@
     if (editing.id) {
       var idx = state.transactions.findIndex(function (x) { return x.id === editing.id; });
       var prev = state.transactions[idx];
-      var upd = Object.assign({}, prev, { direction: direction, amount: amount, date: data.date, category: data.category, method: method, prospectId: prospectId, note: note, proofId: proofId });
+      var upd = Object.assign({}, prev, { direction: direction, amount: amount, date: data.date, category: data.category, method: method, prospectId: prospectId, note: note, proofId: proofId, installId: data.installId || prev.installId || "" });
       if (!isAdmin() && prev.status === "query") { upd.status = "pending"; upd.reviewNote = ""; } // resubmit after a send-back
       state.transactions[idx] = upd;
     } else {
       state.transactions.push({
         id: txId, direction: direction, amount: amount, date: data.date || today, category: data.category, method: method,
-        prospectId: prospectId, note: note, proofId: proofId,
+        prospectId: prospectId, note: note, proofId: proofId, installId: data.installId || "",
         createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "",
         createdAt: today, status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: ""
       });
@@ -1319,18 +1351,22 @@
         field("directions", "Directions and access instructions", "textarea", source.directions, { full: true, optional: true, placeholder: "How to reach the site and who to ask for." });
     }
     if (type === "transaction") {
-      document.getElementById("dialogTitle").textContent = id ? "Cash entry" : "Add money";
-      var dir = source.direction || "in";
+      var txp = (!id && txPreset) ? txPreset : {};
+      document.getElementById("dialogTitle").textContent = id ? "Cash entry" : (txp.installId ? (txp.direction === "out" ? "Record job spend" : "Record payment") : "Add money");
+      var dir = source.direction || txp.direction || "in";
       var cats = TX_CATS[dir] || TX_CATS.in;
+      var linkInstall = source.installId || txp.installId || "";
+      var linkJob = linkInstall ? (state.installations || []).find(function (j) { return j.id === linkInstall; }) : null;
       html +=
+        (linkJob ? '<div class="field full"><div class="rev-petty">For installation: <strong>' + esc(linkJob.business) + "</strong>" + (dir === "in" ? " — client payment" : " — job spend") + "</div></div>" : "") +
         field("direction", "Direction", "segmented", dir, { full: true, options: [{ value: "in", label: "Money in" }, { value: "out", label: "Money out" }] }) +
         // Amount: numeric keypad, a live "= UGX 500,000" echo, and the float hint.
         '<div class="field full"><label for="f_amount">Amount (UGX) <span class="req" aria-hidden="true">*</span></label>' +
-        '<input id="f_amount" name="amount" type="number" inputmode="numeric" min="0" step="1" required aria-required="true" value="' + esc(source.amount || "") + '">' +
+        '<input id="f_amount" name="amount" type="number" inputmode="numeric" min="0" step="1" required aria-required="true" value="' + esc(source.amount || txp.amount || "") + '">' +
         '<p class="amount-echo" id="amountEcho" aria-live="polite"></p>' +
         '<p class="helper">In the float now: ' + money(availableForOut(id)) + ".</p></div>" +
         field("date", "Date", "date", source.date || today, { required: true }) +
-        field("category", "Category", "select", source.category || cats[0], { options: cats, full: true }) +
+        field("category", "Category", "select", source.category || txp.category || cats[0], { options: cats, full: true }) +
         field("method", "Paid by", "select", source.method || TX_METHODS[0], { options: TX_METHODS, full: true }) +
         // Prospect link, note and proof only apply to money OUT — hidden for money in.
         '<div id="txOutOnly" class="tx-outonly"' + (dir === "out" ? "" : " hidden") + ">" +
@@ -1338,7 +1374,9 @@
         state.prospects.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === source.prospectId ? " selected" : "") + ">" + esc(p.business) + "</option>"; }).join("") + "</select></div>" +
         field("note", "Note", "textarea", source.note, { full: true, optional: true }) +
         '<div class="field full"><label>Proof of payment <span class="optional-tag">photo or MoMo SMS</span></label>' + proofControl(source.proofId) +
-        (pettyLimit() > 0 ? '<p class="helper">Optional for petty cash under ' + money(pettyLimit()) + " — a note is enough.</p>" : "") + "</div></div>";
+        (pettyLimit() > 0 ? '<p class="helper">Optional for petty cash under ' + money(pettyLimit()) + " — a note is enough.</p>" : "") + "</div></div>" +
+        '<input type="hidden" name="installId" value="' + esc(linkInstall) + '">';
+      txPreset = null; // preset consumed
       if (id && isAdmin() && source.status !== "approved") {
         html += '<div class="field full tx-review"><button type="button" class="btn btn-primary btn-block" data-approve>Approve entry</button><button type="button" class="btn btn-ghost btn-block" data-sendback>Send back with a note</button></div>';
       }
@@ -1371,6 +1409,7 @@
         '<div class="mat-list" id="matList">' + ((source.materials && source.materials.length) ? source.materials.map(materialRow).join("") : materialRow()) + "</div>" +
         '<button type="button" class="btn btn-ghost btn-sm" data-mat-add style="margin-top:8px">Add item</button>' +
         '<p class="mat-total" id="matTotal" aria-live="polite"></p></div>' +
+        (id ? jobPaymentsSection(source) : "") +
         '<input type="hidden" name="prospectId" value="' + esc(linkedId) + '">';
     }
     // Delete is offered for prospects, site visits and installations (not cash
@@ -1446,6 +1485,8 @@
     var lf = e.target.closest("[data-log-followup]"); if (lf) { logFollowUp(lf.getAttribute("data-log-followup")); return; }
     var tcf = e.target.closest("[data-toggle-closed]"); if (tcf) { toggleClosedSale(tcf.getAttribute("data-toggle-closed")); return; }
     var mi = e.target.closest("[data-make-install]"); if (mi) { openForm("installation", null, mi.getAttribute("data-make-install")); return; }
+    var jpay = e.target.closest("[data-job-pay]"); if (jpay) { txPreset = { direction: "in", category: "Customer payment", installId: jpay.getAttribute("data-job-pay") }; openForm("transaction"); return; }
+    var jspend = e.target.closest("[data-job-spend]"); if (jspend) { var jid = jspend.getAttribute("data-job-spend"); var jb = installation(jid); txPreset = { direction: "out", category: "Cable & materials", installId: jid, amount: jb ? materialsTotal(jb) : "" }; openForm("transaction"); return; }
     if (e.target.closest("[data-proof-pick]")) { var pi = document.getElementById("proofInput"); if (pi) pi.click(); return; }
     if (e.target.closest("[data-approve]")) { approveTransaction(); return; }
     if (e.target.closest("[data-sendback]")) { sendBackTransaction(); return; }
