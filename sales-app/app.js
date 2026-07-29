@@ -1092,9 +1092,11 @@
     var delivery = jobIsDelivery(j.stage);
     var priceLine = (r.custom && !val) ? '<div class="item-line"><span class="k">Value</span><span class="v">Custom — Ben quotes</span></div>' :
       '<div class="item-line"><span class="k">Value</span><span class="v">' + money(val) + "</span></div>";
+    var cam = Number(j.cameraCount) || 0;
+    var camMeta = cam >= 12 ? "12+ cam" : (cam >= 2 ? cam + "-cam · " + r.tier : "priced by hand");
     return '<article class="item" data-edit="job" data-id="' + j.id + '">' +
       '<div class="item-top"><div><div class="item-title">' + esc(c.business || "Untitled job") + "</div>" +
-      '<div class="item-meta">' + esc(j.ref || "") + " · " + (r.custom ? "12+ cam" : (r.cameras ? r.cameras + "-cam" : "—")) + (r.cameras || r.custom ? " · " + esc(r.tier) : "") + "</div></div>" + jobStageChip(j.stage) + "</div>" +
+      '<div class="item-meta">' + esc(j.ref || "") + " · " + esc(camMeta) + "</div></div>" + jobStageChip(j.stage) + "</div>" +
       '<div class="item-lines">' +
       priceLine +
       (delivery ? '<div class="item-line"><span class="k">Scheduled</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Not set") + "</span></div>" : "") +
