@@ -50,6 +50,10 @@
     return dateLabel(v);
   };
 
+  // Shared workspace config defaults. commissionPerSale = UGX 80,000 per
+  // Operations-verified closed sale; commissionTarget = monthly goal.
+  function defaultConfig() { return { pettyLimit: 20000, commissionPerSale: 80000, commissionTarget: 1600000 }; }
+
   /* ---------- Seed / demonstration data (prospects + appointments only) ------ */
   var seed = {
     prospects: [
@@ -65,7 +69,7 @@
     ],
     users: [],
     transactions: [],
-    config: { pettyLimit: 20000 }
+    config: defaultConfig()
   };
 
   var state = loadData();
@@ -89,7 +93,7 @@
       if (!data.appointments) data.appointments = [];
       if (!data.users) data.users = [];
       if (!data.transactions) data.transactions = [];
-      if (!data.config || typeof data.config !== "object") data.config = { pettyLimit: 20000 };
+      if (!data.config || typeof data.config !== "object") data.config = defaultConfig();
       return data;
     } catch (e) { return JSON.parse(JSON.stringify(seed)); }
   }
@@ -358,13 +362,14 @@
     if (p.phone) actions += '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>';
     actions += '<button class="btn btn-sm btn-ghost" data-log-followup="' + p.id + '">Follow-up</button>';
     if (/Qualified/i.test(p.stage) && !appt) actions += '<button class="btn btn-sm btn-ghost" data-schedule="' + p.id + '">Schedule</button>';
+    if (canReviewProspects()) actions += '<button class="btn btn-sm ' + (p.closedSale ? "btn-ghost" : "btn-cyan") + '" data-toggle-closed="' + p.id + '">' + (p.closedSale ? "Undo close" : "Mark closed") + "</button>";
     actions += '<button class="btn btn-sm btn-ghost" data-edit="prospect" data-id="' + p.id + '">Edit</button>';
     var tone = isOverdue(p.followUp) ? "red" : isToday(p.followUp) ? "amber" : "navy";
     var reviewChip = prospectReviewChip(p.reviewStatus);
     return '<article class="item tone-' + tone + '">' +
       '<div class="item-top"><div><div class="item-title">' + esc(p.business) + '</div>' +
       '<div class="item-meta">' + esc(p.vertical) + " · " + esc(p.location || "No location") + "</div></div>" +
-      '<span class="chip-stack">' + stageChip(p.stage) + reviewChip + "</span></div>" +
+      '<span class="chip-stack">' + stageChip(p.stage) + reviewChip + closedSaleChip(p) + "</span></div>" +
       '<div class="item-lines">' +
       '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc(p.contact || "Unknown") + "</span></div>" +
       '<div class="item-line"><span class="k">Phone</span><span class="v">' + (p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") + "</span></div>" +
@@ -439,9 +444,6 @@
 
   /* -------------------------------- CASH FLOW ------------------------------- */
   var ICON_CASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.4"/></svg>';
-  // Sample commission targets — illustrative until real deal values are wired in.
-  var SAMPLE_TARGET = 3000000;    // monthly commission target (UGX)
-  var SAMPLE_COMMISSION_PER_DEAL = 150000; // per confirmed deal (UGX)
   var TX_CATS = {
     in: ["Customer deposit", "Customer payment", "Float top-up", "Refund", "Other"],
     out: ["Equipment", "Cable & materials", "Transport & fuel", "Labour", "Airtime & data", "Other"]
@@ -485,43 +487,94 @@
     return '<div class="metric-tile"><div class="metric-num">' + n + '</div><div class="metric-label">' + esc(label) + "</div></div>";
   }
   function renderDashboard() {
-    setHead("Your performance", "Dashboard", "Your sales metrics at a glance.", "", false);
-    var email = ((settings.user || {}).email || "").toLowerCase();
-    var mine = (state.prospects || []).filter(function (p) { return (p.createdByEmail || "").toLowerCase() === email; });
-    var scopeAll = mine.length === 0;                 // fall back to team data so it isn't empty
-    var ps = scopeAll ? (state.prospects || []) : mine;
-    var total = ps.length;
-    var qualified = ps.filter(function (p) { return /qualified|appointment/i.test(p.stage || ""); }).length;
-    var confirmed = ps.filter(function (p) { return /confirmed/i.test(p.stage || ""); }).length;
-    var conv = total ? Math.round((confirmed / total) * 100) : 0;
+    if (canReviewProspects()) return renderSalesConsole();  // Operations/admins
+    renderMyDashboard();                                    // Sales
+  }
 
-    // Sample commission: confirmed deals × a sample rate, against a sample target.
-    var earned = confirmed * SAMPLE_COMMISSION_PER_DEAL;
-    var target = SAMPLE_TARGET;
+  // Salesperson's own performance: commission = my closed sales × rate.
+  function renderMyDashboard() {
+    setHead("Your performance", "Dashboard", "Your sales and commission at a glance.", "", false);
+    var email = ((settings.user || {}).email || "").toLowerCase();
+    var ps = (state.prospects || []).filter(function (p) { return (p.createdByEmail || "").toLowerCase() === email; });
+    var total = ps.length;
+    var closed = ps.filter(function (p) { return p.closedSale; }).length;
+    var approved = ps.filter(function (p) { return p.reviewStatus === "approved"; }).length;
+    var conv = total ? Math.round((closed / total) * 100) : 0;
+    var rate = commissionRate(), target = commissionTarget();
+    var earned = closed * rate;
     var pct = target ? Math.min(100, Math.round((earned / target) * 100)) : 0;
     var remaining = Math.max(0, target - earned);
 
     var hero = '<section class="card dash-hero">' +
-      '<p class="dash-eyebrow">Commission this month <span class="sample-tag">Sample</span></p>' +
+      '<p class="dash-eyebrow">Commission this month</p>' +
       '<div class="dash-big">' + money(earned) + "</div>" +
       '<div class="dash-sub">of ' + money(target) + " target</div>" +
       '<div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div>' +
       '<div class="dash-foot">' + pct + "% reached · " + money(remaining) + " to go</div>" +
-      '<div class="dash-note">' + confirmed + " confirmed " + (confirmed === 1 ? "deal" : "deals") + " × " + money(SAMPLE_COMMISSION_PER_DEAL) + " (sample rate). We can connect this to real deal values later.</div></section>";
+      '<div class="dash-note">' + closed + " closed " + (closed === 1 ? "sale" : "sales") + " verified by Operations × " + money(rate) + " each.</div></section>";
 
     var tiles = '<div class="metric-grid">' +
-      metricTile(total, "Prospects") + metricTile(qualified, "Qualified+") +
-      metricTile(confirmed, "Visits confirmed") + metricTile(conv + "%", "Conversion") + "</div>";
+      metricTile(total, "My prospects") + metricTile(approved, "Approved") +
+      metricTile(closed, "Closed sales") + metricTile(conv + "%", "Close rate") + "</div>";
 
     var byStage = STAGES.map(function (s) { return { label: s, n: ps.filter(function (p) { return p.stage === s; }).length }; }).filter(function (x) { return x.n > 0; });
     var maxN = byStage.reduce(function (m, x) { return Math.max(m, x.n); }, 1);
-    var bars = byStage.length ? '<section class="card dash-bars"><h2 class="dash-h2">Pipeline by stage</h2>' +
+    var bars = byStage.length ? '<section class="card dash-bars"><h2 class="dash-h2">My pipeline by stage</h2>' +
       byStage.map(function (x) {
         return '<div class="bar-row"><span class="bar-label">' + esc(x.label) + '</span><span class="bar-track"><span class="bar-fill" style="width:' + Math.round((x.n / maxN) * 100) + '%"></span></span><span class="bar-count">' + x.n + "</span></div>";
       }).join("") + "</section>" : "";
 
-    var scopeNote = scopeAll ? '<p class="result-note">You haven\'t added prospects yet — showing the team pipeline as a sample.</p>' : "";
-    content.innerHTML = hero + scopeNote + tiles + bars;
+    var emptyNote = total ? "" : '<p class="result-note">Add and close prospects to grow your commission.</p>';
+    content.innerHTML = hero + tiles + emptyNote + bars;
+  }
+
+  // Operations/admin console: team totals, per-rep leaderboard, rate + target.
+  function renderSalesConsole() {
+    setHead("Operations", "Sales & commissions", "Verify closed sales and track each rep's commission.", "", false);
+    var rate = commissionRate(), target = commissionTarget();
+    var ps = state.prospects || [];
+    var totalClosed = ps.filter(function (p) { return p.closedSale; }).length;
+    var totalComm = totalClosed * rate;
+
+    var hero = '<section class="card dash-hero">' +
+      '<p class="dash-eyebrow">Commission earned by the team</p>' +
+      '<div class="dash-big">' + money(totalComm) + "</div>" +
+      '<div class="dash-sub">' + totalClosed + " closed " + (totalClosed === 1 ? "sale" : "sales") + " × " + money(rate) + " each</div></section>";
+
+    // Per-rep leaderboard (anyone who has created prospects), best first.
+    var byEmail = {};
+    ps.forEach(function (p) {
+      var key = (p.createdByEmail || "").toLowerCase();
+      if (!key) return;
+      if (!byEmail[key]) byEmail[key] = { name: p.createdBy || key, email: key, prospects: 0, closed: 0, approved: 0 };
+      byEmail[key].prospects++;
+      if (p.closedSale) byEmail[key].closed++;
+      if (p.reviewStatus === "approved") byEmail[key].approved++;
+    });
+    (state.users || []).forEach(function (u) {
+      var key = (u.email || "").toLowerCase();
+      if (key && byEmail[key]) byEmail[key].name = u.name || byEmail[key].name;
+    });
+    var reps = Object.keys(byEmail).map(function (k) { return byEmail[k]; })
+      .sort(function (a, b) { return b.closed - a.closed || b.prospects - a.prospects; });
+
+    var board = reps.length ? '<section class="card dash-bars"><h2 class="dash-h2">Salespeople</h2>' +
+      '<div class="lead-head"><span>Rep</span><span>Closed</span><span>Commission</span></div>' +
+      reps.map(function (r) {
+        return '<div class="lead-row"><span class="lead-name"><strong>' + esc(r.name) + "</strong><small>" + r.prospects + " prospects · " + r.approved + " approved</small></span>" +
+          '<span class="lead-closed">' + r.closed + "</span>" +
+          '<span class="lead-comm">' + money(r.closed * rate) + "</span></div>";
+      }).join("") + "</section>" : '<p class="result-note">No sales activity yet. Closed sales appear here once you verify them on a prospect.</p>';
+
+    var editor = '<section class="card settings-card"><h2>Commission settings</h2>' +
+      "<p>Each closed sale you verify earns the rep this much. Set the monthly target reps are working toward.</p>" +
+      '<form id="commissionForm" class="add-member">' +
+      '<div class="field"><label for="commRate">Per closed sale (UGX)</label><input id="commRate" name="commRate" type="number" inputmode="numeric" min="0" step="1000" value="' + rate + '"></div>' +
+      '<div class="field"><label for="commTarget">Monthly target (UGX)</label><input id="commTarget" name="commTarget" type="number" inputmode="numeric" min="0" step="10000" value="' + target + '"></div>' +
+      '<button type="submit" class="btn btn-ghost btn-block">Save commission settings</button></form></section>';
+
+    content.innerHTML = hero + board + editor +
+      '<p class="result-note">Mark a sale as closed from any prospect (Prospects tab) — that verification credits the rep.</p>';
   }
 
   function renderCashflow() {
@@ -962,6 +1015,12 @@
         if (source.reviewStatus === "query" && source.reviewNote) {
           html += '<div class="field full"><div class="rev-noproof">Sent back: ' + esc(source.reviewNote) + "</div></div>";
         }
+        // Operations verify a closed sale here — earns the rep their commission.
+        if (canReviewProspects()) {
+          html += '<div class="field full">' +
+            (source.closedSale ? '<p class="helper" style="color:var(--green);font-weight:600">Verified closed sale — ' + money(commissionRate()) + " commission to " + esc(source.createdBy || "the rep") + ".</p>" : "") +
+            '<button type="button" class="btn ' + (source.closedSale ? "btn-ghost" : "btn-primary") + ' btn-block" data-toggle-closed="' + esc(id) + '">' + (source.closedSale ? "Remove closed sale" : "Mark as closed sale (" + money(commissionRate()) + ")") + "</button></div>";
+        }
         html += '<div class="field full followup-block"><label>Follow-ups</label>' + followUpHistory(source) +
           '<button type="button" class="btn btn-ghost btn-block" data-log-followup="' + esc(id) + '" style="margin-top:10px">Log a follow-up (with location)</button></div>';
       }
@@ -1070,6 +1129,7 @@
   form.addEventListener("click", function (e) {
     if (e.target.closest("[data-delete]")) { deleteRecord(); return; }
     var lf = e.target.closest("[data-log-followup]"); if (lf) { logFollowUp(lf.getAttribute("data-log-followup")); return; }
+    var tcf = e.target.closest("[data-toggle-closed]"); if (tcf) { toggleClosedSale(tcf.getAttribute("data-toggle-closed")); return; }
     if (e.target.closest("[data-proof-pick]")) { var pi = document.getElementById("proofInput"); if (pi) pi.click(); return; }
     if (e.target.closest("[data-approve]")) { approveTransaction(); return; }
     if (e.target.closest("[data-sendback]")) { sendBackTransaction(); return; }
@@ -1166,6 +1226,29 @@
 
   // Operations and admins review prospects. (Sales record them.)
   function canReviewProspects() { return isAdmin() || !!(settings.user && settings.user.role === "operations"); }
+
+  /* -------- Closed sales & commission (Operations-verified, UGX 80k) -------- */
+  function commissionRate() { var n = state.config && Number(state.config.commissionPerSale); return n > 0 ? n : 80000; }
+  function commissionTarget() { var n = state.config && Number(state.config.commissionTarget); return n > 0 ? n : 1600000; }
+  function closedSalesFor(email) {
+    email = (email || "").toLowerCase();
+    return (state.prospects || []).filter(function (p) { return p.closedSale && (p.createdByEmail || "").toLowerCase() === email; }).length;
+  }
+  function closedSaleChip(p) { return p.closedSale ? chip("Closed sale", "green", "✓") : ""; }
+  // Only Operations/admins mark a sale closed — that verification earns the rep 80k.
+  function toggleClosedSale(id) {
+    if (!canReviewProspects()) return;
+    var p = prospect(id); if (!p || !p.id) return;
+    if (p.closedSale) {
+      p.closedSale = false; p.closedBy = ""; p.closedAt = "";
+      saveData("Closed sale removed");
+    } else {
+      p.closedSale = true; p.closedBy = (settings.user && settings.user.name) || ""; p.closedAt = today;
+      saveData("Closed sale verified — " + money(commissionRate()) + " commission");
+    }
+    render();
+    if (dialog.open && editing && editing.type === "prospect" && editing.id === id) openForm("prospect", id);
+  }
 
   // Sales may only delete prospects still in the review process (their own,
   // not yet approved). Once approved, only Operations/admins can delete — this
@@ -1351,7 +1434,7 @@
       var result = await res.json();
       if (!result.ok) return "unauth";
       if (result.data && result.data.prospects) {
-        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], config: result.data.config && typeof result.data.config === "object" ? result.data.config : { pettyLimit: 20000 } };
+        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], config: result.data.config && typeof result.data.config === "object" ? result.data.config : defaultConfig() };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       }
       return "ok";
@@ -1750,7 +1833,7 @@
       try {
         var parsed = JSON.parse(reader.result);
         if (!parsed.prospects || !parsed.appointments) throw new Error();
-        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [], transactions: parsed.transactions || state.transactions || [], config: parsed.config && typeof parsed.config === "object" ? parsed.config : (state.config || { pettyLimit: 20000 }) };
+        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [], transactions: parsed.transactions || state.transactions || [], config: parsed.config && typeof parsed.config === "object" ? parsed.config : (state.config || defaultConfig()) };
         saveData("Backup imported");
         render();
       } catch (e) { toast("That file is not a valid Verisko backup."); }
@@ -1791,6 +1874,7 @@
     var apprP = e.target.closest("[data-approve-prospect]"); if (apprP) { approveProspect(apprP.getAttribute("data-approve-prospect")); return; }
     var backP = e.target.closest("[data-sendback-prospect]"); if (backP) { sendBackProspect(backP.getAttribute("data-sendback-prospect")); return; }
     var fup = e.target.closest("[data-log-followup]"); if (fup) { logFollowUp(fup.getAttribute("data-log-followup")); return; }
+    var tc = e.target.closest("[data-toggle-closed]"); if (tc) { toggleClosedSale(tc.getAttribute("data-toggle-closed")); return; }
     var go = e.target.closest("[data-go]"); if (go) { view = go.dataset.go; render(); return; }
     var edit = e.target.closest("[data-edit]"); if (edit) { openForm(edit.dataset.edit, edit.dataset.id); return; }
     var sched = e.target.closest("[data-schedule]"); if (sched) { openForm("appointment", null, sched.dataset.schedule); return; }
@@ -1825,6 +1909,17 @@
       if (!state.config || typeof state.config !== "object") state.config = {};
       state.config.pettyLimit = v;
       saveData("Petty-cash limit set to " + money(v));
+      return;
+    }
+    var commForm = e.target.closest("#commissionForm");
+    if (commForm) {
+      e.preventDefault();
+      if (!canReviewProspects()) return;
+      if (!state.config || typeof state.config !== "object") state.config = {};
+      state.config.commissionPerSale = Math.max(0, Math.round(Number(commForm.querySelector("[name=commRate]").value) || 0));
+      state.config.commissionTarget = Math.max(0, Math.round(Number(commForm.querySelector("[name=commTarget]").value) || 0));
+      saveData("Commission settings saved");
+      render();
     }
   });
 

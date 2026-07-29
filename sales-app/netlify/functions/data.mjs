@@ -74,8 +74,13 @@ export default async (request) => {
         if (JSON.stringify(clean.prospects) !== JSON.stringify(storedProspects)) {
           clean.prospects = clean.prospects.map((p) => {
             const prev = prevById[p.id];
+            // Sales can't self-approve.
             if (p && p.reviewStatus === "approved" && (!prev || prev.reviewStatus !== "approved")) {
               return prev || { ...p, reviewStatus: "pending", reviewedBy: "", reviewedAt: "", reviewNote: "" };
+            }
+            // Sales can't mark their own sale closed (that verifies commission).
+            if (p && p.closedSale && (!prev || !prev.closedSale)) {
+              return prev || { ...p, closedSale: false, closedBy: "", closedAt: "" };
             }
             return p;
           });
@@ -97,9 +102,10 @@ export default async (request) => {
       if (!isAdmin && JSON.stringify(clean.users) !== JSON.stringify(users)) {
         clean.users = users; // ignore team-list tampering from non-admins
       }
-      // Workspace config (e.g. petty-cash limit) is admin-only too.
+      // Workspace config: Operations may set commission fields; the petty-cash
+      // limit stays admin-only; Sales can't change any of it.
       if (!isAdmin && JSON.stringify(clean.config) !== JSON.stringify(storedConfig)) {
-        clean.config = storedConfig;
+        clean.config = canReview ? { ...clean.config, pettyLimit: storedConfig.pettyLimit } : storedConfig;
       }
 
       // Cash flow: Sales cannot touch transactions; only admins may approve.

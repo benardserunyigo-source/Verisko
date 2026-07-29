@@ -471,6 +471,16 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .bar-fill{display:block;height:100%;border-radius:999px;background:var(--navy)}
 .bar-count{flex:none;font-size:13px;font-weight:700;color:var(--ink);min-width:18px;text-align:right}
 
+/* Sales console leaderboard */
+.lead-head{display:grid;grid-template-columns:1fr auto auto;gap:12px;padding:0 2px 8px;font-size:11px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.03em}
+.lead-head span:not(:first-child){text-align:right;min-width:64px}
+.lead-row{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:11px 2px;border-top:.5px solid var(--hair)}
+.lead-name{display:flex;flex-direction:column;gap:1px;min-width:0}
+.lead-name strong{font-size:15px;color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lead-name small{font-size:12px;color:var(--faint)}
+.lead-closed{text-align:right;min-width:64px;font-size:17px;font-weight:700;color:var(--ink)}
+.lead-comm{text-align:right;min-width:64px;font-size:14px;font-weight:600;color:var(--green)}
+
 /* ---------- Cash flow: review queue ---------- */
 .nav-item{position:relative}
 .nav-badge{position:absolute;top:5px;right:calc(50% - 23px);min-width:17px;height:17px;padding:0 4px;
