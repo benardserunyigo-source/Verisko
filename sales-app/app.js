@@ -573,8 +573,40 @@
       '<div class="field"><label for="commTarget">Monthly target (UGX)</label><input id="commTarget" name="commTarget" type="number" inputmode="numeric" min="0" step="10000" value="' + target + '"></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Save commission settings</button></form></section>';
 
-    content.innerHTML = hero + board + editor +
-      '<p class="result-note">Mark a sale as closed from any prospect (Prospects tab) — that verification credits the rep.</p>';
+    content.innerHTML = hero + board +
+      '<p class="result-note">Mark a sale as closed from any prospect (Prospects tab) — that verification credits the rep.</p>' +
+      rosterCard() + editor;
+  }
+
+  // Manage the sales roster from the console (Operations + admins). Scoped to
+  // Sales/Operations members — Owner and Technical accounts stay in Settings.
+  function rosterCard() {
+    var users = state.users || [];
+    var manageableRoleOpts = function (sel) {
+      return [["sales", "Sales"], ["operations", "Operations"]].map(function (o) {
+        return '<option value="' + o[0] + '"' + (o[0] === normRole(sel) ? " selected" : "") + ">" + o[1] + "</option>";
+      }).join("");
+    };
+    var rows = users.map(function (u) {
+      var actions = "";
+      if (actorCanManage(u)) {
+        actions += '<select class="account-role-select" data-set-role data-user-id="' + esc(u.id) + '" aria-label="Role for ' + esc(u.name) + '">' + manageableRoleOpts(u.role) + "</select>";
+        actions += '<button type="button" class="account-remove" data-remove-user="' + esc(u.id) + '" aria-label="Remove ' + esc(u.name) + '">Remove</button>';
+      }
+      return '<div class="account-row" style="background:var(--fill-2)"><span class="user-avatar" aria-hidden="true">' + esc(initials(u.name)) + "</span>" +
+        '<span class="who"><strong>' + esc(u.name) + " · " + esc(roleName(u)) + "</strong><span>" + esc(u.email) + "</span></span>" +
+        (actions ? '<span class="row-actions">' + actions + "</span>" : "") + "</div>";
+    }).join("");
+    return '<section class="card settings-card"><h2>Manage the team</h2>' +
+      "<p>Add or remove salespeople and Operations, and switch their roles. Owner and Technical accounts are managed by the Owner in Settings. Removing someone revokes access immediately.</p>" +
+      '<div class="account-list">' + rows + "</div>" +
+      '<form id="addMemberForm" class="add-member">' +
+      '<div class="field"><label for="memberName">Name</label><input id="memberName" name="name" type="text" autocomplete="off" placeholder="e.g. Grace Namubiru" required></div>' +
+      '<div class="field"><label for="memberEmail">Email</label><input id="memberEmail" name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" placeholder="grace@example.com" required></div>' +
+      '<div class="field"><label for="memberRole">Role</label><select id="memberRole" name="role">' +
+      '<option value="sales">Sales — prospects &amp; visits</option>' +
+      '<option value="operations">Operations — also Cash flow</option></select></div>' +
+      '<button type="submit" class="btn btn-ghost btn-block">Add team member</button></form></section>';
   }
 
   function renderCashflow() {
@@ -1777,10 +1809,23 @@
   // Normalise a role input to one of: admin (Technical), operations, sales.
   function normRole(role) { return role === "admin" ? "admin" : role === "operations" ? "operations" : "sales"; }
 
+  // Who may manage the roster: admins (everyone) and Operations (non-admins only).
+  // Operations can never touch the Owner, Technical accounts, or their own row,
+  // and can never grant Technical (admin) — that stops privilege escalation.
+  function actorCanManage(u) {
+    if (!u || !canReviewProspects()) return false;
+    if (u.id === ownerId()) return false;
+    if (settings.user && u.id === settings.user.id) return false;
+    if (!isAdmin() && u.role === "admin") return false;
+    return true;
+  }
+
   // Add a teammate by email with a role: sales, operations, or admin (Technical).
   function addMember(name, email, role) {
+    if (!canReviewProspects()) return false;
     name = (name || "").trim(); email = (email || "").trim().toLowerCase();
     role = normRole(role);
+    if (!isAdmin() && role === "admin") role = "sales"; // Operations can't create admins
     if (!name || !email) { toast("Enter a name and email."); return false; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast("Enter a valid email."); return false; }
     if ((state.users || []).some(function (u) { return u.email.toLowerCase() === email; })) { toast("That email is already on the team."); return false; }
@@ -1797,8 +1842,10 @@
   function setMemberRole(id, role) {
     var u = (state.users || []).find(function (x) { return x.id === id; });
     if (!u) return;
-    if (u.id === ownerId()) { toast("The owner's role can't be changed."); return; }
-    u.role = normRole(role);
+    if (!actorCanManage(u)) { toast("You can't change that member's role."); return; }
+    role = normRole(role);
+    if (!isAdmin() && role === "admin") { toast("Only the Owner can grant Technical access."); return; }
+    u.role = role;
     saveData();
     render();
     toast(u.name.split(/\s+/)[0] + " is now " + roleName(u));
@@ -1808,8 +1855,10 @@
   function removeUser(id) {
     var u = (state.users || []).find(function (x) { return x.id === id; });
     if (!u) return;
-    if (u.id === ownerId()) { toast("The owner account can't be removed."); return; }
-    if (settings.user && u.id === settings.user.id) { toast("You can't remove your own account."); return; }
+    if (!actorCanManage(u)) {
+      toast(u.id === ownerId() ? "The owner account can't be removed." : (settings.user && u.id === settings.user.id) ? "You can't remove your own account." : "You can't remove that member.");
+      return;
+    }
     if (!confirm("Remove " + u.name + " (" + u.email + ") from the team?\n\nThey lose access immediately and can't sign in again unless you re-add them. This can't be undone.")) return;
     state.users = state.users.filter(function (x) { return x.id !== id; });
     saveData();

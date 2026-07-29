@@ -98,9 +98,11 @@ export default async (request) => {
         });
       }
 
-      // Only an admin (or the bootstrapping owner) may change the team list.
+      // Team roster: admins manage everyone. Operations manage only the
+      // non-admin roster (Sales/Operations) — never the Owner or Technical
+      // accounts, and can never grant admin. Sales can't change it at all.
       if (!isAdmin && JSON.stringify(clean.users) !== JSON.stringify(users)) {
-        clean.users = users; // ignore team-list tampering from non-admins
+        clean.users = canReview ? sanitizeRoster(users, clean.users) : users;
       }
       // Workspace config: Operations may set commission fields; the petty-cash
       // limit stays admin-only; Sales can't change any of it.
@@ -138,4 +140,33 @@ export default async (request) => {
 
 function json(body, status, headers) {
   return new Response(JSON.stringify(body), { status, headers });
+}
+
+// Apply an Operations roster edit while protecting Owner/Technical accounts and
+// preventing any grant of admin. Returns the sanitized users list.
+function sanitizeRoster(stored, incoming) {
+  const inc = Array.isArray(incoming) ? incoming : [];
+  const ownerId = stored[0] && stored[0].id;
+  const incById = Object.fromEntries(inc.map((u) => [u.id, u]));
+  const storedById = Object.fromEntries(stored.map((u) => [u.id, u]));
+  const result = [];
+  // Owner and all Technical (admin) accounts are kept exactly as stored.
+  for (const su of stored) {
+    if (su.id === ownerId || su.role === "admin") { result.push(su); continue; }
+    const u = incById[su.id];
+    if (!u) continue; // Operations removed this non-admin member — allowed.
+    const role = u.role === "operations" || u.role === "sales" ? u.role : su.role; // never admin
+    result.push({ ...su, name: u.name || su.name, role });
+  }
+  // New members may only be Sales or Operations.
+  const emails = new Set(result.map((u) => String(u.email || "").toLowerCase()));
+  for (const u of inc) {
+    if (storedById[u.id]) continue;
+    const email = String(u.email || "").toLowerCase();
+    if (!email || emails.has(email)) continue;
+    const role = u.role === "operations" ? "operations" : "sales";
+    result.push({ id: u.id, name: u.name || "", email, role, created: u.created });
+    emails.add(email);
+  }
+  return result;
 }
