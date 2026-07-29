@@ -421,8 +421,7 @@
   function render() {
     if (view === "settings" && !isAdmin()) view = "today";      // Settings is admin-only
     if (view === "cashflow" && !canCashflow()) view = "today";  // Cash flow is Operations + admin
-    if (view === "installs" && !canInstalls()) view = "today";  // Installations is Operations + admin
-    if (view === "quotes" && !canInstalls()) view = "today";    // Quotes is Operations + admin
+    if (view === "jobs" && !canInstalls()) view = "today";      // Jobs is Operations + admin
     updateNavActive();
     updateCashBadge();
     updateProspectBadge();
@@ -430,8 +429,7 @@
     else if (view === "dashboard") renderDashboard();
     else if (view === "prospects") renderProspects();
     else if (view === "visits") renderVisits();
-    else if (view === "installs") renderInstalls();
-    else if (view === "quotes") renderQuotes();
+    else if (view === "jobs") renderJobs();
     else if (view === "cashflow") renderCashflow();
     else if (view === "settings") renderSettings();
   }
@@ -1359,10 +1357,11 @@
   // "Category · Paid by · Business" line shared by both card styles.
   function txMeta(t) {
     var p = t.prospectId ? prospect(t.prospectId) : null;
-    var job = t.installId ? installation(t.installId) : null;
+    var j = t.installId ? job(t.installId) : null;
+    var jc = j ? jobClient(j) : null;
     var bits = [esc(t.category || "Uncategorised")];
     if (t.method) bits.push(esc(t.method));
-    if (job && job.business) bits.push("Job: " + esc(job.business));
+    if (jc && jc.business) bits.push("Job: " + esc(jc.business));
     else if (p && p.business) bits.push(esc(p.business));
     return bits.join(" · ");
   }
@@ -1774,12 +1773,12 @@
         }
         // Operations verify a closed sale here — earns the rep their commission.
         if (canReviewProspects()) {
-          var hasInstall = (state.installations || []).some(function (j) { return j.prospectId === id; });
+          var hasInstall = (state.jobs || []).some(function (j) { return j.prospectId === id; });
           html += '<div class="field full">' +
             (source.closedSale ? '<p class="helper" style="color:var(--green);font-weight:600">Verified closed sale — ' + money(commissionRate()) + " commission to " + esc(source.createdBy || "the rep") + ".</p>" : "") +
             '<button type="button" class="btn ' + (source.closedSale ? "btn-ghost" : "btn-primary") + ' btn-block" data-toggle-closed="' + esc(id) + '">' + (source.closedSale ? "Remove closed sale" : "Mark as closed sale (" + money(commissionRate()) + ")") + "</button>" +
-            (source.closedSale && !hasInstall ? '<button type="button" class="btn btn-cyan btn-block" data-make-install="' + esc(id) + '" style="margin-top:10px">Create installation from this sale</button>' : "") +
-            (source.closedSale && hasInstall ? '<p class="helper">An installation already exists for this client.</p>' : "") + "</div>";
+            (source.closedSale && !hasInstall ? '<button type="button" class="btn btn-cyan btn-block" data-make-install="' + esc(id) + '" style="margin-top:10px">Create the job from this sale</button>' : "") +
+            (source.closedSale && hasInstall ? '<p class="helper">A job already exists for this client.</p>' : "") + "</div>";
         }
         html += '<div class="field full followup-block"><label>Follow-ups</label>' + followUpHistory(source) +
           '<button type="button" class="btn btn-ghost btn-block" data-log-followup="' + esc(id) + '" style="margin-top:10px">Log a follow-up (with location)</button></div>';
@@ -1812,9 +1811,10 @@
       var dir = source.direction || txp.direction || "in";
       var cats = TX_CATS[dir] || TX_CATS.in;
       var linkInstall = source.installId || txp.installId || "";
-      var linkJob = linkInstall ? (state.installations || []).find(function (j) { return j.id === linkInstall; }) : null;
+      var linkJob = linkInstall ? job(linkInstall) : null;
+      var linkJobName = linkJob ? (jobClient(linkJob).business || "this job") : "";
       html +=
-        (linkJob ? '<div class="field full"><div class="rev-petty">For installation: <strong>' + esc(linkJob.business) + "</strong>" + (dir === "in" ? " — client payment" : " — job spend") + "</div></div>" : "") +
+        (linkJob ? '<div class="field full"><div class="rev-petty">For job: <strong>' + esc(linkJobName) + "</strong>" + (dir === "in" ? " — client payment" : " — job spend") + "</div></div>" : "") +
         field("direction", "Direction", "segmented", dir, { full: true, options: [{ value: "in", label: "Money in" }, { value: "out", label: "Money out" }] }) +
         // Amount: numeric keypad, a live "= UGX 500,000" echo, and the float hint.
         '<div class="field full"><label for="f_amount">Amount (UGX) <span class="req" aria-hidden="true">*</span></label>' +
@@ -2678,7 +2678,7 @@
   // Which "More" destinations apply to the current role.
   function moreViewsForRole() {
     var v = [];
-    if (canInstalls()) { v.push("quotes"); v.push("installs"); v.push("cashflow"); }
+    if (canInstalls()) { v.push("jobs"); v.push("cashflow"); }
     if (isAdmin()) v.push("settings");
     return v;
   }
@@ -2692,7 +2692,7 @@
     var moreBtn = document.querySelector(".mainnav [data-more]");
     if (moreBtn) moreBtn.hidden = moreViewsForRole().length === 0;
     if (view === "settings" && !isAdmin()) view = "today";
-    if ((view === "cashflow" || view === "installs" || view === "quotes") && !canInstalls()) view = "today";
+    if ((view === "cashflow" || view === "jobs") && !canInstalls()) view = "today";
     updateNavActive();
   }
   function openMoreMenu() {
@@ -2839,8 +2839,7 @@
 
   document.getElementById("primaryAction").addEventListener("click", function () {
     if (view === "cashflow") openForm("transaction");
-    else if (view === "installs") openForm("installation");
-    else if (view === "quotes") openForm("quote");
+    else if (view === "jobs") openForm("job");
     else if (view === "visits") openForm("appointment");
     else openForm("prospect");
   });
@@ -2852,8 +2851,7 @@
     if (e.target.id === "stageFilter") updateProspectGrid();
     if (e.target.id === "visitFilter") updateVisitList();
     if (e.target.id === "cashFilter") { cashFilter = e.target.value; renderCashflow(); }
-    if (e.target.id === "installFilter") { installFilter = e.target.value; renderInstalls(); }
-    if (e.target.id === "quoteFilter") { quoteFilter = e.target.value; renderQuotes(); }
+    if (e.target.id === "jobFilter") { jobFilter = e.target.value; renderJobs(); }
     if (e.target.matches("[data-set-role]")) setMemberRole(e.target.dataset.userId, e.target.value);
   });
 
@@ -2865,7 +2863,7 @@
     var backP = e.target.closest("[data-sendback-prospect]"); if (backP) { sendBackProspect(backP.getAttribute("data-sendback-prospect")); return; }
     var tt = e.target.closest("[data-tech-toggle]"); if (tt) { toggleTechnician(tt.getAttribute("data-tech-toggle")); return; }
     var tr = e.target.closest("[data-tech-remove]"); if (tr) { removeTechnician(tr.getAttribute("data-tech-remove")); return; }
-    var mkInstall = e.target.closest("[data-make-install]"); if (mkInstall) { openForm("installation", null, mkInstall.getAttribute("data-make-install")); return; }
+    var mkInstall = e.target.closest("[data-make-install]"); if (mkInstall) { openForm("job", null, mkInstall.getAttribute("data-make-install")); return; }
     var fup = e.target.closest("[data-log-followup]"); if (fup) { logFollowUp(fup.getAttribute("data-log-followup")); return; }
     var tc = e.target.closest("[data-toggle-closed]"); if (tc) { toggleClosedSale(tc.getAttribute("data-toggle-closed")); return; }
     var go = e.target.closest("[data-go]"); if (go) { view = go.dataset.go; render(); return; }
