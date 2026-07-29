@@ -453,6 +453,7 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .rev-proof-img{display:block;width:100%;height:auto;max-height:260px;object-fit:contain}
 .rev-proof-load{display:flex;align-items:center;justify-content:center;min-height:80px;color:var(--faint);font-size:13.5px}
 .rev-noproof{margin:12px 0;padding:11px 13px;border-radius:11px;background:var(--amber-bg);color:var(--amber);font-size:13.5px;font-weight:500;line-height:1.45}
+.rev-petty{margin:12px 0;padding:11px 13px;border-radius:11px;background:var(--fill);color:var(--muted);font-size:13.5px;font-weight:450;line-height:1.45}
 .rev-actions{display:flex;gap:10px;margin-top:4px}
 .rev-actions .btn{flex:1;min-height:46px}
 

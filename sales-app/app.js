@@ -57,7 +57,8 @@
       { id: "a2", prospectId: "p3", date: plusDays(2), time: "14:30", director: "Operations Director", status: "Proposed", purpose: "Technical site survey", directions: "Reception will call Dr. Amina. Enter from the side gate.", created: plusDays(-1) }
     ],
     users: [],
-    transactions: []
+    transactions: [],
+    config: { pettyLimit: 20000 }
   };
 
   var state = loadData();
@@ -81,6 +82,7 @@
       if (!data.appointments) data.appointments = [];
       if (!data.users) data.users = [];
       if (!data.transactions) data.transactions = [];
+      if (!data.config || typeof data.config !== "object") data.config = { pettyLimit: 20000 };
       return data;
     } catch (e) { return JSON.parse(JSON.stringify(seed)); }
   }
@@ -431,6 +433,11 @@
     return chip("Pending", "amber", "◔");
   }
 
+  // Petty-cash limit: below this, an entry can be approved without a formal
+  // receipt (a note or photo-of-item is enough). 0 disables the exception.
+  function pettyLimit() { var n = state.config && Number(state.config.pettyLimit); return n > 0 ? n : 0; }
+  function needsProof(t) { return !t.proofId && (t.amount || 0) > pettyLimit(); }
+
   // Cash on hand = everything recorded in minus everything recorded out.
   // Sent-back (disputed) entries don't count. Pending entries DO — the float
   // reflects physical cash, whether or not the owner has reviewed it yet.
@@ -498,7 +505,9 @@
     var sign = t.direction === "in" ? "+" : "−";
     var proof = t.proofId
       ? '<button type="button" class="rev-proof" data-photo data-proof-id="' + esc(t.proofId) + '" aria-label="View receipt full screen"><span class="rev-proof-load">Loading receipt…</span></button>'
-      : '<p class="rev-noproof">No receipt attached. Send it back and ask for a photo before approving.</p>';
+      : (needsProof(t)
+        ? '<p class="rev-noproof">No receipt attached. Send it back and ask for a photo before approving.</p>'
+        : '<p class="rev-petty">Petty cash under ' + money(pettyLimit()) + " — a receipt is optional. You can approve on the note alone.</p>");
     return '<article class="card rev-card" data-id="' + t.id + '">' +
       '<div class="item-top"><div><div class="item-title"><span class="tx-dir ' + (t.direction === "in" ? "in" : "out") + '">' + (t.direction === "in" ? "In" : "Out") + "</span> " + sign + money(t.amount) + "</div>" +
       '<div class="item-meta">' + txMeta(t) + "</div></div></div>" +
@@ -507,7 +516,7 @@
       (t.note ? '<div class="item-line"><span class="k">Note</span><span class="v">' + esc(t.note) + "</span></div>" : "") + "</div>" +
       proof +
       '<div class="rev-actions">' +
-      '<button type="button" class="btn btn-primary" data-approve-id="' + t.id + '"' + (t.proofId ? "" : " disabled") + ">Approve</button>" +
+      '<button type="button" class="btn btn-primary" data-approve-id="' + t.id + '"' + (needsProof(t) ? " disabled" : "") + ">Approve</button>" +
       '<button type="button" class="btn btn-ghost" data-sendback-id="' + t.id + '">Send back</button></div></article>';
   }
 
@@ -630,7 +639,7 @@
     if (!editing || !editing.id || !isAdmin()) return;
     var t = state.transactions.find(function (x) { return x.id === editing.id; });
     if (!t) return;
-    if (!t.proofId && !pendingProof) { showFormError("Attach a proof photo before approving."); return; }
+    if (!t.proofId && !pendingProof && (t.amount || 0) > pettyLimit()) { showFormError("Attach a proof photo before approving. (Receipts are only optional for petty cash under " + money(pettyLimit()) + ".)"); return; }
     t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.reviewNote = "";
     dialog.close(); saveData("Entry approved"); render();
   }
@@ -643,7 +652,7 @@
     if (!isAdmin()) return;
     var t = state.transactions.find(function (x) { return x.id === id; });
     if (!t) return;
-    if (!t.proofId) { toast("Add a proof photo before approving."); return; }
+    if (needsProof(t)) { toast("Add a proof photo before approving."); return; }
     t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.reviewNote = "";
     saveData("Entry approved"); render();
   }
@@ -712,6 +721,12 @@
       "<p>Everyone signs in with their own email, verified by Supabase. Records sync securely through Netlify.</p>" +
       '<div class="conn-status" data-state="' + connection.state + '"><span class="dot"></span><span class="conn-label">' + esc(connection.text) + "</span></div>" +
       '<div class="button-row"><button class="btn btn-ghost" data-sync>Refresh shared data</button></div></section>' +
+
+      '<section class="card settings-card"><h2>Cash flow</h2>' +
+      "<p>Set the petty-cash limit. Money out below this can be approved without a formal receipt — a note or a photo of the item is enough. Set it to 0 to always require a receipt.</p>" +
+      '<form id="pettyForm" class="add-member"><div class="field"><label for="pettyLimit">Petty-cash limit (UGX)</label>' +
+      '<input id="pettyLimit" name="pettyLimit" type="number" inputmode="numeric" min="0" step="1000" value="' + pettyLimit() + '"></div>' +
+      '<button type="submit" class="btn btn-ghost btn-block">Save limit</button></form></section>' +
 
       '<section class="card settings-card"><h2>Backup &amp; restore</h2>' +
       '<p>Download a JSON backup any time, or import one to recover your records.</p>' +
@@ -828,7 +843,8 @@
         '<div class="field full"><label for="f_prospectId">Link to a prospect (optional)</label><select id="f_prospectId" name="prospectId"><option value="">— none —</option>' +
         state.prospects.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === source.prospectId ? " selected" : "") + ">" + esc(p.business) + "</option>"; }).join("") + "</select></div>" +
         field("note", "Note", "textarea", source.note, { full: true, optional: true }) +
-        '<div class="field full"><label>Proof of payment <span class="optional-tag">photo or MoMo SMS</span></label>' + proofControl(source) + "</div>";
+        '<div class="field full"><label>Proof of payment <span class="optional-tag">photo or MoMo SMS</span></label>' + proofControl(source) +
+        (pettyLimit() > 0 ? '<p class="helper">Optional for petty cash under ' + money(pettyLimit()) + " — a note is enough.</p>" : "") + "</div>";
       if (id && isAdmin() && source.status !== "approved") {
         html += '<div class="field full tx-review"><button type="button" class="btn btn-primary btn-block" data-approve>Approve entry</button><button type="button" class="btn btn-ghost btn-block" data-sendback>Send back with a note</button></div>';
       }
@@ -1044,7 +1060,7 @@
       var result = await res.json();
       if (!result.ok) return "unauth";
       if (result.data && result.data.prospects) {
-        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [] };
+        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], config: result.data.config && typeof result.data.config === "object" ? result.data.config : { pettyLimit: 20000 } };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       }
       return "ok";
@@ -1400,7 +1416,7 @@
       try {
         var parsed = JSON.parse(reader.result);
         if (!parsed.prospects || !parsed.appointments) throw new Error();
-        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [], transactions: parsed.transactions || state.transactions || [] };
+        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [], transactions: parsed.transactions || state.transactions || [], config: parsed.config && typeof parsed.config === "object" ? parsed.config : (state.config || { pettyLimit: 20000 }) };
         saveData("Backup imported");
         render();
       } catch (e) { toast("That file is not a valid Verisko backup."); }
@@ -1462,6 +1478,16 @@
     if (addForm) {
       e.preventDefault();
       if (addMember(addForm.querySelector("[name=name]").value, addForm.querySelector("[name=email]").value, addForm.querySelector("[name=role]").value)) addForm.reset();
+      return;
+    }
+    var pettyForm = e.target.closest("#pettyForm");
+    if (pettyForm) {
+      e.preventDefault();
+      if (!isAdmin()) return;
+      var v = Math.max(0, Math.round(Number(pettyForm.querySelector("[name=pettyLimit]").value) || 0));
+      if (!state.config || typeof state.config !== "object") state.config = {};
+      state.config.pettyLimit = v;
+      saveData("Petty-cash limit set to " + money(v));
     }
   });
 

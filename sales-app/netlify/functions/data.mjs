@@ -13,7 +13,7 @@ const SUPABASE_KEY = "sb_publishable_hj2NsI1YGmpeQg815ET2Kg_CwznowqE";
 
 const STORE = "verisko-sales";
 const KEY = "app-data";
-const EMPTY = { prospects: [], appointments: [], users: [], transactions: [] };
+const EMPTY = { prospects: [], appointments: [], users: [], transactions: [], config: {} };
 
 export default async (request) => {
   const headers = {
@@ -52,11 +52,13 @@ export default async (request) => {
       if (!payload || !payload.data) throw new Error("Missing application data.");
       const incoming = payload.data;
       const storedTx = Array.isArray(data.transactions) ? data.transactions : [];
+      const storedConfig = data.config && typeof data.config === "object" && !Array.isArray(data.config) ? data.config : {};
       const clean = {
         prospects: Array.isArray(incoming.prospects) ? incoming.prospects : [],
         appointments: Array.isArray(incoming.appointments) ? incoming.appointments : [],
         users: Array.isArray(incoming.users) ? incoming.users : [],
-        transactions: Array.isArray(incoming.transactions) ? incoming.transactions : []
+        transactions: Array.isArray(incoming.transactions) ? incoming.transactions : [],
+        config: incoming.config && typeof incoming.config === "object" && !Array.isArray(incoming.config) ? incoming.config : {}
       };
       const isAdmin = bootstrap || (me && me.role === "admin");
       const canCash = isAdmin || (me && me.role === "operations");
@@ -64,6 +66,10 @@ export default async (request) => {
       // Only an admin (or the bootstrapping owner) may change the team list.
       if (!isAdmin && JSON.stringify(clean.users) !== JSON.stringify(users)) {
         clean.users = users; // ignore team-list tampering from non-admins
+      }
+      // Workspace config (e.g. petty-cash limit) is admin-only too.
+      if (!isAdmin && JSON.stringify(clean.config) !== JSON.stringify(storedConfig)) {
+        clean.config = storedConfig;
       }
 
       // Cash flow: Sales cannot touch transactions; only admins may approve.
