@@ -427,15 +427,32 @@
     return chip("Pending", "amber", "◔");
   }
 
+  // Cash on hand = everything recorded in minus everything recorded out.
+  // Sent-back (disputed) entries don't count. Pending entries DO — the float
+  // reflects physical cash, whether or not the owner has reviewed it yet.
+  // When editing an entry, exclude its own current amount from the total.
+  function availableForOut(excludeId) {
+    var sum = 0;
+    (state.transactions || []).forEach(function (t) {
+      if (!t || t.status === "query") return;
+      if (excludeId && t.id === excludeId) return;
+      if (t.direction === "in") sum += Number(t.amount || 0);
+      else if (t.direction === "out") sum -= Number(t.amount || 0);
+    });
+    return sum;
+  }
+
   function renderCashflow() {
     setHead("Operations", "Cash flow", "Record money in and out, back each with proof, and keep the float reconciled.", "Add money", true);
     var txs = state.transactions || [];
     var sumBy = function (dir) { return txs.filter(function (t) { return t.status === "approved" && t.direction === dir; }).reduce(function (s, t) { return s + Number(t.amount || 0); }, 0); };
     var approvedIn = sumBy("in"), approvedOut = sumBy("out"), balance = approvedIn - approvedOut;
     var pending = txs.filter(function (t) { return t.status !== "approved"; });
+    var onHand = availableForOut(null); // includes pending — what can still be spent
 
     var summary = '<section class="card cash-summary"><div class="cash-bal"><span class="k">Float balance</span><strong>' + money(balance) + "</strong>" +
-      '<small>Approved in ' + money(approvedIn) + " · out " + money(approvedOut) + "</small></div>" +
+      '<small>Approved in ' + money(approvedIn) + " · out " + money(approvedOut) + "</small>" +
+      (onHand !== balance ? '<small>Cash on hand now (incl. pending): ' + money(onHand) + "</small>" : "") + "</div>" +
       (pending.length ? '<div class="cash-pending">' + chip(pending.length + " awaiting review", "amber", "◔") + "</div>" : "") + "</section>";
 
     // Admins get a review queue pinned at the top — approve or send back as
@@ -563,6 +580,12 @@
     var amount = Math.round(Number(data.amount) || 0);
     if (amount <= 0) { showFormError("Enter an amount greater than zero."); return; }
     var direction = data.direction === "out" ? "out" : "in";
+    // Money out can never exceed the cash on hand — the float can't go negative.
+    if (direction === "out") {
+      var avail = availableForOut(editing.id);
+      if (avail <= 0) { showFormError("There's no cash in the float yet. Record the money coming in first, then you can record what goes out."); return; }
+      if (amount > avail) { showFormError("That's more than the float holds. You can record up to " + money(avail) + " out right now."); return; }
+    }
     var saveBtn = document.getElementById("saveButton");
     var proofId = data.proofId || "";
     try {
@@ -780,7 +803,7 @@
       var cats = TX_CATS[dir] || TX_CATS.in;
       html +=
         field("direction", "Direction", "segmented", dir, { full: true, options: [{ value: "in", label: "Money in" }, { value: "out", label: "Money out" }] }) +
-        field("amount", "Amount (UGX)", "number", source.amount || "", { required: true }) +
+        field("amount", "Amount (UGX)", "number", source.amount || "", { required: true, help: "In the float now: " + money(availableForOut(id)) + ". Money out can't go past this." }) +
         field("date", "Date", "date", source.date || today, { required: true }) +
         field("category", "Category", "select", source.category || cats[0], { options: cats, full: true }) +
         '<div class="field full"><label for="f_prospectId">Link to a prospect (optional)</label><select id="f_prospectId" name="prospectId"><option value="">— none —</option>' +
