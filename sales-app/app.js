@@ -17,6 +17,8 @@
   var STAGES = ["New prospect", "Contact attempted", "Qualified", "Appointment proposed", "Appointment confirmed", "Lost", "Postponed"];
   var VERTICALS = ["Pharmacy", "Clinic", "Hospital", "Mobile money", "Retail shop", "Supermarket", "School", "Office", "Warehouse", "Residence", "Other"];
   var SOURCES = ["Cold visit", "Walk-in prospecting", "Referral", "Website enquiry", "Phone enquiry", "Existing customer", "Other"];
+  // Common next actions — offered as tap-or-type suggestions to cut typing.
+  var NEXT_ACTIONS = ["Call back", "Book a site visit", "Confirm the visit", "Send a quotation", "Visit the site", "Follow up next week", "Wait for their decision"];
   var DECISION = ["Unknown", "Yes", "No"];
   var APPT_STATUSES = ["Proposed", "Confirmed", "Completed", "Rescheduled", "Cancelled", "No-show"];
   var PURPOSES = ["Technical site survey", "Follow-up visit", "Installation planning"];
@@ -117,6 +119,70 @@
     el.textContent = message; el.classList.add("show");
     clearTimeout(toast.timer);
     toast.timer = setTimeout(function () { el.classList.remove("show"); }, 3200);
+  }
+
+  // In-app modal sheet (replaces native prompt/confirm — those are silently
+  // suppressed inside in-app webviews). Returns a Promise:
+  //   • plain confirm → resolves {choice:"",text:""} on OK, null on cancel
+  //   • with choices/input → resolves {choice, text} on OK, null on cancel
+  // opts: { title, body, choices:[], input:{placeholder,value,confirmWord},
+  //         requireValue, confirmLabel, cancelLabel, danger }
+  function openSheet(opts) {
+    opts = opts || {};
+    var dlg = document.getElementById("askDialog");
+    return new Promise(function (resolve) {
+      var selected = "";
+      var choicesHtml = (opts.choices && opts.choices.length)
+        ? '<div class="ask-choices" role="group" aria-label="Quick options">' + opts.choices.map(function (c) {
+            return '<button type="button" class="ask-chip" data-choice="' + esc(c) + '">' + esc(c) + "</button>";
+          }).join("") + "</div>" : "";
+      var inputHtml = opts.input
+        ? '<textarea class="ask-input" id="askInput" rows="3" placeholder="' + esc(opts.input.placeholder || "") + '">' + esc(opts.input.value || "") + "</textarea>" : "";
+      dlg.innerHTML =
+        '<div class="ask-head"><h2 id="askTitle">' + esc(opts.title || "") + "</h2>" +
+        (opts.body ? '<p class="ask-body">' + esc(opts.body) + "</p>" : "") + "</div>" +
+        choicesHtml + inputHtml +
+        '<div class="ask-actions"><button type="button" class="btn btn-ghost" id="askCancel">' + esc(opts.cancelLabel || "Cancel") + "</button>" +
+        '<button type="button" class="btn ' + (opts.danger ? "btn-danger" : "btn-primary") + '" id="askOk">' + esc(opts.confirmLabel || "Confirm") + "</button></div>";
+      var okBtn = dlg.querySelector("#askOk");
+      var input = dlg.querySelector("#askInput");
+      var result = function () { return { choice: selected, text: input ? input.value.trim() : "" }; };
+      var valid = function () {
+        if (opts.input && opts.input.confirmWord) return (input.value || "").trim().toUpperCase() === opts.input.confirmWord.toUpperCase();
+        if (opts.requireValue) { var r = result(); return !!(r.choice || r.text); }
+        return true;
+      };
+      var refresh = function () { okBtn.disabled = !valid(); };
+      dlg.querySelectorAll(".ask-chip").forEach(function (b) {
+        b.addEventListener("click", function () {
+          selected = selected === b.dataset.choice ? "" : b.dataset.choice;
+          dlg.querySelectorAll(".ask-chip").forEach(function (x) { x.classList.toggle("is-on", x === b && !!selected); });
+          refresh();
+        });
+      });
+      if (input) input.addEventListener("input", refresh);
+      var done = false;
+      var onCancel = function (e) { if (e) e.preventDefault(); finish(null); };
+      var onBackdrop = function (e) { if (e.target === dlg) finish(null); };
+      function finish(val) {
+        if (done) return; done = true;
+        dlg.removeEventListener("cancel", onCancel);
+        dlg.removeEventListener("click", onBackdrop);
+        dlg.close(); resolve(val);
+      }
+      okBtn.addEventListener("click", function () { if (valid()) finish(result()); });
+      dlg.querySelector("#askCancel").addEventListener("click", function () { finish(null); });
+      dlg.addEventListener("cancel", onCancel);
+      dlg.addEventListener("click", onBackdrop);
+      refresh();
+      dlg.showModal();
+      var first = dlg.querySelector(".ask-chip") || input || okBtn;
+      if (first) first.focus();
+    });
+  }
+  // Convenience: a plain yes/no confirmation.
+  function confirmSheet(title, body, confirmLabel, danger) {
+    return openSheet({ title: title, body: body, confirmLabel: confirmLabel || "Confirm", danger: danger }).then(function (r) { return !!r; });
   }
 
   function setSync(stateName, text) {
@@ -767,7 +833,7 @@
       if (amount > avail) { showFormError("That's more than the float holds. You can record up to " + money(avail) + " out right now."); return; }
     }
     // A large amount is easy to fat-finger — confirm before saving.
-    if (amount >= LARGE_AMOUNT && !window.confirm("Record " + money(amount) + " " + (direction === "in" ? "coming in" : "going out") + "?\n\nDouble-check the amount is right.")) return;
+    if (amount >= LARGE_AMOUNT && !(await confirmSheet("Confirm the amount", "Record " + money(amount) + " " + (direction === "in" ? "coming in" : "going out") + "? Double-check it's right.", "Yes, record it"))) return;
     var saveBtn = document.getElementById("saveButton");
     var txId = editing.id || uid();
     var isOut = direction === "out";
@@ -877,9 +943,9 @@
     t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.reviewNote = "";
     dialog.close(); saveData("Entry approved"); render();
   }
-  function sendBackTransaction() {
+  async function sendBackTransaction() {
     if (!editing || !editing.id || !isAdmin()) return;
-    if (sendBackTx(editing.id)) dialog.close();
+    if (await sendBackTx(editing.id)) dialog.close();
   }
   // Inline approve/send-back used by the review queue (no dialog open).
   function approveTx(id) {
@@ -890,16 +956,20 @@
     t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.reviewNote = "";
     saveData("Entry approved"); render();
   }
-  function sendBackTx(id) {
+  async function sendBackTx(id) {
     if (!isAdmin()) return false;
     var t = state.transactions.find(function (x) { return x.id === id; });
     if (!t) return false;
-    var note = prompt("Send this back to whoever recorded it. What needs fixing?");
-    if (note === null) return false;
-    t.status = "query"; t.reviewNote = (note || "").trim(); t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today;
+    var r = await openSheet({ title: "Send back to the recorder", body: "What needs fixing?",
+      choices: ["Blurry receipt", "No receipt", "Wrong amount", "Wrong category"], input: { placeholder: "Add a note (optional)" },
+      requireValue: true, confirmLabel: "Send back" });
+    if (!r) return false;
+    t.status = "query"; t.reviewNote = combineNote(r); t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today;
     saveData("Sent back for changes"); render();
     return true;
   }
+  // Merge a quick-reason chip with any typed note into one string.
+  function combineNote(r) { return r.choice && r.text ? r.choice + " — " + r.text : (r.choice || r.text); }
   // Full-screen receipt viewer for the review queue.
   function openPhoto(img) {
     if (!img) return;
@@ -1040,7 +1110,9 @@
 
         field("stage", "Stage", "select", source.stage || "New prospect", { options: STAGES }) +
         field("followUp", "Follow up on", "date", source.followUp || (id ? "" : today)) +
-        field("nextAction", "Next action", "text", source.nextAction, { full: true, placeholder: "e.g. Call back, book a visit" }) +
+        '<div class="field full"><label for="f_nextAction">Next action</label>' +
+        '<input id="f_nextAction" name="nextAction" type="text" list="nextActionList" autocomplete="off" placeholder="Tap a suggestion or type" value="' + esc(source.nextAction || "") + '">' +
+        '<datalist id="nextActionList">' + NEXT_ACTIONS.map(function (a) { return "<option>" + esc(a) + "</option>"; }).join("") + "</datalist></div>" +
 
         // Optional — only if it helps Operations.
         '<div class="field-group-title">Optional details</div>' +
@@ -1138,7 +1210,7 @@
   function hideFormError() { formError.hidden = true; formError.textContent = ""; }
 
   // Delete the record being edited (prospect also removes its site visits).
-  function deleteRecord() {
+  async function deleteRecord() {
     if (!editing || !editing.id) return;
     var type = editing.type;
     var label = type === "appointment" ? "site visit" : "prospect";
@@ -1147,7 +1219,7 @@
       showFormError("This " + label + " has been approved, so it can't be deleted here. Ask Operations if it really needs removing.");
       return;
     }
-    if (!confirm("Delete this " + label + "? This can't be undone.")) return;
+    if (!(await confirmSheet("Delete this " + label + "?", "This can't be undone.", "Delete", true))) return;
     state[type + "s"] = state[type + "s"].filter(function (x) { return x.id !== editing.id; });
     if (type === "prospect") state.appointments = state.appointments.filter(function (a) { return a.prospectId !== editing.id; });
     hideFormError();
@@ -1365,20 +1437,23 @@
     }).join("") + "</div>";
   }
 
-  function logFollowUp(id) {
+  async function logFollowUp(id) {
     var p = prospect(id);
     if (!p || !p.id) return;
-    var note = prompt("Log a follow-up for " + p.business + ".\nWhat happened? (call, visit, message…)");
-    if (note === null) return;
+    // Mostly taps: pick what happened, optionally add a note.
+    var r = await openSheet({ title: "Log a follow-up", body: p.business,
+      choices: ["Called", "No answer", "Visited", "Messaged", "Quoted"], input: { placeholder: "Add a note (optional)" },
+      requireValue: true, confirmLabel: "Log follow-up" });
+    if (!r) return;
+    var note = combineNote(r);
     toast("Getting your location…");
-    captureGeo().then(function (geo) {
-      if (!p.followUps) p.followUps = [];
-      p.followUps.push({ at: nowIso(), by: (settings.user && settings.user.name) || "", byEmail: (settings.user && settings.user.email) || "", note: (note || "").trim(), geo: geo });
-      saveData("Follow-up logged" + (geo ? " with location" : " (no location)"));
-      render();
-      // If the prospect's form is open, refresh it so the new entry shows.
-      if (dialog.open && editing && editing.type === "prospect" && editing.id === id) openForm("prospect", id);
-    });
+    var geo = await captureGeo();
+    if (!p.followUps) p.followUps = [];
+    p.followUps.push({ at: nowIso(), by: (settings.user && settings.user.name) || "", byEmail: (settings.user && settings.user.email) || "", note: note, geo: geo });
+    saveData("Follow-up logged" + (geo ? " with location" : " (no location)"));
+    render();
+    // If the prospect's form is open, refresh it so the new entry shows.
+    if (dialog.open && editing && editing.type === "prospect" && editing.id === id) openForm("prospect", id);
   }
 
   // Review queue card for a pending prospect (reviewers only).
@@ -1403,12 +1478,14 @@
     p.reviewStatus = "approved"; p.reviewedBy = (settings.user && settings.user.name) || ""; p.reviewedAt = today; p.reviewNote = "";
     saveData("Prospect approved"); render();
   }
-  function sendBackProspect(id) {
+  async function sendBackProspect(id) {
     if (!canReviewProspects()) return;
     var p = prospect(id); if (!p || !p.id) return;
-    var note = prompt("Send this prospect back to whoever added it. What needs fixing? (e.g. add a photo, confirm the location)");
-    if (note === null) return;
-    p.reviewStatus = "query"; p.reviewNote = (note || "").trim(); p.reviewedBy = (settings.user && settings.user.name) || ""; p.reviewedAt = today;
+    var r = await openSheet({ title: "Send back to the rep", body: "What needs fixing?",
+      choices: ["Add a photo", "Confirm the location", "Wrong details", "Add contact/phone"], input: { placeholder: "Add a note (optional)" },
+      requireValue: true, confirmLabel: "Send back" });
+    if (!r) return;
+    p.reviewStatus = "query"; p.reviewNote = combineNote(r); p.reviewedBy = (settings.user && settings.user.name) || ""; p.reviewedAt = today;
     saveData("Prospect sent back"); render();
   }
 
@@ -1866,18 +1943,32 @@
   }
 
   // Remove a team member (airtight offboarding — they lose access at once).
-  function removeUser(id) {
+  async function removeUser(id) {
     var u = (state.users || []).find(function (x) { return x.id === id; });
     if (!u) return;
     if (!actorCanManage(u)) {
       toast(u.id === ownerId() ? "The owner account can't be removed." : (settings.user && u.id === settings.user.id) ? "You can't remove your own account." : "You can't remove that member.");
       return;
     }
-    if (!confirm("Remove " + u.name + " (" + u.email + ") from the team?\n\nThey lose access immediately and can't sign in again unless you re-add them. This can't be undone.")) return;
+    if (!(await confirmSheet("Remove " + u.name + "?", u.email + " loses access immediately and can't sign in again unless you re-add them. This can't be undone.", "Remove", true))) return;
     state.users = state.users.filter(function (x) { return x.id !== id; });
     saveData();
     render();
     toast(u.name.split(/\s+/)[0] + " removed from the team");
+  }
+
+  // Danger zone: wipe everything and load demo data (type-to-confirm).
+  async function resetDemo() {
+    var r = await openSheet({
+      title: "Reset everything?",
+      body: "This ERASES all prospects, visits and team accounts for everyone, and loads sample data. It cannot be undone.",
+      input: { placeholder: "Type RESET to confirm", confirmWord: "RESET" },
+      confirmLabel: "Reset everything", danger: true
+    });
+    if (!r) return;
+    state = JSON.parse(JSON.stringify(seed));
+    saveData("Reset to demo data");
+    logout(); // wiped the team — sign out and re-onboard
   }
 
   /* --------------------------- Backup / import / CSV ------------------------ */
@@ -1948,14 +2039,7 @@
     if (e.target.closest("[data-import]")) document.getElementById("importInput").click();
     if (e.target.closest("[data-sync]")) pullShared();
     var rm = e.target.closest("[data-remove-user]"); if (rm) { removeUser(rm.dataset.removeUser); return; }
-    if (e.target.closest("[data-reset]")) {
-      var ans = prompt("This ERASES all prospects, visits and team accounts for everyone, and loads sample data. It cannot be undone.\n\nType RESET to confirm.");
-      if (ans && ans.trim().toUpperCase() === "RESET") {
-        state = JSON.parse(JSON.stringify(seed));
-        saveData("Reset to demo data");
-        logout(); // wiped the team — sign out and re-onboard
-      }
-    }
+    if (e.target.closest("[data-reset]")) { resetDemo(); return; }
   });
   content.addEventListener("submit", function (e) {
     var addForm = e.target.closest("#addMemberForm");
