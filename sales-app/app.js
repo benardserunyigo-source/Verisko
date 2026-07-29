@@ -35,6 +35,13 @@
     if (isNaN(d)) return esc(v);
     return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   };
+  // For follow-up timestamps (ISO datetime) — shows date + time.
+  var dateTimeLabel = function (v) {
+    if (!v) return "";
+    var d = new Date(v);
+    if (isNaN(d)) return esc(v);
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + ", " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  };
   var relDay = function (v) {
     if (!v) return "";
     if (v === today) return "Today";
@@ -202,6 +209,7 @@
       if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
     updateCashBadge();
+    updateProspectBadge();
     if (view === "today") renderToday();
     else if (view === "prospects") renderProspects();
     else if (view === "visits") renderVisits();
@@ -296,7 +304,18 @@
   /* ------------------------------- PROSPECTS --------------------------------- */
   function renderProspects() {
     setHead("Your pipeline", "Prospects", "Search and manage your pipeline.", "Add prospect", true);
+    // Reviewers get a queue of prospects awaiting audit, pinned at the top.
+    var review = "";
+    if (canReviewProspects()) {
+      var queue = (state.prospects || []).filter(needsReview)
+        .sort(function (a, b) { return (a.created || "").localeCompare(b.created || ""); });
+      if (queue.length) {
+        review = '<section class="review-section"><h2 class="review-head">Prospects to review <span class="review-count">' + queue.length + "</span></h2>" +
+          queue.map(prospectReviewCard).join("") + "</section>";
+      }
+    }
     content.innerHTML =
+      review +
       '<div class="toolbar">' +
         '<div class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>' +
         '<input id="search" type="search" placeholder="Search business, contact, phone or location" aria-label="Search prospects"></div>' +
@@ -306,6 +325,7 @@
       '<p class="result-note" id="resultNote"></p>' +
       '<div class="card-grid" id="prospectGrid"></div>';
     updateProspectGrid();
+    hydrateProofThumbs();
   }
 
   function updateProspectGrid() {
@@ -335,12 +355,15 @@
     var appt = appointmentFor(p.id);
     var actions = "";
     if (p.phone) actions += '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>';
+    actions += '<button class="btn btn-sm btn-ghost" data-log-followup="' + p.id + '">Follow-up</button>';
     if (/Qualified/i.test(p.stage) && !appt) actions += '<button class="btn btn-sm btn-ghost" data-schedule="' + p.id + '">Schedule</button>';
     actions += '<button class="btn btn-sm btn-ghost" data-edit="prospect" data-id="' + p.id + '">Edit</button>';
     var tone = isOverdue(p.followUp) ? "red" : isToday(p.followUp) ? "amber" : "navy";
+    var reviewChip = prospectReviewChip(p.reviewStatus);
     return '<article class="item tone-' + tone + '">' +
       '<div class="item-top"><div><div class="item-title">' + esc(p.business) + '</div>' +
-      '<div class="item-meta">' + esc(p.vertical) + " · " + esc(p.location || "No location") + "</div></div>" + stageChip(p.stage) + "</div>" +
+      '<div class="item-meta">' + esc(p.vertical) + " · " + esc(p.location || "No location") + "</div></div>" +
+      '<span class="chip-stack">' + stageChip(p.stage) + reviewChip + "</span></div>" +
       '<div class="item-lines">' +
       '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc(p.contact || "Unknown") + "</span></div>" +
       '<div class="item-line"><span class="k">Phone</span><span class="v">' + (p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") + "</span></div>" +
@@ -576,9 +599,11 @@
       var j = await res.json(); return res.ok && j.ok ? j.image : null;
     } catch (e) { return null; }
   }
-  function proofControl(source) {
-    var has = source && source.proofId;
-    return '<div class="proof" id="proofBox"><input type="hidden" name="proofId" value="' + esc((source && source.proofId) || "") + '">' +
+  // Generic photo control (receipt or business photo). Hidden input carries the
+  // existing image id; a new pick lands in pendingProof and uploads on save.
+  function proofControl(existingId) {
+    var has = !!existingId;
+    return '<div class="proof" id="proofBox"><input type="hidden" name="proofId" value="' + esc(existingId || "") + '">' +
       '<div class="proof-preview" id="proofPreview">' + (has ? '<span class="proof-none">Loading photo…</span>' : '<span class="proof-none">No photo yet</span>') + "</div>" +
       '<input type="file" id="proofInput" accept="image/*" hidden>' +
       '<button type="button" class="btn btn-ghost btn-sm" data-proof-pick>' + (has ? "Replace photo" : "Add photo") + "</button></div>";
@@ -652,6 +677,52 @@
     saveData(queuePhoto ? "Saved on this device. The photo will upload when you're back online." : (editing.id ? "Cash entry updated" : "Cash entry added"));
     render();
   }
+  /* -------- Save a prospect (business photo + live location + audit) -------- */
+  async function saveProspect(data) {
+    var saveBtn = document.getElementById("saveButton");
+    var isNew = !editing.id;
+    var pid = editing.id || uid();
+    var photoId = data.proofId || "";   // existing business photo id (hidden input)
+    delete data.proofId;                // stored as photoId on the prospect
+    var queuePhoto = false;
+    // Business photo, offline-safe (same machinery as receipts).
+    if (pendingProof) {
+      if (navigator.onLine) {
+        try { saveBtn.disabled = true; saveBtn.textContent = "Uploading photo…"; photoId = await uploadProof(pendingProof); }
+        catch (e) { if (/too large/i.test(e.message || "")) { saveBtn.disabled = false; saveBtn.textContent = isNew ? "Save" : "Save changes"; showFormError(e.message); return; } queuePhoto = true; }
+      } else queuePhoto = true;
+    }
+    if (queuePhoto) photoId = "";
+
+    if (editing.id) {
+      var idx = state.prospects.findIndex(function (x) { return x.id === editing.id; });
+      var prev = state.prospects[idx];
+      var merged = Object.assign({}, prev, data, { id: editing.id, photoId: photoId });
+      // A sent-back prospect goes back into the queue when Sales re-submits it.
+      if (!canReviewProspects() && prev.reviewStatus === "query") { merged.reviewStatus = "pending"; merged.reviewNote = ""; }
+      state.prospects[idx] = merged;
+    } else {
+      // Capture location on first submit (best-effort — never blocks).
+      saveBtn.disabled = true; saveBtn.textContent = "Getting location…";
+      var geo = await captureGeo();
+      var reviewer = canReviewProspects();
+      state.prospects.push(Object.assign({}, data, {
+        id: pid, created: today, owner: data.owner || "Sales",
+        createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "",
+        photoId: photoId, geo: geo, followUps: [],
+        reviewStatus: reviewer ? "approved" : "pending",
+        reviewedBy: reviewer ? (settings.user && settings.user.name) || "" : "",
+        reviewedAt: reviewer ? today : "", reviewNote: ""
+      }));
+    }
+    if (queuePhoto) queueUpload(pid, pendingProof);
+    pendingProof = null;
+    saveBtn.disabled = false;
+    hideFormError(); dialog.close();
+    saveData(editing.id ? "Changes saved" : (canReviewProspects() ? "Prospect added" : "Prospect submitted for review"));
+    render();
+  }
+
   function approveTransaction() {
     if (!editing || !editing.id || !isAdmin()) return;
     var t = state.transactions.find(function (x) { return x.id === editing.id; });
@@ -826,7 +897,18 @@
         field("source", "Lead source", "select", source.source || SOURCES[0], { options: SOURCES, optional: true }) +
         field("concern", "Main security concern", "textarea", source.concern, { full: true, optional: true, placeholder: "What are they worried about?" }) +
         field("areas", "Areas to cover", "text", source.areas, { full: true, optional: true, placeholder: "e.g. Entrance, till, store" }) +
-        field("notes", "Notes for Operations", "textarea", source.notes, { full: true, optional: true });
+        field("notes", "Notes for Operations", "textarea", source.notes, { full: true, optional: true }) +
+
+        // Audit: a photo of the business and the salesperson's live location.
+        '<div class="field full"><label>Business photo <span class="optional-tag">helps Operations verify</span></label>' + proofControl(source.photoId) +
+        (id ? (source.geo ? '<p class="helper">Location on file: ' + mapLink(source.geo) + "</p>" : "") : '<p class="helper">Your live location is captured when you submit.</p>') + "</div>";
+      if (id) {
+        if (source.reviewStatus === "query" && source.reviewNote) {
+          html += '<div class="field full"><div class="rev-noproof">Sent back: ' + esc(source.reviewNote) + "</div></div>";
+        }
+        html += '<div class="field full followup-block"><label>Follow-ups</label>' + followUpHistory(source) +
+          '<button type="button" class="btn btn-ghost btn-block" data-log-followup="' + esc(id) + '" style="margin-top:10px">Log a follow-up (with location)</button></div>';
+      }
     }
     if (type === "appointment") {
       document.getElementById("dialogTitle").textContent = id ? "Edit site visit" : "Schedule site visit";
@@ -860,7 +942,7 @@
         '<div class="field full"><label for="f_prospectId">Link to a prospect (optional)</label><select id="f_prospectId" name="prospectId"><option value="">— none —</option>' +
         state.prospects.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === source.prospectId ? " selected" : "") + ">" + esc(p.business) + "</option>"; }).join("") + "</select></div>" +
         field("note", "Note", "textarea", source.note, { full: true, optional: true }) +
-        '<div class="field full"><label>Proof of payment <span class="optional-tag">photo or MoMo SMS</span></label>' + proofControl(source) +
+        '<div class="field full"><label>Proof of payment <span class="optional-tag">photo or MoMo SMS</span></label>' + proofControl(source.proofId) +
         (pettyLimit() > 0 ? '<p class="helper">Optional for petty cash under ' + money(pettyLimit()) + " — a note is enough.</p>" : "") + "</div>";
       if (id && isAdmin() && source.status !== "approved") {
         html += '<div class="field full tx-review"><button type="button" class="btn btn-primary btn-block" data-approve>Approve entry</button><button type="button" class="btn btn-ghost btn-block" data-sendback>Send back with a note</button></div>';
@@ -869,20 +951,21 @@
     // Delete is offered for prospects & site visits (not cash entries).
     if (id && (type === "prospect" || type === "appointment")) html += '<button type="button" class="btn btn-danger btn-block delete-record" data-delete>Delete this ' + (type === "appointment" ? "site visit" : "prospect") + "</button>";
     formContent.innerHTML = html + "</div>";
-    if (type === "transaction") {
+    if (type === "transaction" || type === "prospect") {
       pendingProof = null;
-      updateAmountEcho();
+      if (type === "transaction") updateAmountEcho();
       var pIn = document.getElementById("proofInput");
       if (pIn) pIn.addEventListener("change", onProofPick);
+      var existingPhoto = type === "transaction" ? source.proofId : source.photoId;
       var queued = id ? queuedPhotoFor(id) : null;
-      if (source && source.proofId) {
-        fetchProof(source.proofId).then(function (img) {
+      if (existingPhoto) {
+        fetchProof(existingPhoto).then(function (img) {
           var pv = document.getElementById("proofPreview");
-          if (pv) pv.innerHTML = img ? '<img src="' + img + '" alt="Proof photo" class="proof-img">' : '<span class="proof-none">Couldn\'t load photo</span>';
+          if (pv) pv.innerHTML = img ? '<img src="' + img + '" alt="Photo" class="proof-img">' : '<span class="proof-none">Couldn\'t load photo</span>';
         });
       } else if (queued) {
         var pv0 = document.getElementById("proofPreview");
-        if (pv0) pv0.innerHTML = '<img src="' + queued + '" alt="Proof photo (waiting to upload)" class="proof-img">';
+        if (pv0) pv0.innerHTML = '<img src="' + queued + '" alt="Photo (waiting to upload)" class="proof-img">';
         var pk = document.querySelector("[data-proof-pick]"); if (pk) pk.textContent = "Replace photo";
       }
     }
@@ -924,6 +1007,7 @@
 
   form.addEventListener("click", function (e) {
     if (e.target.closest("[data-delete]")) { deleteRecord(); return; }
+    var lf = e.target.closest("[data-log-followup]"); if (lf) { logFollowUp(lf.getAttribute("data-log-followup")); return; }
     if (e.target.closest("[data-proof-pick]")) { var pi = document.getElementById("proofInput"); if (pi) pi.click(); return; }
     if (e.target.closest("[data-approve]")) { approveTransaction(); return; }
     if (e.target.closest("[data-sendback]")) { sendBackTransaction(); return; }
@@ -950,6 +1034,7 @@
     var data = Object.fromEntries(new FormData(form).entries());
     var type = editing.type;
     if (type === "transaction") { saveTransaction(data); return; }
+    if (type === "prospect") { saveProspect(data); return; }
     var collection = state[type + "s"];
 
     // Client-side guard: confirming a visit requires a complete handoff.
@@ -1012,6 +1097,110 @@
     syncProspectFromAppointment(a);
     saveData("Visit confirmed — ready for handoff");
     render();
+  }
+
+  /* ---------------------- Prospect audit & follow-ups ----------------------- */
+  function nowIso() { return new Date().toISOString(); }
+
+  // Operations and admins review prospects. (Sales record them.)
+  function canReviewProspects() { return isAdmin() || !!(settings.user && settings.user.role === "operations"); }
+
+  // Best-effort GPS — resolves to {lat,lng,acc,at} or null. Never rejects, so
+  // a denied permission or poor signal doesn't block the submission.
+  function captureGeo() {
+    return new Promise(function (resolve) {
+      if (!navigator.geolocation) return resolve(null);
+      var done = false;
+      var finish = function (v) { if (done) return; done = true; resolve(v); };
+      setTimeout(function () { finish(null); }, 9000);
+      navigator.geolocation.getCurrentPosition(
+        function (pos) { finish({ lat: +pos.coords.latitude.toFixed(6), lng: +pos.coords.longitude.toFixed(6), acc: Math.round(pos.coords.accuracy || 0), at: nowIso() }); },
+        function () { finish(null); },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+      );
+    });
+  }
+  function mapLink(geo, label) {
+    if (!geo || geo.lat == null) return "";
+    return '<a class="maplink" href="https://www.google.com/maps?q=' + geo.lat + "," + geo.lng + '" target="_blank" rel="noopener">' + (label || "View on map") + "</a>";
+  }
+  function prospectReviewChip(s) {
+    if (s === "query") return chip("Sent back", "red", "!");
+    if (s === "pending") return chip("Pending review", "amber", "◔");
+    return ""; // approved / legacy → no chip
+  }
+  function needsReview(p) { return p.reviewStatus === "pending"; }
+
+  // Badge count: reviewers see prospects awaiting review; Sales see their own
+  // sent-back prospects that need fixing.
+  function prospectReviewCount() {
+    var ps = state.prospects || [];
+    if (canReviewProspects()) return ps.filter(needsReview).length;
+    var mine = (settings.user && settings.user.email || "").toLowerCase();
+    return ps.filter(function (p) { return p.reviewStatus === "query" && (p.createdByEmail || "").toLowerCase() === mine; }).length;
+  }
+  function updateProspectBadge() {
+    var b = document.getElementById("prospectBadge");
+    if (!b) return;
+    var n = prospectReviewCount();
+    b.textContent = n > 9 ? "9+" : String(n);
+    b.hidden = n === 0;
+  }
+
+  function followUpHistory(p) {
+    var fs = (p.followUps || []).slice().reverse();
+    if (!fs.length) return '<p class="rev-petty">No follow-ups logged yet. Use “Log follow-up” on the prospect to record one.</p>';
+    return '<div class="followup-list">' + fs.map(function (f) {
+      return '<div class="followup-item"><div class="followup-meta">' + esc(dateTimeLabel(f.at)) + " · " + esc(f.by || "—") + (f.geo ? " · " + mapLink(f.geo) : " · <span class=\"nogeo\">no location</span>") + "</div>" +
+        '<div class="followup-note">' + esc(f.note || "") + "</div></div>";
+    }).join("") + "</div>";
+  }
+
+  function logFollowUp(id) {
+    var p = prospect(id);
+    if (!p || !p.id) return;
+    var note = prompt("Log a follow-up for " + p.business + ".\nWhat happened? (call, visit, message…)");
+    if (note === null) return;
+    toast("Getting your location…");
+    captureGeo().then(function (geo) {
+      if (!p.followUps) p.followUps = [];
+      p.followUps.push({ at: nowIso(), by: (settings.user && settings.user.name) || "", byEmail: (settings.user && settings.user.email) || "", note: (note || "").trim(), geo: geo });
+      saveData("Follow-up logged" + (geo ? " with location" : " (no location)"));
+      render();
+      // If the prospect's form is open, refresh it so the new entry shows.
+      if (dialog.open && editing && editing.type === "prospect" && editing.id === id) openForm("prospect", id);
+    });
+  }
+
+  // Review queue card for a pending prospect (reviewers only).
+  function prospectReviewCard(p) {
+    var photo = p.photoId
+      ? '<button type="button" class="rev-proof" data-photo data-proof-id="' + esc(p.photoId) + '" aria-label="View business photo full screen"><span class="rev-proof-load">Loading photo…</span></button>'
+      : '<p class="rev-petty">No business photo yet — you can approve, or send it back to ask for one.</p>';
+    return '<article class="card rev-card" data-id="' + p.id + '">' +
+      '<div class="item-top"><div><div class="item-title">' + esc(p.business) + "</div>" +
+      '<div class="item-meta">' + esc(p.vertical || "—") + " · " + esc(p.location || "No location") + "</div></div>" + stageChip(p.stage) + "</div>" +
+      '<div class="item-lines"><div class="item-line"><span class="k">Contact</span><span class="v">' + esc(p.contact || "Unknown") + (p.phone ? " · " + esc(p.phone) : "") + "</span></div>" +
+      '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(p.createdBy || "—") + "</span></div>" +
+      '<div class="item-line"><span class="k">Location</span><span class="v">' + (p.geo ? mapLink(p.geo, "View on map") : '<span style="color:var(--muted)">not captured</span>') + "</span></div>" +
+      (p.reviewStatus === "query" && p.reviewNote ? '<div class="item-line"><span class="k">Sent back</span><span class="v" style="color:var(--red)">' + esc(p.reviewNote) + "</span></div>" : "") + "</div>" +
+      photo +
+      '<div class="rev-actions"><button type="button" class="btn btn-primary" data-approve-prospect="' + p.id + '">Approve</button>' +
+      '<button type="button" class="btn btn-ghost" data-sendback-prospect="' + p.id + '">Send back</button></div></article>';
+  }
+  function approveProspect(id) {
+    if (!canReviewProspects()) return;
+    var p = prospect(id); if (!p || !p.id) return;
+    p.reviewStatus = "approved"; p.reviewedBy = (settings.user && settings.user.name) || ""; p.reviewedAt = today; p.reviewNote = "";
+    saveData("Prospect approved"); render();
+  }
+  function sendBackProspect(id) {
+    if (!canReviewProspects()) return;
+    var p = prospect(id); if (!p || !p.id) return;
+    var note = prompt("Send this prospect back to whoever added it. What needs fixing? (e.g. add a photo, confirm the location)");
+    if (note === null) return;
+    p.reviewStatus = "query"; p.reviewNote = (note || "").trim(); p.reviewedBy = (settings.user && settings.user.name) || ""; p.reviewedAt = today;
+    saveData("Prospect sent back"); render();
   }
 
   /* ---------------------------- Supabase auth ------------------------------- */
@@ -1519,6 +1708,9 @@
     var photo = e.target.closest("[data-photo]"); if (photo) { openPhoto(photo.getAttribute("data-img")); return; }
     var appr = e.target.closest("[data-approve-id]"); if (appr) { approveTx(appr.getAttribute("data-approve-id")); return; }
     var back = e.target.closest("[data-sendback-id]"); if (back) { sendBackTx(back.getAttribute("data-sendback-id")); return; }
+    var apprP = e.target.closest("[data-approve-prospect]"); if (apprP) { approveProspect(apprP.getAttribute("data-approve-prospect")); return; }
+    var backP = e.target.closest("[data-sendback-prospect]"); if (backP) { sendBackProspect(backP.getAttribute("data-sendback-prospect")); return; }
+    var fup = e.target.closest("[data-log-followup]"); if (fup) { logFollowUp(fup.getAttribute("data-log-followup")); return; }
     var go = e.target.closest("[data-go]"); if (go) { view = go.dataset.go; render(); return; }
     var edit = e.target.closest("[data-edit]"); if (edit) { openForm(edit.dataset.edit, edit.dataset.id); return; }
     var sched = e.target.closest("[data-schedule]"); if (sched) { openForm("appointment", null, sched.dataset.schedule); return; }

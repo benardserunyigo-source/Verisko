@@ -52,6 +52,7 @@ export default async (request) => {
       if (!payload || !payload.data) throw new Error("Missing application data.");
       const incoming = payload.data;
       const storedTx = Array.isArray(data.transactions) ? data.transactions : [];
+      const storedProspects = Array.isArray(data.prospects) ? data.prospects : [];
       const storedConfig = data.config && typeof data.config === "object" && !Array.isArray(data.config) ? data.config : {};
       const clean = {
         prospects: Array.isArray(incoming.prospects) ? incoming.prospects : [],
@@ -62,6 +63,19 @@ export default async (request) => {
       };
       const isAdmin = bootstrap || (me && me.role === "admin");
       const canCash = isAdmin || (me && me.role === "operations");
+      const canReview = isAdmin || (me && me.role === "operations"); // prospect audit
+
+      // Prospect audit: only Operations/admins may mark a prospect approved.
+      if (!canReview && JSON.stringify(clean.prospects) !== JSON.stringify(storedProspects)) {
+        const prevById = Object.fromEntries(storedProspects.map((p) => [p.id, p]));
+        clean.prospects = clean.prospects.map((p) => {
+          const prev = prevById[p.id];
+          if (p && p.reviewStatus === "approved" && (!prev || prev.reviewStatus !== "approved")) {
+            return prev || { ...p, reviewStatus: "pending", reviewedBy: "", reviewedAt: "", reviewNote: "" };
+          }
+          return p;
+        });
+      }
 
       // Only an admin (or the bootstrapping owner) may change the team list.
       if (!isAdmin && JSON.stringify(clean.users) !== JSON.stringify(users)) {
