@@ -199,6 +199,7 @@
       b.classList.toggle("is-active", on);
       if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
+    updateCashBadge();
     if (view === "today") renderToday();
     else if (view === "prospects") renderProspects();
     else if (view === "visits") renderVisits();
@@ -437,6 +438,18 @@
       '<small>Approved in ' + money(approvedIn) + " · out " + money(approvedOut) + "</small></div>" +
       (pending.length ? '<div class="cash-pending">' + chip(pending.length + " awaiting review", "amber", "◔") + "</div>" : "") + "</section>";
 
+    // Admins get a review queue pinned at the top — approve or send back as
+    // entries come in, oldest first, with the receipt shown on the card.
+    var review = "";
+    if (isAdmin()) {
+      var queue = txs.filter(function (t) { return t.status === "pending"; })
+        .sort(function (a, b) { return (a.createdAt || "").localeCompare(b.createdAt || "") || (a.date || "").localeCompare(b.date || ""); });
+      if (queue.length) {
+        review = '<section class="review-section"><h2 class="review-head">Needs your review <span class="review-count">' + queue.length + "</span></h2>" +
+          queue.map(reviewCard).join("") + "</section>";
+      }
+    }
+
     var filterBar = '<div class="toolbar"><div class="field-inline" style="flex:1"><label for="cashFilter">Show</label><select id="cashFilter">' +
       [["all", "All entries"], ["pending", "Pending"], ["approved", "Approved"], ["query", "Sent back"]].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === cashFilter ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select></div></div>";
 
@@ -446,7 +459,41 @@
     var list = rows.length ? '<div class="list">' + rows.map(txCard).join("") + "</div>" :
       emptyState(ICON_CASH, "No entries yet", "Tap Add money to record your first cash movement.", "Add money", 'data-new="transaction"');
 
-    content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " entry" : " entries") + "</p>" + list;
+    content.innerHTML = summary + review + '<h2 class="ledger-head">All entries</h2>' + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " entry" : " entries") + "</p>" + list;
+    hydrateProofThumbs();
+  }
+
+  // A single card in the admin review queue: receipt inline + quick actions.
+  function reviewCard(t) {
+    var p = t.prospectId ? prospect(t.prospectId) : null;
+    var sign = t.direction === "in" ? "+" : "−";
+    var proof = t.proofId
+      ? '<button type="button" class="rev-proof" data-photo data-proof-id="' + esc(t.proofId) + '" aria-label="View receipt full screen"><span class="rev-proof-load">Loading receipt…</span></button>'
+      : '<p class="rev-noproof">No receipt attached. Send it back and ask for a photo before approving.</p>';
+    return '<article class="card rev-card" data-id="' + t.id + '">' +
+      '<div class="item-top"><div><div class="item-title"><span class="tx-dir ' + (t.direction === "in" ? "in" : "out") + '">' + (t.direction === "in" ? "In" : "Out") + "</span> " + sign + money(t.amount) + "</div>" +
+      '<div class="item-meta">' + esc(t.category || "Uncategorised") + (p && p.business ? " · " + esc(p.business) : "") + "</div></div></div>" +
+      '<div class="item-lines"><div class="item-line"><span class="k">Added by</span><span class="v">' + esc(t.createdBy || "—") + "</span></div>" +
+      '<div class="item-line"><span class="k">Date</span><span class="v">' + dateLabel(t.date) + "</span></div>" +
+      (t.note ? '<div class="item-line"><span class="k">Note</span><span class="v">' + esc(t.note) + "</span></div>" : "") + "</div>" +
+      proof +
+      '<div class="rev-actions">' +
+      '<button type="button" class="btn btn-primary" data-approve-id="' + t.id + '"' + (t.proofId ? "" : " disabled") + ">Approve</button>" +
+      '<button type="button" class="btn btn-ghost" data-sendback-id="' + t.id + '">Send back</button></div></article>';
+  }
+
+  // Fill in the receipt thumbnails after the queue is on screen.
+  function hydrateProofThumbs() {
+    var boxes = content.querySelectorAll("[data-proof-id]");
+    boxes.forEach(function (box) {
+      var id = box.getAttribute("data-proof-id");
+      fetchProof(id).then(function (img) {
+        box.innerHTML = img
+          ? '<img src="' + img + '" alt="Receipt photo" class="rev-proof-img">'
+          : '<span class="rev-proof-load">Couldn\'t load the photo</span>';
+        if (img) box.setAttribute("data-img", img);
+      });
+    });
   }
 
   function txCard(t) {
@@ -552,12 +599,40 @@
   }
   function sendBackTransaction() {
     if (!editing || !editing.id || !isAdmin()) return;
-    var t = state.transactions.find(function (x) { return x.id === editing.id; });
+    if (sendBackTx(editing.id)) dialog.close();
+  }
+  // Inline approve/send-back used by the review queue (no dialog open).
+  function approveTx(id) {
+    if (!isAdmin()) return;
+    var t = state.transactions.find(function (x) { return x.id === id; });
     if (!t) return;
+    if (!t.proofId) { toast("Add a proof photo before approving."); return; }
+    t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.reviewNote = "";
+    saveData("Entry approved"); render();
+  }
+  function sendBackTx(id) {
+    if (!isAdmin()) return false;
+    var t = state.transactions.find(function (x) { return x.id === id; });
+    if (!t) return false;
     var note = prompt("Send this back to whoever recorded it. What needs fixing?");
-    if (note === null) return;
+    if (note === null) return false;
     t.status = "query"; t.reviewNote = (note || "").trim(); t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today;
-    dialog.close(); saveData("Sent back for changes"); render();
+    saveData("Sent back for changes"); render();
+    return true;
+  }
+  // Full-screen receipt viewer for the review queue.
+  function openPhoto(img) {
+    if (!img) return;
+    var ov = document.getElementById("photoOverlay");
+    if (!ov) {
+      ov = document.createElement("div");
+      ov.id = "photoOverlay"; ov.className = "photo-overlay"; ov.setAttribute("role", "dialog");
+      ov.setAttribute("aria-label", "Receipt photo");
+      ov.addEventListener("click", function () { ov.classList.remove("show"); });
+      document.body.appendChild(ov);
+    }
+    ov.innerHTML = '<img src="' + img + '" alt="Receipt photo"><button type="button" class="photo-close" aria-label="Close">×</button>';
+    ov.classList.add("show");
   }
 
   /* -------------------------------- SETTINGS -------------------------------- */
@@ -951,6 +1026,24 @@
   function currentUser() { return settings.user || null; }
   function isAdmin() { return !!(settings.user && settings.user.role === "admin"); }
   function canCashflow() { return isAdmin() || !!(settings.user && settings.user.role === "operations"); }
+  // How many cash entries need THIS person's attention: admins review pending
+  // entries; operations act on their own sent-back ones.
+  function reviewCount() {
+    var txs = state.transactions || [];
+    if (isAdmin()) return txs.filter(function (t) { return t.status === "pending"; }).length;
+    if (canCashflow()) {
+      var mine = (settings.user && settings.user.email || "").toLowerCase();
+      return txs.filter(function (t) { return t.status === "query" && (t.createdByEmail || "").toLowerCase() === mine; }).length;
+    }
+    return 0;
+  }
+  function updateCashBadge() {
+    var b = document.getElementById("cashBadge");
+    if (!b) return;
+    var n = canCashflow() ? reviewCount() : 0;
+    b.textContent = n > 9 ? "9+" : String(n);
+    b.hidden = n === 0;
+  }
   function initials(name) {
     var p = String(name || "").trim().split(/\s+/).filter(Boolean);
     if (!p.length) return "?";
@@ -1287,6 +1380,9 @@
   });
 
   content.addEventListener("click", function (e) {
+    var photo = e.target.closest("[data-photo]"); if (photo) { openPhoto(photo.getAttribute("data-img")); return; }
+    var appr = e.target.closest("[data-approve-id]"); if (appr) { approveTx(appr.getAttribute("data-approve-id")); return; }
+    var back = e.target.closest("[data-sendback-id]"); if (back) { sendBackTx(back.getAttribute("data-sendback-id")); return; }
     var go = e.target.closest("[data-go]"); if (go) { view = go.dataset.go; render(); return; }
     var edit = e.target.closest("[data-edit]"); if (edit) { openForm(edit.dataset.edit, edit.dataset.id); return; }
     var sched = e.target.closest("[data-schedule]"); if (sched) { openForm("appointment", null, sched.dataset.schedule); return; }
