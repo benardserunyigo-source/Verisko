@@ -11,7 +11,7 @@
   --card:#ffffff;
   --ink:#1c1c1e;
   --muted:#6b6f76;
-  --faint:#9297a0;
+  --faint:#787e88;
   --hair:rgba(20,28,46,.09);
   --hair-strong:rgba(20,28,46,.14);
   --fill:#eef0f4;          /* input + tinted button fill */
@@ -94,7 +94,7 @@ body.locked{overflow:hidden}
 .lock-field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:7px}
 .lock-field input{width:100%;min-height:54px;padding:0 68px 0 15px;border:0;border-radius:13px;background:var(--fill);font-size:16px}
 .lock-field input::placeholder{color:var(--faint)}
-.lock-show{position:absolute;right:8px;bottom:9px;height:36px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--accent);font-weight:600;font-size:13px}
+.lock-show{position:absolute;right:8px;bottom:5px;height:44px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:var(--accent);font-weight:600;font-size:13px}
 .lock-show:hover{background:var(--accent-soft)}
 .lock-error{color:var(--red);background:var(--red-bg);border-radius:11px;padding:11px 13px;font-size:13.5px;font-weight:500;margin-bottom:14px;text-align:left}
 #lockSubmit{min-height:54px;font-size:16px}
@@ -107,11 +107,11 @@ body.locked{overflow:hidden}
 .account-row .user-avatar{width:38px;height:38px;font-size:15px;flex:none}
 .account-row .who{flex:1 1 62%;min-width:0}
 .row-actions{margin-left:auto;flex:none;display:flex;align-items:center;gap:2px}
-.account-remove{flex:none;border:0;background:transparent;color:var(--red);font-weight:600;font-size:13px;padding:9px 8px;border-radius:9px;min-height:40px}
+.account-remove{flex:none;border:0;background:transparent;color:var(--red);font-weight:600;font-size:13px;padding:9px 10px;border-radius:9px;min-height:44px}
 .account-remove:hover{background:var(--red-bg)}
-.account-role{flex:none;border:0;background:transparent;color:var(--accent);font-weight:600;font-size:13px;padding:9px 8px;border-radius:9px;min-height:40px;white-space:nowrap}
+.account-role{flex:none;border:0;background:transparent;color:var(--accent);font-weight:600;font-size:13px;padding:9px 8px;border-radius:9px;min-height:44px;white-space:nowrap}
 .account-role:hover{background:var(--accent-soft)}
-.account-role-select{flex:none;font:inherit;font-size:13px;font-weight:600;color:var(--ink);background:#fff;border:1px solid var(--hair-strong);border-radius:10px;min-height:40px;padding:0 30px 0 10px;appearance:none;
+.account-role-select{flex:none;font:inherit;font-size:13px;font-weight:600;color:var(--ink);background:#fff;border:1px solid var(--hair-strong);border-radius:10px;min-height:44px;padding:0 30px 0 10px;appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239297a0' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center}
 .account-row .who strong{display:block;font-size:15px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .account-row .who span{display:block;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -190,7 +190,7 @@ main{min-width:0;max-width:780px;margin:0 auto;padding:8px 16px 28px}
 .btn-ghost:hover{background:#e6e9ef}
 .btn-danger{background:var(--red-bg);color:var(--red)}
 .btn-danger:hover{background:#fbdfe3}
-.btn-sm{min-height:38px;padding:0 14px;font-size:14px;border-radius:10px}
+.btn-sm{min-height:44px;padding:0 15px;font-size:14px;border-radius:11px}
 .btn-block{width:100%}
 
 .page-action{flex:none}
@@ -337,7 +337,7 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .dialog-head::before{content:"";position:absolute;top:8px;left:50%;transform:translateX(-50%);width:38px;height:5px;border-radius:3px;background:var(--hair-strong)}
 .dialog-head .eyebrow{display:none}
 .dialog-head h2{font-size:18px;font-weight:600}
-.icon-btn{width:34px;height:34px;flex:none;border:0;border-radius:50%;background:var(--fill);color:var(--muted);font-size:20px;line-height:1;display:grid;place-items:center}
+.icon-btn{width:44px;height:44px;flex:none;border:0;border-radius:50%;background:var(--fill);color:var(--muted);font-size:22px;line-height:1;display:grid;place-items:center}
 .icon-btn:hover{background:#e6e9ef}
 .form-error{margin:14px 18px 0;padding:12px 14px;border-radius:12px;background:var(--red-bg);color:var(--red);font-size:14px;font-weight:500}
 #formContent{padding:18px;overflow:auto;flex:1}
@@ -401,6 +401,7 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
   #recordForm{max-height:90vh}
   .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
   .field.full{grid-column:1/-1}
+  .tx-outonly{grid-column:1/-1}
   .field-group-title{grid-column:1/-1}
   .dialog-actions .btn{flex:none;min-width:120px}
   .dialog-actions{justify-content:flex-end}

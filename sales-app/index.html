@@ -8,7 +8,7 @@
   <title>Verisko Sales Visit Planner</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="apple-touch-icon" href="logo.svg">
-  <link rel="stylesheet" href="app.css?v=28">
+  <link rel="stylesheet" href="app.css?v=30">
 </head>
 <body class="locked">
   <div id="lockScreen" class="lockscreen" role="dialog" aria-modal="true" aria-labelledby="lockTitle">
@@ -71,7 +71,7 @@
         <span class="nav-label">Cash flow</span>
         <span class="nav-badge" id="cashBadge" hidden aria-hidden="true"></span>
       </button>
-      <button class="nav-item" type="button" data-view="settings">
+      <button class="nav-item" type="button" data-view="settings" hidden>
         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span class="nav-label">Settings</span>
       </button>
@@ -90,7 +90,7 @@
           <span class="page-action-label">Add prospect</span>
         </button>
       </div>
-      <section id="viewContent" aria-live="polite"></section>
+      <section id="viewContent"></section>
     </main>
   </div>
 
@@ -114,6 +114,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <input type="file" id="importInput" accept=".json,application/json" hidden>
-  <script src="app.js?v=28"></script>
+  <script src="app.js?v=30"></script>
 </body>
 </html>

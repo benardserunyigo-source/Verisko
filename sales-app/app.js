@@ -327,7 +327,7 @@
         '<div class="filter-row"><div class="field-inline"><label for="stageFilter">Stage</label>' +
         '<select id="stageFilter"><option value="">All stages</option>' + STAGES.map(function (s) { return '<option value="' + esc(s) + '">' + esc(s) + "</option>"; }).join("") + "</select></div></div>" +
       "</div>" +
-      '<p class="result-note" id="resultNote"></p>' +
+      '<p class="result-note" id="resultNote" aria-live="polite"></p>' +
       '<div class="card-grid" id="prospectGrid"></div>';
     updateProspectGrid();
     hydrateProofThumbs();
@@ -339,7 +339,7 @@
     var q = ((document.getElementById("search") || {}).value || "").toLowerCase().trim();
     var stage = ((document.getElementById("stageFilter") || {}).value || "");
     var rows = state.prospects.filter(function (p) {
-      var haystack = (p.business + " " + p.contact + " " + p.phone + " " + p.location + " " + p.vertical + " " + p.notes).toLowerCase();
+      var haystack = [p.business, p.contact, p.phone, p.location, p.vertical, p.notes].map(function (x) { return x || ""; }).join(" ").toLowerCase();
       return (!stage || p.stage === stage) && (!q || haystack.indexOf(q) !== -1);
     }).sort(function (a, b) {
       // Overdue first, then by follow-up date.
@@ -465,7 +465,8 @@
   // Petty-cash limit: below this, an entry can be approved without a formal
   // receipt (a note or photo-of-item is enough). 0 disables the exception.
   function pettyLimit() { var n = state.config && Number(state.config.pettyLimit); return n > 0 ? n : 0; }
-  function needsProof(t) { return !t.proofId && (t.amount || 0) > pettyLimit(); }
+  // Only money OUT needs a receipt (and only above the petty-cash limit).
+  function needsProof(t) { return t.direction === "out" && !t.proofId && (t.amount || 0) > pettyLimit(); }
 
   // Cash on hand = everything recorded in minus everything recorded out.
   // Sent-back (disputed) entries don't count. Pending entries DO — the float
@@ -659,11 +660,11 @@
   // A single card in the admin review queue: receipt inline + quick actions.
   function reviewCard(t) {
     var sign = t.direction === "in" ? "+" : "−";
-    var proof = t.proofId
+    var proof = t.direction !== "out" ? "" : (t.proofId
       ? '<button type="button" class="rev-proof" data-photo data-proof-id="' + esc(t.proofId) + '" aria-label="View receipt full screen"><span class="rev-proof-load">Loading receipt…</span></button>'
       : (needsProof(t)
         ? '<p class="rev-noproof">No receipt attached. Send it back and ask for a photo before approving.</p>'
-        : '<p class="rev-petty">Petty cash under ' + money(pettyLimit()) + " — a receipt is optional. You can approve on the note alone.</p>");
+        : '<p class="rev-petty">Petty cash under ' + money(pettyLimit()) + " — a receipt is optional. You can approve on the note alone.</p>"));
     return '<article class="card rev-card" data-id="' + t.id + '">' +
       '<div class="item-top"><div><div class="item-title"><span class="tx-dir ' + (t.direction === "in" ? "in" : "out") + '">' + (t.direction === "in" ? "In" : "Out") + "</span> " + sign + money(t.amount) + "</div>" +
       '<div class="item-meta">' + txMeta(t) + "</div></div></div>" +
@@ -698,7 +699,7 @@
       '<div class="item-lines"><div class="item-line"><span class="k">Date</span><span class="v">' + dateLabel(t.date) + "</span></div>" +
       '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(t.createdBy || "—") + "</span></div>" +
       (t.status === "query" && t.reviewNote ? '<div class="item-line"><span class="k">Sent back</span><span class="v" style="color:var(--red)">' + esc(t.reviewNote) + "</span></div>" : "") +
-      '<div class="item-line"><span class="k">Proof</span><span class="v">' + (t.proofId ? "Attached" : (queuedPhotoFor(t.id) ? '<span style="color:var(--muted)">Photo waiting to upload</span>' : '<span style="color:var(--amber)">No proof yet</span>')) + "</span></div></div></article>";
+      (t.direction === "out" ? '<div class="item-line"><span class="k">Proof</span><span class="v">' + (t.proofId ? "Attached" : (queuedPhotoFor(t.id) ? '<span style="color:var(--muted)">Photo waiting to upload</span>' : '<span style="color:var(--amber)">No proof yet</span>')) + "</span></div>" : "") + "</div></article>";
   }
 
   /* -------- Receipt photo helpers -------- */
@@ -769,12 +770,16 @@
     if (amount >= LARGE_AMOUNT && !window.confirm("Record " + money(amount) + " " + (direction === "in" ? "coming in" : "going out") + "?\n\nDouble-check the amount is right.")) return;
     var saveBtn = document.getElementById("saveButton");
     var txId = editing.id || uid();
-    var proofId = data.proofId || "";
+    var isOut = direction === "out";
+    // Prospect link, note and proof only apply to money out.
+    var prospectId = isOut ? (data.prospectId || "") : "";
+    var note = isOut ? (data.note || "") : "";
+    var proofId = isOut ? (data.proofId || "") : "";
     var queuePhoto = false;
     // Offline-safe: never lose the entry because a photo won't upload.
     // Online → upload now. Offline (or a network hiccup) → save the entry and
     // queue the photo on this device to upload automatically later.
-    if (pendingProof) {
+    if (isOut && pendingProof) {
       if (navigator.onLine) {
         try {
           saveBtn.disabled = true; saveBtn.textContent = "Uploading photo…";
@@ -792,13 +797,13 @@
     if (editing.id) {
       var idx = state.transactions.findIndex(function (x) { return x.id === editing.id; });
       var prev = state.transactions[idx];
-      var upd = Object.assign({}, prev, { direction: direction, amount: amount, date: data.date, category: data.category, method: method, prospectId: data.prospectId || "", note: data.note || "", proofId: proofId });
+      var upd = Object.assign({}, prev, { direction: direction, amount: amount, date: data.date, category: data.category, method: method, prospectId: prospectId, note: note, proofId: proofId });
       if (!isAdmin() && prev.status === "query") { upd.status = "pending"; upd.reviewNote = ""; } // resubmit after a send-back
       state.transactions[idx] = upd;
     } else {
       state.transactions.push({
         id: txId, direction: direction, amount: amount, date: data.date || today, category: data.category, method: method,
-        prospectId: data.prospectId || "", note: data.note || "", proofId: proofId,
+        prospectId: prospectId, note: note, proofId: proofId,
         createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "",
         createdAt: today, status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: ""
       });
@@ -868,7 +873,7 @@
     if (!editing || !editing.id || !isAdmin()) return;
     var t = state.transactions.find(function (x) { return x.id === editing.id; });
     if (!t) return;
-    if (!t.proofId && !pendingProof && (t.amount || 0) > pettyLimit()) { showFormError("Attach a proof photo before approving. (Receipts are only optional for petty cash under " + money(pettyLimit()) + ".)"); return; }
+    if (t.direction === "out" && !t.proofId && !pendingProof && (t.amount || 0) > pettyLimit()) { showFormError("Attach a proof photo before approving. (Receipts are only optional for petty cash under " + money(pettyLimit()) + ".)"); return; }
     t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.reviewNote = "";
     dialog.close(); saveData("Entry approved"); render();
   }
@@ -899,15 +904,19 @@
   function openPhoto(img) {
     if (!img) return;
     var ov = document.getElementById("photoOverlay");
+    var close = function () { ov.classList.remove("show"); document.removeEventListener("keydown", onKey); };
+    var onKey = function (e) { if (e.key === "Escape") close(); };
     if (!ov) {
       ov = document.createElement("div");
-      ov.id = "photoOverlay"; ov.className = "photo-overlay"; ov.setAttribute("role", "dialog");
+      ov.id = "photoOverlay"; ov.className = "photo-overlay"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true");
       ov.setAttribute("aria-label", "Receipt photo");
-      ov.addEventListener("click", function () { ov.classList.remove("show"); });
+      ov.addEventListener("click", function () { close(); });
       document.body.appendChild(ov);
     }
     ov.innerHTML = '<img src="' + img + '" alt="Receipt photo"><button type="button" class="photo-close" aria-label="Close">×</button>';
     ov.classList.add("show");
+    document.addEventListener("keydown", onKey);
+    var btn = ov.querySelector(".photo-close"); if (btn) btn.focus();
   }
 
   /* -------------------------------- SETTINGS -------------------------------- */
@@ -1030,7 +1039,7 @@
         field("budget", "Budget", "segmented", source.budget || "", { full: true, options: ["Has budget", "Price-sensitive", "Not discussed"] }) +
 
         field("stage", "Stage", "select", source.stage || "New prospect", { options: STAGES }) +
-        field("followUp", "Follow up on", "date", source.followUp || today) +
+        field("followUp", "Follow up on", "date", source.followUp || (id ? "" : today)) +
         field("nextAction", "Next action", "text", source.nextAction, { full: true, placeholder: "e.g. Call back, book a visit" }) +
 
         // Optional — only if it helps Operations.
@@ -1082,15 +1091,17 @@
         '<div class="field full"><label for="f_amount">Amount (UGX) <span class="req" aria-hidden="true">*</span></label>' +
         '<input id="f_amount" name="amount" type="number" inputmode="numeric" min="0" step="1" required aria-required="true" value="' + esc(source.amount || "") + '">' +
         '<p class="amount-echo" id="amountEcho" aria-live="polite"></p>' +
-        '<p class="helper">In the float now: ' + money(availableForOut(id)) + ". Money out can't go past this.</p></div>" +
+        '<p class="helper">In the float now: ' + money(availableForOut(id)) + ".</p></div>" +
         field("date", "Date", "date", source.date || today, { required: true }) +
         field("category", "Category", "select", source.category || cats[0], { options: cats, full: true }) +
         field("method", "Paid by", "select", source.method || TX_METHODS[0], { options: TX_METHODS, full: true }) +
+        // Prospect link, note and proof only apply to money OUT — hidden for money in.
+        '<div id="txOutOnly" class="tx-outonly"' + (dir === "out" ? "" : " hidden") + ">" +
         '<div class="field full"><label for="f_prospectId">Link to a prospect (optional)</label><select id="f_prospectId" name="prospectId"><option value="">— none —</option>' +
         state.prospects.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === source.prospectId ? " selected" : "") + ">" + esc(p.business) + "</option>"; }).join("") + "</select></div>" +
         field("note", "Note", "textarea", source.note, { full: true, optional: true }) +
         '<div class="field full"><label>Proof of payment <span class="optional-tag">photo or MoMo SMS</span></label>' + proofControl(source.proofId) +
-        (pettyLimit() > 0 ? '<p class="helper">Optional for petty cash under ' + money(pettyLimit()) + " — a note is enough.</p>" : "") + "</div>";
+        (pettyLimit() > 0 ? '<p class="helper">Optional for petty cash under ' + money(pettyLimit()) + " — a note is enough.</p>" : "") + "</div></div>";
       if (id && isAdmin() && source.status !== "approved") {
         html += '<div class="field full tx-review"><button type="button" class="btn btn-primary btn-block" data-approve>Approve entry</button><button type="button" class="btn btn-ghost btn-block" data-sendback>Send back with a note</button></div>';
       }
@@ -1173,13 +1184,16 @@
     });
     var hidden = document.getElementById("f_" + name);
     if (hidden) hidden.value = btn.getAttribute("data-val");
-    // Cash flow: switching In/Out re-populates the category list to match.
+    // Cash flow: switching In/Out re-populates the category list and shows the
+    // prospect/note/proof fields only for money out.
     if (name === "direction" && editing && editing.type === "transaction") {
       var sel = document.getElementById("f_category");
       if (sel) {
         var cats = TX_CATS[hidden.value] || TX_CATS.in;
         sel.innerHTML = cats.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + "</option>"; }).join("");
       }
+      var outOnly = document.getElementById("txOutOnly");
+      if (outOnly) outOnly.hidden = hidden.value !== "out";
     }
   });
 
