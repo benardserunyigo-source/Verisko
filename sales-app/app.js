@@ -685,11 +685,10 @@
     return chip("Pending", "amber", "◔");
   }
 
-  // Petty-cash limit: below this, an entry can be approved without a formal
-  // receipt (a note or photo-of-item is enough). 0 disables the exception.
-  function pettyLimit() { var n = state.config && Number(state.config.pettyLimit); return n > 0 ? n : 0; }
-  // Only money OUT needs a receipt (and only above the petty-cash limit).
-  function needsProof(t) { return t.direction === "out" && !t.proofId && (t.amount || 0) > pettyLimit(); }
+  // Every expense (money OUT) needs a receipt — unless it was already vetted by
+  // the cash-flow team, in which case the recorder ticks "pre-approved" and can
+  // submit and be approved without one.
+  function needsProof(t) { return t.direction === "out" && !t.proofId && !t.preapproved; }
 
   // Cash on hand = everything recorded in minus everything recorded out.
   // Sent-back (disputed) entries don't count. Pending entries DO — the float
@@ -1233,9 +1232,9 @@
     var sign = t.direction === "in" ? "+" : "−";
     var proof = t.direction !== "out" ? "" : (t.proofId
       ? '<button type="button" class="rev-proof" data-photo data-proof-id="' + esc(t.proofId) + '" aria-label="View receipt full screen"><span class="rev-proof-load">Loading receipt…</span></button>'
-      : (needsProof(t)
-        ? '<p class="rev-noproof">No receipt attached. Send it back and ask for a photo before approving.</p>'
-        : '<p class="rev-petty">Petty cash under ' + money(pettyLimit()) + " — a receipt is optional. You can approve on the note alone.</p>"));
+      : (t.preapproved
+        ? '<p class="rev-petty">Pre-approved by the cash-flow team — no receipt required. Approve on the note alone.</p>'
+        : '<p class="rev-noproof">No receipt attached. Send it back and ask for a photo before approving.</p>'));
     return '<article class="card rev-card" data-id="' + t.id + '">' +
       '<div class="item-top"><div><div class="item-title"><span class="tx-dir ' + (t.direction === "in" ? "in" : "out") + '">' + (t.direction === "in" ? "In" : "Out") + "</span> " + sign + money(t.amount) + "</div>" +
       '<div class="item-meta">' + txMeta(t) + "</div></div></div>" +
@@ -1270,7 +1269,7 @@
       '<div class="item-lines"><div class="item-line"><span class="k">Date</span><span class="v">' + dateLabel(t.date) + "</span></div>" +
       '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(t.createdBy || "—") + "</span></div>" +
       (t.status === "query" && t.reviewNote ? '<div class="item-line"><span class="k">Sent back</span><span class="v" style="color:var(--red)">' + esc(t.reviewNote) + "</span></div>" : "") +
-      (t.direction === "out" ? '<div class="item-line"><span class="k">Proof</span><span class="v">' + (t.proofId ? "Attached" : (hasQueuedPhoto(t.id) ? '<span style="color:var(--muted)">Photo waiting to upload</span>' : '<span style="color:var(--amber)">No proof yet</span>')) + "</span></div>" : "") + "</div></article>";
+      (t.direction === "out" ? '<div class="item-line"><span class="k">Proof</span><span class="v">' + (t.proofId ? "Attached" : (hasQueuedPhoto(t.id) ? '<span style="color:var(--muted)">Photo waiting to upload</span>' : (t.preapproved ? '<span style="color:var(--muted)">Pre-approved — no receipt</span>' : '<span style="color:var(--amber)">No proof yet</span>'))) + "</span></div>" : "") + "</div></article>";
   }
 
   /* -------- Receipt photo helpers -------- */
@@ -1346,6 +1345,13 @@
     var prospectId = isOut ? (data.prospectId || "") : "";
     var note = isOut ? (data.note || "") : "";
     var proofId = isOut ? (data.proofId || "") : "";
+    var preapproved = isOut && !!data.preapproved;
+    // Every expense must carry proof — a photo on file, one chosen now (even if
+    // it queues offline), or an explicit "pre-approved by the cash-flow team".
+    if (isOut && !preapproved && !proofId && !pendingProof) {
+      showFormError("Attach a receipt for this expense — or tick “Already pre-approved by the cash-flow team” to submit without one.");
+      return;
+    }
     var queuePhoto = false;
     // Offline-safe: never lose the entry because a photo won't upload.
     // Online → upload now. Offline (or a network hiccup) → save the entry and
@@ -1368,13 +1374,13 @@
     if (editing.id) {
       var idx = state.transactions.findIndex(function (x) { return x.id === editing.id; });
       var prev = state.transactions[idx];
-      var upd = Object.assign({}, prev, { direction: direction, amount: amount, date: data.date, category: data.category, method: method, prospectId: prospectId, note: note, proofId: proofId, installId: data.installId || prev.installId || "" });
+      var upd = Object.assign({}, prev, { direction: direction, amount: amount, date: data.date, category: data.category, method: method, prospectId: prospectId, note: note, proofId: proofId, preapproved: preapproved, installId: data.installId || prev.installId || "" });
       if (!isAdmin() && prev.status === "query") { upd.status = "pending"; upd.reviewNote = ""; } // resubmit after a send-back
       state.transactions[idx] = upd;
     } else {
       state.transactions.push({
         id: txId, direction: direction, amount: amount, date: data.date || today, category: data.category, method: method,
-        prospectId: prospectId, note: note, proofId: proofId, installId: data.installId || "",
+        prospectId: prospectId, note: note, proofId: proofId, preapproved: preapproved, installId: data.installId || "",
         createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "",
         createdAt: today, status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: ""
       });
@@ -1454,7 +1460,7 @@
     if (!editing || !editing.id || !isAdmin()) return;
     var t = state.transactions.find(function (x) { return x.id === editing.id; });
     if (!t) return;
-    if (t.direction === "out" && !t.proofId && !pendingProof && (t.amount || 0) > pettyLimit()) { showFormError("Attach a proof photo before approving. (Receipts are only optional for petty cash under " + money(pettyLimit()) + ".)"); return; }
+    if (t.direction === "out" && !t.proofId && !pendingProof && !t.preapproved) { showFormError("Attach a receipt before approving — or the recorder can mark it pre-approved by the cash-flow team."); return; }
     t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.reviewNote = "";
     dialog.close(); saveData("Entry approved"); render();
   }
@@ -1546,10 +1552,7 @@
       '<div class="button-row"><button class="btn btn-ghost" data-sync>Refresh shared data</button></div></section>' +
 
       '<section class="card settings-card"><h2>Cash flow</h2>' +
-      "<p>Set the petty-cash limit. Money out below this can be approved without a formal receipt — a note or a photo of the item is enough. Set it to 0 to always require a receipt.</p>" +
-      '<form id="pettyForm" class="add-member"><div class="field"><label for="pettyLimit">Petty-cash limit (UGX)</label>' +
-      '<input id="pettyLimit" name="pettyLimit" type="number" inputmode="numeric" min="0" step="1000" value="' + pettyLimit() + '"></div>' +
-      '<button type="submit" class="btn btn-ghost btn-block">Save limit</button></form></section>' +
+      "<p>Every expense (money out) needs a receipt before it can be approved. If the cash-flow team has already vetted a payment, whoever records it can tick “Already pre-approved by the cash-flow team” to submit without a receipt — you still give the final approval here.</p></section>" +
 
       '<section class="card settings-card"><h2>Backup &amp; restore</h2>' +
       '<p>Download a JSON backup any time, or import one to recover your records.</p>' +
@@ -1707,8 +1710,10 @@
         (linkInstall ? "" : '<div class="field full"><label for="f_prospectId">Link to a prospect (optional)</label><select id="f_prospectId" name="prospectId"><option value="">— none —</option>' +
         state.prospects.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === source.prospectId ? " selected" : "") + ">" + esc(p.business) + "</option>"; }).join("") + "</select></div>") +
         field("note", "Note", "textarea", source.note, { full: true, optional: true }) +
-        '<div class="field full"><label>Proof of payment <span class="optional-tag">photo or MoMo SMS</span></label>' + proofControl(source.proofId) +
-        (pettyLimit() > 0 ? '<p class="helper">Optional for petty cash under ' + money(pettyLimit()) + " — a note is enough.</p>" : "") + "</div></div>" +
+        '<div class="field full"><label>Proof of payment <span class="req" aria-hidden="true">*</span> <span class="optional-tag">photo or MoMo SMS</span></label>' + proofControl(source.proofId) +
+        '<p class="helper">Every expense needs a receipt. If the cash-flow team already approved this, tick the box below to submit without one.</p>' +
+        '<label class="chk-item preapprove-row"><input type="checkbox" id="f_preapproved" name="preapproved"' + (source.preapproved ? " checked" : "") + '><span>Already pre-approved by the cash-flow team — submit without a receipt</span></label>' +
+        "</div></div>" +
         '<input type="hidden" name="installId" value="' + esc(linkInstall) + '">';
       txPreset = null; // preset consumed
       if (id && isAdmin() && source.status !== "approved") {
@@ -2783,16 +2788,6 @@
     if (addForm) {
       e.preventDefault();
       if (addMember(addForm.querySelector("[name=name]").value, addForm.querySelector("[name=email]").value, addForm.querySelector("[name=role]").value)) addForm.reset();
-      return;
-    }
-    var pettyForm = e.target.closest("#pettyForm");
-    if (pettyForm) {
-      e.preventDefault();
-      if (!isAdmin()) return;
-      var v = Math.max(0, Math.round(Number(pettyForm.querySelector("[name=pettyLimit]").value) || 0));
-      if (!state.config || typeof state.config !== "object") state.config = {};
-      state.config.pettyLimit = v;
-      saveData("Petty-cash limit set to " + money(v));
       return;
     }
     var commForm = e.target.closest("#commissionForm");
