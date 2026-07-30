@@ -676,6 +676,7 @@
   var money = function (n) { return "UGX " + Number(n || 0).toLocaleString("en-US"); };
   var cashFilter = "all";
   var pendingProof = null; // resized photo chosen in the form, not yet uploaded
+  var pendingGeo = null;   // site GPS pin captured in the prospect form
   var txPreset = null;     // prefill for a cash entry opened from an installation
 
   function txStatusChip(s) {
@@ -1408,6 +1409,7 @@
       var idx = state.prospects.findIndex(function (x) { return x.id === editing.id; });
       var prev = state.prospects[idx];
       var merged = Object.assign({}, prev, data, { id: editing.id, photoId: photoId });
+      if (pendingGeo) merged.geo = pendingGeo;   // a re-captured pin updates the record
       // A Sales edit re-opens the audit: a sent-back prospect returns to the
       // queue, and an approved one that actually changed goes back to pending.
       if (!canReviewProspects()) {
@@ -1418,14 +1420,23 @@
       }
       state.prospects[idx] = merged;
     } else {
-      // Capture location on first submit (best-effort — never blocks).
-      saveBtn.disabled = true; saveBtn.textContent = "Getting location…";
-      var geo = await captureGeo();
+      // The site GPS pin is a must-have for Sales: it proves the rep visited.
+      // Use the pin captured in the form; if none, try once more on submit.
+      var geo = pendingGeo;
+      if (!geo) {
+        saveBtn.disabled = true; saveBtn.textContent = "Getting location…";
+        geo = (await captureGeo()).geo;
+        saveBtn.disabled = false; saveBtn.textContent = "Save";
+      }
       var reviewer = canReviewProspects();
+      if (!geo && !reviewer) {
+        showFormError("Capture the site location before submitting — tap “Capture site location” while you're on site. The GPS pin is required.");
+        return;
+      }
       state.prospects.push(Object.assign({}, data, {
         id: pid, created: today,
         createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "",
-        photoId: photoId, geo: geo, followUps: [],
+        photoId: photoId, geo: geo || null, followUps: [],
         reviewStatus: reviewer ? "approved" : "pending",
         reviewedBy: reviewer ? (settings.user && settings.user.name) || "" : "",
         reviewedAt: reviewer ? today : "", reviewNote: ""
@@ -1595,6 +1606,7 @@
 
     var html = '<div class="form-grid">';
     if (type === "prospect") {
+      pendingGeo = source.geo || null;   // pin already on file (edit) or none yet (new)
       document.getElementById("dialogTitle").textContent = id ? "Edit prospect" : "Add prospect";
       // Normalise legacy free-text camera values into a simple Yes/No.
       var cameras = source.existing == null || source.existing === "" ? "" :
@@ -1626,8 +1638,12 @@
         field("notes", "Notes for Operations", "textarea", source.notes, { full: true, optional: true }) +
 
         // Audit: a photo of the business and the salesperson's live location.
-        '<div class="field full"><label>Business photo <span class="optional-tag">helps Operations verify</span></label>' + proofControl(source.photoId) +
-        (id ? (source.geo ? '<p class="helper">Location on file: ' + mapLink(source.geo) + "</p>" : "") : '<p class="helper">Your live location is captured when you submit.</p>') + "</div>";
+        '<div class="field full"><label>Business photo <span class="optional-tag">helps Operations verify</span></label>' + proofControl(source.photoId) + "</div>" +
+        // Site GPS pin — a must-have: the rep captures it on site before leaving.
+        '<div class="field full"><label>Site location ' + (canReviewProspects() ? '<span class="optional-tag">GPS pin</span>' : '<span class="req" aria-hidden="true">*</span> <span class="optional-tag">capture on site</span>') + "</label>" +
+        '<div class="geo-status" id="geoStatus" aria-live="polite">' + geoStatusHtml(pendingGeo, null) + "</div>" +
+        '<button type="button" class="btn btn-ghost btn-sm" data-capture-geo>' + (pendingGeo ? "Re-capture location" : "Capture site location") + "</button>" +
+        '<p class="helper">' + (canReviewProspects() ? "Capture the GPS pin if you're at the site." : "The GPS pin proves you visited — capture it before you leave the site.") + "</p></div>";
       if (id) {
         if (source.reviewStatus === "query" && source.reviewNote) {
           html += '<div class="field full"><div class="rev-noproof">Sent back: ' + esc(source.reviewNote) + "</div></div>";
@@ -1851,6 +1867,18 @@
     var jpay = e.target.closest("[data-job-pay]"); if (jpay) { txPreset = { direction: "in", category: "Customer payment", installId: jpay.getAttribute("data-job-pay") }; openForm("transaction"); return; }
     var jspend = e.target.closest("[data-job-spend]"); if (jspend) { var jid = jspend.getAttribute("data-job-spend"); var jb = job(jid); txPreset = { direction: "out", category: "Cable & materials", installId: jid, amount: jb ? materialsTotal(jb) : "" }; openForm("transaction"); return; }
     if (e.target.closest("[data-proof-pick]")) { var pi = document.getElementById("proofInput"); if (pi) pi.click(); return; }
+    var cg = e.target.closest("[data-capture-geo]");
+    if (cg) {
+      var geoEl = document.getElementById("geoStatus");
+      cg.disabled = true; cg.textContent = "Getting location…";
+      if (geoEl) geoEl.innerHTML = '<span class="geo-none">Getting your location…</span>';
+      captureGeo().then(function (res) {
+        if (res.geo) pendingGeo = res.geo;
+        if (geoEl) geoEl.innerHTML = geoStatusHtml(pendingGeo, res.geo ? null : res.error);
+        cg.disabled = false; cg.textContent = pendingGeo ? "Re-capture location" : "Capture site location";
+      });
+      return;
+    }
     if (e.target.closest("[data-approve]")) { approveTransaction(); return; }
     if (e.target.closest("[data-sendback]")) { sendBackTransaction(); return; }
     var btn = e.target.closest(".seg-btn");
@@ -1995,18 +2023,29 @@
 
   // Best-effort GPS — resolves to {lat,lng,acc,at} or null. Never rejects, so
   // a denied permission or poor signal doesn't block the submission.
+  // Resolves { geo, error } — geo is the pin (or null); error names why it failed
+  // (denied / timeout / unavailable / unsupported) so we can guide the rep.
   function captureGeo() {
     return new Promise(function (resolve) {
-      if (!navigator.geolocation) return resolve(null);
+      if (!navigator.geolocation) return resolve({ geo: null, error: "unsupported" });
       var done = false;
       var finish = function (v) { if (done) return; done = true; resolve(v); };
-      setTimeout(function () { finish(null); }, 9000);
+      setTimeout(function () { finish({ geo: null, error: "timeout" }); }, 12000);
       navigator.geolocation.getCurrentPosition(
-        function (pos) { finish({ lat: +pos.coords.latitude.toFixed(6), lng: +pos.coords.longitude.toFixed(6), acc: Math.round(pos.coords.accuracy || 0), at: nowIso() }); },
-        function () { finish(null); },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+        function (pos) { finish({ geo: { lat: +pos.coords.latitude.toFixed(6), lng: +pos.coords.longitude.toFixed(6), acc: Math.round(pos.coords.accuracy || 0), at: nowIso() }, error: null }); },
+        function (err) { finish({ geo: null, error: (err && err.code === 1) ? "denied" : (err && err.code === 3) ? "timeout" : "unavailable" }); },
+        { enableHighAccuracy: true, timeout: 11000, maximumAge: 30000 }
       );
     });
+  }
+  // Plain-language status for the capture control and errors.
+  function geoStatusHtml(geo, err) {
+    if (geo && geo.lat != null) return '<span class="geo-ok">✓ Pin captured — ' + mapLink(geo, "view on map") + (geo.acc ? ' <span class="geo-acc">±' + geo.acc + " m</span>" : "") + "</span>";
+    if (err === "denied") return '<span class="geo-err">Location is blocked. Allow location for this site in your browser, then tap again.</span>';
+    if (err === "timeout") return '<span class="geo-err">Couldn\'t get a fix — step into the open and tap again.</span>';
+    if (err === "unsupported") return '<span class="geo-err">This device can\'t share a location.</span>';
+    if (err === "unavailable") return '<span class="geo-err">Location unavailable right now — tap to try again.</span>';
+    return '<span class="geo-none">No pin yet — tap “Capture site location” while you\'re on site.</span>';
   }
   function mapLink(geo, label) {
     if (!geo || geo.lat == null) return "";
@@ -2054,7 +2093,7 @@
     if (!r) return;
     var note = combineNote(r);
     toast("Getting your location…");
-    var geo = await captureGeo();
+    var geo = (await captureGeo()).geo;
     if (!p.followUps) p.followUps = [];
     p.followUps.push({ at: nowIso(), by: (settings.user && settings.user.name) || "", byEmail: (settings.user && settings.user.email) || "", note: note, geo: geo });
     saveData("Follow-up logged" + (geo ? " with location" : " (no location)"));

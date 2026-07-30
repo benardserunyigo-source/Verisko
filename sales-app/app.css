@@ -559,6 +559,14 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .chk-item input{width:22px;height:22px;flex:none;accent-color:var(--navy);cursor:pointer}
 .chk-item span{line-height:1.3}
 
+/* Site GPS pin capture (prospect form) */
+.geo-status{font-size:13.5px;line-height:1.4;margin:2px 0 10px;min-height:20px}
+.geo-ok{color:var(--green);font-weight:600}
+.geo-ok .maplink{font-weight:600}
+.geo-acc{color:var(--faint);font-weight:500}
+.geo-err{color:var(--red);font-weight:500}
+.geo-none{color:var(--faint)}
+
 /* Quote calculator */
 .pay-line.pay-grand{border-top:1px solid var(--hair-strong);margin-top:6px;padding-top:9px}
 .pay-line.pay-grand strong{font-size:17px;font-weight:800}
