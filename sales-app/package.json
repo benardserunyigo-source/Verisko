@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Verisko Sales Visit Planner — static frontend + Netlify function backed by Netlify Blobs.",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
   "dependencies": {
     "@netlify/blobs": "^10.7.10"
   }
