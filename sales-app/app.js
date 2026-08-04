@@ -675,7 +675,8 @@
   var LARGE_AMOUNT = 1000000; // nudge for a confirm above this, to catch zero slips
   var money = function (n) { return "UGX " + Number(n || 0).toLocaleString("en-US"); };
   var cashFilter = "all";
-  var cashReportYear = Number(today.slice(0, 4));
+  var cashPeriodMode = "month";
+  var cashPeriodAnchor = today;
   var pendingProof = null; // resized photo chosen in the form, not yet uploaded
   var pendingGeo = null;   // site GPS pin captured in the prospect form
   var txPreset = null;     // prefill for a cash entry opened from an installation
@@ -1187,41 +1188,25 @@
     var onHand = availableForOut(null); // includes pending — what can still be spent
 
     var reports = window.VeriskoCashflowReport;
-    var currentYear = Number(today.slice(0, 4));
-    var currentMonth = Number(today.slice(5, 7)) - 1;
-    var years = reports.cashflowYears(txs, currentYear);
-    if (years.indexOf(cashReportYear) < 0) cashReportYear = currentYear;
-    var annual = reports.buildCashflowReport(txs, cashReportYear);
-    var thisMonth = reports.buildCashflowReport(txs, currentYear).months[currentMonth];
+    var period = reports.buildCashflowPeriod(txs, cashPeriodAnchor, cashPeriodMode);
 
     var summary = '<section class="card cash-summary"><div class="cash-bal"><span class="k">Float balance</span><strong>' + money(balance) + "</strong>" +
       '<small>Approved in ' + money(approvedIn) + " · out " + money(approvedOut) + "</small>" +
       (onHand !== balance ? '<small>Cash on hand now (incl. pending): ' + money(onHand) + "</small>" : "") + "</div>" +
       (pending.length ? '<div class="cash-pending">' + chip(pending.length + " awaiting review", "amber", "◔") + "</div>" : "") + "</section>";
 
-    var monthNetClass = thisMonth.net < 0 ? "neg" : "pos";
-    var monthSummary = '<section class="cash-kpis" aria-label="Current month cash flow">' +
-      '<div class="cash-kpi"><span>Received this month</span><strong class="pos">' + money(thisMonth.received) + '</strong></div>' +
-      '<div class="cash-kpi"><span>Used this month</span><strong class="neg">' + money(thisMonth.used) + '</strong></div>' +
-      '<div class="cash-kpi"><span>Net this month</span><strong class="' + monthNetClass + '">' + (thisMonth.net < 0 ? "−" : "") + money(Math.abs(thisMonth.net)) + '</strong></div></section>';
-
-    var yearOptions = years.map(function (y) { return '<option value="' + y + '"' + (y === cashReportYear ? " selected" : "") + '>' + y + '</option>'; }).join("");
-    var maxMonth = annual.months.reduce(function (max, m) { return Math.max(max, m.received, m.used); }, 0) || 1;
-    var monthRows = annual.months.map(function (m) {
-      var inWidth = Math.round(m.received / maxMonth * 100);
-      var outWidth = Math.round(m.used / maxMonth * 100);
-      var netClass = m.net < 0 ? "neg" : "pos";
-      return '<div class="cash-month">' +
-        '<div class="cash-month-head"><strong>' + m.name.slice(0, 3) + '</strong><span class="' + netClass + '">Net ' + (m.net < 0 ? "−" : "") + money(Math.abs(m.net)) + '</span></div>' +
-        '<div class="cash-month-line"><span>Received</span><div class="cash-month-track"><i class="cash-month-bar in" style="width:' + inWidth + '%"></i></div><b>' + money(m.received) + '</b></div>' +
-        '<div class="cash-month-line"><span>Used</span><div class="cash-month-track"><i class="cash-month-bar out" style="width:' + outWidth + '%"></i></div><b>' + money(m.used) + '</b></div></div>';
-    }).join("");
-    var awaiting = annual.pendingIn + annual.pendingOut;
-    var annualReport = '<section class="card cash-report"><div class="cash-report-head"><div><p class="eyebrow">Annual cash flow</p><h2>' + cashReportYear + ' overview</h2></div>' +
-      '<label class="cash-year">Year<select id="cashYear" aria-label="Cash-flow report year">' + yearOptions + '</select></label></div>' +
-      '<div class="cash-year-totals"><div><span>Total received</span><strong class="pos">' + money(annual.received) + '</strong></div><div><span>Total used</span><strong class="neg">' + money(annual.used) + '</strong></div><div><span>Net movement</span><strong class="' + (annual.net < 0 ? "neg" : "pos") + '">' + (annual.net < 0 ? "−" : "") + money(Math.abs(annual.net)) + '</strong></div></div>' +
-      (awaiting ? '<p class="cash-awaiting">Awaiting approval in ' + cashReportYear + ': ' + money(awaiting) + ' — excluded from official totals.</p>' : "") +
-      '<div class="cash-months" aria-label="Monthly received and used">' + monthRows + "</div></section>";
+    var periodLabel = cashPeriodMode === "week" ? dateLabel(period.start) + " – " + dateLabel(period.end) : new Date(period.start + "T00:00:00Z").toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+    var awaiting = period.pendingIn + period.pendingOut;
+    var periodControls = '<section class="card cash-period"><div class="cash-mode" role="group" aria-label="Cash-flow period">' +
+      '<button type="button" data-cash-mode="week" class="' + (cashPeriodMode === "week" ? "is-on" : "") + '">Week</button>' +
+      '<button type="button" data-cash-mode="month" class="' + (cashPeriodMode === "month" ? "is-on" : "") + '">Month</button></div>' +
+      '<div class="cash-period-nav"><button type="button" data-cash-step="-1" aria-label="Previous ' + cashPeriodMode + '">‹</button><strong>' + periodLabel + '</strong><button type="button" data-cash-step="1" aria-label="Next ' + cashPeriodMode + '">›</button></div></section>';
+    var netClass = period.net < 0 ? "neg" : "pos";
+    var periodSummary = '<section class="cash-kpis" aria-label="Selected period cash flow">' +
+      '<div class="cash-kpi"><span>Received</span><strong class="pos">' + money(period.received) + '</strong></div>' +
+      '<div class="cash-kpi"><span>Used</span><strong class="neg">' + money(period.used) + '</strong></div>' +
+      '<div class="cash-kpi"><span>Net</span><strong class="' + netClass + '">' + (period.net < 0 ? "−" : "") + money(Math.abs(period.net)) + '</strong></div></section>' +
+      (awaiting ? '<p class="cash-awaiting">' + money(awaiting) + ' awaiting approval — not included above.</p>' : "");
 
     // Admins get a review queue pinned at the top — approve or send back as
     // entries come in, oldest first, with the receipt shown on the card.
@@ -1238,13 +1223,14 @@
     var filterBar = '<div class="toolbar"><div class="field-inline" style="flex:1"><label for="cashFilter">Show</label><select id="cashFilter">' +
       [["all", "All entries"], ["pending", "Pending"], ["approved", "Approved"], ["query", "Sent back"]].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === cashFilter ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select></div></div>";
 
-    var rows = txs.filter(function (t) { return cashFilter === "all" || t.status === cashFilter; })
+    var range = reports.cashflowPeriod(cashPeriodAnchor, cashPeriodMode);
+    var rows = txs.filter(function (t) { return reports.inCashflowPeriod(t.date, range) && (cashFilter === "all" || t.status === cashFilter); })
       .sort(function (a, b) { return (b.date || "").localeCompare(a.date || "") || (b.createdAt || "").localeCompare(a.createdAt || ""); });
 
     var list = rows.length ? '<div class="list">' + rows.map(txCard).join("") + "</div>" :
       emptyState(ICON_CASH, "No entries yet", "Tap Add money to record your first cash movement.", "Add money", 'data-new="transaction"');
 
-    content.innerHTML = summary + monthSummary + annualReport + review + '<h2 class="ledger-head">All entries</h2>' + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " entry" : " entries") + "</p>" + list;
+    content.innerHTML = summary + periodControls + periodSummary + review + '<h2 class="ledger-head">Entries for this ' + cashPeriodMode + '</h2>' + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " entry" : " entries") + "</p>" + list;
     hydrateProofThumbs();
   }
 
@@ -2789,7 +2775,6 @@
     if (e.target.id === "stageFilter") updateProspectGrid();
     if (e.target.id === "visitFilter") updateVisitList();
     if (e.target.id === "cashFilter") { cashFilter = e.target.value; renderCashflow(); }
-    if (e.target.id === "cashYear") { cashReportYear = Number(e.target.value) || Number(today.slice(0, 4)); renderCashflow(); }
     if (e.target.id === "jobFilter") { jobFilter = e.target.value; renderJobs(); }
     if (e.target.matches("[data-set-role]")) setMemberRole(e.target.dataset.userId, e.target.value);
   });
@@ -2810,6 +2795,8 @@
     var sched = e.target.closest("[data-schedule]"); if (sched) { openForm("appointment", null, sched.dataset.schedule); return; }
     var confirmBtn = e.target.closest("[data-confirm]"); if (confirmBtn) { confirmVisit(confirmBtn.dataset.confirm); return; }
     var neu = e.target.closest("[data-new]"); if (neu) { openForm(neu.dataset.new); return; }
+    var cashMode = e.target.closest("[data-cash-mode]"); if (cashMode) { cashPeriodMode = cashMode.dataset.cashMode; cashPeriodAnchor = today; renderCashflow(); return; }
+    var cashStep = e.target.closest("[data-cash-step]"); if (cashStep) { cashPeriodAnchor = window.VeriskoCashflowReport.shiftCashflowAnchor(cashPeriodAnchor, cashPeriodMode, Number(cashStep.dataset.cashStep)); renderCashflow(); return; }
 
     if (e.target.closest("[data-export]")) exportJson();
     if (e.target.closest("[data-import]")) document.getElementById("importInput").click();

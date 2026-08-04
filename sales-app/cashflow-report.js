@@ -1,59 +1,60 @@
 (function (root) {
   "use strict";
 
-  var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-  function validDate(value) {
+  function parseDate(value) {
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
     if (!m) return null;
-    var month = Number(m[2]);
-    if (month < 1 || month > 12) return null;
-    return { year: Number(m[1]), month: month - 1 };
+    var d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+    return d.toISOString().slice(0, 10) === value ? d : null;
   }
 
-  function amount(t) {
-    var n = Number(t && t.amount);
-    return Number.isFinite(n) && n > 0 ? n : 0;
+  function iso(d) { return d.toISOString().slice(0, 10); }
+  function addDays(d, n) { var x = new Date(d.getTime()); x.setUTCDate(x.getUTCDate() + n); return x; }
+
+  function cashflowPeriod(anchor, mode) {
+    var d = parseDate(anchor) || new Date();
+    if (mode === "week") {
+      var monday = addDays(d, -((d.getUTCDay() + 6) % 7));
+      return { mode: "week", start: iso(monday), end: iso(addDays(monday, 6)) };
+    }
+    var start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+    var end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+    return { mode: "month", start: iso(start), end: iso(end) };
   }
 
-  function cashflowYears(transactions, currentYear) {
-    var years = {};
-    years[Number(currentYear)] = true;
+  function shiftCashflowAnchor(anchor, mode, amount) {
+    var d = parseDate(anchor) || new Date();
+    if (mode === "week") return iso(addDays(d, Number(amount) * 7));
+    return iso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + Number(amount), 1)));
+  }
+
+  function inCashflowPeriod(date, period) {
+    return !!parseDate(date) && date >= period.start && date <= period.end;
+  }
+
+  function buildCashflowPeriod(transactions, anchor, mode) {
+    var period = cashflowPeriod(anchor, mode);
+    var report = { mode: period.mode, start: period.start, end: period.end, received: 0, used: 0, net: 0, pendingIn: 0, pendingOut: 0, count: 0 };
     (transactions || []).forEach(function (t) {
-      var d = validDate(t && t.date);
-      if (d) years[d.year] = true;
-    });
-    return Object.keys(years).map(Number).sort(function (a, b) { return b - a; });
-  }
-
-  function buildCashflowReport(transactions, year) {
-    year = Number(year);
-    var months = MONTHS.map(function (name, index) {
-      return { index: index, name: name, received: 0, used: 0, net: 0, pendingIn: 0, pendingOut: 0 };
-    });
-    var report = { year: year, months: months, received: 0, used: 0, net: 0, pendingIn: 0, pendingOut: 0 };
-
-    (transactions || []).forEach(function (t) {
-      var d = validDate(t && t.date);
-      var n = amount(t);
-      if (!d || d.year !== year || !n || (t.direction !== "in" && t.direction !== "out")) return;
-      var m = months[d.month];
+      var n = Number(t && t.amount);
+      if (!t || !inCashflowPeriod(t.date, period) || !Number.isFinite(n) || n <= 0 || (t.direction !== "in" && t.direction !== "out")) return;
+      report.count += 1;
       if (t.status === "approved") {
-        if (t.direction === "in") { m.received += n; report.received += n; }
-        else { m.used += n; report.used += n; }
+        if (t.direction === "in") report.received += n;
+        else report.used += n;
       } else if (t.status === "pending") {
-        if (t.direction === "in") { m.pendingIn += n; report.pendingIn += n; }
-        else { m.pendingOut += n; report.pendingOut += n; }
+        if (t.direction === "in") report.pendingIn += n;
+        else report.pendingOut += n;
       }
     });
-    months.forEach(function (m) { m.net = m.received - m.used; });
     report.net = report.received - report.used;
     return report;
   }
 
   root.VeriskoCashflowReport = {
-    MONTHS: MONTHS,
-    buildCashflowReport: buildCashflowReport,
-    cashflowYears: cashflowYears
+    cashflowPeriod: cashflowPeriod,
+    shiftCashflowAnchor: shiftCashflowAnchor,
+    inCashflowPeriod: inCashflowPeriod,
+    buildCashflowPeriod: buildCashflowPeriod
   };
 }(typeof window !== "undefined" ? window : globalThis));
