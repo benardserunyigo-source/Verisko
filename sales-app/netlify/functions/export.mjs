@@ -84,7 +84,7 @@ function json(body, status) {
 // after these. Emitting them even for an empty table means a spreadsheet's
 // IMPORTDATA always gets a header row instead of an "empty content" error.
 export const TABLE_COLUMNS = {
-  prospects: ["id", "business", "type", "contact", "phone", "location", "source", "spoke_to_decision_maker", "existing_cameras", "budget", "stage", "next_action", "follow_up_date", "security_concern", "areas_to_cover", "notes", "created", "created_by", "created_by_email", "review_status", "reviewed_by", "reviewed_at", "review_note", "closed_sale", "closed_by", "closed_at", "gps_lat", "gps_lng", "gps_accuracy_m", "gps_captured_at", "gps_map_link", "photo_link", "follow_ups_count", "last_follow_up_at", "last_follow_up_note"],
+  prospects: ["id", "business", "type", "contact", "phone", "location", "source", "spoke_to_decision_maker", "existing_cameras", "budget", "stage", "next_action", "follow_up_date", "security_concern", "areas_to_cover", "notes", "created", "created_by", "created_by_email", "review_status", "reviewed_by", "reviewed_at", "review_note", "closed_sale", "closed_by", "closed_at", "first_payment_at", "commission_qualified", "gps_lat", "gps_lng", "gps_accuracy_m", "gps_captured_at", "gps_map_link", "photo_link", "follow_ups_count", "last_follow_up_at", "last_follow_up_note"],
   visits: ["id", "prospect_id", "business", "contact", "phone", "location", "date", "time", "operations_owner", "status", "purpose", "directions"],
   followups: ["prospect_id", "business", "n", "at", "by", "by_email", "note", "gps_lat", "gps_lng", "gps_accuracy_m", "gps_captured_at", "gps_map_link"],
   jobs: ["id", "ref", "stage", "prospect_id", "business", "created_at", "created_by", "created_by_email", "final_price", "materials_count", "materials_total", "materials"],
@@ -117,6 +117,17 @@ export function buildTables(data, photoBase) {
   const prospects = arr(data.prospects), appointments = arr(data.appointments), jobs = arr(data.jobs);
   const transactions = arr(data.transactions), users = arr(data.users), technicians = arr(data.technicians);
   const byId = Object.fromEntries(prospects.map((p) => [p.id, p]));
+  // Commission rule v2: a closed sale earns commission once the client's first
+  // payment (money in, approved) is recorded — via the sale's job or directly.
+  const jobsByProspect = {};
+  jobs.forEach((j) => { if (j.prospectId) (jobsByProspect[j.prospectId] = jobsByProspect[j.prospectId] || []).push(j.id); });
+  const firstPayment = (p) => {
+    const jobIds = jobsByProspect[p.id] || [];
+    const dates = transactions.filter((t) => t.direction === "in" && t.status === "approved" && Number(t.amount) > 0 &&
+      (t.prospectId === p.id || (t.installId && jobIds.includes(t.installId))))
+      .map((t) => t.date || t.createdAt || "").filter(Boolean).sort();
+    return dates[0] || "";
+  };
   const photoLink = (id) => (id && photoBase ? `${photoBase}&photo=${encodeURIComponent(id)}` : "");
 
   const prospectRows = prospects.map((p) => {
@@ -129,6 +140,7 @@ export function buildTables(data, photoBase) {
       areas_to_cover: p.areas, notes: p.notes, created: p.created, created_by: p.createdBy, created_by_email: p.createdByEmail,
       review_status: p.reviewStatus, reviewed_by: p.reviewedBy, reviewed_at: p.reviewedAt, review_note: p.reviewNote,
       closed_sale: yes(p.closedSale), closed_by: p.closedBy, closed_at: p.closedAt,
+      first_payment_at: firstPayment(p), commission_qualified: yes(p.closedSale && firstPayment(p)),
       ...geoCols(p.geo, "gps_"),
       photo_link: photoLink(p.photoId), follow_ups_count: fu.length, last_follow_up_at: last.at || "", last_follow_up_note: last.note || ""
     }, p, ["id", "business", "vertical", "contact", "phone", "location", "source", "decisionMaker", "existing", "budget", "stage", "nextAction", "followUp", "concern", "areas", "notes", "created", "createdBy", "createdByEmail", "reviewStatus", "reviewedBy", "reviewedAt", "reviewNote", "closedSale", "closedBy", "closedAt", "geo", "photoId", "followUps"]);

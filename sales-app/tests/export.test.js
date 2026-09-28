@@ -12,7 +12,11 @@ const sample = {
   ],
   appointments: [{ id: "a1", prospectId: "p1", date: "2026-09-29", time: "10:00", director: "Ops", status: "Confirmed", purpose: "Survey", directions: "Ask for Grace" }],
   jobs: [{ id: "j1", ref: "J-2026-0001", stage: "Accepted", prospectId: "p1", finalPrice: 2500000, materials: [{ name: "Cable", qty: 2, unitCost: 50000 }] }],
-  transactions: [{ id: "t1", date: "2026-09-28", direction: "out", amount: 30000, category: "Transport", method: "Cash", prospectId: "p1", proofId: "rc1", status: "pending", preapproved: false }],
+  transactions: [
+    { id: "t1", date: "2026-09-28", direction: "out", amount: 30000, category: "Transport", method: "Cash", prospectId: "p1", proofId: "rc1", status: "pending", preapproved: false },
+    { id: "t2", date: "2026-09-30", direction: "in", amount: 200000, category: "Customer deposit", method: "MTN MoMo", installId: "j1", status: "approved" },
+    { id: "t3", date: "2026-09-29", direction: "in", amount: 100000, category: "Customer deposit", method: "Cash", installId: "j1", status: "pending" }
+  ],
   users: [{ id: "u1", name: "Ben", email: "ben@example.com", role: "admin" }],
   technicians: [{ id: "tech1", name: "Joel", active: false }],
   config: { exportKey: "secret-not-exported" }
@@ -28,6 +32,10 @@ test("flattens every table with joined prospect details, GPS and photo links", (
   assert.equal(p.photo_link, "https://x.test/api/export?key=K&photo=ph1");
   assert.equal(p.follow_ups_count, "1");
   assert.equal(p.closed_sale, "no");
+  assert.equal(p.first_payment_at, "2026-09-30", "only approved money-in counts, via the sale's job");
+  assert.equal(p.commission_qualified, "no", "not closed, so not qualified");
+  const closed = buildTables({ ...sample, prospects: [{ ...sample.prospects[0], closedSale: true }] }, "").prospects[0];
+  assert.equal(closed.commission_qualified, "yes");
   assert.equal(p.new_field, "kept", "unmapped fields are appended in snake_case");
   assert.equal(t.visits[0].business, "Acacia Pharmacy");
   assert.equal(t.visits[0].phone, "+256 772 460 125");

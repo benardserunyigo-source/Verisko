@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=49**.
+  base directory `sales-app`). Current asset version: **v=50**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -77,7 +77,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
   transactions[],  // cash-flow entries (money in/out), linked to jobs via installId
   jobs[],          // the quote→install lifecycle (see §6). Replaced old quotes[]+installations[]
   technicians[],   // installer roster (no login)
-  config{}         // commissionPerSale, commissionTarget, exportKey (pettyLimit is vestigial/unused)
+  config{}         // commissionPerSale, commissionTarget, commissionRule, exportKey (pettyLimit is vestigial/unused)
 }
 ```
 
@@ -117,8 +117,15 @@ any new privileged data.
   on-site; `captureGeo()` returns `{geo,error}`; `saveProspect` blocks a
   non-reviewer's new prospect without a pin — optional for reviewers), a review
   queue (approve/send-back) with a nav badge, follow-up log with location, and a
-  **closed-sale → commission** flow (ops marks `closedSale`; the rep earns
-  `commissionPerSale`, default UGX 80,000).
+  **closed-sale → commission** flow: ops marks `closedSale`, and the rep earns
+  `commissionPerSale` (UGX 100,000 since 28 Sep 2026) **only once the client's
+  first payment is recorded and approved** — `firstPaymentFor(p)` looks for an
+  approved money-in transaction linked to the sale's job (`installId`) or to the
+  prospect itself; `commissionQualified(p)` = closed + paid. Both dashboards,
+  the leaderboard and the prospect form use it, and the export carries
+  `first_payment_at` / `commission_qualified`. `normalizeConfig()` bumps any
+  workspace still on the old rate to 100,000 once (`config.commissionRule = 2`);
+  the next sync from an Operations/admin device pushes it to the server.
 - **Site visits (`appointments`):** scheduled surveys referencing a prospect;
   confirming requires a complete handoff.
 - **Jobs (the merged lifecycle):** one record from quote to handover.
@@ -262,7 +269,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=49, 28 Sep 2026)
+## 8. Current status (live at v=50, 28 Sep 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

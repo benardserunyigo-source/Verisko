@@ -196,7 +196,15 @@
 
   // Shared workspace config defaults. commissionPerSale = UGX 80,000 per
   // Operations-verified closed sale; commissionTarget = monthly goal.
-  function defaultConfig() { return { pettyLimit: 20000, commissionPerSale: 80000, commissionTarget: 1600000 }; }
+  function defaultConfig() { return { pettyLimit: 20000, commissionPerSale: 100000, commissionTarget: 1600000, commissionRule: 2 }; }
+  // Commission rule v2 (28 Sep 2026): UGX 100,000 per closed sale, earned once
+  // the client's first payment is recorded and approved. Applied once to any
+  // workspace still on the old rate; Operations/admin devices push it up.
+  function normalizeConfig(cfg) {
+    if (!cfg || typeof cfg !== "object") cfg = defaultConfig();
+    if (Number(cfg.commissionRule) < 2 || !cfg.commissionRule) { cfg.commissionPerSale = 100000; cfg.commissionRule = 2; }
+    return cfg;
+  }
 
   /* ---------- Seed / demonstration data (prospects + appointments only) ------ */
   var seed = {
@@ -242,7 +250,7 @@
       migrateToJobs(data);                 // fold any legacy quotes/installations
       if (!data.jobs) data.jobs = [];
       if (!data.technicians) data.technicians = [];
-      if (!data.config || typeof data.config !== "object") data.config = defaultConfig();
+      data.config = normalizeConfig(data.config);
       return data;
     } catch (e) { return JSON.parse(JSON.stringify(seed)); }
   }
@@ -723,10 +731,12 @@
     var ps = (state.prospects || []).filter(function (p) { return (p.createdByEmail || "").toLowerCase() === email; });
     var total = ps.length;
     var closed = ps.filter(function (p) { return p.closedSale; }).length;
+    var qualified = ps.filter(commissionQualified).length;
+    var awaiting = closed - qualified;
     var approved = ps.filter(function (p) { return p.reviewStatus === "approved"; }).length;
     var conv = total ? Math.round((closed / total) * 100) : 0;
     var rate = commissionRate(), target = commissionTarget();
-    var earned = closed * rate;
+    var earned = qualified * rate;
     var pct = target ? Math.min(100, Math.round((earned / target) * 100)) : 0;
     var remaining = Math.max(0, target - earned);
 
@@ -736,11 +746,13 @@
       '<div class="dash-sub">of ' + money(target) + " target</div>" +
       '<div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div>' +
       '<div class="dash-foot">' + pct + "% reached · " + money(remaining) + " to go</div>" +
-      '<div class="dash-note">' + closed + " closed " + (closed === 1 ? "sale" : "sales") + " verified by Operations × " + money(rate) + " each.</div></section>";
+      '<div class="dash-note">' + qualified + " paid " + (qualified === 1 ? "sale" : "sales") + " × " + money(rate) + " each." +
+      (awaiting > 0 ? " " + awaiting + " closed " + (awaiting === 1 ? "sale is" : "sales are") + " waiting for the client's first payment (" + money(awaiting * rate) + " to come)." : "") +
+      " Commission is earned once the client's first payment is recorded and approved.</div></section>";
 
     var tiles = '<div class="metric-grid">' +
       metricTile(total, "My prospects") + metricTile(approved, "Approved") +
-      metricTile(closed, "Closed sales") + metricTile(conv + "%", "Close rate") + "</div>";
+      metricTile(closed, "Closed sales") + metricTile(qualified, "Paid & earned") + metricTile(conv + "%", "Close rate") + "</div>";
 
     var byStage = STAGES.map(function (s) { return { label: s, n: ps.filter(function (p) { return p.stage === s; }).length }; }).filter(function (x) { return x.n > 0; });
     var maxN = byStage.reduce(function (m, x) { return Math.max(m, x.n); }, 1);
@@ -759,21 +771,24 @@
     var rate = commissionRate(), target = commissionTarget();
     var ps = state.prospects || [];
     var totalClosed = ps.filter(function (p) { return p.closedSale; }).length;
-    var totalComm = totalClosed * rate;
+    var totalQualified = ps.filter(commissionQualified).length;
+    var totalComm = totalQualified * rate;
 
     var hero = '<section class="card dash-hero">' +
       '<p class="dash-eyebrow">Commission earned by the team</p>' +
       '<div class="dash-big">' + money(totalComm) + "</div>" +
-      '<div class="dash-sub">' + totalClosed + " closed " + (totalClosed === 1 ? "sale" : "sales") + " × " + money(rate) + " each</div></section>";
+      '<div class="dash-sub">' + totalQualified + " of " + totalClosed + " closed " + (totalClosed === 1 ? "sale" : "sales") + " paid by the client × " + money(rate) + " each</div>" +
+      '<div class="dash-note">A closed sale earns commission once the client\'s first payment is recorded in Cash flow and approved.</div></section>';
 
     // Per-rep leaderboard (anyone who has created prospects), best first.
     var byEmail = {};
     ps.forEach(function (p) {
       var key = (p.createdByEmail || "").toLowerCase();
       if (!key) return;
-      if (!byEmail[key]) byEmail[key] = { name: p.createdBy || key, email: key, prospects: 0, closed: 0, approved: 0 };
+      if (!byEmail[key]) byEmail[key] = { name: p.createdBy || key, email: key, prospects: 0, closed: 0, paid: 0, approved: 0 };
       byEmail[key].prospects++;
       if (p.closedSale) byEmail[key].closed++;
+      if (commissionQualified(p)) byEmail[key].paid++;
       if (p.reviewStatus === "approved") byEmail[key].approved++;
     });
     (state.users || []).forEach(function (u) {
@@ -781,18 +796,18 @@
       if (key && byEmail[key]) byEmail[key].name = u.name || byEmail[key].name;
     });
     var reps = Object.keys(byEmail).map(function (k) { return byEmail[k]; })
-      .sort(function (a, b) { return b.closed - a.closed || b.prospects - a.prospects; });
+      .sort(function (a, b) { return b.paid - a.paid || b.closed - a.closed || b.prospects - a.prospects; });
 
     var board = reps.length ? '<section class="card dash-bars"><h2 class="dash-h2">Salespeople</h2>' +
-      '<div class="lead-head"><span>Rep</span><span>Closed</span><span>Commission</span></div>' +
+      '<div class="lead-head"><span>Rep</span><span>Paid / closed</span><span>Commission</span></div>' +
       reps.map(function (r) {
         return '<div class="lead-row"><span class="lead-name"><strong>' + esc(r.name) + "</strong><small>" + r.prospects + " prospects · " + r.approved + " approved</small></span>" +
-          '<span class="lead-closed">' + r.closed + "</span>" +
-          '<span class="lead-comm">' + money(r.closed * rate) + "</span></div>";
+          '<span class="lead-closed">' + r.paid + " / " + r.closed + "</span>" +
+          '<span class="lead-comm">' + money(r.paid * rate) + "</span></div>";
       }).join("") + "</section>" : '<p class="result-note">No sales activity yet. Closed sales appear here once you verify them on a prospect.</p>';
 
     var editor = '<section class="card settings-card"><h2>Commission settings</h2>' +
-      "<p>Each closed sale you verify earns the rep this much. Set the monthly target reps are working toward.</p>" +
+      "<p>Each closed sale you verify earns the rep this much — paid out once the client's first payment is recorded and approved. Set the monthly target reps are working toward.</p>" +
       '<form id="commissionForm" class="add-member">' +
       '<div class="field"><label for="commRate">Per closed sale (UGX)</label><input id="commRate" name="commRate" type="number" inputmode="numeric" min="0" step="1000" value="' + rate + '"></div>' +
       '<div class="field"><label for="commTarget">Monthly target (UGX)</label><input id="commTarget" name="commTarget" type="number" inputmode="numeric" min="0" step="10000" value="' + target + '"></div>' +
@@ -1811,7 +1826,9 @@
         if (canReviewProspects()) {
           var hasInstall = (state.jobs || []).some(function (j) { return j.prospectId === id; });
           html += '<div class="field full">' +
-            (source.closedSale ? '<p class="helper" style="color:var(--green);font-weight:600">Verified closed sale — ' + money(commissionRate()) + " commission to " + esc(source.createdBy || "the rep") + ".</p>" : "") +
+            (source.closedSale ? '<p class="helper" style="color:var(--green);font-weight:600">Verified closed sale — ' + money(commissionRate()) + " commission to " + esc(source.createdBy || "the rep") + ".</p>" +
+              (firstPaymentFor(source) ? '<p class="helper">Client\'s first payment received ' + dateLabel(firstPaymentFor(source)) + " — commission earned.</p>"
+                : '<p class="helper" style="color:var(--amber)">Commission is earned once the client\'s first payment is recorded in Cash flow and approved.</p>') : "") +
             '<button type="button" class="btn ' + (source.closedSale ? "btn-ghost" : "btn-primary") + ' btn-block" data-toggle-closed="' + esc(id) + '">' + (source.closedSale ? "Remove closed sale" : "Mark as closed sale (" + money(commissionRate()) + ")") + "</button>" +
             (source.closedSale && !hasInstall ? '<button type="button" class="btn btn-cyan btn-block" data-make-install="' + esc(id) + '" style="margin-top:10px">Create the job from this sale</button>' : "") +
             (source.closedSale && hasInstall ? '<p class="helper">A job already exists for this client.</p>' : "") + "</div>";
@@ -2145,8 +2162,21 @@
   // Operations and admins review prospects. (Sales record them.)
   function canReviewProspects() { return isAdmin() || !!(settings.user && settings.user.role === "operations"); }
 
-  /* -------- Closed sales & commission (Operations-verified, UGX 80k) -------- */
-  function commissionRate() { var n = state.config && Number(state.config.commissionPerSale); return n > 0 ? n : 80000; }
+  /* ------ Closed sales & commission (Operations-verified, UGX 100k, paid ------ */
+  /* ------ out once the client's first payment is recorded and approved)  ------ */
+  function commissionRate() { var n = state.config && Number(state.config.commissionPerSale); return n > 0 ? n : 100000; }
+  // The first approved client payment for a prospect's sale: through its job
+  // (installId) or recorded directly against the prospect. Returns the date or "".
+  function firstPaymentFor(p) {
+    if (!p) return "";
+    var jobIds = (state.jobs || []).filter(function (j) { return j.prospectId === p.id; }).map(function (j) { return j.id; });
+    var dates = (state.transactions || []).filter(function (t) {
+      return t.direction === "in" && t.status === "approved" && Number(t.amount) > 0 &&
+        (t.prospectId === p.id || (t.installId && jobIds.indexOf(t.installId) >= 0));
+    }).map(function (t) { return t.date || t.createdAt || ""; }).filter(Boolean).sort();
+    return dates[0] || "";
+  }
+  function commissionQualified(p) { return !!(p && p.closedSale && firstPaymentFor(p)); }
   function commissionTarget() { var n = state.config && Number(state.config.commissionTarget); return n > 0 ? n : 1600000; }
   function closedSalesFor(email) {
     email = (email || "").toLowerCase();
@@ -2162,7 +2192,7 @@
       saveData("Closed sale removed");
     } else {
       p.closedSale = true; p.closedBy = (settings.user && settings.user.name) || ""; p.closedAt = today;
-      saveData("Closed sale verified — " + money(commissionRate()) + " commission");
+      saveData("Closed sale verified — " + money(commissionRate()) + " commission once the first payment is in");
     }
     render();
     if (dialog.open && editing && editing.type === "prospect" && editing.id === id) openForm("prospect", id);
@@ -2370,7 +2400,7 @@
       var result = await res.json();
       if (!result.ok) return "unauth";
       if (result.data && result.data.prospects) {
-        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], jobs: result.data.jobs, installations: result.data.installations || [], quotes: result.data.quotes || [], technicians: result.data.technicians || [], config: result.data.config && typeof result.data.config === "object" ? result.data.config : defaultConfig() };
+        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], jobs: result.data.jobs, installations: result.data.installations || [], quotes: result.data.quotes || [], technicians: result.data.technicians || [], config: normalizeConfig(result.data.config) };
         migrateToJobs(state);              // fold any legacy quotes/installations the server still holds
         if (!state.jobs) state.jobs = [];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -2881,7 +2911,7 @@
       try {
         var parsed = JSON.parse(reader.result);
         if (!parsed.prospects || !parsed.appointments) throw new Error();
-        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [], transactions: parsed.transactions || state.transactions || [], jobs: parsed.jobs, installations: parsed.installations || [], quotes: parsed.quotes || [], technicians: parsed.technicians || state.technicians || [], config: parsed.config && typeof parsed.config === "object" ? parsed.config : (state.config || defaultConfig()) };
+        state = { prospects: parsed.prospects, appointments: parsed.appointments, users: parsed.users || state.users || [], transactions: parsed.transactions || state.transactions || [], jobs: parsed.jobs, installations: parsed.installations || [], quotes: parsed.quotes || [], technicians: parsed.technicians || state.technicians || [], config: normalizeConfig(parsed.config && typeof parsed.config === "object" ? parsed.config : state.config) };
         migrateToJobs(state);              // support importing an older backup
         if (!state.jobs) state.jobs = [];
         saveData("Backup imported");
