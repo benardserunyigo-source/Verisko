@@ -1102,7 +1102,7 @@
       var file = null;
       try { file = new File([q.doc.output("blob")], q.name, { type: "application/pdf" }); } catch (e) { file = null; }
       if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: "Verisko quotation " + q.model.ref, text: text }); return; }
+        try { await navigator.share({ files: [file], title: "Verisko quotation " + q.model.ref, text: text }); markQuoteShared(id); return; }
         catch (e) { if (e && e.name === "AbortError") return; }
       }
       q.doc.save(q.name);
@@ -1110,8 +1110,24 @@
       if (digits.length === 10 && digits.charAt(0) === "0") digits = "256" + digits.slice(1);
       if (digits.length === 9) digits = "256" + digits;
       window.open("https://wa.me/" + (digits.length >= 11 ? digits : "") + "?text=" + encodeURIComponent(text), "_blank", "noopener");
+      markQuoteShared(id);
       toast("PDF saved \u2014 attach it to the WhatsApp message");
     } catch (e) { toast(e.message || "Couldn't share the quotation."); }
+  }
+  // Sharing a quotation is the moment it's "sent": a Draft moves to Sent, and
+  // the share is stamped on the job. If the job's form is open, its Stage
+  // control follows so a later Save can't put it back to Draft.
+  function markQuoteShared(id) {
+    var j = job(id); if (!j) return;
+    var was = j.stage;
+    j.quoteSharedAt = nowIso(); j.quoteSharedBy = (settings.user && settings.user.name) || "";
+    if (j.stage === "Draft" || !j.stage) j.stage = "Sent";
+    if (dialog.open && editing && editing.id === id) {
+      var sel = form.querySelector('select[name="stage"]');
+      if (sel && sel.value === "Draft") { sel.value = "Sent"; sel.dispatchEvent(new Event("change", { bubbles: true })); }
+    }
+    saveData(was !== j.stage ? "Quotation shared \u2014 job marked Sent" : "Quotation shared");
+    if (!dialog.open) render();
   }
   async function offerQuoteShare(id) {
     var r = await openSheet({ title: "Quotation ready", body: "Send it to the client now? You can also do this later from the job.",
@@ -1179,6 +1195,7 @@
       (delivery ? '<div class="item-line"><span class="k">Technician</span><span class="v">' + (tech ? esc(tech.name) : '<span style="color:var(--amber)">Unassigned</span>') + "</span></div>" : "") +
       ((delivery && (val > 0 || paidForJob(j.id) > 0)) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (val > 0 ? " · " + money(Math.max(0, val - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
       (j.stage === "Handed over" || (/progress|installed/i.test(j.stage || "") && checklistDone(j) > 0) ? '<div class="item-line"><span class="k">Checklist</span><span class="v">' + checklistDone(j) + " / " + INSTALL_CHECKLIST.length + (checklistComplete(j.checklist) ? " · done" : "") + "</span></div>" : "") +
+      (j.quoteSharedAt ? '<div class="item-line"><span class="k">Quote shared</span><span class="v">' + dateLabel(String(j.quoteSharedAt).slice(0, 10)) + (j.quoteSharedBy ? " · " + esc(j.quoteSharedBy) : "") + "</span></div>" : "") +
       '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(j.createdBy || "—") + "</span></div>" +
       "</div>" + quoteActionsHtml(j.id) + "</article>";
   }

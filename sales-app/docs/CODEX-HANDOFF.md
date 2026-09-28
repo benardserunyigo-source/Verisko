@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=48**.
+  base directory `sales-app`). Current asset version: **v=49**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -161,7 +161,11 @@ any new privileged data.
   with the summary so the user attaches the file by hand. After a job is
   created in Draft/Sent, or moved to Sent, `offerQuoteShare()` asks
   "Quotation ready — Share / Download / Not now". A custom (12+ camera) job
-  refuses until `finalPrice` is set. Company details and the terms wording
+  refuses until `finalPrice` is set. Sharing calls `markQuoteShared()`: a
+  Draft becomes **Sent**, `quoteSharedAt` / `quoteSharedBy` are stamped on
+  the job (they flow into the export as extra columns and show on the card),
+  and if the job's form is open its Stage select is switched too so a later
+  Save can't revert it. Downloading the PDF alone does not change the stage. Company details and the terms wording
   live in `COMPANY` / `TERMS` at the top of `quote-pdf.js`.
 
 ## 6a. Live data export & the Google Sheet
@@ -258,7 +262,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=48, 28 Sep 2026)
+## 8. Current status (live at v=49, 28 Sep 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console
@@ -284,9 +288,9 @@ Owner can close this in five minutes (§7, "Testing the live backend").
 - **No test harness.** Highest-value first task: add a small Node test file for
   the pure functions (`computeQuote`, `jobValue`, `migrateToJobs`,
   `availableForOut`, `needsProof`) so regressions are caught without a browser.
-- **Jobs Phase 2:** the branded PDF quote + WhatsApp share shipped in v=48.
-  Still open: deeper quote-lifecycle automation (auto-mark Sent after a share,
-  expiry reminders). See `docs/specs/2026-07-29-jobs-merge.md`.
+- **Jobs Phase 2:** the branded PDF quote + WhatsApp share shipped in v=48,
+  auto-mark Sent on share in v=49. Still open: expiry reminders (quotes are
+  valid 30 days; nothing flags an expired one yet). See `docs/specs/2026-07-29-jobs-merge.md`.
 - **PDF rendering has no browser test.** `renderQuotePdf` is exercised by
   running jsPDF in Node (copy `vendor/jspdf.umd.min.js` outside the package,
   set `globalThis.self = globalThis`, require it) and rasterising the output;
