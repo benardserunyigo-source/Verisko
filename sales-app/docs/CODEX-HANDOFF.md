@@ -168,7 +168,7 @@ The Owner's answer to "where is my data and how do I see it without the app".
     automatically as a snake_case column. Cells starting with `= + - @` are
     prefixed with `'` so a spreadsheet never executes them.
 - **Google Sheet:** *Verisko Live Data* (Drive folder Verisko OS → 01 Leads &
-  Quotes). Tab **Setup** holds the key in B2 and builds the feed URL in B4;
+  Quotes; https://docs.google.com/spreadsheets/d/1rZqy7IeP8bdUh9Y4eGd5AEiIKqh96JbLzcm5To17HN0). Tab **Setup** holds the key in B2 and builds the feed URL in B4;
   each data tab is one `IMPORTDATA(Setup!$B$4&"&table=…")`; **Summary** uses
   `INDEX/MATCH` on the header row so column moves don't break it. Google
   refreshes `IMPORTDATA` about hourly and on open; the first open asks
