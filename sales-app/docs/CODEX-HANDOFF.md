@@ -14,25 +14,39 @@ cash-flow reconciliation, with role-based access and an audit trail.
   other files at the repo root are unrelated — do **not** touch them).
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
-  (auto-deploys on push to `main`). Current asset version: **v=44**.
+  (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
+  base directory `sales-app`). Current asset version: **v=47**.
+- **Where the data lives:** one JSON document in Netlify Blobs (store
+  `verisko-sales`, key `app-data`) plus one blob per photo (store
+  `verisko-receipts`). Nothing lives in Supabase except the login accounts.
+  The Owner can read all of it any time through the **live data export**
+  (§6a) or the **Verisko Live Data** Google Sheet in Verisko OS →
+  01 Leads & Quotes.
 
 ## 2. Tech stack (deliberately minimal — keep it that way)
 
 - **Frontend:** one vanilla-JS IIFE in `app.js` (~2,840 lines), `app.css`,
   `index.html`. **No framework, no build step, no bundler, no npm runtime deps.**
   Everything ships as static files.
-- **Backend:** two Netlify Functions (ES modules):
+- **Backend:** three Netlify Functions (ES modules):
   - `netlify/functions/data.mjs` — shared data API (`/api/data`), backed by
     **Netlify Blobs** (store `verisko-sales`, key `app-data`).
-  - `netlify/functions/receipt.mjs` — receipt/photo upload+fetch (`/api/receipt`),
-    Netlify Blobs store `verisko-receipts`.
+  - `netlify/functions/receipt.mjs` — photo upload+fetch (`/api/receipt`),
+    Netlify Blobs store `verisko-receipts`. Any signed-in team member may
+    upload (Sales attach business photos, Ops/admin attach receipts).
+  - `netlify/functions/export.mjs` — read-only CSV/JSON export (`/api/export`)
+    for spreadsheets, gated by the Owner's export key (§6a). Pure helpers
+    `buildTables` / `toCsv` are named exports so they can be unit-tested.
 - **Auth:** Supabase **email OTP magic-link**. The Supabase **publishable** key
   in `data.mjs` is public and safe to ship. **Never commit the `sb_secret_`
   service key.** Auth flow: Supabase verifies the token; the verified email must
   be on the `users` allow-list; the first sign-in on an empty workspace
   bootstraps the owner.
-- `netlify.toml` — redirects (`/api/*`), security headers incl.
+- `netlify.toml` — security headers incl.
   **`Permissions-Policy: … geolocation=(self)`** (required for the GPS pin).
+  **Routes live in `_redirects`**, which overrides the `[[redirects]]` in
+  `netlify.toml`: a new `/api/*` route must be added to `_redirects` or the
+  catch-all `/* /index.html` swallows it.
 
 ## 3. Golden rules (the user enforces these)
 
@@ -59,7 +73,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
   transactions[],  // cash-flow entries (money in/out), linked to jobs via installId
   jobs[],          // the quote→install lifecycle (see §6). Replaced old quotes[]+installations[]
   technicians[],   // installer roster (no login)
-  config{}         // commissionPerSale, commissionTarget (pettyLimit is vestigial/unused)
+  config{}         // commissionPerSale, commissionTarget, exportKey (pettyLimit is vestigial/unused)
 }
 ```
 
@@ -84,6 +98,8 @@ Three roles, resolved from `settings.user.role`:
 Gate helpers in `app.js`: `isAdmin()`, `canCashflow()`, `canReviewProspects()`,
 `canInstalls()` (ops+admin). Nav: 4 primary tabs (Today, Dashboard, Prospects,
 Visits) + a **"More"** sheet holding ops/admin extras (Jobs, Cash flow, Settings).
+Every nav button carries an `aria-label` (the visual label alone was not
+exposed to screen readers); keep that when adding a tab.
 
 **Server-side enforcement** (`data.mjs`) mirrors the UI — never trust the client:
 non-reviewers can't self-approve prospects/transactions; `jobs`/`technicians` are
@@ -127,18 +143,55 @@ any new privileged data.
     offline-queued in IndexedDB and upload on reconnect (`flushUploads`).
 - **Dashboard:** role-aware — Sales see personal commission vs target; ops/admin
   see a team console + editable commission config + roster management.
-- **Settings (admin):** team roster, receipt-policy note, JSON backup/restore,
-  danger zone.
+- **Settings (admin):** team roster, live data export (§6a), receipt-policy
+  note, JSON backup/restore, danger zone.
+
+## 6a. Live data export & the Google Sheet
+
+The Owner's answer to "where is my data and how do I see it without the app".
+
+- **Key:** Settings → *Live data export* → *Generate export key* writes a
+  48-hex-char random key to `config.exportKey` and syncs it. `data.mjs` strips
+  `exportKey` from every GET for non-admin accounts, refuses non-admin writes
+  to it, and keeps the stored key if an admin device pushes a config without
+  one (stale cache). *Generate new key…* rotates it; the old key dies at once.
+- **Endpoint (`export.mjs`, GET only, no login, `Cache-Control: no-store`):**
+  - `/api/export?key=K&table=prospects` → CSV (also `visits`, `followups`,
+    `jobs`, `transactions`, `users`, `technicians`).
+  - `…&format=json` → `{ok, table, rows}`; no `table` → every table as JSON.
+  - `…&photo=<id>` → the stored JPEG (business photo or receipt).
+  - Wrong/short/missing key → `401 {"error":"bad_key"}` (constant-time compare,
+    minimum 16 chars). Unknown table → 404 with the list of tables.
+  - Rows are flattened: joined prospect name/phone on visits, jobs and cash
+    entries; GPS as `gps_lat`/`gps_lng`/`gps_map_link`; `photo_link` /
+    `receipt_link` URLs; any new flat field on a record is appended
+    automatically as a snake_case column. Cells starting with `= + - @` are
+    prefixed with `'` so a spreadsheet never executes them.
+- **Google Sheet:** *Verisko Live Data* (Drive folder Verisko OS → 01 Leads &
+  Quotes). Tab **Setup** holds the key in B2 and builds the feed URL in B4;
+  each data tab is one `IMPORTDATA(Setup!$B$4&"&table=…")`; **Summary** uses
+  `INDEX/MATCH` on the header row so column moves don't break it. Google
+  refreshes `IMPORTDATA` about hourly and on open; the first open asks
+  "Allow access". The source workbook is built by a small openpyxl script
+  (not in the repo); to change layout, edit the Sheet in place.
+- **Threat model:** the key grants read-everything without login. It is only
+  ever on Owner/Technical devices and inside the private Sheet. Rotate it if
+  either is lost.
 
 ## 7. How to run & test locally (the app is auth-gated)
 
-There's **no automated test suite**. Verification is `node --check` + a
-browser-driven smoke test. Because sign-in needs a Supabase OTP, bypass it by
+**Automated tests:** `npm install && npm test` runs `tests/*.test.js` with the
+built-in Node runner (currently 8 tests: cash-flow period maths and the export
+flattening/CSV). Add a test whenever you touch a pure function. `node_modules`
+is git-ignored via `sales-app/.gitignore`.
+
+**Browser smoke test:** because sign-in needs a Supabase OTP, bypass it by
 seeding `localStorage` and using the offline boot path (`settings.auth` +
 `settings.user` present → the app opens straight in).
 
 ```bash
 cd /Users/ben/Verisko/sales-app
+npm test                                  # pure-function tests
 node --check app.js                       # syntax
 node --check netlify/functions/data.mjs
 python3 -m http.server 8899               # serve statically
@@ -160,10 +213,17 @@ location.reload();
 - Change `user.role` to `"sales"` or `"operations"` to test other roles.
 - The `/api/data` GET fails locally (no Netlify Functions) → the app falls back
   to the seeded local state, which is exactly what you want for UI testing.
-- **Pure-logic testing:** `app.js` is one IIFE, so functions are private. To unit
-  test `computeQuote` / `jobValue` / `migrateToJobs` / `availableForOut`, extract
-  the source slice with `new Function(...)` in a throwaway Node script (there are
-  prior examples of this pattern; grep the git history for `qtest`/`jobtest`).
+- **Pure-logic testing:** `app.js` is one IIFE, so its functions are private.
+  `cashflow-report.js` and `export.mjs` expose pure helpers and have tests; to
+  unit test `computeQuote` / `jobValue` / `migrateToJobs` / `availableForOut`,
+  either move them into a small module the IIFE also loads, or extract the
+  source slice with `new Function(...)` in a throwaway script.
+- **Testing the live backend** needs a real session. Sign in as the Owner on
+  the live site, generate the export key, then `curl
+  "https://verisko-sales-2026.netlify.app/api/export?key=K&table=prospects"`
+  shows exactly what Netlify Blobs holds; `…&photo=<photo_id>` proves a photo
+  upload landed. Sales-side sync/photo tests need a Sales account signed in on
+  a second device.
 - **Geolocation:** stub `navigator.geolocation.getCurrentPosition` in the console
   to simulate grant (`ok({coords:{latitude,longitude,accuracy}})`) or deny
   (`err({code:1})`).
@@ -175,11 +235,26 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (all live at v=44, verified this session)
+## 8. Current status (live at v=47, 28 Sep 2026)
 
-Working and smoke-tested: all 7 views render with no console errors; Sales is
-correctly restricted to the 4 primary tabs; the Jobs merge, the required GPS
-pin, and the expense-proof + float math all pass end-to-end.
+Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
+welcome tour, Today, Prospects, Visits and Dashboard render with no console
+errors; Sales sees only the 4 primary tabs; add-prospect blocks a missing name
+and a missing GPS pin and saves with both; scheduling saves; confirming a visit
+for a prospect without contact/phone/location is blocked with a clear message;
+data and sign-in survive a reload offline. Owner role: the live-export card
+generates, shows and copies a key. Live site: sign-in page clean, `/api/data`,
+`/api/receipt` and `/api/export` all answer 401 without credentials, 8/8 unit
+tests pass.
+
+Fixed this session: `/api/receipt` POST used to reject Sales accounts, so a
+salesperson's business photo sat in the IndexedDB queue forever with "1 photo
+waiting to upload" and never reached Netlify. Nav tabs now have accessible
+names.
+
+**Not yet verified with a real signed-in session:** end-to-end sync between two
+devices, a real photo upload to Blobs, and the export feed with a real key. The
+Owner can close this in five minutes (§7, "Testing the live backend").
 
 ## 9. Known limitations & suggested next steps
 
@@ -196,7 +271,14 @@ pin, and the expense-proof + float math all pass end-to-end.
 - **Minor:** the cash-flow summary's "awaiting review" chip counts sent-back
   (`query`) entries as pending; consider excluding them.
 - **Not stress-tested:** large-dataset performance, deep offline edge cases, and
-  full accessibility pass.
+  a full accessibility pass (nav labels are done; forms and cards untested).
+- **Export refresh cadence:** `IMPORTDATA` is roughly hourly. If the Owner
+  wants minute-level freshness, add a Google Apps Script time trigger in the
+  Sheet that fetches `…&format=json` and writes rows, or have `data.mjs` POST
+  to an Apps Script web app after each save.
+- **Photo upload is now open to every team member.** Photos are only reachable
+  through a record the caller may write, plus the export key, but there is no
+  per-user quota; add one if abuse ever becomes a concern.
 - **Send-back reason sheet** works via the UI but is fiddly to drive
   programmatically — worth a manual pass if you touch it.
 
@@ -210,7 +292,7 @@ pin, and the expense-proof + float math all pass end-to-end.
 
 ## 11. Your first move
 
-Read `app.js` top-to-bottom once (it's one file, ~2,840 lines, sectioned by
+Read `app.js` top-to-bottom once (it's one file, ~2,900 lines, sectioned by
 comment banners). Then run the local smoke test in §7 as each role. Confirm you
 can reproduce the current behavior before changing anything. When you ship,
 follow the golden rules in §3 — especially bump `?v=N` and push to `main`.
