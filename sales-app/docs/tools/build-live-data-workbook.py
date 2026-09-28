@@ -64,9 +64,9 @@ for r in (7, 11): d.row_dimensions[r].height = 8
 
 def section(ws, cell, text):
     ws[cell] = text; ws[cell].font = font(bold=True, size=12, color=NAVY)
-section(d, "B13", "Sales pipeline by stage"); section(d, "H13", "Prospects by salesperson")
-section(d, "B31", "Prospects by business type"); section(d, "H31", "Site visits by status")
-section(d, "B49", "Cash flow, last 6 months (UGX)"); section(d, "H49", "Jobs by stage")
+section(d, "B13", "Sales pipeline by stage"); section(d, "I13", "Prospects by salesperson")
+section(d, "B31", "Prospects by business type"); section(d, "I31", "Site visits by status")
+section(d, "B49", "Cash flow, last 6 months (UGX)"); section(d, "I49", "Jobs by stage")
 d["B67"] = "How to read this"; d["B67"].font = font(bold=True, size=12, color=NAVY)
 notes = [
     "Every number is a formula over the data tabs, which pull straight from the app. Nothing is typed by hand.",
@@ -199,27 +199,28 @@ c.cell(6, 20, "(query = sent back to Sales)").font = font(size=9, color=MUTED)
 def bar(title, cats, vals, horizontal=False, colors=None):
     ch = BarChart(); ch.type = "bar" if horizontal else "col"; ch.title = title; ch.style = 10
     ch.add_data(vals, titles_from_data=True); ch.set_categories(cats)
-    ch.legend = None; ch.y_axis.majorGridlines = None; ch.height = 8.2; ch.width = 13.2
+    ch.legend = None; ch.y_axis.majorGridlines = None; ch.height = 8.2; ch.width = 12.2
     ch.series[0].graphicalProperties.solidFill = NAVY
+    if horizontal: ch.x_axis.scaling.orientation = "maxMin"
     return ch
 cd = wb["Chart data"]
 ch = bar("Prospects by stage", Reference(cd, min_col=1, min_row=3, max_row=9), Reference(cd, min_col=2, min_row=2, max_row=9), horizontal=True); d.add_chart(ch, "B14")
-ch = bar("Prospects by salesperson", Reference(cd, min_col=4, min_row=3, max_row=14), Reference(cd, min_col=5, min_row=2, max_row=14)); d.add_chart(ch, "H14")
-pie = PieChart(); pie.title = "Prospects by business type"; pie.add_data(Reference(cd, min_col=8, min_row=2, max_row=13), titles_from_data=True); pie.set_categories(Reference(cd, min_col=7, min_row=3, max_row=13)); pie.height = 8.2; pie.width = 13.2; pie.dataLabels = DataLabelList(); pie.dataLabels.showPercent = True; d.add_chart(pie, "B32")
+ch = bar("Prospects by salesperson", Reference(cd, min_col=4, min_row=3, max_row=14), Reference(cd, min_col=5, min_row=2, max_row=14)); d.add_chart(ch, "I14")
+pie = PieChart(); pie.title = "Prospects by business type"; pie.add_data(Reference(cd, min_col=8, min_row=2, max_row=13), titles_from_data=True); pie.set_categories(Reference(cd, min_col=7, min_row=3, max_row=13)); pie.height = 8.2; pie.width = 12.2; pie.dataLabels = DataLabelList(); pie.dataLabels.showPercent = True; d.add_chart(pie, "B32")
 for i, lab in enumerate(APPT):
     r = 33 + i
-    d[f"H{r}"] = lab; d[f"H{r}"].font = font(size=10, color=INK); d.merge_cells(f"H{r}:J{r}")
-    d[f"K{r}"] = f"='Chart data'!$K${3+i}"; d[f"K{r}"].number_format = "#,##0"; d[f"K{r}"].font = font(bold=True, size=10, color=NAVY); d[f"K{r}"].alignment = Alignment(horizontal="right")
-    for cc in "HIJK": d[f"{cc}{r}"].fill = fill(LIGHT if i % 2 == 0 else WHITE); d[f"{cc}{r}"].border = Border(bottom=thin)
-cash = BarChart(); cash.type = "col"; cash.title = "Approved cash in vs out, by month"; cash.style = 10; cash.height = 8.2; cash.width = 13.2
+    d[f"I{r}"] = lab; d[f"I{r}"].font = font(size=10, color=INK); d.merge_cells(f"I{r}:K{r}")
+    d[f"L{r}"] = f"='Chart data'!$K${3+i}"; d[f"L{r}"].number_format = "#,##0"; d[f"L{r}"].font = font(bold=True, size=10, color=NAVY); d[f"L{r}"].alignment = Alignment(horizontal="right")
+    for cc in "IJKL": d[f"{cc}{r}"].fill = fill(LIGHT if i % 2 == 0 else WHITE); d[f"{cc}{r}"].border = Border(bottom=thin)
+cash = BarChart(); cash.type = "col"; cash.title = "Approved cash in vs out, by month"; cash.style = 10; cash.height = 8.2; cash.width = 12.2
 cash.add_data(Reference(cd, min_col=14, min_row=2, max_col=15, max_row=8), titles_from_data=True); cash.set_categories(Reference(cd, min_col=13, min_row=3, max_row=8))
 cash.series[0].graphicalProperties.solidFill = TEAL; cash.series[1].graphicalProperties.solidFill = NAVY; cash.y_axis.majorGridlines = None
 d.add_chart(cash, "B50")
 for i, lab in enumerate(JOBS):
     r = 51 + i
-    d[f"H{r}"] = lab; d[f"H{r}"].font = font(size=10, color=INK); d.merge_cells(f"H{r}:J{r}")
-    d[f"K{r}"] = f"='Chart data'!$R${3+i}"; d[f"K{r}"].number_format = "#,##0"; d[f"K{r}"].font = font(bold=True, size=10, color=NAVY); d[f"K{r}"].alignment = Alignment(horizontal="right")
-    for cc in "HIJK": d[f"{cc}{r}"].fill = fill(LIGHT if i % 2 == 0 else WHITE); d[f"{cc}{r}"].border = Border(bottom=thin)
+    d[f"I{r}"] = lab; d[f"I{r}"].font = font(size=10, color=INK); d.merge_cells(f"I{r}:K{r}")
+    d[f"L{r}"] = f"='Chart data'!$R${3+i}"; d[f"L{r}"].number_format = "#,##0"; d[f"L{r}"].font = font(bold=True, size=10, color=NAVY); d[f"L{r}"].alignment = Alignment(horizontal="right")
+    for cc in "IJKL": d[f"{cc}{r}"].fill = fill(LIGHT if i % 2 == 0 else WHITE); d[f"{cc}{r}"].border = Border(bottom=thin)
 
 wb["Dashboard"].sheet_properties.tabColor = NAVY; wb["Setup"].sheet_properties.tabColor = "F59E0B"; wb["Chart data"].sheet_properties.tabColor = "9CA3AF"
 wb.save("Verisko Live Data v2.xlsx")

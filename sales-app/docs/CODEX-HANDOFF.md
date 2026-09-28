@@ -168,7 +168,7 @@ The Owner's answer to "where is my data and how do I see it without the app".
     automatically as a snake_case column. Cells starting with `= + - @` are
     prefixed with `'` so a spreadsheet never executes them.
 - **Google Sheet:** *Verisko Live Data* (Drive folder Verisko OS → 01 Leads &
-  Quotes; https://docs.google.com/spreadsheets/d/1olD1rArAfcgR26YNsQaMeRfOkFyCROcHodqOyV7iSBI). Tabs: **Dashboard** (KPI tiles, four charts, visit/job stage
+  Quotes; https://docs.google.com/spreadsheets/d/1KYCPXkgqLxKCBIVeB5glVRWNyrEvmt5lsoTZHS7AE1E). Tabs: **Dashboard** (KPI tiles, four charts, visit/job stage
   tables, all formulas), **Setup** (key in C4, feed URL built in C6), one
   formatted tab per table, and **Chart data** (the small COUNTIF/SUMPRODUCT
   tables behind the charts, found by header name with `INDEX/MATCH` so column
