@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildTables, toCsv } from "../netlify/functions/export.mjs";
+import { buildTables, toCsv, TABLE_COLUMNS } from "../netlify/functions/export.mjs";
 
 const sample = {
   prospects: [
@@ -49,4 +49,21 @@ test("CSV quotes commas and quotes, unions columns, and neutralises formulas", (
   assert.equal(lines[1], '"Comma, Ltd","say ""hi""",');
   assert.equal(lines[2], "'=SUM(1),,x");
   assert.equal(toCsv([]), "");
+});
+
+test("an empty table still exports its header row", () => {
+  const t = buildTables({}, "https://x.test/api/export?key=K");
+  for (const name of Object.keys(TABLE_COLUMNS)) {
+    assert.deepEqual(t[name], []);
+    assert.equal(toCsv(t[name], TABLE_COLUMNS[name]), TABLE_COLUMNS[name].join(",") + "\r\n", name);
+  }
+});
+
+test("base columns match the flattened row keys, in order", () => {
+  const t = buildTables(sample, "https://x.test/api/export?key=K");
+  for (const name of Object.keys(TABLE_COLUMNS)) {
+    if (!t[name].length) continue;
+    const keys = Object.keys(t[name][0]).slice(0, TABLE_COLUMNS[name].length);
+    assert.deepEqual(keys, TABLE_COLUMNS[name], name);
+  }
 });

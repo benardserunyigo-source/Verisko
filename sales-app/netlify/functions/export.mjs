@@ -40,7 +40,7 @@ export default async (request) => {
     if (!table || table === "all") return json({ ok: true, exportedAt: new Date().toISOString(), tables }, 200);
     if (!tables[table]) return json({ ok: false, error: "unknown_table", tables: Object.keys(tables) }, 404);
     if (format === "json") return json({ ok: true, table, rows: tables[table] }, 200);
-    return new Response(toCsv(tables[table]), {
+    return new Response(toCsv(tables[table], TABLE_COLUMNS[table]), {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
@@ -80,6 +80,19 @@ function json(body, status) {
 }
 
 /* ----------------------------- Flattening ---------------------------------- */
+// Base columns per table, in order. Extra flat fields on a record are appended
+// after these. Emitting them even for an empty table means a spreadsheet's
+// IMPORTDATA always gets a header row instead of an "empty content" error.
+export const TABLE_COLUMNS = {
+  prospects: ["id", "business", "type", "contact", "phone", "location", "source", "spoke_to_decision_maker", "existing_cameras", "budget", "stage", "next_action", "follow_up_date", "security_concern", "areas_to_cover", "notes", "created", "created_by", "created_by_email", "review_status", "reviewed_by", "reviewed_at", "review_note", "closed_sale", "closed_by", "closed_at", "gps_lat", "gps_lng", "gps_accuracy_m", "gps_captured_at", "gps_map_link", "photo_link", "follow_ups_count", "last_follow_up_at", "last_follow_up_note"],
+  visits: ["id", "prospect_id", "business", "contact", "phone", "location", "date", "time", "operations_owner", "status", "purpose", "directions"],
+  followups: ["prospect_id", "business", "n", "at", "by", "by_email", "note", "gps_lat", "gps_lng", "gps_accuracy_m", "gps_captured_at", "gps_map_link"],
+  jobs: ["id", "ref", "stage", "prospect_id", "business", "created_at", "created_by", "created_by_email", "final_price", "materials_count", "materials_total", "materials"],
+  transactions: ["id", "date", "direction", "amount", "category", "method", "prospect_id", "business", "job_id", "note", "preapproved", "status", "created_by", "created_by_email", "created_at", "reviewed_by", "reviewed_at", "review_note", "receipt_link"],
+  users: ["id", "name", "email", "role", "created"],
+  technicians: ["id", "name", "phone", "skills", "active", "created_at"]
+};
+
 // Each table has a preferred column order; any other flat field on a record is
 // appended automatically so new app fields show up without a code change.
 
@@ -174,11 +187,11 @@ function withExtras(row, record, mapped) {
   return out;
 }
 
-export function toCsv(rows) {
-  if (!rows.length) return "";
-  const cols = [];
-  const seen = new Set();
+export function toCsv(rows, baseColumns) {
+  const cols = (baseColumns || []).slice();
+  const seen = new Set(cols);
   rows.forEach((r) => Object.keys(r).forEach((k) => { if (!seen.has(k)) { seen.add(k); cols.push(k); } }));
+  if (!cols.length) return "";
   const cell = (v) => {
     const s = v === null || v === undefined ? "" : String(v);
     // Neutralise formula injection when opened in a spreadsheet.
