@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=47**.
+  base directory `sales-app`). Current asset version: **v=48**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -25,9 +25,13 @@ cash-flow reconciliation, with role-based access and an audit trail.
 
 ## 2. Tech stack (deliberately minimal — keep it that way)
 
-- **Frontend:** one vanilla-JS IIFE in `app.js` (~2,840 lines), `app.css`,
-  `index.html`. **No framework, no build step, no bundler, no npm runtime deps.**
-  Everything ships as static files.
+- **Frontend:** one vanilla-JS IIFE in `app.js` (~2,900 lines), `app.css`,
+  `index.html`, plus two small pure modules loaded before it:
+  `cashflow-report.js` (period maths) and `quote-pdf.js` (quotation model,
+  PDF drawing, share text). **No framework, no build step, no bundler, no npm
+  runtime deps.** The one vendored library is `vendor/jspdf.umd.min.js`
+  (jsPDF 2.5.2, MIT), loaded on demand by `loadJsPdf()` the first time Jobs
+  opens — never on the login or Today screens.
 - **Backend:** three Netlify Functions (ES modules):
   - `netlify/functions/data.mjs` — shared data API (`/api/data`), backed by
     **Netlify Blobs** (store `verisko-sales`, key `app-data`).
@@ -145,6 +149,20 @@ any new privileged data.
   see a team console + editable commission config + roster management.
 - **Settings (admin):** team roster, live data export (§6a), receipt-policy
   note, JSON backup/restore, danger zone.
+- **Quotation PDF + WhatsApp share (Jobs):** every job card and the saved-job
+  form carry *Quote PDF* and *Share via WhatsApp*. `quoteModelFor(job)` feeds
+  `jobClient()`, `computeQuote()` and `jobValue()` into
+  `VeriskoQuote.buildQuoteModel()` (pure, tested), `renderQuotePdf()` draws an
+  A4 page with jsPDF (navy header + chevron mark, client block, line items
+  that always sum to the total, the 60/40 and 40/30/30 payment boxes, notes,
+  terms, footer). `shareQuote()` uses the Web Share API with the PDF attached
+  (`navigator.canShare({files})` — Android Chrome, iOS Safari); where files
+  can't be shared it saves the PDF and opens `wa.me/<client number>?text=`
+  with the summary so the user attaches the file by hand. After a job is
+  created in Draft/Sent, or moved to Sent, `offerQuoteShare()` asks
+  "Quotation ready — Share / Download / Not now". A custom (12+ camera) job
+  refuses until `finalPrice` is set. Company details and the terms wording
+  live in `COMPANY` / `TERMS` at the top of `quote-pdf.js`.
 
 ## 6a. Live data export & the Google Sheet
 
@@ -186,8 +204,8 @@ The Owner's answer to "where is my data and how do I see it without the app".
 ## 7. How to run & test locally (the app is auth-gated)
 
 **Automated tests:** `npm install && npm test` runs `tests/*.test.js` with the
-built-in Node runner (currently 8 tests: cash-flow period maths and the export
-flattening/CSV). Add a test whenever you touch a pure function. `node_modules`
+built-in Node runner (currently 16 tests: cash-flow period maths, the export
+flattening/CSV, and the quotation model/share text). Add a test whenever you touch a pure function. `node_modules`
 is git-ignored via `sales-app/.gitignore`.
 
 **Browser smoke test:** because sign-in needs a Supabase OTP, bypass it by
@@ -240,7 +258,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=47, 28 Sep 2026)
+## 8. Current status (live at v=48, 28 Sep 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console
@@ -266,8 +284,13 @@ Owner can close this in five minutes (§7, "Testing the live backend").
 - **No test harness.** Highest-value first task: add a small Node test file for
   the pure functions (`computeQuote`, `jobValue`, `migrateToJobs`,
   `availableForOut`, `needsProof`) so regressions are caught without a browser.
-- **Jobs Phase 2 (deferred):** branded PDF quote + WhatsApp share; deeper
-  quote-lifecycle automation. See `docs/specs/2026-07-29-jobs-merge.md`.
+- **Jobs Phase 2:** the branded PDF quote + WhatsApp share shipped in v=48.
+  Still open: deeper quote-lifecycle automation (auto-mark Sent after a share,
+  expiry reminders). See `docs/specs/2026-07-29-jobs-merge.md`.
+- **PDF rendering has no browser test.** `renderQuotePdf` is exercised by
+  running jsPDF in Node (copy `vendor/jspdf.umd.min.js` outside the package,
+  set `globalThis.self = globalThis`, require it) and rasterising the output;
+  the model behind it is unit-tested.
 - **Dead data:** `config.pettyLimit` is vestigial (proof is no longer
   amount-based). Safe to remove from `defaultConfig()` and the `data.mjs` config
   merge.

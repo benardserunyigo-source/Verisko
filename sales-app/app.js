@@ -984,14 +984,20 @@
       technicianId: data.technicianId || "", materials: collectMaterials(), checklist: checklist,
       notes: (data.notes || "").trim()
     }, inputs);
+    var jobId = editing.id || uid();
+    var wasNew = !editing.id;
+    var prevStage = existing.stage || "";
     if (editing.id) {
       var idx = state.jobs.findIndex(function (x) { return x.id === editing.id; });
       state.jobs[idx] = Object.assign({}, state.jobs[idx], fields);
     } else {
-      state.jobs.push(Object.assign({ id: uid(), ref: newJobRef(), createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "", createdAt: today }, fields));
+      state.jobs.push(Object.assign({ id: jobId, ref: newJobRef(), createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "", createdAt: today }, fields));
     }
     hideFormError(); dialog.close();
-    saveData(editing.id ? "Job updated" : "Job created"); render();
+    saveData(wasNew ? "Job created" : "Job updated"); render();
+    // A quotation is "done" when a job is created in Draft/Sent, or moved to Sent.
+    var quoteStage = stage === "Draft" || stage === "Sent";
+    if (quoteStage && (wasNew || (stage === "Sent" && prevStage !== "Sent")) && jobValue(job(jobId)) > 0) offerQuoteShare(jobId);
   }
 
   function job(id) { return (state.jobs || []).find(function (x) { return x.id === id; }) || null; }
@@ -1051,6 +1057,73 @@
       '<p class="helper">Payments post to the Cash flow float and appear there for approval.</p></div>';
   }
 
+  /* ------------------------ Quotation PDF & sharing ------------------------- */
+  // The PDF is drawn by quote-pdf.js with jsPDF (vendor/), which loads on
+  // demand the first time Jobs opens so a Share tap is instant afterwards.
+  var jsPdfLoading = null;
+  function loadJsPdf() {
+    if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+    if (jsPdfLoading) return jsPdfLoading;
+    jsPdfLoading = new Promise(function (resolve, reject) {
+      var sc = document.createElement("script");
+      sc.src = "vendor/jspdf.umd.min.js?v=2.5.2"; sc.async = true;
+      sc.onload = function () { if (window.jspdf && window.jspdf.jsPDF) resolve(window.jspdf.jsPDF); else { jsPdfLoading = null; reject(new Error("The PDF tool didn't load. Try again.")); } };
+      sc.onerror = function () { jsPdfLoading = null; reject(new Error("Couldn't load the PDF tool. Check your connection and try again.")); };
+      document.head.appendChild(sc);
+    });
+    return jsPdfLoading;
+  }
+  function quoteModelFor(j) {
+    return window.VeriskoQuote.buildQuoteModel(j, jobClient(j), computeQuote(j), { value: jobValue(j), preparedBy: settings.user && settings.user.name, date: today });
+  }
+  // A custom (12+ camera) job needs its final price before it can be quoted.
+  function quoteReady(j) {
+    if (!j) { toast("That job no longer exists."); return false; }
+    if (quoteModelFor(j).total == null) { toast("Set the final price for this custom job before sharing its quotation."); return false; }
+    return true;
+  }
+  async function quotePdfFor(j) {
+    var JsPDF = await loadJsPdf();
+    var model = quoteModelFor(j);
+    return { doc: window.VeriskoQuote.renderQuotePdf(JsPDF, model), model: model, name: window.VeriskoQuote.quoteFileName(model) };
+  }
+  async function downloadQuotePdf(id) {
+    var j = job(id); if (!quoteReady(j)) return;
+    try { var q = await quotePdfFor(j); q.doc.save(q.name); toast("Quotation PDF saved to your phone"); }
+    catch (e) { toast(e.message || "Couldn't build the PDF."); }
+  }
+  // Phone share sheet (WhatsApp, email…) with the PDF attached. Where files
+  // can't be shared, save the PDF and open WhatsApp with the summary text.
+  async function shareQuote(id) {
+    var j = job(id); if (!quoteReady(j)) return;
+    try {
+      var q = await quotePdfFor(j);
+      var text = window.VeriskoQuote.quoteShareText(q.model);
+      var file = null;
+      try { file = new File([q.doc.output("blob")], q.name, { type: "application/pdf" }); } catch (e) { file = null; }
+      if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: "Verisko quotation " + q.model.ref, text: text }); return; }
+        catch (e) { if (e && e.name === "AbortError") return; }
+      }
+      q.doc.save(q.name);
+      var digits = String(q.model.client.phone || "").replace(/\D/g, "");
+      if (digits.length === 10 && digits.charAt(0) === "0") digits = "256" + digits.slice(1);
+      if (digits.length === 9) digits = "256" + digits;
+      window.open("https://wa.me/" + (digits.length >= 11 ? digits : "") + "?text=" + encodeURIComponent(text), "_blank", "noopener");
+      toast("PDF saved \u2014 attach it to the WhatsApp message");
+    } catch (e) { toast(e.message || "Couldn't share the quotation."); }
+  }
+  async function offerQuoteShare(id) {
+    var r = await openSheet({ title: "Quotation ready", body: "Send it to the client now? You can also do this later from the job.",
+      choices: ["Share via WhatsApp", "Download PDF"], requireValue: true, confirmLabel: "Continue", cancelLabel: "Not now" });
+    if (!r) return;
+    if (r.choice === "Download PDF") downloadQuotePdf(id); else shareQuote(id);
+  }
+  function quoteActionsHtml(id) {
+    return '<div class="item-actions quote-actions"><button type="button" class="btn btn-ghost btn-sm" data-quote-pdf="' + esc(id) + '">Quote PDF</button>' +
+      '<button type="button" class="btn btn-primary btn-sm" data-quote-share="' + esc(id) + '">Share via WhatsApp</button></div>';
+  }
+
   /* --------------------------------- JOBS ----------------------------------- */
   // One screen for the whole lifecycle: a job is a "quote" early and a live
   // install later — same record, same card, different stage.
@@ -1070,6 +1143,7 @@
 
   function renderJobs() {
     setHead("Operations", "Jobs", "Quote, schedule and run CCTV jobs — one place from quote to handover.", "New job", true);
+    loadJsPdf().catch(function () { /* retried on demand */ });
     var jobs = state.jobs || [];
     var open = jobs.filter(jobIsOpen);
     var pipeline = open.reduce(function (s, j) { return s + jobValue(j); }, 0);
@@ -1106,7 +1180,7 @@
       ((delivery && (val > 0 || paidForJob(j.id) > 0)) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (val > 0 ? " · " + money(Math.max(0, val - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
       (j.stage === "Handed over" || (/progress|installed/i.test(j.stage || "") && checklistDone(j) > 0) ? '<div class="item-line"><span class="k">Checklist</span><span class="v">' + checklistDone(j) + " / " + INSTALL_CHECKLIST.length + (checklistComplete(j.checklist) ? " · done" : "") + "</span></div>" : "") +
       '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(j.createdBy || "—") + "</span></div>" +
-      "</div></article>";
+      "</div>" + quoteActionsHtml(j.id) + "</article>";
   }
 
   // Onboard/manage technicians (Operations + admin).
@@ -1815,6 +1889,8 @@
         (isAdmin() ? '<div class="field full"><label for="f_discountPct">Discount %</label><input id="f_discountPct" class="quote-input" type="number" inputmode="numeric" min="0" max="100" step="1" value="' + esc(qInputs.discountPct || "") + '" placeholder="0"><p class="helper">Owner only. Above 5% is your call.</p></div>' : "") +
         '<div class="field full" id="quoteGov"></div>' +
         '<div class="field full"><label>Quote</label><div id="quoteSummary"></div></div>' +
+        (id ? '<div class="field full"><label>Quotation for the client</label>' + quoteActionsHtml(id) +
+          '<p class="helper">A branded PDF with the client\'s details, the prices above and the payment options. Share opens WhatsApp with it attached.</p></div>' : "") +
         // Final price — only for a custom (12+) job or an admin override. Admin-only.
         (isAdmin()
           ? '<div class="field full" id="finalPriceField"' + (showFinal ? "" : " hidden") + '><label for="f_finalPrice">Final price (UGX) <span class="optional-tag">custom / override</span></label>' +
@@ -1934,6 +2010,8 @@
     var tcf = e.target.closest("[data-toggle-closed]"); if (tcf) { toggleClosedSale(tcf.getAttribute("data-toggle-closed")); return; }
     var mi = e.target.closest("[data-make-install]"); if (mi) { openForm("job", null, mi.getAttribute("data-make-install")); return; }
     var jph = e.target.closest("[data-job-photo]"); if (jph) { fetchProof(jph.getAttribute("data-job-photo")).then(function (img) { if (img) openPhoto(img); }); return; }
+    var qpf = e.target.closest("[data-quote-pdf]"); if (qpf) { downloadQuotePdf(qpf.getAttribute("data-quote-pdf")); return; }
+    var qsf = e.target.closest("[data-quote-share]"); if (qsf) { shareQuote(qsf.getAttribute("data-quote-share")); return; }
     var jpay = e.target.closest("[data-job-pay]"); if (jpay) { txPreset = { direction: "in", category: "Customer payment", installId: jpay.getAttribute("data-job-pay") }; openForm("transaction"); return; }
     var jspend = e.target.closest("[data-job-spend]"); if (jspend) { var jid = jspend.getAttribute("data-job-spend"); var jb = job(jid); txPreset = { direction: "out", category: "Cable & materials", installId: jid, amount: jb ? materialsTotal(jb) : "" }; openForm("transaction"); return; }
     if (e.target.closest("[data-proof-pick]")) { var pi = document.getElementById("proofInput"); if (pi) pi.click(); return; }
@@ -2837,6 +2915,8 @@
     var fup = e.target.closest("[data-log-followup]"); if (fup) { logFollowUp(fup.getAttribute("data-log-followup")); return; }
     var tc = e.target.closest("[data-toggle-closed]"); if (tc) { toggleClosedSale(tc.getAttribute("data-toggle-closed")); return; }
     var go = e.target.closest("[data-go]"); if (go) { view = go.dataset.go; render(); return; }
+    var qpc = e.target.closest("[data-quote-pdf]"); if (qpc) { downloadQuotePdf(qpc.getAttribute("data-quote-pdf")); return; }
+    var qsc = e.target.closest("[data-quote-share]"); if (qsc) { shareQuote(qsc.getAttribute("data-quote-share")); return; }
     var edit = e.target.closest("[data-edit]"); if (edit) { openForm(edit.dataset.edit, edit.dataset.id); return; }
     var sched = e.target.closest("[data-schedule]"); if (sched) { openForm("appointment", null, sched.dataset.schedule); return; }
     var confirmBtn = e.target.closest("[data-confirm]"); if (confirmBtn) { confirmVisit(confirmBtn.dataset.confirm); return; }
