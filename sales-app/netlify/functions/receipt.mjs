@@ -1,7 +1,9 @@
 // Verisko Sales Visit Planner — receipt/proof photo storage (Netlify Blobs).
 //
 // POST { image: <data URL> }  -> stores the (already phone-resized) image and
-//                                returns { id }. Operations/admins only.
+//                                returns { id }. Any signed-in team member:
+//                                Sales attach business photos to prospects,
+//                                Operations/admins attach receipts to cash entries.
 // GET  ?id=<id>               -> returns { image: <data URL> } for any team member.
 //
 // Auth: same Supabase-token + allow-list check as /api/data. Images live in a
@@ -22,7 +24,8 @@ export default async (request) => {
     const store = getStore(RECEIPTS);
 
     if (request.method === "POST") {
-      if (!auth.canCash) return json({ ok: false, error: "forbidden" }, 403, headers);
+      // No role gate here: the photo only becomes visible once it is attached
+      // to a record the caller is allowed to write (enforced in data.mjs).
       const body = await request.json().catch(() => ({}));
       const image = body && typeof body.image === "string" ? body.image : "";
       if (!image.startsWith("data:image/")) throw new Error("Invalid image.");

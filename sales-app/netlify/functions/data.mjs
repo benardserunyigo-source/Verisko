@@ -45,9 +45,17 @@ export default async (request) => {
     const bootstrap = users.length === 0;                              // brand-new workspace
     const me = users.find((u) => String(u.email || "").toLowerCase() === email);
     if (!me && !bootstrap) return json({ ok: false, error: "not_authorized" }, 403, headers);
+    const isAdmin = bootstrap || (me && me.role === "admin");
 
     if (request.method === "GET") {
-      return json({ ok: true, data: { ...EMPTY, ...data } }, 200, headers);
+      const out = { ...EMPTY, ...data };
+      // The spreadsheet export key is Owner/Technical-only: never send it to
+      // Sales or Operations devices.
+      if (!isAdmin && out.config && typeof out.config === "object") {
+        const { exportKey, ...rest } = out.config;
+        out.config = rest;
+      }
+      return json({ ok: true, data: out }, 200, headers);
     }
 
     if (request.method === "POST") {
@@ -72,7 +80,6 @@ export default async (request) => {
         installations: Array.isArray(incoming.installations) ? incoming.installations : [],
         config: incoming.config && typeof incoming.config === "object" && !Array.isArray(incoming.config) ? incoming.config : {}
       };
-      const isAdmin = bootstrap || (me && me.role === "admin");
       const canCash = isAdmin || (me && me.role === "operations");
       const canReview = isAdmin || (me && me.role === "operations"); // prospect audit
 
@@ -117,7 +124,12 @@ export default async (request) => {
       // Workspace config: Operations may set commission fields; the petty-cash
       // limit stays admin-only; Sales can't change any of it.
       if (!isAdmin && JSON.stringify(clean.config) !== JSON.stringify(storedConfig)) {
-        clean.config = canReview ? { ...clean.config, pettyLimit: storedConfig.pettyLimit } : storedConfig;
+        clean.config = canReview ? { ...clean.config, pettyLimit: storedConfig.pettyLimit, exportKey: storedConfig.exportKey } : storedConfig;
+      }
+      // An admin device that never received the export key (stale cache) must
+      // not wipe it; only an explicit value (or empty string) replaces it.
+      if (isAdmin && storedConfig.exportKey && clean.config.exportKey === undefined) {
+        clean.config = { ...clean.config, exportKey: storedConfig.exportKey };
       }
       // Jobs (quote→installation lifecycle) & technicians are Operations/admin
       // only — Sales can't touch them.

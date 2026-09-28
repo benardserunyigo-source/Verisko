@@ -1529,6 +1529,50 @@
     var btn = ov.querySelector(".photo-close"); if (btn) btn.focus();
   }
 
+  /* ------------------------- Live data export (Owner) ----------------------- */
+  // A read-only feed of every table for a spreadsheet. The key lives in
+  // config.exportKey; the server only ever sends it to Owner/Technical devices.
+  function exportKey() { return (state.config && state.config.exportKey) || ""; }
+  function exportUrl(table) {
+    return location.origin + "/api/export?key=" + encodeURIComponent(exportKey()) + (table ? "&table=" + encodeURIComponent(table) : "");
+  }
+  function randomKey() {
+    var a = new Uint8Array(24); (window.crypto || window.msCrypto).getRandomValues(a);
+    return Array.prototype.map.call(a, function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
+  }
+  function exportSection() {
+    var key = exportKey();
+    var tables = ["prospects", "visits", "followups", "jobs", "transactions", "users", "technicians"];
+    var body = key
+      ? '<div class="field"><label for="exportKeyBox">Export key</label><input id="exportKeyBox" type="text" readonly value="' + esc(key) + '" onfocus="this.select()"></div>' +
+        '<div class="button-row"><button class="btn btn-ghost" data-copy-export-key>Copy key</button>' +
+        '<button class="btn btn-ghost" data-open-export="prospects">Open prospects CSV</button>' +
+        '<button class="btn btn-danger" data-new-export-key>Generate new key…</button></div>' +
+        '<p class="settings-note">Feed address: <code>' + esc(location.origin + "/api/export?key=…&table=") + "</code> followed by one of " + tables.join(", ") +
+        '. In Google Sheets use <code>=IMPORTDATA("…&amp;table=prospects")</code>; add <code>&amp;format=json</code> for JSON. The <em>Verisko Live Data</em> spreadsheet in Verisko OS → 01 Leads &amp; Quotes reads every table once you paste the key on its Setup tab.</p>'
+      : '<div class="button-row"><button class="btn btn-ghost" data-new-export-key>Generate export key</button></div>';
+    return '<section class="card settings-card"><h2>Live data export</h2>' +
+      "<p>A read-only copy of every prospect, visit, follow-up, job, cash entry and team member for your spreadsheet. Anyone holding the key can read all of it, so keep it private. Generating a new key stops the old one at once.</p>" +
+      body + "</section>";
+  }
+  async function newExportKey() {
+    var had = !!exportKey();
+    if (had) {
+      var ok = await confirmSheet("Generate a new export key?", "The current key stops working immediately. Paste the new key into your spreadsheet afterwards.", "Generate new key", true);
+      if (!ok) return;
+    }
+    if (!state.config || typeof state.config !== "object") state.config = defaultConfig();
+    state.config.exportKey = randomKey();
+    saveData(had ? "New export key generated — update your spreadsheet" : "Export key generated");
+    render();
+  }
+  function copyExportKey() {
+    var k = exportKey(); if (!k) return;
+    var done = function () { toast("Export key copied"); };
+    var fail = function () { var box = document.getElementById("exportKeyBox"); if (box) { box.focus(); box.select(); } toast("Select the key and copy it"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(k).then(done, fail); else fail();
+  }
+
   /* -------------------------------- SETTINGS -------------------------------- */
   function renderSettings() {
     setHead("Owner settings", "Settings", "Team, connection, and data.", "", false);
@@ -1569,6 +1613,8 @@
       "<p>Everyone signs in with their own email, verified by Supabase. Records sync securely through Netlify.</p>" +
       '<div class="conn-status" data-state="' + connection.state + '"><span class="dot"></span><span class="conn-label">' + esc(connection.text) + "</span></div>" +
       '<div class="button-row"><button class="btn btn-ghost" data-sync>Refresh shared data</button></div></section>' +
+
+      exportSection() +
 
       '<section class="card settings-card"><h2>Cash flow</h2>' +
       "<p>Every expense (money out) needs a receipt before it can be approved. If the cash-flow team has already vetted a payment, whoever records it can tick “Already pre-approved by the cash-flow team” to submit without a receipt — you still give the final approval here.</p></section>" +
@@ -2798,6 +2844,9 @@
     var cashMode = e.target.closest("[data-cash-mode]"); if (cashMode) { cashPeriodMode = cashMode.dataset.cashMode; cashPeriodAnchor = today; renderCashflow(); return; }
     var cashStep = e.target.closest("[data-cash-step]"); if (cashStep) { cashPeriodAnchor = window.VeriskoCashflowReport.shiftCashflowAnchor(cashPeriodAnchor, cashPeriodMode, Number(cashStep.dataset.cashStep)); renderCashflow(); return; }
 
+    if (e.target.closest("[data-new-export-key]")) { newExportKey(); return; }
+    if (e.target.closest("[data-copy-export-key]")) { copyExportKey(); return; }
+    var oex = e.target.closest("[data-open-export]"); if (oex) { window.open(exportUrl(oex.getAttribute("data-open-export")), "_blank", "noopener"); return; }
     if (e.target.closest("[data-export]")) exportJson();
     if (e.target.closest("[data-import]")) document.getElementById("importInput").click();
     if (e.target.closest("[data-sync]")) pullShared();
