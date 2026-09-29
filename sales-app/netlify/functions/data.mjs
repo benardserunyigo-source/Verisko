@@ -95,9 +95,16 @@ export default async (request) => {
             if (p && p.reviewStatus === "approved" && (!prev || prev.reviewStatus !== "approved")) {
               return prev || { ...p, reviewStatus: "pending", reviewedBy: "", reviewedAt: "", reviewNote: "" };
             }
-            // Sales can't mark their own sale closed (that verifies commission).
-            if (p && p.closedSale && (!prev || !prev.closedSale)) {
-              return prev || { ...p, closedSale: false, closedBy: "", closedAt: "" };
+            // Closed sales follow accepted quotes and are written only by
+            // Operations/admin devices: a Sales device can neither close nor
+            // re-open a sale, so keep whatever the server already holds.
+            if (p) {
+              const keep = prev
+                ? { closedSale: !!prev.closedSale, closedAuto: !!prev.closedAuto, closedBy: prev.closedBy || "", closedAt: prev.closedAt || "" }
+                : { closedSale: false, closedAuto: false, closedBy: "", closedAt: "" };
+              if (!!p.closedSale !== keep.closedSale || !!p.closedAuto !== keep.closedAuto || (p.closedBy || "") !== keep.closedBy || (p.closedAt || "") !== keep.closedAt) {
+                return { ...p, ...keep };
+              }
             }
             return p;
           });

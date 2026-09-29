@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=50**.
+  base directory `sales-app`). Current asset version: **v=51**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -27,8 +27,9 @@ cash-flow reconciliation, with role-based access and an audit trail.
 
 - **Frontend:** one vanilla-JS IIFE in `app.js` (~2,900 lines), `app.css`,
   `index.html`, plus two small pure modules loaded before it:
-  `cashflow-report.js` (period maths) and `quote-pdf.js` (quotation model,
-  PDF drawing, share text). **No framework, no build step, no bundler, no npm
+  `cashflow-report.js` (period maths), `quote-pdf.js` (quotation model,
+  PDF drawing, share text) and `closed-sales.js` (closed sale follows the
+  accepted quote). **No framework, no build step, no bundler, no npm
   runtime deps.** The one vendored library is `vendor/jspdf.umd.min.js`
   (jsPDF 2.5.2, MIT), loaded on demand by `loadJsPdf()` the first time Jobs
   opens — never on the login or Today screens.
@@ -117,7 +118,18 @@ any new privileged data.
   on-site; `captureGeo()` returns `{geo,error}`; `saveProspect` blocks a
   non-reviewer's new prospect without a pin — optional for reviewers), a review
   queue (approve/send-back) with a nav badge, follow-up log with location, and a
-  **closed-sale → commission** flow: ops marks `closedSale`, and the rep earns
+  **closed-sale → commission** flow. Since v=51 nobody marks a sale closed by
+  hand: `VeriskoClosedSales.reconcile()` (`closed-sales.js`, tested) sets
+  `closedSale`/`closedAuto`/`closedBy="Quote accepted"`/`closedAt` when any of
+  the prospect's jobs reaches Accepted or a later delivery stage, and clears
+  them when every job is back to Draft/Sent or Rejected/Cancelled. Prospects
+  with no job keep whatever they had (legacy manual closes). `syncClosedSales()`
+  runs only on Operations/admin devices: at boot on cached data, after every
+  successful pull, after `saveJob()` and after a job is deleted. Operations
+  start a quote from any prospect (card: **Create quote** / **Open quote**;
+  prospect form: *Quote & sale* block), not just closed ones. `data.mjs`
+  reverts any Sales-device change to the closed fields in either direction.
+  The rep earns
   `commissionPerSale` (UGX 100,000 since 28 Sep 2026) **only once the client's
   first payment is recorded and approved** — `firstPaymentFor(p)` looks for an
   approved money-in transaction linked to the sale's job (`installId`) or to the
@@ -215,8 +227,8 @@ The Owner's answer to "where is my data and how do I see it without the app".
 ## 7. How to run & test locally (the app is auth-gated)
 
 **Automated tests:** `npm install && npm test` runs `tests/*.test.js` with the
-built-in Node runner (currently 16 tests: cash-flow period maths, the export
-flattening/CSV, and the quotation model/share text). Add a test whenever you touch a pure function. `node_modules`
+built-in Node runner (currently 24 tests: cash-flow period maths, the export
+flattening/CSV, the quotation model/share text, and closed-sale rules). Add a test whenever you touch a pure function. `node_modules`
 is git-ignored via `sales-app/.gitignore`.
 
 **Browser smoke test:** because sign-in needs a Supabase OTP, bypass it by
@@ -269,7 +281,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=50, 28 Sep 2026)
+## 8. Current status (live at v=51, 28 Sep 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

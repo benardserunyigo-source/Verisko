@@ -590,7 +590,11 @@
     if (p.phone) actions += '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>';
     actions += '<button class="btn btn-sm btn-ghost" data-log-followup="' + p.id + '">Follow-up</button>';
     if (/Qualified/i.test(p.stage) && !appt) actions += '<button class="btn btn-sm btn-ghost" data-schedule="' + p.id + '">Schedule</button>';
-    if (canReviewProspects()) actions += '<button class="btn btn-sm ' + (p.closedSale ? "btn-ghost" : "btn-cyan") + '" data-toggle-closed="' + p.id + '">' + (p.closedSale ? "Undo close" : "Mark closed") + "</button>";
+    if (canInstalls()) {
+      var pq = quoteForProspect(p.id);
+      actions += pq ? '<button class="btn btn-sm btn-ghost" data-edit="job" data-id="' + esc(pq.id) + '">Open quote</button>'
+        : '<button class="btn btn-sm btn-cyan" data-make-install="' + esc(p.id) + '">Create quote</button>';
+    }
     actions += '<button class="btn btn-sm btn-ghost" data-edit="prospect" data-id="' + p.id + '">Edit</button>';
     var tone = isOverdue(p.followUp) ? "red" : isToday(p.followUp) ? "amber" : "navy";
     var reviewChip = prospectReviewChip(p.reviewStatus);
@@ -748,7 +752,7 @@
       '<div class="dash-foot">' + pct + "% reached · " + money(remaining) + " to go</div>" +
       '<div class="dash-note">' + qualified + " paid " + (qualified === 1 ? "sale" : "sales") + " × " + money(rate) + " each." +
       (awaiting > 0 ? " " + awaiting + " closed " + (awaiting === 1 ? "sale is" : "sales are") + " waiting for the client's first payment (" + money(awaiting * rate) + " to come)." : "") +
-      " Commission is earned once the client's first payment is recorded and approved.</div></section>";
+      " A sale closes when the client accepts the quote; commission is earned once their first payment is recorded and approved.</div></section>";
 
     var tiles = '<div class="metric-grid">' +
       metricTile(total, "My prospects") + metricTile(approved, "Approved") +
@@ -885,9 +889,10 @@
     var block;
     if (!id) {
       var pickVal = isLinked ? linkedId : (isWalkin ? "__walkin__" : "");
+      var quoteTag = function (p) { var q = quoteForProspect(p.id); return !q ? "" : jobIsDelivery(q.stage) ? " — accepted" : (q.stage === "Rejected" || q.stage === "Cancelled") ? " — quote " + q.stage.toLowerCase() : " — quoted"; };
       var opts = (state.prospects || []).slice()
-        .sort(function (a, b) { return (b.closedSale ? 1 : 0) - (a.closedSale ? 1 : 0) || (a.business || "").localeCompare(b.business || ""); })
-        .map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === pickVal ? " selected" : "") + ">" + esc(p.business) + (p.closedSale ? " — closed sale" : "") + "</option>"; }).join("");
+        .sort(function (a, b) { return (quoteForProspect(a.id) ? 1 : 0) - (quoteForProspect(b.id) ? 1 : 0) || (a.business || "").localeCompare(b.business || ""); })
+        .map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === pickVal ? " selected" : "") + ">" + esc(p.business) + quoteTag(p) + "</option>"; }).join("");
       block = '<div class="field full"><label for="f_clientPick">Client <span class="req" aria-hidden="true">*</span></label>' +
         '<select id="f_clientPick"><option value="">Choose the client…</option>' + opts +
         '<option value="__walkin__"' + (isWalkin ? " selected" : "") + ">+ Walk-in / not in the sales list</option></select>" +
@@ -1009,7 +1014,7 @@
       state.jobs.push(Object.assign({ id: jobId, ref: newJobRef(), createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "", createdAt: today }, fields));
     }
     hideFormError(); dialog.close();
-    saveData(wasNew ? "Job created" : "Job updated"); render();
+    saveData(wasNew ? "Job created" : "Job updated"); syncClosedSales(); render();
     // A quotation is "done" when a job is created in Draft/Sent, or moved to Sent.
     var quoteStage = stage === "Draft" || stage === "Sent";
     if (quoteStage && (wasNew || (stage === "Sent" && prevStage !== "Sent")) && jobValue(job(jobId)) > 0) offerQuoteShare(jobId);
@@ -1822,16 +1827,19 @@
         if (source.reviewStatus === "query" && source.reviewNote) {
           html += '<div class="field full"><div class="rev-noproof">Sent back: ' + esc(source.reviewNote) + "</div></div>";
         }
-        // Operations verify a closed sale here — earns the rep their commission.
+        // The sale closes itself when the client accepts the quote (job stage
+        // Accepted or later); commission then waits for the first payment.
         if (canReviewProspects()) {
-          var hasInstall = (state.jobs || []).some(function (j) { return j.prospectId === id; });
-          html += '<div class="field full">' +
-            (source.closedSale ? '<p class="helper" style="color:var(--green);font-weight:600">Verified closed sale — ' + money(commissionRate()) + " commission to " + esc(source.createdBy || "the rep") + ".</p>" +
+          var fq = quoteForProspect(id);
+          var statusHtml = source.closedSale
+            ? '<p class="helper" style="color:var(--green);font-weight:600">Closed sale' + (source.closedAuto ? " — the client accepted the quote" : "") + ". " + money(commissionRate()) + " commission to " + esc(source.createdBy || "the rep") + ".</p>" +
               (firstPaymentFor(source) ? '<p class="helper">Client\'s first payment received ' + dateLabel(firstPaymentFor(source)) + " — commission earned.</p>"
-                : '<p class="helper" style="color:var(--amber)">Commission is earned once the client\'s first payment is recorded in Cash flow and approved.</p>') : "") +
-            '<button type="button" class="btn ' + (source.closedSale ? "btn-ghost" : "btn-primary") + ' btn-block" data-toggle-closed="' + esc(id) + '">' + (source.closedSale ? "Remove closed sale" : "Mark as closed sale (" + money(commissionRate()) + ")") + "</button>" +
-            (source.closedSale && !hasInstall ? '<button type="button" class="btn btn-cyan btn-block" data-make-install="' + esc(id) + '" style="margin-top:10px">Create the job from this sale</button>' : "") +
-            (source.closedSale && hasInstall ? '<p class="helper">A job already exists for this client.</p>' : "") + "</div>";
+                : '<p class="helper" style="color:var(--amber)">Commission is earned once the client\'s first payment is recorded in Cash flow and approved.</p>')
+            : (fq ? '<p class="helper">Quoted — ' + esc(fq.ref || "job") + " is " + esc(fq.stage || "Draft") + ". It becomes a closed sale when the client accepts.</p>"
+              : '<p class="helper">No quote yet. The sale closes automatically once the client accepts a quote.</p>');
+          html += '<div class="field full"><label>Quote &amp; sale</label>' + statusHtml +
+            (canInstalls() ? (fq ? '<button type="button" class="btn btn-ghost btn-block" data-open-job="' + esc(fq.id) + '">Open quote ' + esc(fq.ref || "") + "</button>"
+              : '<button type="button" class="btn btn-primary btn-block" data-make-install="' + esc(id) + '">Create quote</button>') : "") + "</div>";
         }
         html += '<div class="field full followup-block"><label>Follow-ups</label>' + followUpHistory(source) +
           '<button type="button" class="btn btn-ghost btn-block" data-log-followup="' + esc(id) + '" style="margin-top:10px">Log a follow-up (with location)</button></div>';
@@ -2001,6 +2009,7 @@
     hideFormError();
     dialog.close();
     saveData(label.charAt(0).toUpperCase() + label.slice(1) + " deleted");
+    if (type === "job") syncClosedSales();
     render();
   }
 
@@ -2041,7 +2050,7 @@
     if (e.target.closest("[data-mat-add]")) { var ml = document.getElementById("matList"); if (ml) { ml.insertAdjacentHTML("beforeend", materialRow()); var last = ml.querySelector(".mat-row:last-child .mat-name"); if (last) last.focus(); } return; }
     var md = e.target.closest("[data-mat-del]"); if (md) { var row = md.closest(".mat-row"); if (row) row.remove(); updateMatTotal(); return; }
     var lf = e.target.closest("[data-log-followup]"); if (lf) { logFollowUp(lf.getAttribute("data-log-followup")); return; }
-    var tcf = e.target.closest("[data-toggle-closed]"); if (tcf) { toggleClosedSale(tcf.getAttribute("data-toggle-closed")); return; }
+    var ojf = e.target.closest("[data-open-job]"); if (ojf) { openForm("job", ojf.getAttribute("data-open-job")); return; }
     var mi = e.target.closest("[data-make-install]"); if (mi) { openForm("job", null, mi.getAttribute("data-make-install")); return; }
     var jph = e.target.closest("[data-job-photo]"); if (jph) { fetchProof(jph.getAttribute("data-job-photo")).then(function (img) { if (img) openPhoto(img); }); return; }
     var qpf = e.target.closest("[data-quote-pdf]"); if (qpf) { downloadQuotePdf(qpf.getAttribute("data-quote-pdf")); return; }
@@ -2183,19 +2192,18 @@
     return (state.prospects || []).filter(function (p) { return p.closedSale && (p.createdByEmail || "").toLowerCase() === email; }).length;
   }
   function closedSaleChip(p) { return p.closedSale ? chip("Closed sale", "green", "✓") : ""; }
-  // Only Operations/admins mark a sale closed — that verification earns the rep 80k.
-  function toggleClosedSale(id) {
-    if (!canReviewProspects()) return;
-    var p = prospect(id); if (!p || !p.id) return;
-    if (p.closedSale) {
-      p.closedSale = false; p.closedBy = ""; p.closedAt = "";
-      saveData("Closed sale removed");
-    } else {
-      p.closedSale = true; p.closedBy = (settings.user && settings.user.name) || ""; p.closedAt = today;
-      saveData("Closed sale verified — " + money(commissionRate()) + " commission once the first payment is in");
-    }
-    render();
-    if (dialog.open && editing && editing.type === "prospect" && editing.id === id) openForm("prospect", id);
+  // Closed sales follow the client's decision on the quote (closed-sales.js).
+  // Only Operations/admin devices write the result; Sales devices just read it.
+  function quoteForProspect(id) { return window.VeriskoClosedSales.quoteFor(id, state.jobs || [], JOB_DELIVERY_STAGES); }
+  function syncClosedSales(quiet) {
+    if (!canReviewProspects()) return false;
+    var ch = window.VeriskoClosedSales.reconcile(state.prospects || [], state.jobs || [], today, JOB_DELIVERY_STAGES);
+    if (!ch.length) return false;
+    var closed = ch.filter(function (c) { return c.to; }).length, opened = ch.length - closed;
+    saveData(quiet ? null : (closed && !opened ? "Quote accepted — " + (ch[0].business || "prospect") + " is now a closed sale"
+      : opened && !closed ? (ch[0].business || "Prospect") + " is open again until the client accepts a quote"
+      : "Closed sales updated from quotes"));
+    return true;
   }
 
   // Sales may only delete prospects still in the review process (their own,
@@ -2413,7 +2421,7 @@
     if (!settings.auth) return;
     setSync("syncing", "Refreshing…");
     var result = await loadShared();
-    if (result === "ok") { resolveUser(); setSync("connected", "Synced"); toast("Data refreshed"); render(); }
+    if (result === "ok") { resolveUser(); setSync("connected", "Synced"); toast("Data refreshed"); syncClosedSales(true); render(); }
     else if (result === "signin") { signOutLocal(); showLogin("Your session expired. Please sign in again."); }
     else if (result === "unauth") { var _em = settings.auth && settings.auth.email; signOutLocal(); showDenied(_em, true); }
     else { setSync("error", "Offline — using this device"); toast("Couldn't reach the workspace. Your device copy is safe."); }
@@ -2960,7 +2968,6 @@
     var tr = e.target.closest("[data-tech-remove]"); if (tr) { removeTechnician(tr.getAttribute("data-tech-remove")); return; }
     var mkInstall = e.target.closest("[data-make-install]"); if (mkInstall) { openForm("job", null, mkInstall.getAttribute("data-make-install")); return; }
     var fup = e.target.closest("[data-log-followup]"); if (fup) { logFollowUp(fup.getAttribute("data-log-followup")); return; }
-    var tc = e.target.closest("[data-toggle-closed]"); if (tc) { toggleClosedSale(tc.getAttribute("data-toggle-closed")); return; }
     var go = e.target.closest("[data-go]"); if (go) { view = go.dataset.go; render(); return; }
     var qpc = e.target.closest("[data-quote-pdf]"); if (qpc) { downloadQuotePdf(qpc.getAttribute("data-quote-pdf")); return; }
     var qsc = e.target.closest("[data-quote-share]"); if (qsc) { shareQuote(qsc.getAttribute("data-quote-share")); return; }
@@ -3023,11 +3030,12 @@
     showLogin(hashAuth.error_description ? decodeURIComponent(hashAuth.error_description.replace(/\+/g, " ")) : "That sign-in link didn't work — please request a new one.");
   } else if (settings.auth && settings.user) {
     enterApp(); // open straight to the app from cached data (offline-friendly)
+    if (syncClosedSales(true)) render();
     setSync("syncing", "Checking…");
     loadShared().then(function (result) {
       if (result === "signin") { signOutLocal(); showLogin("Your session expired. Please sign in again."); }
       else if (result === "unauth") { var _em = settings.auth && settings.auth.email; signOutLocal(); showDenied(_em, true); }
-      else if (result === "ok") { resolveUser(); setSync("connected", "Synced"); render(); syncNow(); }
+      else if (result === "ok") { resolveUser(); setSync("connected", "Synced"); syncClosedSales(true); render(); syncNow(); }
       else { setSync("error", "Offline — using this device"); }
     });
   } else {
