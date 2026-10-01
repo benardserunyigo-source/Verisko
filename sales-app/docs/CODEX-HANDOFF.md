@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=68**.
+  base directory `sales-app`). Current asset version: **v=69**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -430,6 +430,14 @@ couldn't open the app on this phone" (or a "storage blocked" message)
 instead of being dropped back on the sign-in page. The email-link landing now
 shows "Signing you in…", and an expired or already-used link goes to the email
 screen with a clear message (it used to land on the phone + PIN screen).
+**v=69 — root cause found via a diagnostics report:** Sales and Team lead
+phones receive other team members by name only (no email, see
+`scopeForSales` / `scopeForTeamLead`), but the client matched the signed-in
+person with `x.email.toLowerCase()` across the whole list, so it crashed on
+the first email-less member. Before v=68 this was in `afterVerify` (every new
+Sales/Team lead email sign-in fell back to the sign-in page); in v=68 it was
+still in `resolveUser` (stuck on "Checking…", no sync at start). All member
+email comparisons are now null-safe — never assume `u.email` exists.
 
 ## 6a. Live data export & the Google Sheet
 
@@ -526,7 +534,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=68, 1 Oct 2026)
+## 8. Current status (live at v=69, 1 Oct 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

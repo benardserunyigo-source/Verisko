@@ -3538,7 +3538,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v68";
+  var APP_VERSION = "v69";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -3642,7 +3642,10 @@
   // Refresh the local identity from the shared team list (handles rename/removal).
   function resolveUser() {
     if (!settings.auth) return;
-    var u = (state.users || []).find(function (x) { return x.email.toLowerCase() === settings.auth.email.toLowerCase(); });
+    // Sales and Team lead phones get other members by name only (no email),
+    // so never assume a member has an email.
+    var mine = String(settings.auth.email || "").toLowerCase();
+    var u = mine ? (state.users || []).find(function (x) { return String((x && x.email) || "").toLowerCase() === mine; }) : null;
     if (u) { settings.user = u; saveSettings(); }
     else if ((state.users || []).length) { var _em = settings.auth && settings.auth.email; signOutLocal(); showDenied(_em, true); }
   }
@@ -3825,7 +3828,7 @@
     if (!isAdmin() && role === "admin") role = "sales"; // Operations can't create admins
     if (!name || !email) { toast("Enter a name and email."); return false; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast("Enter a valid email."); return false; }
-    if ((state.users || []).some(function (u) { return u.email.toLowerCase() === email; })) { toast("That email is already on the team."); return false; }
+    if ((state.users || []).some(function (u) { return String((u && u.email) || "").toLowerCase() === email; })) { toast("That email is already on the team."); return false; }
     if (!state.users) state.users = [];
     var user = { id: uid(), name: name, email: email, role: role, created: today };
     state.users.push(user);
