@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, keepFollowUps, keepNewerPlan, keepImported } from "../netlify/functions/scope.mjs";
+import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, keepFollowUps, keepNewerPlan, keepImported, mergeTraining } from "../netlify/functions/scope.mjs";
 
 const data = {
   prospects: [
@@ -184,4 +184,16 @@ test("only the Admin can un-mark an imported lead (no commission)", () => {
   assert.equal(out[0].importedBy, "Ben");
   assert.equal(out[0].business, "Edited");
   assert.equal(out[1].imported, undefined);
+});
+
+test("training progress: each person changes only their own entry; a rep receives only theirs", () => {
+  const stored = { a: { v1: "T1" }, b: { v1: "T1", v2: "T2" } };
+  const out = mergeTraining(stored, { a: { v1: "T1", v2: "T3", "BAD KEY": "x", v4: 5 }, b: {} }, "a");
+  assert.deepEqual(out, { a: { v1: "T1", v2: "T3" }, b: { v1: "T1", v2: "T2" } }, "b untouched, junk dropped");
+  assert.deepEqual(mergeTraining(stored, { a: {} }, "a"), { b: stored.b }, "un-ticking everything clears your entry");
+  assert.deepEqual(mergeTraining(stored, undefined, "a"), stored);
+  assert.deepEqual(mergeTraining(stored, { b: {} }, null), stored, "unknown caller changes nothing");
+  const data2 = { ...data, users: [{ id: "ua", email: "ab@test", name: "Ab", role: "sales" }, { id: "ub", email: "bea@test", name: "Bea", role: "sales" }], training: { ua: { v1: "T" }, ub: { v2: "T" } } };
+  assert.deepEqual(scopeForSales(data2, "ab@test").training, { ua: { v1: "T" } });
+  assert.deepEqual(Object.keys(scopeForTeamLead(data2, "lead@test").training), ["ua", "ub"]);
 });

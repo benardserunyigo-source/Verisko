@@ -7,7 +7,7 @@
 // an empty workspace bootstraps the owner. Non-admins cannot alter the team
 // list. Both Supabase values below are public (publishable) and safe to ship.
 import { getStore } from "@netlify/blobs";
-import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, ownsProspect, keepFollowUps, keepNewerPlan, keepImported } from "./scope.mjs";
+import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, ownsProspect, keepFollowUps, keepNewerPlan, keepImported, mergeTraining } from "./scope.mjs";
 
 const SUPABASE_URL = "https://cepernltrzrmupgegcib.supabase.co";
 const SUPABASE_KEY = "sb_publishable_hj2NsI1YGmpeQg815ET2Kg_CwznowqE";
@@ -17,7 +17,7 @@ const KEY = "app-data";
 // `jobs` is the merged quote+installation record. `quotes`/`installations` are
 // kept (normally empty) so a mid-transition client still holding them isn't
 // rejected; they're deprecated and folded into `jobs` client-side on load.
-const EMPTY = { prospects: [], appointments: [], users: [], transactions: [], jobs: [], technicians: [], quotes: [], installations: [], config: {} };
+const EMPTY = { prospects: [], appointments: [], users: [], transactions: [], jobs: [], technicians: [], quotes: [], installations: [], config: {}, training: {} };
 
 export default async (request) => {
   const headers = {
@@ -84,7 +84,9 @@ export default async (request) => {
         // Deprecated — carried through (normally empty) until every client migrates.
         quotes: Array.isArray(incoming.quotes) ? incoming.quotes : [],
         installations: Array.isArray(incoming.installations) ? incoming.installations : [],
-        config: incoming.config && typeof incoming.config === "object" && !Array.isArray(incoming.config) ? incoming.config : {}
+        config: incoming.config && typeof incoming.config === "object" && !Array.isArray(incoming.config) ? incoming.config : {},
+        // Support centre: each person can only record their own videos watched.
+        training: mergeTraining(data.training, incoming.training, me && me.id)
       };
       const canCash = isAdmin || (me && me.role === "operations");
       const canReview = isAdmin || (me && me.role === "operations"); // prospect audit

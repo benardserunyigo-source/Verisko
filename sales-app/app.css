@@ -606,3 +606,28 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 @media(min-width:860px){
   .nav-badge{position:static;margin-left:auto;box-shadow:none}
 }
+
+/* Support centre (v=58) */
+.training-nudge{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;margin-bottom:14px;border-left:4px solid var(--cyan)}
+.help-steps{margin:8px 0 0;padding-left:20px;line-height:1.55}
+.help-steps li{margin-bottom:6px}
+.support-part{margin:18px 0 6px}
+.video-item{margin-bottom:10px}
+.video-row{display:flex;gap:12px;align-items:flex-start}
+.vid-num{flex:0 0 34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:700;background:var(--fill);color:var(--ink)}
+.video-item.is-seen .vid-num{background:var(--green-bg);color:var(--green)}
+.video-desc{white-space:normal;line-height:1.45;margin-top:3px}
+.ask-dialog.is-wide{max-width:760px}
+.video-frame{position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#000;margin:4px 0 10px}
+.video-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.help-item{border-top:1px solid var(--fill);padding:10px 0}
+.help-item summary{cursor:pointer;font-weight:600;list-style-position:outside}
+.help-item p{margin:8px 0 2px;line-height:1.5;color:var(--muted)}
+.team-training{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.tt-row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 68px;gap:10px;align-items:center}
+.tt-who{display:flex;flex-direction:column;min-width:0}
+.tt-who strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tt-who span{font-size:.82em;color:var(--muted)}
+.tt-count{font-weight:700;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.tt-count.is-zero{color:var(--red)}
+.tt-count.is-done{color:var(--green)}

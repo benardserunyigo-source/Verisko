@@ -216,6 +216,7 @@
     transactions: [],
     jobs: [],
     technicians: [],
+    training: {},
     config: defaultConfig()
   };
 
@@ -243,6 +244,7 @@
       migrateToJobs(data);                 // fold any legacy quotes/installations
       if (!data.jobs) data.jobs = [];
       if (!data.technicians) data.technicians = [];
+      if (!data.training || typeof data.training !== "object") data.training = {};
       data.config = normalizeConfig(data.config);
       return data;
     } catch (e) { return JSON.parse(JSON.stringify(seed)); }
@@ -450,10 +452,11 @@
     else if (view === "jobs") renderJobs();
     else if (view === "cashflow") renderCashflow();
     else if (view === "settings") renderSettings();
+    else if (view === "support") renderSupport();
   }
   // Highlight the current tab — or the More button when the view lives there.
   function updateNavActive() {
-    var inMore = MORE_VIEWS.indexOf(view) !== -1 && !!document.querySelector('[data-more]:not([hidden])');
+    var inMore = (MORE_VIEWS.indexOf(view) !== -1 || (view === "support" && supportInMore())) && !!document.querySelector('[data-more]:not([hidden])');
     document.querySelectorAll(".mainnav .nav-item").forEach(function (b) {
       var on = b.dataset.view === view || (b.hasAttribute("data-more") && inMore);
       b.classList.toggle("is-active", on);
@@ -505,7 +508,7 @@
       sections = emptyState(ICON_CALENDAR, "You're all caught up", "No overdue follow-ups, nothing due today, and no visits waiting. Add a prospect to keep the pipeline moving.", "Add prospect", 'data-new="prospect"');
     }
 
-    content.innerHTML = '<div class="stack">' + sections + "</div>";
+    content.innerHTML = trainingNudge() + '<div class="stack">' + sections + "</div>";
   }
 
   function section(title, count, cls, body) {
@@ -1903,6 +1906,125 @@
     saveData("Removed " + untouched.length + " imported leads"); render();
   }
 
+  /* ------------------------------ SUPPORT CENTRE ----------------------------- */
+  // Training videos (support-content.js) + quick help. Watched progress is
+  // state.training[userId][videoId] = ISO time; the server lets each person
+  // change only their own entry, and only the Team lead / Operations / admin
+  // receive everyone's (Team training).
+  function supportInMore() { return canInstalls(); }
+  function myTraining() {
+    var id = (settings.user || {}).id;
+    return (id && state.training && state.training[id]) || {};
+  }
+  function setWatched(videoId, on) {
+    var id = (settings.user || {}).id;
+    if (!id) { toast("Sign in to save your progress."); return; }
+    if (!state.training || typeof state.training !== "object") state.training = {};
+    var mine = Object.assign({}, state.training[id] || {});
+    if (on) mine[videoId] = nowIso(); else delete mine[videoId];
+    state.training[id] = mine;
+    var p = window.VeriskoSupport.progress(mine);
+    saveData(on ? (p.complete ? "All 13 videos watched — well done!" : "Marked as watched · " + p.done + " of " + p.total) : "Marked as not watched");
+  }
+  // A one-line reminder on Today until a rep (or Team lead) finishes training.
+  function trainingNudge() {
+    if (supportInMore()) return "";
+    var p = window.VeriskoSupport.progress(myTraining());
+    if (p.complete) return "";
+    return '<section class="card training-nudge"><div><strong>Training: ' + p.done + " of " + p.total + " videos watched</strong>" +
+      '<div class="settings-note">Next: ' + esc(p.next.n + ". " + p.next.title) + "</div></div>" +
+      '<button type="button" class="btn btn-sm btn-primary" data-watch="' + esc(p.next.id) + '">Watch</button></section>';
+  }
+  function renderSupport() {
+    var S = window.VeriskoSupport;
+    setHead("Training & help", "Support centre", "Your sales training videos and quick answers about the app.", "", false);
+    var mine = myTraining(), p = S.progress(mine);
+    var pct = Math.round((p.done / p.total) * 100);
+    var hero = '<section class="card dash-hero">' +
+      '<p class="dash-eyebrow">Your training</p>' +
+      '<div class="dash-big">' + p.done + " of " + p.total + "</div>" +
+      '<div class="dash-sub">videos watched · about ' + S.TOTAL_MINUTES + " minutes in total</div>" +
+      '<div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div>' +
+      (p.next ? '<button type="button" class="btn btn-primary btn-block" data-watch="' + esc(p.next.id) + '">▶ ' + (p.done ? "Continue: " : "Start: ") + esc(p.next.n + ". " + p.next.title) + "</button>"
+        : '<p class="dash-note" style="color:var(--green);font-weight:600">✓ All done. Rewatch any video whenever you feel unsure, especially before a big meeting.</p>') +
+      "</section>";
+    var how = '<section class="card settings-card"><h2>How to use this page</h2><ol class="help-steps">' +
+      S.HOW_TO.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ol></section>";
+    var parts = S.PARTS.map(function (part) {
+      var vids = S.VIDEOS.filter(function (v) { return v.part === part.n; });
+      return '<section class="support-part"><h2 class="review-head">Part ' + part.n + ": " + esc(part.title) + "</h2>" +
+        vids.map(function (v) {
+          var seen = !!mine[v.id];
+          return '<article class="item video-item' + (seen ? " is-seen" : "") + '">' +
+            '<div class="video-row"><span class="vid-num" aria-hidden="true">' + (seen ? "✓" : v.n) + "</span>" +
+            '<div><div class="item-title">' + v.n + ". " + esc(v.title) + "</div>" +
+            '<div class="item-meta video-desc">' + esc(v.desc) + "</div></div></div>" +
+            '<div class="item-actions"><button type="button" class="btn btn-sm btn-primary" data-watch="' + esc(v.id) + '">▶ Watch</button>' +
+            '<button type="button" class="btn btn-sm btn-ghost" data-toggle-watched="' + esc(v.id) + '" aria-pressed="' + seen + '">' + (seen ? "✓ Watched" : "Mark watched") + "</button></div></article>";
+        }).join("") + "</section>";
+    }).join("");
+    var team = "";
+    if (canApproveQual()) {
+      var rows = S.teamProgress(state.users || [], state.training || {});
+      team = '<section class="card settings-card"><h2>Team training</h2>' +
+        (rows.length ? '<p class="settings-note">Sales and Team leads, least progress first.</p><div class="team-training">' + rows.map(function (r) {
+          var w = Math.round((r.done / r.total) * 100);
+          return '<div class="tt-row"><div class="tt-who"><strong>' + esc(r.name) + "</strong><span>" + esc(r.role === "teamlead" ? "Team lead" : "Sales") +
+            (r.last ? " · last " + esc(dateLabel(String(r.last).slice(0, 10))) : "") + "</span></div>" +
+            '<div class="tt-bar"><div class="progress" style="margin:0"><div class="progress-bar" style="width:' + w + '%"></div></div></div>' +
+            '<div class="tt-count' + (r.done === 0 ? " is-zero" : r.complete ? " is-done" : "") + '">' + (r.complete ? "✓ " : "") + r.done + "/" + r.total + "</div></div>";
+        }).join("") + "</div>" : '<p class="settings-note">No sales team members yet.</p>') + "</section>";
+    }
+    var who = canApproveQual() ? "lead" : "sales";
+    var faq = S.faq({ who: who, perQualified: money(commissionPerQualified()), perDeposit: money(commissionRate()) });
+    var help = '<section class="card settings-card"><h2>Quick help</h2>' + faq.map(function (x) {
+      return '<details class="help-item"><summary>' + esc(x.q) + "</summary><p>" + esc(x.a) + "</p></details>";
+    }).join("") + '<p class="settings-note" style="margin-top:12px">Still stuck? Write your question down and bring it to your immediate supervisor.</p></section>';
+    content.innerHTML = hero + team + how + parts + help;
+  }
+  // Play a video inside the app (Loom embed), with a link out as a fallback.
+  // "Next" swaps the video in place.
+  function openVideo(videoId) {
+    var S = window.VeriskoSupport;
+    if (!S.byId(videoId)) return;
+    var dlg = document.getElementById("askDialog");
+    function fill(v) {
+      var seen = !!myTraining()[v.id];
+      var next = S.VIDEOS.find(function (x) { return x.n === v.n + 1; });
+      dlg.innerHTML = '<div class="ask-head"><p class="dash-eyebrow" style="margin:0">Video ' + v.n + " of " + S.VIDEOS.length + '</p><h2 id="askTitle">' + esc(v.title) + "</h2></div>" +
+        '<div class="video-frame"><iframe src="' + esc(S.embedUrl(v)) + '" title="' + esc(v.title) + '" allow="fullscreen; autoplay; picture-in-picture" allowfullscreen></iframe></div>' +
+        '<p class="ask-body">' + esc(v.desc) + "</p>" +
+        '<p class="settings-note">Video not playing? <a href="' + esc(S.watchUrl(v)) + '" target="_blank" rel="noopener">Open it in Loom</a>.</p>' +
+        '<div class="ask-actions" style="flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="askCancel">Close</button>' +
+        '<button type="button" class="btn ' + (seen ? "btn-ghost" : "btn-primary") + '" id="vidSeen">' + (seen ? "✓ Watched" : "Mark as watched") + "</button>" +
+        (next ? '<button type="button" class="btn btn-ghost" id="vidNext">Next ›</button>' : "") + "</div>";
+      dlg.querySelector("#askCancel").addEventListener("click", closeVideo);
+      dlg.querySelector("#vidSeen").addEventListener("click", function () {
+        var on = !myTraining()[v.id];
+        setWatched(v.id, on);
+        this.textContent = on ? "✓ Watched" : "Mark as watched";
+        this.className = "btn " + (on ? "btn-ghost" : "btn-primary");
+      });
+      if (next) dlg.querySelector("#vidNext").addEventListener("click", function () {
+        if (!myTraining()[v.id]) setWatched(v.id, true);
+        fill(next);
+      });
+    }
+    // Tidy up here rather than on the dialog's "close" event, which some
+    // in-app browsers never fire.
+    function closeVideo() {
+      dlg.removeEventListener("cancel", onEsc);
+      dlg.close();
+      dlg.classList.remove("is-wide"); dlg.innerHTML = "";          // stops playback
+      if (view === "support" || view === "today") render();
+    }
+    function onEsc(e) { e.preventDefault(); closeVideo(); }
+    dlg.classList.add("is-wide");
+    fill(S.byId(videoId));
+    dlg.addEventListener("cancel", onEsc);
+    dlg.showModal();
+  }
+
   /* -------------------------------- SETTINGS -------------------------------- */
   function renderSettings() {
     setHead("Owner settings", "Settings", "Team, connection, and data.", "", false);
@@ -2830,7 +2952,7 @@
       var result = await res.json();
       if (!result.ok) return "unauth";
       if (result.data && result.data.prospects) {
-        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], jobs: result.data.jobs, installations: result.data.installations || [], quotes: result.data.quotes || [], technicians: result.data.technicians || [], config: normalizeConfig(result.data.config) };
+        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], jobs: result.data.jobs, installations: result.data.installations || [], quotes: result.data.quotes || [], technicians: result.data.technicians || [], config: normalizeConfig(result.data.config), training: result.data.training || {} };
         migrateToJobs(state);              // fold any legacy quotes/installations the server still holds
         if (!state.jobs) state.jobs = [];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -3209,6 +3331,7 @@
   function moreViewsForRole() {
     var v = [];
     if (canInstalls()) { v.push("jobs"); v.push("cashflow"); }
+    if (supportInMore()) v.push("support");
     if (isAdmin()) v.push("settings");
     return v;
   }
@@ -3219,6 +3342,10 @@
       var btn = document.querySelector('.mainnav .nav-item[data-view="' + v + '"]');
       if (btn) btn.hidden = true;
     });
+    // Support centre: its own tab for Sales and the Team lead; in More for
+    // Operations/admin, whose bar is already full.
+    var supBtn = document.querySelector('.mainnav .nav-item[data-view="support"]');
+    if (supBtn) supBtn.hidden = supportInMore();
     var moreBtn = document.querySelector(".mainnav [data-more]");
     if (moreBtn) moreBtn.hidden = moreViewsForRole().length === 0;
     if (view === "settings" && !isAdmin()) view = "today";
@@ -3397,6 +3524,8 @@
     var back = e.target.closest("[data-sendback-id]"); if (back) { sendBackTx(back.getAttribute("data-sendback-id")); return; }
     var apprP = e.target.closest("[data-approve-prospect]"); if (apprP) { approveProspect(apprP.getAttribute("data-approve-prospect")); return; }
     var apprQ = e.target.closest("[data-approve-qual]"); if (apprQ) { approveQualification(apprQ.getAttribute("data-approve-qual")); return; }
+    var wv = e.target.closest("[data-watch]"); if (wv) { openVideo(wv.getAttribute("data-watch")); return; }
+    var tw = e.target.closest("[data-toggle-watched]"); if (tw) { var vid = tw.getAttribute("data-toggle-watched"); setWatched(vid, !myTraining()[vid]); render(); return; }
     var dq = e.target.closest("[data-disqualify]"); if (dq) { disqualifyProspect(dq.getAttribute("data-disqualify")); return; }
     var rq = e.target.closest("[data-reopen-qual]"); if (rq) { reopenQualification(rq.getAttribute("data-reopen-qual")); return; }
     var qs = e.target.closest("[data-qual-seen]"); if (qs) { markDisqualifiedSeen(qs.getAttribute("data-qual-seen")); return; }

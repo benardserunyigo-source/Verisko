@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=57**.
+  base directory `sales-app`). Current asset version: **v=58**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -277,6 +277,22 @@ last batch's leads nobody has called or moved yet (`config.lastImport`).
 The Team lead and Operations work the list with Call + Follow-up (also on
 Today cards).
 
+## 6d. Support centre (since v=58)
+
+A **Support** tab for Sales and the Team lead (Operations/admin: in More).
+Content lives in `support-content.js` (pure, tested): the 13 Loom videos of
+"Verisko Field Sales Training" in 5 parts (~25 min), the "How to use this
+page" steps, and role-filtered Quick help answers (commission amounts come
+from config). Videos play in-app (Loom embed iframe, with an "Open in Loom"
+link as fallback); "Next" swaps the video in place. To change a video, edit
+`VIDEOS` and keep its `id` — progress is stored against it.
+Progress: `state.training[userId][videoId] = ISO time`. Server
+`mergeTraining()` lets each person change only their own entry; Sales GET
+only their own, the Team lead gets everyone's (Operations/admin get all
+data). The Team lead / Operations / admin see **Team training** (sales +
+team leads, least progress first). Sales and Team leads who haven't
+finished get a one-line training reminder on Today.
+
 ## 6a. Live data export & the Google Sheet
 
 The Owner's answer to "where is my data and how do I see it without the app".
@@ -372,7 +388,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=57, 1 Oct 2026)
+## 8. Current status (live at v=58, 1 Oct 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

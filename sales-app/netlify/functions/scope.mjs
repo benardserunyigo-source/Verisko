@@ -32,6 +32,28 @@ const commissionConfig = (data) => {
   return out;
 };
 
+// Training progress (Support centre): { [userId]: { [videoId]: isoTime } }.
+const obj = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
+const userFor = (data, email) => arr(data.users).find((u) => lc(u.email) === lc(email)) || null;
+function cleanWatched(w) {
+  const out = {};
+  Object.keys(obj(w)).slice(0, 60).forEach((k) => {
+    const v = w[k];
+    if (/^[a-z0-9-]{1,20}$/.test(k) && typeof v === "string" && v.length <= 40) out[k] = v;
+  });
+  return out;
+}
+// Everyone may change only their own entry; everyone else's stays as stored.
+export function mergeTraining(stored, incoming, userId) {
+  const out = { ...obj(stored) };
+  if (!userId) return out;
+  const mine = obj(incoming)[userId];
+  if (mine === undefined) return out;
+  const clean = cleanWatched(mine);
+  if (Object.keys(clean).length) out[userId] = clean; else delete out[userId];
+  return out;
+}
+
 export function ownsProspect(p, email) {
   return !!p && !!email && lc(p.createdByEmail) === lc(email);
 }
@@ -51,7 +73,9 @@ export function scopeForSales(data, email) {
   const users = arr(data.users)
     .filter((u) => lc(u.email) === lc(email) || u.role === "operations" || u.role === "admin")
     .map((u) => (lc(u.email) === lc(email) ? u : { id: u.id, name: u.name, role: u.role }));
-  return { prospects, appointments, users, transactions, jobs, technicians: [], quotes: [], installations: [], config: commissionConfig(data) };
+  const me = userFor(data, email);
+  const training = me && obj(data.training)[me.id] ? { [me.id]: obj(data.training)[me.id] } : {};
+  return { prospects, appointments, users, transactions, jobs, technicians: [], quotes: [], installations: [], config: commissionConfig(data), training };
 }
 
 // GET payload for a Team lead: every prospect and visit, job stubs, client
@@ -64,7 +88,7 @@ export function scopeForTeamLead(data, email) {
     .filter((t) => isClientDeposit(t) && (linkable.has(t.prospectId) || (t.installId && jobIds.has(t.installId))))
     .map(depositStub);
   const users = arr(data.users).map((u) => (lc(u.email) === lc(email) ? u : { id: u.id, name: u.name, role: u.role }));
-  return { prospects: arr(data.prospects), appointments: arr(data.appointments), users, transactions, jobs, technicians: [], quotes: [], installations: [], config: commissionConfig(data) };
+  return { prospects: arr(data.prospects), appointments: arr(data.appointments), users, transactions, jobs, technicians: [], quotes: [], installations: [], config: commissionConfig(data), training: obj(data.training) };
 }
 
 // A rep (or a Team lead on their own prospect) may only ask for qualification
