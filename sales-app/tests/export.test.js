@@ -32,8 +32,8 @@ test("flattens every table with joined prospect details, GPS and photo links", (
   assert.equal(p.photo_link, "https://x.test/api/export?key=K&photo=ph1");
   assert.equal(p.follow_ups_count, "1");
   assert.equal(p.closed_sale, "no");
-  assert.equal(p.first_payment_at, "2026-09-30", "only approved money-in counts, via the sale's job");
-  assert.equal(p.commission_qualified, "no", "not closed, so not qualified");
+  assert.equal(p.first_payment_at, "2026-09-29", "pending money-in counts too, via the sale's job");
+  assert.equal(p.commission_qualified, "yes", "a recorded deposit qualifies on its own");
   const closed = buildTables({ ...sample, prospects: [{ ...sample.prospects[0], closedSale: true }] }, "").prospects[0];
   assert.equal(closed.commission_qualified, "yes");
   assert.equal(p.new_field, "kept", "unmapped fields are appended in snake_case");

@@ -196,13 +196,15 @@
 
   // Shared workspace config defaults. commissionPerSale = UGX 80,000 per
   // Operations-verified closed sale; commissionTarget = monthly goal.
-  function defaultConfig() { return { pettyLimit: 20000, commissionPerSale: 100000, commissionTarget: 1600000, commissionRule: 2 }; }
+  function defaultConfig() { return { pettyLimit: 20000, commissionPerSale: 100000, commissionPerQualified: 2500, commissionTarget: 1600000, commissionRule: 3 }; }
   // Commission rule v2 (28 Sep 2026): UGX 100,000 per closed sale, earned once
   // the client's first payment is recorded and approved. Applied once to any
   // workspace still on the old rate; Operations/admin devices push it up.
   function normalizeConfig(cfg) {
     if (!cfg || typeof cfg !== "object") cfg = defaultConfig();
     if (Number(cfg.commissionRule) < 2 || !cfg.commissionRule) { cfg.commissionPerSale = 100000; cfg.commissionRule = 2; }
+    // Rule 3 (30 Sep 2026): add UGX 2,500 per Team-lead-approved qualified prospect.
+    if (Number(cfg.commissionRule) < 3) { if (!(Number(cfg.commissionPerQualified) > 0)) cfg.commissionPerQualified = 2500; cfg.commissionRule = 3; }
     return cfg;
   }
 
@@ -272,13 +274,14 @@
   // Sales account just its own records; this also hides anything left over in
   // an older cached copy on the phone. Operations/admin see everything.
   function isMineProspect(p) {
-    if (canReviewProspects()) return true;
+    if (canReviewProspects() || isTeamLead()) return true;
     var me = ((settings.user || {}).email || "").toLowerCase();
     return !!(p && me && (p.createdByEmail || "").toLowerCase() === me);
   }
   function visibleProspects() { return (state.prospects || []).filter(isMineProspect); }
+  function ownProspect(p) { var me = ((settings.user || {}).email || "").toLowerCase(); return !!(p && me && (p.createdByEmail || "").toLowerCase() === me); }
   function visibleAppointments() {
-    if (canReviewProspects()) return state.appointments || [];
+    if (canReviewProspects() || isTeamLead()) return state.appointments || [];
     var ids = {}; visibleProspects().forEach(function (p) { ids[p.id] = true; });
     return (state.appointments || []).filter(function (a) { return ids[a.prospectId]; });
   }
@@ -561,6 +564,14 @@
           queue.map(prospectReviewCard).join("") + "</section>";
       }
     }
+    if (canApproveQual()) {
+      var qq = (state.prospects || []).filter(needsQualApproval)
+        .sort(function (a, b) { return String(a.qualRequestedAt || "").localeCompare(String(b.qualRequestedAt || "")); });
+      if (qq.length) {
+        review += '<section class="review-section"><h2 class="review-head">Qualified prospects to approve <span class="review-count">' + qq.length + "</span></h2>" +
+          '<p class="result-note">Each approval pays the rep ' + money(commissionPerQualified()) + " on Saturday.</p>" + qq.map(qualCard).join("") + "</section>";
+      }
+    }
     content.innerHTML =
       review +
       '<div class="toolbar">' +
@@ -601,21 +612,25 @@
   function prospectCard(p) {
     var appt = appointmentFor(p.id);
     var actions = "";
+    // A Team lead works other reps' prospects read-only (approve, deposit).
+    var canWork = canReviewProspects() || ownProspect(p);
     if (p.phone) actions += '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>';
-    actions += '<button class="btn btn-sm btn-ghost" data-log-followup="' + p.id + '">Follow-up</button>';
-    if (/Qualified/i.test(p.stage) && !appt) actions += '<button class="btn btn-sm btn-ghost" data-schedule="' + p.id + '">Schedule</button>';
+    if (canWork) actions += '<button class="btn btn-sm btn-ghost" data-log-followup="' + p.id + '">Follow-up</button>';
+    if (canWork && /Qualified/i.test(p.stage) && !appt) actions += '<button class="btn btn-sm btn-ghost" data-schedule="' + p.id + '">Schedule</button>';
+    if (canApproveQual() && p.qualStatus === "pending" && !ownProspect(p)) actions += '<button class="btn btn-sm btn-primary" data-approve-qual="' + esc(p.id) + '">Approve qualified</button>';
     if (canInstalls()) {
       var pq = quoteForProspect(p.id);
       actions += pq ? '<button class="btn btn-sm btn-ghost" data-edit="job" data-id="' + esc(pq.id) + '">Open quote</button>'
         : '<button class="btn btn-sm btn-cyan" data-make-install="' + esc(p.id) + '">Create quote</button>';
     }
-    actions += '<button class="btn btn-sm btn-ghost" data-edit="prospect" data-id="' + p.id + '">Edit</button>';
+    if (canRecordDeposit()) actions += '<button class="btn btn-sm btn-ghost" data-record-deposit="' + esc(p.id) + '">Record deposit</button>';
+    if (canWork) actions += '<button class="btn btn-sm btn-ghost" data-edit="prospect" data-id="' + p.id + '">Edit</button>';
     var tone = isOverdue(p.followUp) ? "red" : isToday(p.followUp) ? "amber" : "navy";
     var reviewChip = prospectReviewChip(p.reviewStatus);
     return '<article class="item tone-' + tone + '">' +
       '<div class="item-top"><div><div class="item-title">' + esc(p.business) + '</div>' +
       '<div class="item-meta">' + esc(p.vertical) + " · " + esc(p.location || "No location") + "</div></div>" +
-      '<span class="chip-stack">' + stageChip(p.stage) + reviewChip + closedSaleChip(p) + "</span></div>" +
+      '<span class="chip-stack">' + stageChip(p.stage) + reviewChip + qualChip(p) + closedSaleChip(p) + "</span></div>" +
       '<div class="item-lines">' +
       '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc(p.contact || "Unknown") + "</span></div>" +
       '<div class="item-line"><span class="k">Phone</span><span class="v">' + (p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") + "</span></div>" +
@@ -738,39 +753,65 @@
     return '<div class="metric-tile"><div class="metric-num">' + n + '</div><div class="metric-label">' + esc(label) + "</div></div>";
   }
   function renderDashboard() {
-    if (canReviewProspects()) return renderSalesConsole();  // Operations/admins
+    if (canReviewProspects() || isTeamLead()) return renderSalesConsole();  // Team lead/Operations/admins
     renderMyDashboard();                                    // Sales
   }
 
-  // Salesperson's own performance: commission = my closed sales × rate.
+  // Commission is paid weekly, every Saturday at 12:00 noon Kampala time
+  // (commission.js): UGX 2,500 per qualified prospect the Team lead approves,
+  // UGX 100,000 per client once their first deposit is recorded.
+  var commWeekShift = 0;
+  function commissionOpts(extra) {
+    return Object.assign({ perQualified: commissionPerQualified(), perDeposit: commissionRate(), users: state.users || [] }, extra || {});
+  }
+  function commissionFor(period, extra) {
+    return window.VeriskoCommission.earnings(state.prospects || [], state.jobs || [], state.transactions || [], period, commissionOpts(extra));
+  }
+  function monthToDate() {
+    var C = window.VeriskoCommission, now = new Date();
+    var local = new Date(now.getTime() + 3 * 3600 * 1000);
+    var first = local.getUTCFullYear() + "-" + String(local.getUTCMonth() + 1).padStart(2, "0") + "-01";
+    return { start: C.eventTime(first), end: new Date(now.getTime() + 1) };
+  }
+  function commLine(n, rate, label) {
+    return '<div class="pay-line"><span>' + n + " " + label + " × " + money(rate) + "</span><strong>" + money(n * rate) + "</strong></div>";
+  }
+
+  // Salesperson's own performance: this pay week, last week, month to date.
   function renderMyDashboard() {
     setHead("Your performance", "Dashboard", "Your sales and commission at a glance.", "", false);
+    var C = window.VeriskoCommission;
     var email = ((settings.user || {}).email || "").toLowerCase();
     var ps = (state.prospects || []).filter(function (p) { return (p.createdByEmail || "").toLowerCase() === email; });
     var total = ps.length;
     var closed = ps.filter(function (p) { return p.closedSale; }).length;
-    var qualified = ps.filter(commissionQualified).length;
-    var awaiting = closed - qualified;
-    var approved = ps.filter(function (p) { return p.reviewStatus === "approved"; }).length;
     var conv = total ? Math.round((closed / total) * 100) : 0;
-    var rate = commissionRate(), target = commissionTarget();
-    var earned = qualified * rate;
-    var pct = target ? Math.min(100, Math.round((earned / target) * 100)) : 0;
-    var remaining = Math.max(0, target - earned);
+    var perQ = commissionPerQualified(), perD = commissionRate(), target = commissionTarget();
+    var week = C.payWeek(new Date(), 0), last = C.payWeek(new Date(), -1);
+    var zero = { qualified: [], deposits: [], total: 0, pendingQual: 0 };
+    var w = commissionFor(week, { email: email }).reps[0] || zero;
+    var lw = commissionFor(last, { email: email }).reps[0] || zero;
+    var mtd = commissionFor(monthToDate(), { email: email }).total;
+    var pending = ps.filter(function (p) { return p.qualStatus === "pending"; }).length;
+    var sentBack = ps.filter(function (p) { return p.qualStatus === "query"; }).length;
+    var qualAll = ps.filter(function (p) { return p.qualStatus === "approved"; }).length;
+    var depAll = ps.filter(function (p) { return !!firstPaymentFor(p); }).length;
+    var pct = target ? Math.min(100, Math.round((mtd / target) * 100)) : 0;
 
     var hero = '<section class="card dash-hero">' +
-      '<p class="dash-eyebrow">Commission this month</p>' +
-      '<div class="dash-big">' + money(earned) + "</div>" +
-      '<div class="dash-sub">of ' + money(target) + " target</div>" +
-      '<div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div>' +
-      '<div class="dash-foot">' + pct + "% reached · " + money(remaining) + " to go</div>" +
-      '<div class="dash-note">' + qualified + " paid " + (qualified === 1 ? "sale" : "sales") + " × " + money(rate) + " each." +
-      (awaiting > 0 ? " " + awaiting + " closed " + (awaiting === 1 ? "sale is" : "sales are") + " waiting for the client's first payment (" + money(awaiting * rate) + " to come)." : "") +
-      " A sale closes when the client accepts the quote; commission is earned once their first payment is recorded and approved.</div></section>";
+      '<p class="dash-eyebrow">Commission this week</p>' +
+      '<div class="dash-big">' + money(w.total) + "</div>" +
+      '<div class="dash-sub">Paid ' + C.label(week.payday, true) + " · since " + C.label(week.start, true) + "</div>" +
+      '<div class="pay-summary" style="margin-top:12px">' + commLine(w.qualified.length, perQ, "qualified prospects approved") + commLine(w.deposits.length, perD, "client deposits") + "</div>" +
+      (pending ? '<div class="dash-note">' + pending + " qualified " + (pending === 1 ? "prospect is" : "prospects are") + " waiting for the Team lead (" + money(pending * perQ) + " once approved).</div>" : "") +
+      (sentBack ? '<div class="dash-note" style="color:var(--amber)">' + sentBack + " sent back by the Team lead — open " + (sentBack === 1 ? "it" : "them") + " in Prospects to see why.</div>" : "") +
+      '<div class="dash-note">Last week: <strong>' + money(lw.total) + "</strong> (paid " + C.label(last.payday, true) + ").</div>" +
+      '<div class="dash-foot" style="margin-top:12px">Month to date ' + money(mtd) + " of " + money(target) + " target</div>" +
+      '<div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div></section>';
 
     var tiles = '<div class="metric-grid">' +
-      metricTile(total, "My prospects") + metricTile(approved, "Approved") +
-      metricTile(closed, "Closed sales") + metricTile(qualified, "Paid & earned") + metricTile(conv + "%", "Close rate") + "</div>";
+      metricTile(total, "My prospects") + metricTile(qualAll, "Qualified (approved)") +
+      metricTile(depAll, "Clients with a deposit") + metricTile(conv + "%", "Close rate") + "</div>";
 
     var byStage = STAGES.map(function (s) { return { label: s, n: ps.filter(function (p) { return p.stage === s; }).length }; }).filter(function (x) { return x.n > 0; });
     var maxN = byStage.reduce(function (m, x) { return Math.max(m, x.n); }, 1);
@@ -779,61 +820,51 @@
         return '<div class="bar-row"><span class="bar-label">' + esc(x.label) + '</span><span class="bar-track"><span class="bar-fill" style="width:' + Math.round((x.n / maxN) * 100) + '%"></span></span><span class="bar-count">' + x.n + "</span></div>";
       }).join("") + "</section>" : "";
 
-    var emptyNote = total ? "" : '<p class="result-note">Add and close prospects to grow your commission.</p>';
-    content.innerHTML = hero + tiles + emptyNote + bars;
+    var how = '<p class="result-note">Move a prospect to Qualified and the Team lead approves it: ' + money(perQ) + ". When the client pays a deposit: " + money(perD) + ". Paid every Saturday at 12:00 noon.</p>";
+    content.innerHTML = hero + tiles + how + bars;
   }
 
-  // Operations/admin console: team totals, per-rep leaderboard, rate + target.
+  // Team lead / Operations / admin console: weekly payout per rep.
   function renderSalesConsole() {
-    setHead("Operations", "Sales & commissions", "Verify closed sales and track each rep's commission.", "", false);
-    var rate = commissionRate(), target = commissionTarget();
-    var ps = state.prospects || [];
-    var totalClosed = ps.filter(function (p) { return p.closedSale; }).length;
-    var totalQualified = ps.filter(commissionQualified).length;
-    var totalComm = totalQualified * rate;
+    var C = window.VeriskoCommission;
+    setHead(isTeamLead() ? "Team lead" : "Operations", "Sales & commissions", "Weekly commission per rep, paid every Saturday at 12:00 noon.", "", false);
+    var perQ = commissionPerQualified(), perD = commissionRate(), target = commissionTarget();
+    var week = C.payWeek(new Date(), commWeekShift);
+    var e = commissionFor(week);
+    var isCurrent = commWeekShift === 0, isLast = commWeekShift === -1;
+    var nQ = e.reps.reduce(function (n, r) { return n + r.qualified.length; }, 0);
+    var nD = e.reps.reduce(function (n, r) { return n + r.deposits.length; }, 0);
+    var waiting = (state.prospects || []).filter(function (p) { return p.qualStatus === "pending"; }).length;
 
-    var hero = '<section class="card dash-hero">' +
-      '<p class="dash-eyebrow">Commission earned by the team</p>' +
-      '<div class="dash-big">' + money(totalComm) + "</div>" +
-      '<div class="dash-sub">' + totalQualified + " of " + totalClosed + " closed " + (totalClosed === 1 ? "sale" : "sales") + " paid by the client × " + money(rate) + " each</div>" +
-      '<div class="dash-note">A closed sale earns commission once the client\'s first payment is recorded in Cash flow and approved.</div></section>';
+    var nav = '<div class="cash-mode" role="group" aria-label="Pay week" style="display:flex;gap:8px;align-items:center;margin-bottom:12px">' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-comm-week="-1">‹ Earlier</button>' +
+      '<span style="flex:1;text-align:center;font-weight:600">' + (isCurrent ? "This week" : isLast ? "Last week" : "Week ending " + C.label(week.payday, false)) + "</span>" +
+      '<button type="button" class="btn btn-ghost btn-sm" data-comm-week="1"' + (isCurrent ? " disabled" : "") + ">Later ›</button></div>";
+    var hero = '<section class="card dash-hero">' + nav +
+      '<p class="dash-eyebrow">' + (isCurrent ? "Commission so far · pay " : "Commission paid ") + C.label(week.payday, true) + "</p>" +
+      '<div class="dash-big">' + money(e.total) + "</div>" +
+      '<div class="dash-sub">' + nQ + " qualified × " + money(perQ) + " · " + nD + " deposits × " + money(perD) + "</div>" +
+      '<div class="dash-note">Week from ' + C.label(week.start, true) + " to " + C.label(week.end, true) + " (Kampala time)." +
+      (waiting ? " " + waiting + " qualified " + (waiting === 1 ? "prospect is" : "prospects are") + " waiting for approval in Prospects." : "") + "</div></section>";
 
-    // Per-rep leaderboard (anyone who has created prospects), best first.
-    var byEmail = {};
-    ps.forEach(function (p) {
-      var key = (p.createdByEmail || "").toLowerCase();
-      if (!key) return;
-      if (!byEmail[key]) byEmail[key] = { name: p.createdBy || key, email: key, prospects: 0, closed: 0, paid: 0, approved: 0 };
-      byEmail[key].prospects++;
-      if (p.closedSale) byEmail[key].closed++;
-      if (commissionQualified(p)) byEmail[key].paid++;
-      if (p.reviewStatus === "approved") byEmail[key].approved++;
-    });
-    (state.users || []).forEach(function (u) {
-      var key = (u.email || "").toLowerCase();
-      if (key && byEmail[key]) byEmail[key].name = u.name || byEmail[key].name;
-    });
-    var reps = Object.keys(byEmail).map(function (k) { return byEmail[k]; })
-      .sort(function (a, b) { return b.paid - a.paid || b.closed - a.closed || b.prospects - a.prospects; });
+    var board = e.reps.length ? '<section class="card dash-bars"><h2 class="dash-h2">Pay per rep</h2>' +
+      '<div class="lead-head"><span>Rep</span><span>Qualified · Deposits</span><span>Pay</span></div>' +
+      e.reps.map(function (r) {
+        var detail = r.deposits.map(function (d) { return esc(d.business || ""); }).join(", ");
+        return '<div class="lead-row"><span class="lead-name"><strong>' + esc(r.name) + "</strong><small>" + (detail ? "Deposits: " + detail : "No deposits this week") + "</small></span>" +
+          '<span class="lead-closed">' + r.qualified.length + " · " + r.deposits.length + "</span>" +
+          '<span class="lead-comm">' + money(r.total) + "</span></div>";
+      }).join("") + "</section>" : '<p class="result-note">No commission earned in this week yet.</p>';
 
-    var board = reps.length ? '<section class="card dash-bars"><h2 class="dash-h2">Salespeople</h2>' +
-      '<div class="lead-head"><span>Rep</span><span>Paid / closed</span><span>Commission</span></div>' +
-      reps.map(function (r) {
-        return '<div class="lead-row"><span class="lead-name"><strong>' + esc(r.name) + "</strong><small>" + r.prospects + " prospects · " + r.approved + " approved</small></span>" +
-          '<span class="lead-closed">' + r.paid + " / " + r.closed + "</span>" +
-          '<span class="lead-comm">' + money(r.paid * rate) + "</span></div>";
-      }).join("") + "</section>" : '<p class="result-note">No sales activity yet. Closed sales appear here once you verify them on a prospect.</p>';
-
-    var editor = '<section class="card settings-card"><h2>Commission settings</h2>' +
-      "<p>Each closed sale you verify earns the rep this much — paid out once the client's first payment is recorded and approved. Set the monthly target reps are working toward.</p>" +
+    var editor = canReviewProspects() ? '<section class="card settings-card"><h2>Commission settings</h2>' +
+      "<p>Paid weekly, every Saturday at 12:00 noon. A qualified prospect counts once the Team lead approves it; a client counts once, as soon as their first deposit is recorded.</p>" +
       '<form id="commissionForm" class="add-member">' +
-      '<div class="field"><label for="commRate">Per closed sale (UGX)</label><input id="commRate" name="commRate" type="number" inputmode="numeric" min="0" step="1000" value="' + rate + '"></div>' +
-      '<div class="field"><label for="commTarget">Monthly target (UGX)</label><input id="commTarget" name="commTarget" type="number" inputmode="numeric" min="0" step="10000" value="' + target + '"></div>' +
-      '<button type="submit" class="btn btn-ghost btn-block">Save commission settings</button></form></section>';
+      '<div class="field"><label for="commQual">Per qualified prospect (UGX)</label><input id="commQual" name="commQual" type="number" inputmode="numeric" min="0" step="500" value="' + perQ + '"></div>' +
+      '<div class="field"><label for="commRate">Per client deposit (UGX)</label><input id="commRate" name="commRate" type="number" inputmode="numeric" min="0" step="1000" value="' + perD + '"></div>' +
+      '<div class="field"><label for="commTarget">Monthly target per rep (UGX)</label><input id="commTarget" name="commTarget" type="number" inputmode="numeric" min="0" step="10000" value="' + target + '"></div>' +
+      '<button type="submit" class="btn btn-ghost btn-block">Save commission settings</button></form></section>' : "";
 
-    content.innerHTML = hero + board +
-      '<p class="result-note">Mark a sale as closed from any prospect (Prospects tab) — that verification credits the rep.</p>' +
-      rosterCard() + editor;
+    content.innerHTML = hero + board + (canReviewProspects() ? rosterCard() : "") + editor;
   }
 
   // Manage the sales roster from the console (Operations + admins). Scoped to
@@ -843,7 +874,7 @@
     // are managed by the Owner in Settings, not shown here.
     var users = (state.users || []).filter(function (u) { return u.id !== ownerId() && u.role !== "admin"; });
     var manageableRoleOpts = function (sel) {
-      return [["sales", "Sales"], ["operations", "Operations"]].map(function (o) {
+      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"]].map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === normRole(sel) ? " selected" : "") + ">" + o[1] + "</option>";
       }).join("");
     };
@@ -865,6 +896,7 @@
       '<div class="field"><label for="memberEmail">Email</label><input id="memberEmail" name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" placeholder="grace@example.com" required></div>' +
       '<div class="field"><label for="memberRole">Role</label><select id="memberRole" name="role">' +
       '<option value="sales">Sales — prospects &amp; visits</option>' +
+      '<option value="teamlead">Team lead — approves qualified prospects, records deposits</option>' +
       '<option value="operations">Operations — also Cash flow</option></select></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Add team member</button></form></section>';
   }
@@ -1526,7 +1558,7 @@
         id: txId, direction: direction, amount: amount, date: data.date || today, category: data.category, method: method,
         prospectId: prospectId, note: note, proofId: proofId, preapproved: preapproved, installId: data.installId || "",
         createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "",
-        createdAt: today, status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: ""
+        createdAt: today, recordedAt: nowIso(), status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: ""
       });
     }
     if (queuePhoto) await queueUpload(txId, pendingProof);
@@ -1534,6 +1566,7 @@
     saveBtn.disabled = false;
     hideFormError(); dialog.close();
     saveData(queuePhoto ? "Saved on this device. The photo will upload when you're back online." : (editing.id ? "Cash entry updated" : "Cash entry added"));
+    syncClosedSales(true);
     render();
   }
   /* -------- Save a prospect (business photo + live location + audit) -------- */
@@ -1592,6 +1625,7 @@
         reviewedAt: reviewer ? today : "", reviewNote: ""
       }));
     }
+    window.VeriskoCommission.qualificationRequest(state.prospects.find(function (x) { return x.id === pid; }), nowIso());
     if (queuePhoto) await queueUpload(pid, pendingProof);
     pendingProof = null;
     saveBtn.disabled = false;
@@ -1705,7 +1739,7 @@
     var me = settings.user || {};
     var ownId = ownerId();
     var roleOpts = function (sel) {
-      return [["sales", "Sales"], ["operations", "Operations"], ["admin", "Technical"]].map(function (o) {
+      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"], ["admin", "Technical"]].map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === sel ? " selected" : "") + ">" + o[1] + "</option>";
       }).join("");
     };
@@ -1722,13 +1756,14 @@
     }).join("") + "</div>" : '<p class="settings-note">No accounts yet.</p>';
     content.innerHTML = '<div class="settings-grid">' +
       '<section class="card settings-card"><h2>Team members</h2>' +
-      "<p><strong>Sales</strong> see prospects and visits. <strong>Operations</strong> also get the Cash flow tab. <strong>Technical</strong> can also open this Settings page. Removing someone revokes access immediately.</p>" +
+      "<p><strong>Sales</strong> see only their own prospects and visits. <strong>Team leads</strong> see every rep's prospects, approve qualified ones and record client deposits. <strong>Operations</strong> also get the Cash flow tab. <strong>Technical</strong> can also open this Settings page. Removing someone revokes access immediately.</p>" +
       teamRows +
       '<form id="addMemberForm" class="add-member">' +
       '<div class="field"><label for="memberName">Name</label><input id="memberName" name="name" type="text" autocomplete="off" placeholder="e.g. Grace Namubiru" required></div>' +
       '<div class="field"><label for="memberEmail">Email</label><input id="memberEmail" name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" placeholder="grace@example.com" required></div>' +
       '<div class="field"><label for="memberRole">Role</label><select id="memberRole" name="role">' +
       '<option value="sales">Sales — prospects &amp; visits</option>' +
+      '<option value="teamlead">Team lead — approves qualified prospects, records deposits</option>' +
       '<option value="operations">Operations — also Cash flow</option>' +
       '<option value="admin">Technical — also Settings</option></select></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Add team member</button>' +
@@ -1841,14 +1876,21 @@
         if (source.reviewStatus === "query" && source.reviewNote) {
           html += '<div class="field full"><div class="rev-noproof">Sent back: ' + esc(source.reviewNote) + "</div></div>";
         }
+        if (source.qualStatus === "query") {
+          html += '<div class="field full"><div class="rev-noproof">Not qualified yet' + (source.qualNote ? ": " + esc(source.qualNote) : "") + ". Update the prospect and save — it goes back to the Team lead.</div></div>";
+        } else if (source.qualStatus === "pending") {
+          html += '<div class="field full"><p class="helper" style="color:var(--amber)">Waiting for the Team lead to approve it as qualified (' + money(commissionPerQualified()) + ").</p></div>";
+        } else if (source.qualStatus === "approved") {
+          html += '<div class="field full"><p class="helper" style="color:var(--green);font-weight:600">Approved as qualified by ' + esc(source.qualApprovedBy || "the Team lead") + " — " + money(commissionPerQualified()) + " commission.</p></div>";
+        }
         // The sale closes itself when the client accepts the quote (job stage
         // Accepted or later); commission then waits for the first payment.
         if (canReviewProspects()) {
           var fq = quoteForProspect(id);
           var statusHtml = source.closedSale
-            ? '<p class="helper" style="color:var(--green);font-weight:600">Closed sale' + (source.closedAuto ? " — the client accepted the quote" : "") + ". " + money(commissionRate()) + " commission to " + esc(source.createdBy || "the rep") + ".</p>" +
-              (firstPaymentFor(source) ? '<p class="helper">Client\'s first payment received ' + dateLabel(firstPaymentFor(source)) + " — commission earned.</p>"
-                : '<p class="helper" style="color:var(--amber)">Commission is earned once the client\'s first payment is recorded in Cash flow and approved.</p>')
+            ? '<p class="helper" style="color:var(--green);font-weight:600">Closed sale' + (source.closedAuto ? " — " + (source.closedBy === "Client deposit" ? "the client paid a deposit" : "the client accepted the quote") : "") + ".</p>" +
+              (firstPaymentFor(source) ? '<p class="helper">Client\'s first deposit recorded ' + dateLabel(firstPaymentFor(source)) + " — " + money(commissionRate()) + " commission earned.</p>"
+                : '<p class="helper" style="color:var(--amber)">The rep earns ' + money(commissionRate()) + " as soon as the client's first deposit is recorded.</p>")
             : (fq ? '<p class="helper">Quoted — ' + esc(fq.ref || "job") + " is " + esc(fq.stage || "Draft") + ". It becomes a closed sale when the client accepts.</p>"
               : '<p class="helper">No quote yet. The sale closes automatically once the client accepts a quote.</p>');
           html += '<div class="field full"><label>Quote &amp; sale</label>' + statusHtml +
@@ -2159,6 +2201,7 @@
     if (a.status === "Confirmed") { p.stage = "Appointment confirmed"; p.nextAction = "Operations site visit"; p.followUp = a.date; }
     else if (/Proposed|Rescheduled/i.test(a.status)) { p.stage = "Appointment proposed"; p.nextAction = "Confirm the site visit"; p.followUp = a.date; }
     else if (/Cancelled|No-show/i.test(a.status)) { if (/Appointment/i.test(p.stage)) { p.stage = "Qualified"; p.nextAction = "Re-book the site visit"; } }
+    window.VeriskoCommission.qualificationRequest(p, nowIso());
   }
 
   // Confirm directly from a card when the handoff is already complete.
@@ -2188,18 +2231,15 @@
   /* ------ Closed sales & commission (Operations-verified, UGX 100k, paid ------ */
   /* ------ out once the client's first payment is recorded and approved)  ------ */
   function commissionRate() { var n = state.config && Number(state.config.commissionPerSale); return n > 0 ? n : 100000; }
-  // The first approved client payment for a prospect's sale: through its job
-  // (installId) or recorded directly against the prospect. Returns the date or "".
+  function commissionPerQualified() { var n = state.config && Number(state.config.commissionPerQualified); return n > 0 ? n : 2500; }
+  // The client's first recorded deposit (pending or approved, not sent back),
+  // directly or through their job. Returns its date, or "".
   function firstPaymentFor(p) {
-    if (!p) return "";
-    var jobIds = (state.jobs || []).filter(function (j) { return j.prospectId === p.id; }).map(function (j) { return j.id; });
-    var dates = (state.transactions || []).filter(function (t) {
-      return t.direction === "in" && t.status === "approved" && Number(t.amount) > 0 &&
-        (t.prospectId === p.id || (t.installId && jobIds.indexOf(t.installId) >= 0));
-    }).map(function (t) { return t.date || t.createdAt || ""; }).filter(Boolean).sort();
-    return dates[0] || "";
+    if (!p || !p.id) return "";
+    var fd = window.VeriskoCommission.firstDeposit(p, state.jobs || [], state.transactions || []);
+    return fd ? (fd.tx.date || fd.tx.createdAt || "") : "";
   }
-  function commissionQualified(p) { return !!(p && p.closedSale && firstPaymentFor(p)); }
+  function commissionQualified(p) { return !!firstPaymentFor(p); }
   function commissionTarget() { var n = state.config && Number(state.config.commissionTarget); return n > 0 ? n : 1600000; }
   function closedSalesFor(email) {
     email = (email || "").toLowerCase();
@@ -2211,7 +2251,7 @@
   function quoteForProspect(id) { return window.VeriskoClosedSales.quoteFor(id, state.jobs || [], JOB_DELIVERY_STAGES); }
   function syncClosedSales(quiet) {
     if (!canReviewProspects()) return false;
-    var ch = window.VeriskoClosedSales.reconcile(state.prospects || [], state.jobs || [], today, JOB_DELIVERY_STAGES);
+    var ch = window.VeriskoClosedSales.reconcile(state.prospects || [], state.jobs || [], today, JOB_DELIVERY_STAGES, state.transactions || []);
     if (!ch.length) return false;
     var closed = ch.filter(function (c) { return c.to; }).length, opened = ch.length - closed;
     saveData(quiet ? null : (closed && !opened ? "Quote accepted — " + (ch[0].business || "prospect") + " is now a closed sale"
@@ -2279,9 +2319,12 @@
   // sent-back prospects that need fixing.
   function prospectReviewCount() {
     var ps = state.prospects || [];
-    if (canReviewProspects()) return ps.filter(needsReview).length;
+    var n = 0;
+    if (canReviewProspects()) n += ps.filter(needsReview).length;
+    if (canApproveQual()) n += ps.filter(needsQualApproval).length;
+    if (canReviewProspects() || isTeamLead()) return n;
     var mine = (settings.user && settings.user.email || "").toLowerCase();
-    return ps.filter(function (p) { return p.reviewStatus === "query" && (p.createdByEmail || "").toLowerCase() === mine; }).length;
+    return ps.filter(function (p) { return (p.reviewStatus === "query" || p.qualStatus === "query") && (p.createdByEmail || "").toLowerCase() === mine; }).length;
   }
   function updateProspectBadge() {
     var b = document.getElementById("prospectBadge");
@@ -2352,6 +2395,80 @@
     if (!r) return;
     p.reviewStatus = "query"; p.reviewNote = combineNote(r); p.reviewedBy = (settings.user && settings.user.name) || ""; p.reviewedAt = today;
     saveData("Prospect sent back"); render();
+  }
+
+  /* ---------------- Qualified prospects (UGX 2,500, Team lead) --------------- */
+  function needsQualApproval(p) { return p.qualStatus === "pending"; }
+  function qualChip(p) {
+    if (p.qualStatus === "approved") return chip("Qualified · " + money(commissionPerQualified()), "green", "✓");
+    if (p.qualStatus === "pending") return chip("Awaiting team lead", "amber", "◔");
+    if (p.qualStatus === "query") return chip("Qualification sent back", "red", "!");
+    return "";
+  }
+  function qualCard(p) {
+    var C = window.VeriskoCommission;
+    return '<article class="item tone-amber"><div class="item-top"><div><div class="item-title">' + esc(p.business) + "</div>" +
+      '<div class="item-meta">' + esc(p.createdBy || "Rep") + " · " + esc(p.stage || "") + " · " + esc(p.location || "No location") + "</div></div>" + qualChip(p) + "</div>" +
+      '<div class="item-lines">' +
+      '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc([p.contact, p.phone].filter(Boolean).join(" · ") || "—") + "</span></div>" +
+      '<div class="item-line"><span class="k">Concern</span><span class="v">' + esc(p.concern || "—") + "</span></div>" +
+      '<div class="item-line"><span class="k">Asked</span><span class="v">' + esc(p.qualRequestedAt ? C.label(C.eventTime(p.qualRequestedAt), true) : "—") + "</span></div></div>" +
+      '<div class="item-actions"><button type="button" class="btn btn-sm btn-primary" data-approve-qual="' + esc(p.id) + '">Approve (' + money(commissionPerQualified()) + ")</button>" +
+      '<button type="button" class="btn btn-sm btn-ghost" data-sendback-qual="' + esc(p.id) + '">Send back</button>' +
+      (p.phone ? '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>' : "") + "</div></article>";
+  }
+  function approveQualification(id) {
+    if (!canApproveQual()) return;
+    var p = prospect(id); if (!p || !p.id) return;
+    if (!isAdmin() && (p.createdByEmail || "").toLowerCase() === ((settings.user || {}).email || "").toLowerCase()) { toast("You can't approve your own prospect — ask the Owner."); return; }
+    p.qualStatus = "approved"; p.qualApprovedBy = (settings.user && settings.user.name) || ""; p.qualApprovedAt = nowIso(); p.qualNote = "";
+    saveData("Approved — " + money(commissionPerQualified()) + " to " + (p.createdBy || "the rep") + " this week"); render();
+  }
+  async function sendBackQualification(id) {
+    if (!canApproveQual()) return;
+    var p = prospect(id); if (!p || !p.id) return;
+    var r = await openSheet({ title: "Not qualified yet", body: "Tell the rep what's missing. It comes back to you when they update it.",
+      choices: ["No decision-maker yet", "No budget", "Not interested", "Needs a site visit first"], input: { placeholder: "Add a note (optional)" },
+      requireValue: true, confirmLabel: "Send back" });
+    if (!r) return;
+    p.qualStatus = "query"; p.qualNote = combineNote(r); p.qualApprovedBy = (settings.user && settings.user.name) || ""; p.qualApprovedAt = "";
+    saveData("Sent back to " + (p.createdBy || "the rep")); render();
+  }
+
+  // Record a client deposit against a prospect (Team lead or Operations/admin).
+  // It counts for the rep's UGX 100,000 straight away; the Owner still
+  // approves it in Cash flow as usual.
+  function recordDeposit(id) {
+    if (!canRecordDeposit()) return;
+    var p = prospect(id); if (!p || !p.id) return;
+    var first = !firstPaymentFor(p);
+    var dlg = document.getElementById("askDialog");
+    dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Record client deposit</h2><p class="ask-body">' + esc(p.business) +
+      (first ? " · first deposit earns " + esc(p.createdBy || "the rep") + " " + money(commissionRate()) + "." : " · this client already has a deposit.") + "</p></div>" +
+      '<div class="field"><label for="depAmount">Amount (UGX)</label><input id="depAmount" type="number" inputmode="numeric" min="1" step="1000" placeholder="e.g. 500000"></div>' +
+      '<div class="field"><label for="depMethod">Method</label><select id="depMethod"><option>MTN MoMo</option><option>Airtel Money</option><option>Cash</option><option>Bank</option></select></div>' +
+      '<div class="field"><label for="depDate">Date</label><input id="depDate" type="date" value="' + esc(today) + '"></div>' +
+      '<p class="ask-body" id="depEcho"></p>' +
+      '<div class="ask-actions"><button type="button" class="btn btn-ghost" id="askCancel">Cancel</button><button type="button" class="btn btn-primary" id="askOk" disabled>Record deposit</button></div>';
+    var amt = dlg.querySelector("#depAmount"), ok = dlg.querySelector("#askOk"), echo = dlg.querySelector("#depEcho");
+    amt.addEventListener("input", function () { var n = Math.round(Number(amt.value) || 0); ok.disabled = !(n > 0); echo.textContent = n > 0 ? "= " + money(n) : ""; });
+    var onCancel = function (e) { if (e) e.preventDefault(); dlg.close(); };
+    dlg.querySelector("#askCancel").addEventListener("click", onCancel);
+    dlg.addEventListener("cancel", onCancel, { once: true });
+    ok.addEventListener("click", function () {
+      var n = Math.round(Number(amt.value) || 0); if (!(n > 0)) return;
+      var q = quoteForProspect(p.id);
+      if (!state.transactions) state.transactions = [];
+      state.transactions.push({ id: uid(), direction: "in", amount: n, date: dlg.querySelector("#depDate").value || today, category: "Customer deposit",
+        method: dlg.querySelector("#depMethod").value, prospectId: p.id, installId: q ? q.id : "", note: "", proofId: "", preapproved: false,
+        createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "", createdAt: today, recordedAt: nowIso(),
+        status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: "" });
+      dlg.close();
+      saveData(first ? "Deposit recorded — " + money(commissionRate()) + " to " + (p.createdBy || "the rep") + " this week" : "Deposit recorded");
+      syncClosedSales(true);
+      render();
+    });
+    dlg.showModal(); amt.focus();
   }
 
   /* ---------------------------- Supabase auth ------------------------------- */
@@ -2549,6 +2666,11 @@
 
   function currentUser() { return settings.user || null; }
   function isAdmin() { return !!(settings.user && settings.user.role === "admin"); }
+  function isTeamLead() { return !!(settings.user && settings.user.role === "teamlead"); }
+  // The Team lead (and the Owner/Technical) approve qualified prospects.
+  function canApproveQual() { return isAdmin() || isTeamLead(); }
+  // Client deposits can be recorded by the Team lead and Operations/admin.
+  function canRecordDeposit() { return canCashflow() || isTeamLead(); }
   function canCashflow() { return isAdmin() || !!(settings.user && settings.user.role === "operations"); }
   // How many cash entries need THIS person's attention: admins review pending
   // entries; operations act on their own sent-back ones.
@@ -2840,11 +2962,12 @@
     if (u.id === ownerId()) return "Owner";
     if (u.role === "admin") return "Technical";
     if (u.role === "operations") return "Operations";
+    if (u.role === "teamlead") return "Team lead";
     return "Sales";
   }
 
-  // Normalise a role input to one of: admin (Technical), operations, sales.
-  function normRole(role) { return role === "admin" ? "admin" : role === "operations" ? "operations" : "sales"; }
+  // Normalise a role input to one of: admin (Technical), operations, teamlead, sales.
+  function normRole(role) { return role === "admin" ? "admin" : role === "operations" ? "operations" : role === "teamlead" ? "teamlead" : "sales"; }
 
   // Who may manage the roster: admins (everyone) and Operations (non-admins only).
   // Operations can never touch the Owner, Technical accounts, or their own row,
@@ -2977,6 +3100,10 @@
     var appr = e.target.closest("[data-approve-id]"); if (appr) { approveTx(appr.getAttribute("data-approve-id")); return; }
     var back = e.target.closest("[data-sendback-id]"); if (back) { sendBackTx(back.getAttribute("data-sendback-id")); return; }
     var apprP = e.target.closest("[data-approve-prospect]"); if (apprP) { approveProspect(apprP.getAttribute("data-approve-prospect")); return; }
+    var apprQ = e.target.closest("[data-approve-qual]"); if (apprQ) { approveQualification(apprQ.getAttribute("data-approve-qual")); return; }
+    var backQ = e.target.closest("[data-sendback-qual]"); if (backQ) { sendBackQualification(backQ.getAttribute("data-sendback-qual")); return; }
+    var dep = e.target.closest("[data-record-deposit]"); if (dep) { recordDeposit(dep.getAttribute("data-record-deposit")); return; }
+    var cw = e.target.closest("[data-comm-week]"); if (cw) { commWeekShift = Math.min(0, commWeekShift + Number(cw.getAttribute("data-comm-week"))); render(); return; }
     var backP = e.target.closest("[data-sendback-prospect]"); if (backP) { sendBackProspect(backP.getAttribute("data-sendback-prospect")); return; }
     var tt = e.target.closest("[data-tech-toggle]"); if (tt) { toggleTechnician(tt.getAttribute("data-tech-toggle")); return; }
     var tr = e.target.closest("[data-tech-remove]"); if (tr) { removeTechnician(tr.getAttribute("data-tech-remove")); return; }
@@ -3014,6 +3141,7 @@
       if (!canReviewProspects()) return;
       if (!state.config || typeof state.config !== "object") state.config = {};
       state.config.commissionPerSale = Math.max(0, Math.round(Number(commForm.querySelector("[name=commRate]").value) || 0));
+      var cq = commForm.querySelector("[name=commQual]"); if (cq) state.config.commissionPerQualified = Math.max(0, Math.round(Number(cq.value) || 0));
       state.config.commissionTarget = Math.max(0, Math.round(Number(commForm.querySelector("[name=commTarget]").value) || 0));
       saveData("Commission settings saved");
       render();

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { scopeForSales, mergeSalesWrite } from "../netlify/functions/scope.mjs";
+import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual } from "../netlify/functions/scope.mjs";
 
 const data = {
   prospects: [
@@ -39,7 +39,7 @@ test("a salesperson only receives their own prospects and visits", () => {
 test("jobs and payments are only their clients', stripped to what the dashboard needs", () => {
   const s = scopeForSales(data, "ab@test");
   assert.deepEqual(s.jobs, [{ id: "j1", ref: "J-1", prospectId: "a1", stage: "Accepted", createdAt: undefined }]);
-  assert.deepEqual(s.transactions.map((t) => t.id), ["t1"], "no other client, no money out, no pending");
+  assert.deepEqual(s.transactions.map((t) => t.id), ["t1", "t4"], "own clients' deposits incl. pending; no other client, no money out");
   assert.equal(s.transactions[0].note, undefined);
   assert.equal(s.transactions[0].proofId, undefined);
 });
@@ -55,6 +55,7 @@ test("team list: themselves in full, Operations/admin by name only, no other rep
 test("config carries only commission settings; no technicians", () => {
   const s = scopeForSales(data, "ab@test");
   assert.deepEqual(s.config, { commissionPerSale: 100000, commissionTarget: 1600000, commissionRule: 2 });
+  assert.equal(scopeForSales({ ...data, config: { ...data.config, commissionPerQualified: 2500 } }, "ab@test").config.commissionPerQualified, 2500);
   assert.deepEqual(s.technicians, []);
 });
 
@@ -81,4 +82,46 @@ test("a new prospect is stamped as the sender's; deleting their own is allowed",
   assert.ok(!m.prospects.find((p) => p.id === "a2"), "a2 removed by its owner (approval guard runs separately)");
   assert.ok(m.appointments.find((a) => a.id === "v9"));
   assert.ok(m.prospects.find((p) => p.id === "b1"));
+});
+
+test("a Team lead sees every prospect and visit but no cash book, emails or export key", () => {
+  const s = scopeForTeamLead(data, "lead@test");
+  assert.equal(s.prospects.length, 3);
+  assert.equal(s.appointments.length, 2);
+  assert.deepEqual(s.transactions.map((t) => t.id).sort(), ["t1", "t2", "t4"], "client deposits only, no money out");
+  assert.ok(!JSON.stringify(s).includes("secret"));
+  assert.ok(!s.users.some((u) => u.email), "team list carries no emails (lead@test isn't on this roster)");
+  assert.equal(s.jobs[0].materials, undefined);
+});
+
+test("reps can ask for qualification but never approve or send back", () => {
+  assert.equal(guardRepQual({ qualStatus: "pending", qualRequestedAt: "T" }, {}).qualStatus, "pending");
+  assert.equal(guardRepQual({ qualStatus: "approved", qualApprovedBy: "Me" }, { qualStatus: "pending" }).qualStatus, "pending");
+  assert.equal(guardRepQual({ qualStatus: "approved", qualApprovedBy: "Me" }, { qualStatus: "pending" }).qualApprovedBy, "");
+  assert.equal(guardRepQual({ qualStatus: "", }, { qualStatus: "approved", qualApprovedBy: "Lead" }).qualStatus, "approved", "can't undo an approval");
+  assert.equal(guardRepQual({ qualStatus: "pending" }, { qualStatus: "query", qualNote: "why" }).qualNote, "why", "lead's note kept");
+});
+
+test("a Team lead's save: decides qualifications on others, adds deposits, changes nothing else", () => {
+  const stored = { ...data, prospects: data.prospects.map((p) => (p.id === "b1" ? { ...p, qualStatus: "pending" } : p)) };
+  const view = scopeForTeamLead(stored, "lead@test");
+  const incoming = {
+    ...view,
+    prospects: view.prospects.map((p) => (p.id === "b1" ? { ...p, qualStatus: "approved", qualApprovedBy: "Lead", qualApprovedAt: "2026-09-30T08:00:00Z", business: "RENAMED" } : p)),
+    transactions: view.transactions.concat([
+      { id: "new1", direction: "in", amount: 250000, prospectId: "a1", status: "approved", createdByEmail: "x@y" },
+      { id: "new2", direction: "out", amount: 9, prospectId: "a1" },
+      { id: "t2", direction: "in", amount: 1, status: "approved", installId: "j2" }
+    ])
+  };
+  const m = mergeTeamLeadWrite(stored, incoming, "lead@test");
+  const b1 = m.prospects.find((p) => p.id === "b1");
+  assert.equal(b1.qualStatus, "approved");
+  assert.equal(b1.business, "Bea's Clinic", "can't edit anything else on another rep's prospect");
+  const added = m.transactions.filter((t) => !data.transactions.some((d) => d.id === t.id));
+  assert.deepEqual(added.map((t) => t.id), ["new1"], "only new money-in for a known client");
+  assert.equal(added[0].status, "pending", "always pending");
+  assert.equal(added[0].createdByEmail, "lead@test");
+  assert.equal(m.transactions.find((t) => t.id === "t2").amount, 300000, "existing entries unchanged");
+  assert.equal(m.transactions.length, data.transactions.length + 1);
 });

@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=52**.
+  base directory `sales-app`). Current asset version: **v=53**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -28,8 +28,9 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Frontend:** one vanilla-JS IIFE in `app.js` (~2,900 lines), `app.css`,
   `index.html`, plus two small pure modules loaded before it:
   `cashflow-report.js` (period maths), `quote-pdf.js` (quotation model,
-  PDF drawing, share text) and `closed-sales.js` (closed sale follows the
-  accepted quote). **No framework, no build step, no bundler, no npm
+  PDF drawing, share text), `closed-sales.js` (closed sale follows the
+  accepted quote or a recorded deposit) and `commission.js` (weekly pay
+  week + both commission types). **No framework, no build step, no bundler, no npm
   runtime deps.** The one vendored library is `vendor/jspdf.umd.min.js`
   (jsPDF 2.5.2, MIT), loaded on demand by `loadJsPdf()` the first time Jobs
   opens — never on the login or Today screens.
@@ -97,6 +98,12 @@ Three roles, resolved from `settings.user.role`:
   the **only** role that can **approve** cash entries and prospects.
 - **operations** — records cash in/out, manages jobs/technicians, reviews
   prospects. Cannot self-approve.
+- **teamlead** (since v=53) — sees every rep's prospects and visits
+  (`scopeForTeamLead`), approves qualified prospects (UGX 2,500 each) and
+  records client deposits from a prospect card. No cash book, jobs, settings
+  or team emails; can't edit other reps' records (`mergeTeamLeadWrite` keeps
+  only the qualification decision and appends new money-in entries, always
+  `pending`, stamped with their email). Operations/admin can assign the role.
 - **sales** — prospects + site visits + a personal dashboard only. Never sees
   cash flow, jobs, or settings, and **never sees another rep's records**
   (since v=52). The server scopes it (`netlify/functions/scope.mjs`, tested):
@@ -199,6 +206,28 @@ any new privileged data.
   Save can't revert it. Downloading the PDF alone does not change the stage. Company details and the terms wording
   live in `COMPANY` / `TERMS` at the top of `quote-pdf.js`.
 
+## 6b. Commission (since v=53)
+
+Paid weekly, every **Saturday at 12:00 noon Kampala time** (UTC+3). The pay
+week runs from one Saturday noon (inclusive) to the next (`payWeek()` in
+`commission.js`). Two kinds, both credited to the prospect's `createdByEmail`:
+- **Qualified prospect — `config.commissionPerQualified` (UGX 2,500).** When a
+  rep's prospect reaches Qualified / Appointment proposed / Appointment
+  confirmed, `qualificationRequest()` sets `qualStatus="pending"` (from the
+  prospect form or a visit status change). The Team lead (or admin) approves
+  (`qualStatus="approved"`, `qualApprovedAt` ISO timestamp → counts in that
+  pay week) or sends back (`"query"` + `qualNote`; the rep's next save
+  re-submits). Reps can only ask/withdraw — `guardRepQual()` on the server.
+- **Client deposit — `config.commissionPerSale` (UGX 100,000), once per
+  client.** Counts as soon as the client's first deposit is recorded (money
+  in linked to the prospect or its job, status pending or approved, not
+  `query`), in the pay week of its `recordedAt`. Team lead or Operations
+  record it; the Owner still approves it in Cash flow for the float, but the
+  commission doesn't wait for that. A deposit also closes the sale.
+Rep dashboard: this week, last week, month to date vs `commissionTarget`.
+Team lead / Ops / admin console: pay per rep for any week (‹ Earlier).
+`normalizeConfig()` rule 3 adds the 2,500 rate once.
+
 ## 6a. Live data export & the Google Sheet
 
 The Owner's answer to "where is my data and how do I see it without the app".
@@ -239,9 +268,9 @@ The Owner's answer to "where is my data and how do I see it without the app".
 ## 7. How to run & test locally (the app is auth-gated)
 
 **Automated tests:** `npm install && npm test` runs `tests/*.test.js` with the
-built-in Node runner (currently 31 tests: cash-flow period maths, the export
-flattening/CSV, the quotation model/share text, closed-sale rules, and Sales
-data scoping). Add a test whenever you touch a pure function. `node_modules`
+built-in Node runner (currently 45 tests: cash-flow period maths, the export
+flattening/CSV, the quotation model/share text, closed-sale rules, Sales and
+Team lead data scoping, and commission/pay-week rules). Add a test whenever you touch a pure function. `node_modules`
 is git-ignored via `sales-app/.gitignore`.
 
 **Browser smoke test:** because sign-in needs a Supabase OTP, bypass it by
@@ -294,7 +323,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=52, 30 Sep 2026)
+## 8. Current status (live at v=53, 30 Sep 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

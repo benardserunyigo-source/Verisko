@@ -71,3 +71,18 @@ test("running twice is a no-op", () => {
   C.reconcile(ps, jobs, "2026-09-28");
   assert.deepEqual(C.reconcile(ps, jobs, "2026-09-28"), []);
 });
+
+test("a recorded client deposit closes the sale even without an accepted quote", () => {
+  const ps = [P("a"), P("b"), P("c")];
+  const jobs = [J("j1", "b", "Sent")];
+  const txs = [
+    { direction: "in", amount: 200000, status: "pending", prospectId: "a" },
+    { direction: "in", amount: 200000, status: "approved", installId: "j1" },
+    { direction: "in", amount: 200000, status: "query", prospectId: "c" }
+  ];
+  C.reconcile(ps, jobs, "2026-09-30", undefined, txs);
+  assert.equal(ps[0].closedSale, true);
+  assert.equal(ps[0].closedBy, "Client deposit");
+  assert.equal(ps[1].closedSale, true, "deposit through the job counts");
+  assert.equal(ps[2].closedSale, undefined, "a sent-back deposit does not");
+});

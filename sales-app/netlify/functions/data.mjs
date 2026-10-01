@@ -7,7 +7,7 @@
 // an empty workspace bootstraps the owner. Non-admins cannot alter the team
 // list. Both Supabase values below are public (publishable) and safe to ship.
 import { getStore } from "@netlify/blobs";
-import { scopeForSales, mergeSalesWrite } from "./scope.mjs";
+import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, ownsProspect } from "./scope.mjs";
 
 const SUPABASE_URL = "https://cepernltrzrmupgegcib.supabase.co";
 const SUPABASE_KEY = "sb_publishable_hj2NsI1YGmpeQg815ET2Kg_CwznowqE";
@@ -47,11 +47,13 @@ export default async (request) => {
     const me = users.find((u) => String(u.email || "").toLowerCase() === email);
     if (!me && !bootstrap) return json({ ok: false, error: "not_authorized" }, 403, headers);
     const isAdmin = bootstrap || (me && me.role === "admin");
-    const isSales = !bootstrap && !!me && me.role !== "admin" && me.role !== "operations";
+    const isTeamLead = !bootstrap && !!me && me.role === "teamlead";
+    const isSales = !bootstrap && !!me && me.role !== "admin" && me.role !== "operations" && me.role !== "teamlead";
 
     if (request.method === "GET") {
       // A salesperson only ever receives their own records (scope.mjs).
       if (isSales) return json({ ok: true, data: { ...EMPTY, ...scopeForSales(data, email) } }, 200, headers);
+      if (isTeamLead) return json({ ok: true, data: { ...EMPTY, ...scopeForTeamLead(data, email) } }, 200, headers);
       const out = { ...EMPTY, ...data };
       // The spreadsheet export key is Owner/Technical-only: never send it to
       // Sales or Operations devices.
@@ -89,10 +91,11 @@ export default async (request) => {
 
       // A Sales device only holds its own records: merge them into the stored
       // workspace and keep every other rep's prospects and visits as stored.
-      if (isSales) {
-        const merged = mergeSalesWrite(data, clean, email);
+      if (isSales || isTeamLead) {
+        const merged = isTeamLead ? mergeTeamLeadWrite(data, clean, email) : mergeSalesWrite(data, clean, email);
         clean.prospects = merged.prospects;
         clean.appointments = merged.appointments;
+        if (isTeamLead) clean.transactions = merged.transactions;
         clean.quotes = Array.isArray(data.quotes) ? data.quotes : [];
         clean.installations = Array.isArray(data.installations) ? data.installations : [];
       }
@@ -105,6 +108,8 @@ export default async (request) => {
         if (JSON.stringify(clean.prospects) !== JSON.stringify(storedProspects)) {
           clean.prospects = clean.prospects.map((p) => {
             const prev = prevById[p.id];
+            // Reps only ask for qualification; the Team lead decides.
+            if (p && ownsProspect(prev || p, email)) p = guardRepQual(p, prev);
             // Sales can't self-approve.
             if (p && p.reviewStatus === "approved" && (!prev || prev.reviewStatus !== "approved")) {
               return prev || { ...p, reviewStatus: "pending", reviewedBy: "", reviewedAt: "", reviewNote: "" };
@@ -160,7 +165,8 @@ export default async (request) => {
       }
 
       // Cash flow: Sales cannot touch transactions; only admins may approve.
-      if (JSON.stringify(clean.transactions) !== JSON.stringify(storedTx)) {
+      // (A Team lead's new deposits were already vetted by mergeTeamLeadWrite.)
+      if (!isTeamLead && JSON.stringify(clean.transactions) !== JSON.stringify(storedTx)) {
         if (!canCash) {
           clean.transactions = storedTx; // Sales roles cannot write cash entries at all
         } else if (!isAdmin) {
@@ -204,16 +210,16 @@ function sanitizeRoster(stored, incoming) {
     if (su.id === ownerId || su.role === "admin") { result.push(su); continue; }
     const u = incById[su.id];
     if (!u) continue; // Operations removed this non-admin member — allowed.
-    const role = u.role === "operations" || u.role === "sales" ? u.role : su.role; // never admin
+    const role = u.role === "operations" || u.role === "sales" || u.role === "teamlead" ? u.role : su.role; // never admin
     result.push({ ...su, name: u.name || su.name, role });
   }
-  // New members may only be Sales or Operations.
+  // New members may only be Sales, Team lead or Operations.
   const emails = new Set(result.map((u) => String(u.email || "").toLowerCase()));
   for (const u of inc) {
     if (storedById[u.id]) continue;
     const email = String(u.email || "").toLowerCase();
     if (!email || emails.has(email)) continue;
-    const role = u.role === "operations" ? "operations" : "sales";
+    const role = u.role === "operations" ? "operations" : u.role === "teamlead" ? "teamlead" : "sales";
     result.push({ id: u.id, name: u.name || "", email, role, created: u.created });
     emails.add(email);
   }
