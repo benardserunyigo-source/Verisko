@@ -734,3 +734,5 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .id-view figcaption{font-size:12px;color:var(--muted);margin-top:4px}
 .reset-code{font-size:40px;font-weight:800;letter-spacing:.18em;text-align:center;font-variant-numeric:tabular-nums;color:var(--navy);padding:14px 0;margin:6px 0 14px;border-radius:14px;background:var(--fill-2)}
 .invite-preview{white-space:pre-wrap;font-size:13px;line-height:1.5;max-height:240px;overflow:auto;padding:12px 14px;margin:4px 0 12px;border-radius:12px;background:#e7f7ec;color:#1f2a1f;border:1px solid #cfe9d6}
+.invite-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;margin-bottom:14px;border-left:4px solid #25d366}
+@media(max-width:420px){.invite-card{flex-direction:column;align-items:stretch}.invite-card .btn{width:100%}}

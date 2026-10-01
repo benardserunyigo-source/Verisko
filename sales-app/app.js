@@ -906,7 +906,7 @@
       '<div class="field"><label for="commTarget">Monthly target per rep (UGX)</label><input id="commTarget" name="commTarget" type="number" inputmode="numeric" min="0" step="10000" value="' + target + '"></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Save commission settings</button></form></section>' : "";
 
-    content.innerHTML = hero + board + (canReviewProspects() ? rosterCard() : "") + editor;
+    content.innerHTML = hero + inviteCard() + board + (canReviewProspects() ? rosterCard() : "") + editor;
   }
 
   // Manage the sales roster from the console (Operations + admins). Scoped to
@@ -3772,8 +3772,16 @@
     else if (/^7\d{8}$/.test(d)) d = "256" + d;
     return /^\d{11,15}$/.test(d) ? d : "";
   }
+  // Team lead / Operations / Owner dashboard: invite new staff on WhatsApp.
+  function inviteCard() {
+    if (!canApproveQual()) return "";
+    return '<section class="card invite-card"><div><strong>Grow the team</strong>' +
+      '<div class="settings-note">Send a new salesperson the app link and how to sign up with their National ID.' +
+      (canReviewProspects() ? "" : " Operations or the Owner approves them.") + "</div></div>" +
+      '<button type="button" class="btn btn-primary" data-invite-staff>Invite on WhatsApp</button></section>';
+  }
   function inviteStaff() {
-    if (!canReviewProspects()) return;
+    if (!canApproveQual()) return;
     var dlg = document.getElementById("askDialog");
     dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Invite staff on WhatsApp</h2>' +
       '<p class="ask-body">A welcome message with the app link and how to sign up, sign in and start training.</p></div>' +
