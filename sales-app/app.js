@@ -208,19 +208,10 @@
     return cfg;
   }
 
-  /* ---------- Seed / demonstration data (prospects + appointments only) ------ */
+  /* ------------- Empty starting workspace (no demo data) -------------------- */
   var seed = {
-    prospects: [
-      { id: "p1", business: "Acacia Pharmacy", vertical: "Pharmacy", contact: "Grace N.", phone: "+256 772 460 125", location: "Kira Road, Kampala", decisionMaker: "Yes", concern: "Blind spot at the dispensary entrance and after-hours access.", existing: "Yes", areas: "Entrance, dispensary, rear store", budget: "Has budget", stage: "Appointment confirmed", source: "Walk-in prospecting", nextAction: "Site visit with Operations Director", followUp: plusDays(1), notes: "Best time is before the lunch rush.", created: plusDays(-6) },
-      { id: "p2", business: "Luwum Mobile Money", vertical: "Mobile money", contact: "Brian S.", phone: "+256 701 908 412", location: "Luwum Street, Kampala", decisionMaker: "Yes", concern: "Cash handling and street-facing counter.", existing: "No", areas: "Counter and entrance", budget: "Has budget", stage: "Qualified", source: "Referral", nextAction: "Propose a site visit this week", followUp: today, notes: "Owner is usually present after 3pm.", created: plusDays(-3) },
-      { id: "p3", business: "Nakasero Family Clinic", vertical: "Clinic", contact: "Dr. Amina K.", phone: "+256 754 330 219", location: "Nakasero, Kampala", decisionMaker: "Yes", concern: "Night access, reception and medicine store.", existing: "Yes", areas: "Reception, corridors, pharmacy store, parking", budget: "Not discussed", stage: "Appointment proposed", source: "Website enquiry", nextAction: "Confirm the proposed Thursday visit", followUp: today, notes: "Wants the Operations Director to view the ceiling void.", created: plusDays(-10) },
-      { id: "p4", business: "Ntinda Fresh Mart", vertical: "Supermarket", contact: "Joel M.", phone: "+256 783 222 608", location: "Ntinda, Kampala", decisionMaker: "No", concern: "Till monitoring and stock loss.", existing: "No", areas: "Tills, aisles and stock room", budget: "Not discussed", stage: "Contact attempted", source: "Cold visit", nextAction: "Reach the proprietor, not only the supervisor", followUp: plusDays(-1), notes: "Branch supervisor cannot make the decision.", created: plusDays(-18) },
-      { id: "p5", business: "Kabalagala Hardware", vertical: "Retail shop", contact: "Sara T.", phone: "+256 776 114 900", location: "Kabalagala, Kampala", decisionMaker: "Unknown", concern: "Break-ins after closing.", existing: "No", areas: "Shopfront and yard", budget: "Price-sensitive", stage: "New prospect", source: "Cold visit", nextAction: "Call to introduce Verisko", followUp: plusDays(2), notes: "", created: plusDays(-1) }
-    ],
-    appointments: [
-      { id: "a1", prospectId: "p1", date: plusDays(1), time: "10:00", director: "Operations Director", status: "Confirmed", purpose: "Technical site survey", directions: "Ask for Grace at the dispensary counter. Parking on Kira Road.", created: plusDays(-2) },
-      { id: "a2", prospectId: "p3", date: plusDays(2), time: "14:30", director: "Operations Director", status: "Proposed", purpose: "Technical site survey", directions: "Reception will call Dr. Amina. Enter from the side gate.", created: plusDays(-1) }
-    ],
+    prospects: [],
+    appointments: [],
     users: [],
     transactions: [],
     jobs: [],
@@ -1813,7 +1804,7 @@
         ' <button type="button" class="btn btn-ghost btn-sm" data-undo-import>Undo…</button></p>' : "") + "</section>";
   }
   function downloadLeadTemplate() {
-    var rows = [window.VeriskoLeadImport.TEMPLATE, ["Acacia Pharmacy", "Grace N.", "0772 460125", "Kira Road, Kampala", "Pharmacy", "Instagram", "Replied to our post", ""]];
+    var rows = [window.VeriskoLeadImport.TEMPLATE];   // headings only — an example row would be imported
     var csv = rows.map(function (r) { return r.map(function (c) { return /[",\n]/.test(c) ? '"' + String(c).replace(/"/g, '""') + '"' : c; }).join(","); }).join("\r\n");
     download("verisko-leads-template.csv", "﻿" + csv, "text/csv");
   }
@@ -1966,8 +1957,8 @@
       '<button class="btn btn-ghost" data-import>Import backup</button></div></section>' +
 
       '<section class="card settings-card"><h2>Danger zone</h2>' +
-      '<p class="settings-note">Resetting erases <strong>all prospects, visits and team accounts — for everyone</strong> — and loads sample data. It cannot be undone. Download a backup first if unsure.</p>' +
-      '<div class="button-row"><button class="btn btn-danger" data-reset>Reset to demo data…</button></div></section>' +
+      '<p class="settings-note">Resetting erases <strong>all prospects, visits and team accounts — for everyone</strong> and leaves the workspace empty. It cannot be undone. Download a backup first if unsure.</p>' +
+      '<div class="button-row"><button class="btn btn-danger" data-reset>Reset everything…</button></div></section>' +
 
       '<section class="card settings-card"><h2>How Verisko Operations works</h2>' +
       '<p class="settings-note">One connected platform for the whole team. <strong>Sales</strong> capture and qualify leads and book site visits. <strong>Operations</strong> review them, run the cash-flow float, verify closed sales, and manage installations end to end. The <strong>Owner</strong> and Technical see the whole picture. Each person sees only what their role needs — and data captured once flows through, so nobody re-enters it.</p>' +
@@ -3326,17 +3317,17 @@
     toast(u.name.split(/\s+/)[0] + " removed from the team");
   }
 
-  // Danger zone: wipe everything and load demo data (type-to-confirm).
+  // Danger zone: wipe everything, leaving an empty workspace (type-to-confirm).
   async function resetDemo() {
     var r = await openSheet({
       title: "Reset everything?",
-      body: "This ERASES all prospects, visits and team accounts for everyone, and loads sample data. It cannot be undone.",
+      body: "This ERASES all prospects, visits and team accounts for everyone, and leaves the workspace empty. It cannot be undone.",
       input: { placeholder: "Type RESET to confirm", confirmWord: "RESET" },
       confirmLabel: "Reset everything", danger: true
     });
     if (!r) return;
     state = JSON.parse(JSON.stringify(seed));
-    saveData("Reset to demo data");
+    saveData("Workspace reset");
     logout(); // wiped the team — sign out and re-onboard
   }
 
