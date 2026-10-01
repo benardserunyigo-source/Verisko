@@ -2323,9 +2323,9 @@
         field("vertical", "What kind of place?", "segmented", source.vertical || "", { full: true, options: VERTICALS.map(function (v) { return { value: v, label: VERTICAL_LABELS[v] || v }; }) }) +
 
         // The 5 questions that qualify a lead — all taps.
-        '<div class="field-group-title">5 quick questions <span class="optional-tag">tap to answer</span></div>' +
+        '<div class="field-group-title">5 quick questions — tap your answers</div>' +
         Qz.QUESTIONS.map(function (q) {
-          return field(q.key, q.n + ". " + q.label + (q.multi ? " (tap all that fit)" : ""), q.multi ? "multi" : "segmented", source[q.key] || "", { full: true, options: q.options });
+          return field(q.key, q.n + ". " + q.label + (q.multi ? " (tap all that fit)" : ""), q.multi ? "multi" : "segmented", Qz.normalize(q.key, source[q.key] || ""), { full: true, options: q.options });
         }).join("") +
         '<div class="field full"><div class="qual-verdict" id="qualVerdict" aria-live="polite">' + qualVerdictHtml(source) + "</div></div>" +
 

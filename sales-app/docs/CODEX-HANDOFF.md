@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=66**.
+  base directory `sales-app`). Current asset version: **v=67**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -395,7 +395,7 @@ person's ID status. Older pending sign-ups (pre-v=66) can still be approved.
 
 ## 6h. Prospect form — the 5 qualifying questions (v=66)
 
-All taps, grade-six wording (`lead-qualify.js`, tested): 1 Who decides?
+All taps, grade-six wording from the rep's side (`lead-qualify.js`, tested): 1 Can the person you spoke to say yes?
 2 What do they want to stop or see? (multi) 3 Where do they want cameras?
 (multi → "about N cameras → package") 4 How would they like to pay? 5 When do
 they want it? Stored as `decides`, `needs`, `places` (comma-separated), `pay`,
@@ -513,7 +513,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=66, 1 Oct 2026)
+## 8. Current status (live at v=67, 1 Oct 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

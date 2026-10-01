@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import "../lead-qualify.js";
 
 const Q = globalThis.VeriskoQualify;
-const good = { decides: "I decide", needs: "Theft, Watch staff", places: "Gate, Front door, Inside", pay: "Pay in 3 parts", when: "This month" };
+const good = { decides: "Yes, they decide", needs: "Theft, Watch staff", places: "Gate, Front door, Inside", pay: "Pay in 3 parts", when: "This month" };
 
 test("5 questions, all answerable by tapping", () => {
   assert.equal(Q.QUESTIONS.length, 5);
@@ -15,13 +15,13 @@ test("a lead with all 5 good answers looks qualified", () => {
 });
 
 test("missing answers are listed by short name", () => {
-  const v = Q.verdict({ decides: "I decide", needs: "", places: "Gate" });
+  const v = Q.verdict({ decides: "Yes, they decide", needs: "", places: "Gate" });
   assert.equal(v.answered, 2); assert.equal(v.ready, false);
   assert.deepEqual(v.missing, ["What they want", "How they pay", "When"]);
 });
 
 test("stoppers: someone else decides, can't pay now, just looking", () => {
-  const v = Q.verdict({ ...good, decides: "Someone else decides", pay: "Can't pay now", when: "Just looking" });
+  const v = Q.verdict({ ...good, decides: "No, someone else decides", pay: "Can't pay now", when: "Just looking" });
   assert.equal(v.answered, 5); assert.equal(v.ready, false);
   assert.deepEqual(v.stoppers, ["Meet the person who decides", "They can't pay now", "They're just looking"]);
 });
@@ -37,4 +37,13 @@ test("summary lines for the Team lead's queue", () => {
   const s = Q.summary(good);
   assert.deepEqual(s[1], { label: "What they want", value: "Theft, Watch staff" });
   assert.equal(s.length, 5);
+});
+
+test("answers saved with the first wording still count, and show as the new wording", () => {
+  const old = { ...good, decides: "Someone else decides", needs: "Theft, Watch from my phone when away" };
+  assert.deepEqual(Q.verdict(old).stoppers, ["Meet the person who decides"]);
+  assert.equal(Q.normalize("decides", "I decide"), "Yes, they decide");
+  assert.equal(Q.normalize("needs", "Theft, Watch from my phone when away"), "Theft, Watch from their phone when away");
+  assert.equal(Q.summary({ decides: "We decide together" })[0].value, "They decide with someone");
+  assert.ok(Q.verdict({ ...good, decides: "I decide" }).ready);
 });
