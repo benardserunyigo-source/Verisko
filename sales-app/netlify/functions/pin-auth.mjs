@@ -22,6 +22,9 @@ export const MAX_FAILED = 5;
 export const LOCK_MS = 15 * 60 * 1000;
 export const SESSION_MS = 30 * 24 * 3600 * 1000;
 export const RESET_MS = 48 * 3600 * 1000;
+export const INVITE_MS = 7 * 24 * 3600 * 1000;     // an invite works for 7 days
+export const ID_DUE_MS = 5 * 24 * 3600 * 1000;     // add the National ID within 5 days of joining
+export const ID_REDO_MS = 2 * 24 * 3600 * 1000;    // "please redo" gives 2 more days
 export const STAFF_DOMAIN = "staff.verisko";
 
 const b64url = (buf) => Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -92,6 +95,35 @@ export function startReset(rec, now) {
 }
 export function resetCodeMatches(code, rec, now) {
   return !!(rec && rec.reset && rec.reset.exp > now && safeEqualHex(hashPin(code, rec.reset.salt), rec.reset.hash));
+}
+
+// Invite codes: 8 characters, no look-alikes (0/O, 1/I).
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export function newInviteCode() {
+  const b = randomBytes(8);
+  let c = "";
+  for (let i = 0; i < 8; i++) c += CODE_CHARS[b[i] % CODE_CHARS.length];
+  return c;
+}
+export function cleanInviteCode(v) { return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12); }
+// Who may invite whom: Team lead -> Sales; Operations -> Sales, Team lead;
+// Owner/Technical -> Sales, Team lead, Operations.
+export function canInviteRole(inviterRole, role) {
+  if (inviterRole === "admin") return ["sales", "teamlead", "operations"].includes(role);
+  if (inviterRole === "operations") return ["sales", "teamlead"].includes(role);
+  if (inviterRole === "teamlead") return role === "sales";
+  return false;
+}
+export function inviteProblem(inv, now, phone) {
+  if (!inv) return "That invite code isn't right. Check it, or ask your manager for a new invite.";
+  if (inv.usedAt) return "This invite was already used. Sign in with your phone number and PIN.";
+  if (!(Number(inv.exp) > now)) return "This invite has expired. Ask your manager for a new one.";
+  if (phone !== undefined && phone !== inv.phone) return "Use the phone number this invite was sent to.";
+  return "";
+}
+// The 5-day National ID deadline. True once it has passed without an ID.
+export function idOverdue(me, now) {
+  return !!me && me.authMethod === "pin" && (me.idStatus === "needed" || me.idStatus === "redo") && Date.parse(me.idDueAt || "") < now;
 }
 
 // Session tokens: "vs1.<payload>.<signature>", payload { uid, v, exp }.

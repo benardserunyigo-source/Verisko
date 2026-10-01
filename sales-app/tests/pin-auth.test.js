@@ -70,3 +70,39 @@ test("a device can't add, remove or rename PIN accounts — only change their ro
   assert.equal(out2[1].name, "Bea N"); assert.equal(out2[1].phone, "+256"); assert.equal(out2[1].role, "teamlead");
   assert.equal(protectPinUsers(stored, [stored[0], { ...stored[1], role: "admin" }])[1].role, "sales", "never admin");
 });
+
+import { newInviteCode, cleanInviteCode, canInviteRole, inviteProblem, idOverdue } from "../netlify/functions/pin-auth.mjs";
+
+test("invite codes: 8 characters without look-alikes", () => {
+  const c = newInviteCode();
+  assert.match(c, /^[A-HJ-NP-Z2-9]{8}$/);
+  assert.equal(cleanInviteCode(" ab-cd 23ef "), "ABCD23EF");
+});
+
+test("who can invite whom", () => {
+  assert.ok(canInviteRole("teamlead", "sales"));
+  assert.ok(!canInviteRole("teamlead", "teamlead"));
+  assert.ok(canInviteRole("operations", "teamlead"));
+  assert.ok(!canInviteRole("operations", "operations"));
+  assert.ok(canInviteRole("admin", "operations"));
+  assert.ok(!canInviteRole("admin", "admin"));
+  assert.ok(!canInviteRole("sales", "sales"));
+});
+
+test("an invite works once, for 7 days, for its phone number only", () => {
+  const inv = { phone: "256772460125", exp: 2000 };
+  assert.equal(inviteProblem(inv, 1000, "256772460125"), "");
+  assert.match(inviteProblem(inv, 1000, "256700000000"), /phone number/);
+  assert.match(inviteProblem(inv, 3000), /expired/);
+  assert.match(inviteProblem({ ...inv, usedAt: "x" }, 1000), /already used/);
+  assert.match(inviteProblem(null, 1000), /isn't right/);
+});
+
+test("the National ID is overdue only after its deadline, and only while missing", () => {
+  const me = { authMethod: "pin", idStatus: "needed", idDueAt: new Date(5000).toISOString() };
+  assert.equal(idOverdue(me, 4000), false);
+  assert.equal(idOverdue(me, 6000), true);
+  assert.equal(idOverdue({ ...me, idStatus: "submitted" }, 6000), false);
+  assert.equal(idOverdue({ ...me, idStatus: "redo" }, 6000), true);
+  assert.equal(idOverdue({ role: "admin", email: "x" }, 6000), false);
+});

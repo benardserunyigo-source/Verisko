@@ -9,7 +9,7 @@
 // Auth: same Supabase-token + allow-list check as /api/data. Images live in a
 // separate Blobs store so the main data JSON stays small.
 import { getStore } from "@netlify/blobs";
-import { AUTH_STORE, identify } from "./pin-auth.mjs";
+import { AUTH_STORE, identify, idOverdue } from "./pin-auth.mjs";
 import { supabaseUser } from "./auth.mjs";
 
 const DATA_STORE = "verisko-sales";
@@ -57,6 +57,7 @@ async function verify(request) {
   const who = await identify(request, data, { authStore: getStore(AUTH_STORE), now: Date.now(), supabaseUser });
   if (who.error) return null;
   if (!who.me && users.length > 0) return null;   // on the team? (empty workspace = bootstrap owner)
+  if (idOverdue(who.me, Date.now())) return null;   // National ID overdue
   const me = who.me;
   const canCash = users.length === 0 || (me && (me.role === "admin" || me.role === "operations"));
   return { email: who.email, me, canCash };

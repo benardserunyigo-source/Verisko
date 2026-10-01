@@ -7,7 +7,7 @@
 // an empty workspace bootstraps the owner. Non-admins cannot alter the team
 // list. Both Supabase values below are public (publishable) and safe to ship.
 import { getStore } from "@netlify/blobs";
-import { AUTH_STORE, STAFF_STORE, identify, protectPinUsers, displayPhone } from "./pin-auth.mjs";
+import { AUTH_STORE, STAFF_STORE, identify, protectPinUsers, displayPhone, idOverdue } from "./pin-auth.mjs";
 import { supabaseUser } from "./auth.mjs";
 import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, ownsProspect, keepFollowUps, keepNewerPlan, keepImported, mergeTraining } from "./scope.mjs";
 
@@ -36,6 +36,9 @@ export default async (request) => {
     // 2) Check the allow-list.
     const bootstrap = users.length === 0;                              // brand-new workspace
     const me = who.me;
+    // Staff who haven't added their National ID within 5 days can only do
+    // that (via /api/auth submitId) until they have.
+    if (idOverdue(me, Date.now())) return json({ ok: false, error: "id_overdue" }, 403, headers);
     if (!me && !bootstrap) return json({ ok: false, error: "not_authorized" }, 403, headers);
     const isAdmin = bootstrap || (me && me.role === "admin");
     const isTeamLead = !bootstrap && !!me && me.role === "teamlead";

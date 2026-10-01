@@ -736,3 +736,23 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .invite-preview{white-space:pre-wrap;font-size:13px;line-height:1.5;max-height:240px;overflow:auto;padding:12px 14px;margin:4px 0 12px;border-radius:12px;background:#e7f7ec;color:#1f2a1f;border:1px solid #cfe9d6}
 .invite-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;margin-bottom:14px;border-left:4px solid #25d366}
 @media(max-width:420px){.invite-card{flex-direction:column;align-items:stretch}.invite-card .btn{width:100%}}
+
+/* Prospect form: 5 quick questions (v=66) */
+.seg-btn.multi-btn[aria-pressed="true"]{background:var(--navy);color:#fff}
+.seg-btn.multi-btn[aria-pressed="true"]::before{content:"✓ "}
+.qual-verdict .qv{padding:10px 12px;border-radius:12px;font-size:14px;line-height:1.4}
+.qv-ok{background:var(--green-bg);color:var(--green)}
+.qv-todo{background:var(--fill-2);color:var(--muted)}
+.qv-stop{background:var(--amber-bg);color:var(--amber)}
+.qv-cams{margin-top:6px;font-size:13px;color:var(--muted)}
+.chip-fill .seg-btn{font-size:13.5px}
+
+/* Invite-only joining: selfie, National ID reminder (v=66) */
+.selfie-shot{display:block;cursor:pointer;width:160px;margin:0 auto}
+.selfie-img{display:flex;flex-direction:column;align-items:center;justify-content:center;aspect-ratio:3/4;border:1.5px dashed var(--hair-strong);border-radius:16px;background:var(--fill-2);color:var(--muted);font-weight:600;text-align:center;font-size:14px;line-height:1.5;overflow:hidden}
+.selfie-img.has-img{border-style:solid}
+.selfie-img img{width:100%;height:100%;object-fit:cover}
+.id-notice{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;margin-bottom:14px;border-left:4px solid var(--amber)}
+.id-notice.is-urgent{border-left-color:var(--red);background:var(--red-bg)}
+.id-form-title{font-size:22px;margin:0 0 6px}
+@media(max-width:420px){.id-notice{flex-direction:column;align-items:stretch}}

@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=65**.
+  base directory `sales-app`). Current asset version: **v=66**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -374,6 +374,40 @@ the team" card near the top of the Dashboard (`inviteCard()`) gives the Team
 lead, Operations and the Owner the same invite; the Team lead can invite but
 only Operations or the Owner can approve.
 
+**Invite-only joining (v=66, replaces open sign-up + approval):** the Team
+lead (Sales only), Operations (Sales/Team lead) or the Owner (also
+Operations) taps Invite → `invite` creates an 8-character code in
+`verisko-auth` "invite/<CODE>", single-use, 7 days, locked to the invitee's
+phone; the WhatsApp message carries `/?invite=CODE`. The link opens "Join the
+Verisko team" (`inviteInfo` greets them): full name as on the National ID,
+phone (must match), a selfie (front camera, `capture="user"`), PIN + consent →
+`signup` adds them to `users` at once (role from the invite, `idStatus:
+"needed"`, `idDueAt` = +5 days) and signs them in. The open sign-up is gone:
+no code, no account. **National ID within 5 days:** Today shows "Finish
+joining: add your National ID"; `submitId` stores NIN + ID photos in
+`verisko-staff` and sets `idStatus: "submitted"`. Once `idDueAt` passes
+without an ID, `/api/data` and `/api/receipt` answer 403 `id_overdue` and the
+app shows a lock screen with only the ID form (`showIdRequired`). **ID check:**
+Owner/Operations get "N new IDs to check" on Today and "Check ID" in the team
+list — selfie and ID side by side → `checkId` "Looks right" (`verified`) or
+"Ask to redo" with a reason (`redo`, 2 more days). The team list shows each
+person's ID status. Older pending sign-ups (pre-v=66) can still be approved.
+
+## 6h. Prospect form — the 5 qualifying questions (v=66)
+
+All taps, grade-six wording (`lead-qualify.js`, tested): 1 Who decides?
+2 What do they want to stop or see? (multi) 3 Where do they want cameras?
+(multi → "about N cameras → package") 4 How would they like to pay? 5 When do
+they want it? Stored as `decides`, `needs`, `places` (comma-separated), `pay`,
+`when`. "Looks qualified" = all 5 answered and no stopper (someone else
+decides / can't pay now / just looking). A rep can't save a qualification
+stage until all 5 are answered; the Operations review and Team lead approval
+cards show the answers and the verdict; prospect cards show "N of 5
+answered". Business type, cameras now, next action and lead source are taps
+too. The business photo was removed (the GPS pin proves the visit; older
+photos still show). Old fields (decisionMaker, budget, concern, areas) stay on
+old records but are no longer asked.
+
 ## 6g. Offline loading (v=63)
 
 `sw.js` (service worker, registered after load) keeps a copy of the app on
@@ -479,7 +513,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=65, 1 Oct 2026)
+## 8. Current status (live at v=66, 1 Oct 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

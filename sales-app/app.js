@@ -19,6 +19,8 @@
   var VERTICALS = ["Pharmacy", "Clinic", "Hospital", "Mobile money", "Retail shop", "Supermarket", "School", "Office", "Warehouse", "Residence", "Other"];
   var SOURCES = ["Cold visit", "Walk-in prospecting", "Referral", "Instagram", "Facebook", "Google search", "Website enquiry", "Phone enquiry", "Existing customer", "Other"];
   // Common next actions — offered as tap-or-type suggestions to cut typing.
+  // Plain words for the business types (stored values stay the same).
+  var VERTICAL_LABELS = { "Residence": "Home", "Retail shop": "Shop", "Mobile money": "Mobile money" };
   var NEXT_ACTIONS = ["Call back", "Book a site visit", "Confirm the visit", "Send a quotation", "Visit the site", "Follow up next week", "Wait for their decision"];
   // A job's full lifecycle — from the quote through to handover. One pipeline
   // (replaces the old separate quote statuses + installation statuses).
@@ -508,7 +510,7 @@
       sections = emptyState(ICON_CALENDAR, "You're all caught up", "No overdue follow-ups, nothing due today, and no visits waiting. Add a prospect to keep the pipeline moving.", "Add prospect", 'data-new="prospect"');
     }
 
-    content.innerHTML = signupNotice() + certNotice() + trainingNudge() + '<div class="stack">' + sections + "</div>";
+    content.innerHTML = idNotice() + idCheckNotice() + signupNotice() + certNotice() + trainingNudge() + '<div class="stack">' + sections + "</div>";
   }
 
   function section(title, count, cls, body) {
@@ -645,6 +647,13 @@
       '<button type="button" class="btn btn-sm btn-ghost" data-log-followup="' + esc(p.id) + '">Follow-up</button></div></article>';
   }
 
+  function quickQuestionsLine(p) {
+    if (p.closedSale || isClosed(p.stage) || p.qualStatus === "approved") return "";
+    var v = window.VeriskoQualify.verdict(p);
+    var txt = v.ready ? '<span style="color:var(--green);font-weight:600">✓ Looks qualified</span>'
+      : v.missing.length ? v.answered + " of 5 answered" : '<span style="color:var(--amber)">' + esc(v.stoppers.join(" · ")) + "</span>";
+    return '<div class="item-line"><span class="k">5 questions</span><span class="v">' + txt + "</span></div>";
+  }
   function prospectCard(p) {
     var appt = appointmentFor(p.id);
     var actions = "";
@@ -675,7 +684,7 @@
       '<div class="item-line"><span class="k">Phone</span><span class="v">' + (p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") + "</span></div>" +
       '<div class="item-line"><span class="k">Next action</span><span class="v">' + esc(p.nextAction || "Not set") + "</span></div>" +
       '<div class="item-line"><span class="k">Follow-up</span><span class="v">' + (isOverdue(p.followUp) ? '<span style="color:var(--red);font-weight:700">' + dateLabel(p.followUp) + " · overdue</span>" : dateLabel(p.followUp)) + plannedByNote(p) + "</span></div>" +
-      followUpSummaryLine(p) + disqualifiedLine(p) +
+      quickQuestionsLine(p) + followUpSummaryLine(p) + disqualifiedLine(p) +
       "</div>" +
       (p.createdBy ? '<div class="added-by">Added by ' + esc(p.createdBy) + "</div>" : "") +
       '<div class="item-actions">' + actions + "</div></article>";
@@ -942,7 +951,7 @@
       '<option value="teamlead">Team lead — approves qualified prospects, records deposits</option>' +
       '<option value="operations">Operations — also Cash flow</option></select></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Add team member</button>' +
-      '<p class="settings-note" style="margin-top:10px">No email? Invite them on WhatsApp — they sign up with their National ID and a PIN, and you approve them here.</p>' +
+      '<p class="settings-note" style="margin-top:10px">No email? Invite them on WhatsApp — they join with their phone number, a PIN and a selfie, and add their National ID within 5 days.</p>' +
       '<button type="button" class="btn btn-primary btn-block" data-invite-staff style="margin-top:8px">Invite staff on WhatsApp</button></form></section>';
   }
 
@@ -1617,6 +1626,11 @@
   /* -------- Save a prospect (business photo + live location + audit) -------- */
   async function saveProspect(data) {
     var saveBtn = document.getElementById("saveButton");
+    // A rep can only mark a lead Qualified once the 5 questions are answered.
+    if (!canReviewProspects() && window.VeriskoCommission.isQualStage(data.stage)) {
+      var qv = window.VeriskoQualify.verdict(data);
+      if (qv.missing.length) { showFormError("Answer the 5 quick questions before you mark it " + data.stage + ". Still needed: " + qv.missing.join(", ") + "."); return; }
+    }
     var isNew = !editing.id;
     var pid = editing.id || uid();
     var photoId = data.proofId || "";   // existing business photo id (hidden input)
@@ -1636,7 +1650,7 @@
     if (editing.id) {
       var idx = state.prospects.findIndex(function (x) { return x.id === editing.id; });
       var prev = state.prospects[idx];
-      var merged = Object.assign({}, prev, data, { id: editing.id, photoId: photoId });
+      var merged = Object.assign({}, prev, data, { id: editing.id, photoId: photoId || prev.photoId || "" });
       if (pendingGeo) merged.geo = pendingGeo;   // a re-captured pin updates the record
       // A Sales edit re-opens the audit: a sent-back prospect returns to the
       // queue, and an approved one that actually changed goes back to pending.
@@ -2201,7 +2215,7 @@
       '<option value="operations">Operations — also Cash flow</option>' +
       '<option value="admin">Technical — also Settings</option></select></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Add team member</button>' +
-      '<p class="settings-note" style="margin-top:10px">No email? Invite them on WhatsApp — they sign up with their National ID and a PIN, and you approve them here.</p>' +
+      '<p class="settings-note" style="margin-top:10px">No email? Invite them on WhatsApp — they join with their phone number, a PIN and a selfie, and add their National ID within 5 days.</p>' +
       '<button type="button" class="btn btn-primary btn-block" data-invite-staff style="margin-top:8px">Invite staff on WhatsApp</button>' +
       "</form></section>" +
 
@@ -2232,6 +2246,21 @@
   }
 
   /* --------------------------------- Forms ---------------------------------- */
+  // "Looks qualified" / what's still needed, under the 5 questions.
+  function qualVerdictHtml(p) {
+    var v = window.VeriskoQualify.verdict(p || {}), est = window.VeriskoQualify.cameraEstimate(p || {});
+    var cams = est ? '<div class="qv-cams">About ' + est.cameras + " cameras → " + esc(est.packageLabel) + " package</div>" : "";
+    if (v.ready) return '<div class="qv qv-ok">✓ Looks qualified — you can mark it <strong>Qualified</strong>.</div>' + cams;
+    if (v.missing.length) return '<div class="qv qv-todo">' + v.answered + " of " + v.total + " answered · still needed: " + esc(v.missing.join(", ")) + "</div>" + cams;
+    return '<div class="qv qv-stop">Not ready yet: ' + esc(v.stoppers.join(" · ")) + "</div>" + cams;
+  }
+  function updateQualVerdict() {
+    var box = document.getElementById("qualVerdict");
+    if (!box) return;
+    var p = {};
+    window.VeriskoQualify.QUESTIONS.forEach(function (q) { var el = document.getElementById("f_" + q.key); p[q.key] = el ? el.value : ""; });
+    box.innerHTML = qualVerdictHtml(p);
+  }
   function field(name, label, type, value, opts) {
     opts = opts || {};
     var required = opts.required ? ' required aria-required="true"' : "";
@@ -2248,6 +2277,15 @@
           var on = c.value === value;
           return '<button type="button" class="seg-btn" role="radio" aria-checked="' + (on ? "true" : "false") +
             '" data-seg-target="' + name + '" data-val="' + esc(c.value) + '">' + esc(c.label) + "</button>";
+        }).join("") + "</div>";
+    } else if (type === "multi") {
+      // Tap any number of choices; stored as "A, B, C".
+      var picked = (window.VeriskoQualify ? window.VeriskoQualify.list(value) : []);
+      input = '<input type="hidden" id="f_' + name + '" name="' + name + '" value="' + esc(picked.join(", ")) + '">' +
+        '<div class="segmented multi" role="group" aria-label="' + esc(label) + '">' +
+        opts.options.map(function (o) {
+          var on = picked.indexOf(o) !== -1;
+          return '<button type="button" class="seg-btn multi-btn" aria-pressed="' + (on ? "true" : "false") + '" data-multi-target="' + name + '" data-val="' + esc(o) + '">' + esc(o) + "</button>";
         }).join("") + "</div>";
     } else if (type === "textarea") {
       input = '<textarea id="f_' + name + '" name="' + name + '"' + ph + required + ">" + esc(value || "") + "</textarea>";
@@ -2273,42 +2311,44 @@
     if (type === "prospect") {
       pendingGeo = source.geo || null;   // pin already on file (edit) or none yet (new)
       document.getElementById("dialogTitle").textContent = id ? "Edit prospect" : "Add prospect";
-      // Normalise legacy free-text camera values into a simple Yes/No.
-      var cameras = source.existing == null || source.existing === "" ? "" :
-        (/^(no|none)$/i.test(String(source.existing).trim()) ? "No" : "Yes");
+      var Qz = window.VeriskoQualify;
+      var CAMERAS_NOW = ["None", "Yes, working", "Yes, broken or not enough"];
+      var camerasNow = CAMERAS_NOW.indexOf(source.existing) !== -1 ? source.existing : (/^(no|none)$/i.test(String(source.existing || "").trim()) ? "None" : "");
       html +=
-        // Essentials — the least typing needed for a good handoff.
-        field("business", "Business name", "text", source.business, { required: true, full: true, placeholder: "e.g. Acacia Pharmacy" }) +
-        field("contact", "Contact person", "text", source.contact, { placeholder: "Who you speak to" }) +
-        field("phone", "Phone number", "tel", source.phone, { help: "Needed to confirm a visit." }) +
-        field("location", "Location", "text", source.location, { full: true, placeholder: "Area, street or landmark" }) +
-        field("vertical", "Business type", "select", source.vertical || VERTICALS[0], { options: VERTICALS, full: true }) +
+        // The basics.
+        field("business", "Business or home name", "text", source.business, { required: true, full: true, placeholder: "e.g. Acacia Pharmacy" }) +
+        field("contact", "Who did you talk to?", "text", source.contact, { placeholder: "Their name" }) +
+        field("phone", "Their phone number", "tel", source.phone, { help: "We need it to book the visit." }) +
+        field("location", "Where is it?", "text", source.location, { full: true, placeholder: "Area, street or landmark" }) +
+        field("vertical", "What kind of place?", "segmented", source.vertical || "", { full: true, options: VERTICALS.map(function (v) { return { value: v, label: VERTICAL_LABELS[v] || v }; }) }) +
 
-        // Quick taps — no typing.
-        field("decisionMaker", "Spoke to the decision-maker?", "segmented", source.decisionMaker || "Unknown", { full: true, options: [{ value: "Yes", label: "Yes" }, { value: "No", label: "No" }, { value: "Unknown", label: "Not sure" }] }) +
-        field("existing", "Do they already have cameras?", "segmented", cameras, { full: true, options: ["No", "Yes"] }) +
-        field("budget", "Budget", "segmented", source.budget || "", { full: true, options: ["Has budget", "Price-sensitive", "Not discussed"] }) +
+        // The 5 questions that qualify a lead — all taps.
+        '<div class="field-group-title">5 quick questions <span class="optional-tag">tap to answer</span></div>' +
+        Qz.QUESTIONS.map(function (q) {
+          return field(q.key, q.n + ". " + q.label + (q.multi ? " (tap all that fit)" : ""), q.multi ? "multi" : "segmented", source[q.key] || "", { full: true, options: q.options });
+        }).join("") +
+        '<div class="field full"><div class="qual-verdict" id="qualVerdict" aria-live="polite">' + qualVerdictHtml(source) + "</div></div>" +
 
+        // Next step.
+        '<div class="field-group-title">Next step</div>' +
+        field("existing", "Do they have cameras now?", "segmented", camerasNow, { full: true, options: CAMERAS_NOW }) +
         field("stage", "Stage", "select", source.stage || "New prospect", { options: STAGES }) +
-        field("followUp", "Follow up on", "date", source.followUp || (id ? "" : today)) +
+        field("followUp", "Next follow-up", "date", source.followUp || (id ? "" : today)) +
         '<div class="field full"><label for="f_nextAction">Next action</label>' +
-        '<input id="f_nextAction" name="nextAction" type="text" list="nextActionList" autocomplete="off" placeholder="Tap a suggestion or type" value="' + esc(source.nextAction || "") + '">' +
-        '<datalist id="nextActionList">' + NEXT_ACTIONS.map(function (a) { return "<option>" + esc(a) + "</option>"; }).join("") + "</datalist></div>" +
+        '<div class="segmented chip-fill">' + NEXT_ACTIONS.map(function (a) { return '<button type="button" class="seg-btn" data-fill-next="' + esc(a) + '">' + esc(a) + "</button>"; }).join("") + "</div>" +
+        '<input id="f_nextAction" name="nextAction" type="text" autocomplete="off" placeholder="Tap one above, or type" value="' + esc(source.nextAction || "") + '" style="margin-top:8px"></div>' +
 
-        // Optional — only if it helps Operations.
-        '<div class="field-group-title">Optional details</div>' +
-        field("source", "Lead source", "select", source.source || SOURCES[0], { options: SOURCES, optional: true }) +
-        field("concern", "Main security concern", "textarea", source.concern, { full: true, optional: true, placeholder: "What are they worried about?" }) +
-        field("areas", "Areas to cover", "text", source.areas, { full: true, optional: true, placeholder: "e.g. Entrance, till, store" }) +
+        // Optional.
+        '<div class="field-group-title">Optional</div>' +
+        field("source", "How did you find them?", "segmented", source.source || "", { full: true, options: SOURCES }) +
         field("notes", "Notes for Operations", "textarea", source.notes, { full: true, optional: true }) +
 
-        // Audit: a photo of the business and the salesperson's live location.
-        '<div class="field full"><label>Business photo <span class="optional-tag">helps Operations verify</span></label>' + proofControl(source.photoId) + "</div>" +
-        // Site GPS pin — a must-have: the rep captures it on site before leaving.
+        // Site GPS pin — a must-have: it proves the rep visited (no business photo needed).
         '<div class="field full"><label>Site location ' + (canReviewProspects() ? '<span class="optional-tag">GPS pin</span>' : '<span class="req" aria-hidden="true">*</span> <span class="optional-tag">capture on site</span>') + "</label>" +
         '<div class="geo-status" id="geoStatus" aria-live="polite">' + geoStatusHtml(pendingGeo, null) + "</div>" +
         '<button type="button" class="btn btn-ghost btn-sm" data-capture-geo>' + (pendingGeo ? "Re-capture location" : "Capture site location") + "</button>" +
-        '<p class="helper">' + (canReviewProspects() ? "Capture the GPS pin if you're at the site." : "The GPS pin proves you visited — capture it before you leave the site.") + "</p></div>";
+        '<p class="helper">' + (canReviewProspects() ? "Capture the GPS pin if you're at the site." : "The GPS pin proves you visited — capture it before you leave the site.") + "</p></div>" +
+        (source.photoId ? '<div class="field full"><label>Business photo <span class="optional-tag">taken earlier</span></label>' + proofControl(source.photoId) + "</div>" : "");
       if (id) {
         if (source.reviewStatus === "query" && source.reviewNote) {
           html += '<div class="field full"><div class="rev-noproof">Sent back: ' + esc(source.reviewNote) + "</div></div>";
@@ -2570,6 +2610,18 @@
     }
     if (e.target.closest("[data-approve]")) { approveTransaction(); return; }
     if (e.target.closest("[data-sendback]")) { sendBackTransaction(); return; }
+    var fill = e.target.closest("[data-fill-next]");
+    if (fill) { var na = document.getElementById("f_nextAction"); if (na) na.value = fill.getAttribute("data-fill-next"); return; }
+    var mb = e.target.closest(".multi-btn");
+    if (mb) {
+      var on = mb.getAttribute("aria-pressed") !== "true";
+      mb.setAttribute("aria-pressed", on ? "true" : "false");
+      var mname = mb.getAttribute("data-multi-target");
+      var vals = [].map.call(mb.parentNode.querySelectorAll('.multi-btn[aria-pressed="true"]'), function (b) { return b.getAttribute("data-val"); });
+      var mh = document.getElementById("f_" + mname); if (mh) mh.value = vals.join(", ");
+      updateQualVerdict();
+      return;
+    }
     var btn = e.target.closest(".seg-btn");
     if (!btn) return;
     var name = btn.getAttribute("data-seg-target");
@@ -2591,6 +2643,7 @@
     }
     // Job: the camera-count segmented control re-prices the quote live.
     if (name === "cameraCount" && editing && editing.type === "job") recalcQuoteForm();
+    if (editing && editing.type === "prospect") updateQualVerdict();
   });
 
   form.addEventListener("submit", function (e) {
@@ -2850,18 +2903,26 @@
   }
 
   // Review queue card for a pending prospect (reviewers only).
+  // The 5 answers as card lines (Operations review, Team lead approval).
+  function answerLines(p) {
+    var v = window.VeriskoQualify.verdict(p);
+    return window.VeriskoQualify.summary(p).map(function (a) {
+      return '<div class="item-line"><span class="k">' + esc(a.label) + '</span><span class="v">' + (a.value ? esc(a.value) : '<span style="color:var(--muted)">not asked</span>') + "</span></div>";
+    }).join("") +
+      '<div class="item-line"><span class="k">Verdict</span><span class="v" style="font-weight:600;color:' + (v.ready ? "var(--green)" : "var(--amber)") + '">' +
+      (v.ready ? "✓ Looks qualified" : v.missing.length ? v.answered + " of 5 answered" : esc(v.stoppers.join(" · "))) + "</span></div>";
+  }
   function prospectReviewCard(p) {
     var photo = p.photoId
       ? '<button type="button" class="rev-proof" data-photo data-proof-id="' + esc(p.photoId) + '" aria-label="View business photo full screen"><span class="rev-proof-load">Loading photo…</span></button>'
-      : '<p class="rev-petty">No business photo yet — you can approve, or send it back to ask for one.</p>';
+      : "";
     return '<article class="card rev-card" data-id="' + p.id + '">' +
       '<div class="item-top"><div><div class="item-title">' + esc(p.business) + "</div>" +
       '<div class="item-meta">' + esc(p.vertical || "—") + " · " + esc(p.location || "No location") + "</div></div>" + stageChip(p.stage) + "</div>" +
       '<div class="item-lines"><div class="item-line"><span class="k">Contact</span><span class="v">' + esc(p.contact || "Unknown") + (p.phone ? " · " + esc(p.phone) : "") + "</span></div>" +
       '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(p.createdBy || "—") + "</span></div>" +
       '<div class="item-line"><span class="k">Location</span><span class="v">' + (p.geo ? mapLink(p.geo, "View on map") : '<span style="color:var(--muted)">not captured</span>') + "</span></div>" +
-      (p.decisionMaker && p.decisionMaker !== "Unknown" ? '<div class="item-line"><span class="k">Decision-maker</span><span class="v">' + esc(p.decisionMaker) + "</span></div>" : "") +
-      (p.budget ? '<div class="item-line"><span class="k">Budget</span><span class="v">' + esc(p.budget) + "</span></div>" : "") +
+      answerLines(p) +
       (p.reviewStatus === "query" && p.reviewNote ? '<div class="item-line"><span class="k">Sent back</span><span class="v" style="color:var(--red)">' + esc(p.reviewNote) + "</span></div>" : "") + "</div>" +
       photo +
       '<div class="rev-actions"><button type="button" class="btn btn-primary" data-approve-prospect="' + p.id + '">Approve</button>' +
@@ -2877,7 +2938,7 @@
     if (!canReviewProspects()) return;
     var p = prospect(id); if (!p || !p.id) return;
     var r = await openSheet({ title: "Send back to the rep", body: "What needs fixing?",
-      choices: ["Add a photo", "Confirm the location", "Wrong details", "Add contact/phone"], input: { placeholder: "Add a note (optional)" },
+      choices: ["Answer the 5 questions", "Capture the location", "Wrong details", "Add their phone number"], input: { placeholder: "Add a note (optional)" },
       requireValue: true, confirmLabel: "Send back" });
     if (!r) return;
     p.reviewStatus = "query"; p.reviewNote = combineNote(r); p.reviewedBy = (settings.user && settings.user.name) || ""; p.reviewedAt = today;
@@ -2899,7 +2960,7 @@
       '<div class="item-meta">' + esc(p.createdBy || "Rep") + " · " + esc(p.stage || "") + " · " + esc(p.location || "No location") + "</div></div>" + qualChip(p) + "</div>" +
       '<div class="item-lines">' +
       '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc([p.contact, p.phone].filter(Boolean).join(" · ") || "—") + "</span></div>" +
-      '<div class="item-line"><span class="k">Concern</span><span class="v">' + esc(p.concern || "—") + "</span></div>" +
+      answerLines(p) +
       '<div class="item-line"><span class="k">Asked</span><span class="v">' + esc(p.qualRequestedAt ? C.label(C.eventTime(p.qualRequestedAt), true) : "—") + "</span></div>" +
       followUpSummaryLine(p) + "</div>" +
       '<div class="item-actions"><button type="button" class="btn btn-sm btn-primary" data-approve-qual="' + esc(p.id) + '">Approve (' + money(commissionPerQualified()) + ")</button>" +
@@ -3091,7 +3152,10 @@
     try {
       var res = await apiData("GET");
       if (res.status === 401) return "signin";
-      if (res.status === 403) return "unauth";
+      if (res.status === 403) {
+        var why = await res.clone().json().catch(function () { return {}; });
+        return why.error === "id_overdue" ? "idoverdue" : "unauth";
+      }
       if (res.status >= 500) return "offline";   // a server hiccup isn't "you were removed" — keep working on the device
       var result = await res.json();
       if (!result.ok) return "unauth";
@@ -3111,6 +3175,7 @@
     var result = await loadShared();
     if (result === "ok") { resolveUser(); setSync("connected", "Synced"); toast("Data refreshed"); syncClosedSales(true); render(); }
     else if (result === "signin") { signOutLocal(); showLogin("Your session expired. Please sign in again."); }
+    else if (result === "idoverdue") showIdRequired();
     else if (result === "unauth") { var _em = settings.auth && settings.auth.email; signOutLocal(); showDenied(_em, true); }
     else { setSync("error", "Offline — using this device"); toast("Couldn't reach the workspace. Your device copy is safe."); }
   }
@@ -3329,25 +3394,27 @@
         '<div class="login-links">' +
         (known ? '<button type="button" class="account-back" data-login-notme>Not you? Use another number</button>' : "") +
         '<button type="button" class="account-back" data-login-step="forgot">Forgot PIN?</button>' +
-        '<button type="button" class="account-back" data-login-step="signup">New to Verisko? <strong>Sign up</strong></button>' +
+        '<button type="button" class="account-back" data-login-step="signup">Got an invite? <strong>Join the team</strong></button>' +
         '<button type="button" class="account-back" data-login-step="email">Sign in with email instead</button></div>';
     } else if (step === "signup") {
+      var inv = pendingInvite;
       html += '<h1 id="lockTitle">Join the Verisko team</h1>' +
-        '<p class="lock-sub">Sign up with your details exactly as they are on your National ID. Your manager checks them before you can sign in.</p>' +
+        (inv && inv.info ? '<p class="lock-sub">' + esc(inv.info.invitedBy || "Your manager") + " invited you to join as <strong>" + esc(inv.info.roleLabel) + "</strong>.</p>"
+          : '<p class="lock-sub">Joining is by invite only. Enter the code from your invite message.</p>') +
         '<form id="loginForm" class="account-fields signup-form" data-step="signup">' +
+        '<div class="field"' + (inv && inv.info ? " hidden" : "") + '><label for="suCode">Invite code</label><input id="suCode" name="invite" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="12" placeholder="e.g. K7PM2QXA" value="' + esc(inv ? inv.code : "") + '"></div>' +
         '<div class="field"><label for="suName">Full name (as on your National ID)</label><input id="suName" name="legalName" type="text" autocomplete="name" autocapitalize="words" placeholder="e.g. Nansubuga Beatrice" required></div>' +
-        '<div class="field"><label for="suPhone">Phone number</label><input id="suPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="0772 123 456" required></div>' +
-        '<div class="field"><label for="suNin">National ID number (NIN)</label><input id="suNin" name="nin" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="16" placeholder="CM9001234567AB" required>' +
-        '<p class="helper">14 characters, starting CM or CF.</p></div>' +
-        '<div class="field"><label>Photo of your National ID</label><div class="id-shots">' +
-        '<label class="id-shot" for="suFront"><span class="id-shot-img" id="suFrontPrev">Front<br><small>required</small></span><input id="suFront" type="file" accept="image/*" capture="environment" hidden></label>' +
-        '<label class="id-shot" for="suBack"><span class="id-shot-img" id="suBackPrev">Back<br><small>optional</small></span><input id="suBack" type="file" accept="image/*" capture="environment" hidden></label>' +
-        '</div><p class="helper">Lay the card flat in good light so the writing is clear.</p></div>' +
+        '<div class="field"><label for="suPhone">Your phone number</label><input id="suPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="0772 123 456" required>' +
+        (inv && inv.info ? '<p class="helper">The number your invite was sent to (ends in ' + esc(inv.info.phoneEnd) + ").</p>" : "") + "</div>" +
+        '<div class="field"><label>Take a selfie</label>' +
+        '<label class="selfie-shot" for="suSelfie"><span class="selfie-img" id="suSelfiePrev">📷<br>Tap to take a selfie</span><input id="suSelfie" type="file" accept="image/*" capture="user" hidden></label>' +
+        '<p class="helper">So we know it\'s really you. Face the camera in good light.</p></div>' +
         '<div class="field"><label for="suPin">Choose a 4-digit PIN</label><input id="suPin" name="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" placeholder="••••" required></div>' +
         '<div class="field"><label for="suPin2">Enter the PIN again</label><input id="suPin2" name="pin2" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" placeholder="••••" required></div>' +
-        '<label class="consent"><input type="checkbox" name="consent" required> <span>I agree that Verisko keeps my name, phone number, NIN and ID photo to verify my identity for work. Only the Owner and Operations can see them.</span></label>' +
+        '<label class="consent"><input type="checkbox" name="consent" required> <span>I agree that Verisko keeps my name, phone number and selfie — and, later, my National ID — to check who I am for work. Only the Owner and Operations can see them.</span></label>' +
         errHtml +
-        '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Sign up</button></form>' +
+        '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Join</button></form>' +
+        '<p class="lock-help">After joining you have <strong>5 days</strong> to add your National ID in the app.</p>' +
         '<button type="button" class="account-back" data-login-step="pin">I already have an account — sign in</button>';
     } else if (step === "signupDone") {
       html += '<h1 id="lockTitle">Thank you' + (loginFirst ? ", " + esc(loginFirst) : "") + "!</h1>" +
@@ -3382,7 +3449,7 @@
     lockCard.innerHTML = html;
     var first = lockCard.querySelector("input:not([hidden]):not([type=file]):not([type=checkbox])");
     if (first && first.offsetParent) first.focus();
-    if (step === "signup") bindIdShots();
+    if (step === "signup") bindPhotoPick("suSelfie", "suSelfiePrev", "selfie", 900);
   }
   function loginError(msg) {
     var el = lockCard.querySelector("#loginError") || lockCard.querySelector(".lock-error");
@@ -3433,14 +3500,15 @@
     }
     if (step === "signup") {
       var g = function (n) { var el = form.querySelector("[name=" + n + "]"); return el ? el.value.trim() : ""; };
+      if (!g("invite")) { loginError("Enter the invite code from your invite message."); return; }
       if (g("pin") !== g("pin2")) { loginError("The two PINs don't match."); return; }
-      if (!idShots.front) { loginError("Add a photo of the front of your National ID."); return; }
+      if (!photoPicks.selfie) { loginError("Take a selfie so we know it's you."); return; }
       if (!form.querySelector("[name=consent]").checked) { loginError("Please tick the box to agree."); return; }
-      loginBusy(true, "Sending…");
-      var sr = await authApi({ action: "signup", legalName: g("legalName"), phone: g("phone"), nin: g("nin"), pin: g("pin"), idFront: idShots.front, idBack: idShots.back || "", consent: true }, true);
-      if (sr.ok) { loginFirst = g("legalName"); settings.lastPhone = g("phone"); settings.lastFirst = ""; saveSettings(); idShots = {}; renderLogin("signupDone"); return; }
-      loginBusy(false, "Sign up");
-      loginError(sr.error || "Couldn't send your sign-up. Check your connection and try again.");
+      loginBusy(true, "Joining…");
+      var sr = await authApi({ action: "signup", invite: g("invite"), legalName: g("legalName"), phone: g("phone"), pin: g("pin"), selfie: photoPicks.selfie, consent: true }, true);
+      if (sr.ok) { photoPicks = {}; pendingInvite = null; return afterPinSignIn(g("phone"), sr); }
+      loginBusy(false, "Join");
+      loginError(sr.error || "Couldn't join. Check your connection and try again.");
       return;
     }
     if (step === "email") {
@@ -3464,7 +3532,6 @@
 
   /* -------- Staff phone + PIN sign-in (see netlify/functions/auth.mjs) -------- */
   var loginFirst = "";
-  var idShots = {};
   // quiet: never throw; returns the JSON body (ok:false + error on failure).
   async function authApi(body, quiet) {
     try {
@@ -3476,33 +3543,36 @@
       return res.ok ? j : Object.assign({ ok: false }, j);
     } catch (e) { return { ok: false, error: "You're offline. Check your connection and try again." }; }
   }
+  var photoPicks = {};
+  var pendingInvite = null;     // { code, info } from an invite link
+  // A camera/photo input with a preview; the resized image lands in photoPicks[key].
+  function bindPhotoPick(inputId, prevId, key, maxDim) {
+    var input = document.getElementById(inputId), prev = document.getElementById(prevId);
+    if (!input || !prev) return;
+    input.addEventListener("change", async function () {
+      var f = input.files && input.files[0]; if (!f) return;
+      try {
+        var url = await resizeImage(f, maxDim || 1400, 0.8);
+        photoPicks[key] = url;
+        prev.innerHTML = '<img src="' + url + '" alt="">';
+        prev.classList.add("has-img");
+      } catch (e) { toast("Couldn't read that photo — try again."); }
+    });
+  }
   async function afterPinSignIn(phone, r) {
     settings.auth = { access_token: r.token, expires_at: r.expiresAt, email: r.user.email, kind: "pin" };
     settings.lastPhone = phone; settings.lastFirst = String(r.user.name || "");   // full name (surname-first on IDs)
     saveSettings();
     var s = await loadShared();
+    if (s === "idoverdue") { showIdRequired(); return; }
     if (s !== "ok") { signOutLocal(); renderLogin("pin", "Signed in, but the workspace is unreachable. Check your connection."); return; }
     var me = (state.users || []).find(function (u) { return u.id === r.user.id; });
     if (!me) { signOutLocal(); renderLogin("pending"); return; }
     settings.user = me; saveSettings();
-    toast("Signed in as " + me.name.split(/\s+/)[0]);
+    toast("Signed in as " + me.name);
     enterApp();
   }
-  function bindIdShots() {
-    ["Front", "Back"].forEach(function (side) {
-      var input = document.getElementById("su" + side), prev = document.getElementById("su" + side + "Prev");
-      if (!input) return;
-      input.addEventListener("change", async function () {
-        var f = input.files && input.files[0]; if (!f) return;
-        try {
-          var url = await resizeImage(f, 1400, 0.8);
-          idShots[side.toLowerCase()] = url;
-          prev.innerHTML = '<img src="' + url + '" alt="ID ' + side.toLowerCase() + '">';
-          prev.classList.add("has-img");
-        } catch (e) { toast("Couldn't read that photo — try again."); }
-      });
-    });
-  }
+
 
   async function afterVerify(email, session) {
     settings.auth = { access_token: session.access_token, refresh_token: session.refresh_token, expires_at: session.expires_at, email: email };
@@ -3583,7 +3653,7 @@
     document.getElementById("userMenuEmail").textContent = contactOf(u);
   }
   // How to reach a team member: email, or phone for PIN sign-in accounts.
-  function contactOf(u) { return u && u.authMethod === "pin" ? (u.phone || "") + " · PIN sign-in" : (u && u.email) || ""; }
+  function contactOf(u) { return u && u.authMethod === "pin" ? (u.phone || "") + " · " + (idStatusLabel(u) || "PIN sign-in") : (u && u.email) || ""; }
   function closeUserMenu() { userMenu.hidden = true; userChip.setAttribute("aria-expanded", "false"); }
   userChip.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -3748,22 +3818,159 @@
     toast(u.name.split(/\s+/)[0] + " removed from the team");
   }
 
+
+  /* ---- National ID within 5 days of joining (PIN staff) ---- */
+  function myIdState() {
+    var u = settings.user || {};
+    if (u.authMethod !== "pin" || !(u.idStatus === "needed" || u.idStatus === "redo")) return null;
+    var due = Date.parse(u.idDueAt || ""), left = isNaN(due) ? null : Math.ceil((due - Date.now()) / 864e5);
+    return { status: u.idStatus, note: u.idNote || "", daysLeft: left };
+  }
+  function idNotice() {
+    var st = myIdState();
+    if (!st) return "";
+    var when = st.daysLeft == null ? "" : st.daysLeft <= 0 ? "today" : st.daysLeft === 1 ? "by tomorrow" : "within " + st.daysLeft + " days";
+    return '<section class="card id-notice' + (st.daysLeft != null && st.daysLeft <= 1 ? " is-urgent" : "") + '"><div><strong>' +
+      (st.status === "redo" ? "Please add your National ID again" : "Finish joining: add your National ID") + "</strong>" +
+      '<div class="settings-note">' + (st.note ? "Reason: " + esc(st.note) + ". " : "") + "Add it " + esc(when) + " or the app will lock until you do.</div></div>" +
+      '<button type="button" class="btn btn-sm btn-primary" data-add-id>Add ID</button></section>';
+  }
+  function idFormHtml(title, intro) {
+    return '<h1 id="lockTitle" class="id-form-title">' + esc(title) + "</h1>" +
+      '<p class="lock-sub">' + intro + "</p>" +
+      '<form id="idForm" class="account-fields signup-form">' +
+      '<div class="field"><label for="idNin">National ID number (NIN)</label><input id="idNin" name="nin" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="16" placeholder="CM9001234567AB" required><p class="helper">14 characters, starting CM or CF.</p></div>' +
+      '<div class="field"><label>Photo of your National ID</label><div class="id-shots">' +
+      '<label class="id-shot" for="idFront"><span class="id-shot-img" id="idFrontPrev">Front<br><small>required</small></span><input id="idFront" type="file" accept="image/*" capture="environment" hidden></label>' +
+      '<label class="id-shot" for="idBack"><span class="id-shot-img" id="idBackPrev">Back<br><small>optional</small></span><input id="idBack" type="file" accept="image/*" capture="environment" hidden></label>' +
+      '</div><p class="helper">Lay the card flat in good light so the writing is clear.</p></div>' +
+      '<p class="lock-error" id="idError" role="alert" hidden></p>' +
+      '<button type="submit" class="btn btn-primary btn-block" id="idSubmit">Send my ID</button></form>';
+  }
+  function bindIdForm(root, onDone) {
+    photoPicks.idFront = null; photoPicks.idBack = null;
+    bindPhotoPick("idFront", "idFrontPrev", "idFront", 1400);
+    bindPhotoPick("idBack", "idBackPrev", "idBack", 1400);
+    var f = root.querySelector("#idForm"), err = root.querySelector("#idError"), btn = root.querySelector("#idSubmit");
+    f.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var fail = function (m) { err.textContent = m; err.hidden = false; };
+      if (!photoPicks.idFront) { fail("Take a photo of the front of your National ID."); return; }
+      btn.disabled = true; btn.textContent = "Sending…";
+      var r = await authApi({ action: "submitId", nin: f.querySelector("[name=nin]").value.trim(), idFront: photoPicks.idFront, idBack: photoPicks.idBack || "" }, true);
+      btn.disabled = false; btn.textContent = "Send my ID";
+      if (!r.ok) { fail(r.error || "Couldn't send your ID. Check your connection."); return; }
+      settings.user = Object.assign({}, settings.user, r.user || { idStatus: "submitted" }); saveSettings();
+      var su = (state.users || []).find(function (x) { return x.id === settings.user.id; }); if (su) Object.assign(su, r.user || { idStatus: "submitted" });
+      photoPicks = {};
+      toast("Thank you — your ID was sent");
+      onDone();
+    });
+  }
+  // From the Today reminder.
+  function openIdForm() {
+    var dlg = document.getElementById("askDialog");
+    var st = myIdState() || {};
+    dlg.classList.add("is-wide");
+    dlg.innerHTML = '<div class="ask-head"></div>' + idFormHtml(st.status === "redo" ? "Add your National ID again" : "Add your National ID",
+      (st.note ? "<strong>" + esc(st.note) + ".</strong> " : "") + "We use it to check who you are. Only the Owner and Operations can see it.") +
+      '<div class="ask-actions"><button type="button" class="btn btn-ghost" id="askCancel">Later</button></div>';
+    var close = function () { dlg.close(); dlg.classList.remove("is-wide"); dlg.innerHTML = ""; };
+    dlg.querySelector("#askCancel").addEventListener("click", close);
+    dlg.addEventListener("cancel", function (e) { e.preventDefault(); close(); }, { once: true });
+    bindIdForm(dlg, function () { close(); render(); });
+    dlg.showModal();
+  }
+  // After 5 days: the app stays locked on this screen until the ID is in.
+  function showIdRequired() {
+    userChip.hidden = true; closeUserMenu();
+    document.body.classList.add("locked");
+    lockScreen.hidden = false;
+    lockCard.innerHTML = idFormHtml("Add your National ID to continue",
+      "You joined more than 5 days ago. Add your National ID number and a photo of your ID to keep using the app.") +
+      '<button type="button" class="account-back" data-id-signout>Sign out</button>';
+    lockCard.querySelector("[data-id-signout]").addEventListener("click", function () { logout(); });
+    bindIdForm(lockCard, async function () {
+      var r = await loadShared();
+      if (r === "ok") { resolveUser(); enterApp(); render(); }
+      else if (r === "idoverdue") showIdRequired();
+      else { enterApp(); }
+    });
+  }
+
+  /* ---- Owner / Operations: check new IDs (selfie vs ID card) ---- */
+  function idsToCheck() {
+    if (!canReviewProspects()) return [];
+    return (state.users || []).filter(function (u) { return u.authMethod === "pin" && u.idStatus === "submitted"; });
+  }
+  function idCheckNotice() {
+    var list = idsToCheck();
+    if (!list.length) return "";
+    return '<section class="card training-nudge"><div><strong>' + list.length + " new " + (list.length === 1 ? "ID" : "IDs") + " to check</strong>" +
+      '<div class="settings-note">Compare the selfie with the National ID photo.</div></div>' +
+      '<button type="button" class="btn btn-sm btn-primary" data-check-id="' + esc(list[0].id) + '">Check</button></section>';
+  }
+  function idStatusLabel(u) {
+    if (!u || u.authMethod !== "pin") return "";
+    if (u.idStatus === "verified") return "ID checked ✓";
+    if (u.idStatus === "submitted") return "ID to check";
+    if (u.idStatus === "needed" || u.idStatus === "redo") {
+      var left = Math.ceil((Date.parse(u.idDueAt || "") - Date.now()) / 864e5);
+      return isNaN(left) ? "ID needed" : left <= 0 ? "ID overdue — app locked" : "ID due in " + left + (left === 1 ? " day" : " days");
+    }
+    return "";
+  }
+  async function checkStaffId(userId) {
+    var r = await authApi({ action: "record", id: userId }, true);
+    if (!r.ok) { toast(r.error || "Couldn't load their ID."); return; }
+    var rec = r.record, dlg = document.getElementById("askDialog");
+    dlg.classList.add("is-wide");
+    dlg.innerHTML = '<div class="ask-head"><p class="dash-eyebrow" style="margin:0">Check ID</p><h2 id="askTitle">' + esc(rec.legalName) + "</h2></div>" +
+      staffDetailsHtml(rec) + idPhotosHtml(rec) +
+      '<p class="settings-note">Does the selfie match the ID photo, and the name and NIN match the card?</p>' +
+      '<div class="ask-actions" style="flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="askCancel">Close</button>' +
+      (rec.idStatus === "submitted" ? '<button type="button" class="btn btn-danger" id="idRedo">Ask to redo</button><button type="button" class="btn btn-primary" id="idOk">Looks right</button>' : "") + "</div>";
+    var close = function () { dlg.close(); dlg.classList.remove("is-wide"); dlg.innerHTML = ""; };
+    dlg.querySelector("#askCancel").addEventListener("click", close);
+    dlg.addEventListener("cancel", function (e) { e.preventDefault(); close(); }, { once: true });
+    if (rec.idStatus === "submitted") {
+      dlg.querySelector("#idOk").addEventListener("click", async function () {
+        this.disabled = true;
+        var x = await authApi({ action: "checkId", userId: userId, ok: true }, true);
+        close();
+        if (!x.ok) { toast(x.error || "Couldn't save."); return; }
+        await pullShared(); toast(rec.legalName + " — ID checked ✓");
+      });
+      dlg.querySelector("#idRedo").addEventListener("click", async function () {
+        close();
+        var why = await openSheet({ title: "What should they fix?", body: rec.legalName + " gets 2 more days to send it again.",
+          choices: ["Photo not clear", "Name doesn't match", "Selfie doesn't match", "Not a National ID", "Other"], input: { placeholder: "Details — required if you pick Other" },
+          requireChoice: true, textFor: "Other", confirmLabel: "Ask to redo", danger: true });
+        if (!why) return;
+        var reason = why.choice === "Other" ? why.text : why.choice + (why.text ? " — " + why.text : "");
+        var y = await authApi({ action: "checkId", userId: userId, ok: false, reason: reason }, true);
+        if (!y.ok) { toast(y.error || "Couldn't save."); return; }
+        await pullShared(); toast("Sent back — they'll see why");
+      });
+    }
+    dlg.showModal();
+  }
+
   /* ---- Staff sign-ups & PIN accounts (Owner / Operations) ---- */
-  // The WhatsApp onboarding message: how to sign up, sign in, install the app
-  // and start training. Plain words, short lines.
-  function staffInviteText(name) {
+  // The WhatsApp onboarding message: the personal invite link, how to join,
+  // the 5-day ID step, signing in, the home screen and training.
+  function staffInviteText(name, link, roleLabel) {
     var me = (settings.user && settings.user.name) || "";
-    return "Hello" + (name ? " " + name : "") + " \uD83D\uDC4B Welcome to the Verisko team!\n\n" +
-      "Please set up your Verisko app account:\n\n" +
-      "1\uFE0F\u20E3 Open " + location.origin + " on your phone\n" +
-      "2\uFE0F\u20E3 Tap *Sign up*\n" +
-      "3\uFE0F\u20E3 Enter your full name *exactly as on your National ID*, your phone number and your NIN\n" +
-      "4\uFE0F\u20E3 Take a clear photo of your National ID\n" +
-      "5\uFE0F\u20E3 Choose a 4-digit PIN. Keep it secret — don't share it with anyone\n" +
-      "6\uFE0F\u20E3 Tap *Sign up*. We check your details and approve you\n\n" +
-      "Once you're approved, sign in with your *phone number and PIN*.\n\n" +
-      "\uD83D\uDCF2 Tip: put the app on your home screen. Android: Chrome menu (⋮) → *Add to Home screen*. iPhone: Share → *Add to Home Screen*.\n\n" +
-      "\uD83C\uDF93 Then open *Support* in the app and watch the 13 training videos. Pass each quiz to get your certificate.\n\n" +
+    return "Hello" + (name ? " " + name : "") + " 👋 Welcome to the Verisko team" + (roleLabel ? " (" + roleLabel + ")" : "") + "!\n\n" +
+      "Here is your personal invite to the Verisko app. It works for 7 days, only with this phone number:\n" + link + "\n\n" +
+      "1️⃣ Open the link on your phone\n" +
+      "2️⃣ Enter your full name *exactly as on your National ID*\n" +
+      "3️⃣ Choose a 4-digit PIN. Keep it secret — don't share it with anyone\n" +
+      "4️⃣ Take a selfie so we know it's you\n" +
+      "5️⃣ *Within 5 days*: add your National ID number and a photo of your ID in the app\n\n" +
+      "After that, sign in any time with your *phone number and PIN*.\n\n" +
+      "📲 Tip: put the app on your home screen. Android: Chrome menu (⋮) → *Add to Home screen*. iPhone: Share → *Add to Home Screen*.\n\n" +
+      "🎓 Then open *Support* in the app and watch the 13 training videos. Pass each quiz to get your certificate.\n\n" +
       "Questions? Reply to this message." + (me ? "\n— " + me + ", Verisko" : "");
   }
   function waDigits(phone) {
@@ -3776,48 +3983,54 @@
   function inviteCard() {
     if (!canApproveQual()) return "";
     return '<section class="card invite-card"><div><strong>Grow the team</strong>' +
-      '<div class="settings-note">Send a new salesperson the app link and how to sign up with their National ID.' +
-      (canReviewProspects() ? "" : " Operations or the Owner approves them.") + "</div></div>" +
+      '<div class="settings-note">Send a new team member a personal invite link on WhatsApp. Joining is by invite only.' +
+      (canReviewProspects() ? "" : " You can invite Sales.") + "</div></div>" +
       '<button type="button" class="btn btn-primary" data-invite-staff>Invite on WhatsApp</button></section>';
   }
   function inviteStaff() {
     if (!canApproveQual()) return;
+    var role = (settings.user || {}).role;
+    var roles = role === "teamlead" ? [["sales", "Sales"]] : [["sales", "Sales"], ["teamlead", "Team lead"]].concat(isAdmin() ? [["operations", "Operations"]] : []);
     var dlg = document.getElementById("askDialog");
-    dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Invite staff on WhatsApp</h2>' +
-      '<p class="ask-body">A welcome message with the app link and how to sign up, sign in and start training.</p></div>' +
+    dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Invite someone to the team</h2>' +
+      '<p class="ask-body">They get a personal link that works once, for 7 days, only with their phone number. They join straight away and add their National ID within 5 days.</p></div>' +
       '<div class="field"><label for="invName">Their first name <span class="optional-tag">optional</span></label><input id="invName" type="text" autocomplete="off" placeholder="e.g. Grace"></div>' +
-      '<div class="field"><label for="invPhone">Their WhatsApp number <span class="optional-tag">optional</span></label><input id="invPhone" type="tel" inputmode="tel" autocomplete="off" placeholder="0772 123 456"><p class="helper">Leave it empty to choose the person in WhatsApp.</p></div>' +
-      '<div class="invite-preview" id="invPreview"></div>' +
+      '<div class="field"><label for="invPhone">Their WhatsApp number</label><input id="invPhone" type="tel" inputmode="tel" autocomplete="off" placeholder="0772 123 456" required></div>' +
+      (roles.length > 1 ? '<div class="field"><label for="invRole">They join as</label><select id="invRole">' + roles.map(function (o) { return '<option value="' + o[0] + '">' + o[1] + "</option>"; }).join("") + "</select></div>" : '<input type="hidden" id="invRole" value="sales">') +
+      '<p class="lock-error" id="invError" role="alert" hidden></p>' +
       '<div class="ask-actions" style="flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="askCancel">Close</button>' +
-      '<button type="button" class="btn btn-ghost" id="invCopy">Copy message</button>' +
-      '<a class="btn btn-primary" id="invSend" target="_blank" rel="noopener" href="#">Send on WhatsApp</a></div>';
-    var nameEl = dlg.querySelector("#invName"), phoneEl = dlg.querySelector("#invPhone"), prev = dlg.querySelector("#invPreview"), send = dlg.querySelector("#invSend");
-    var refresh = function () {
-      var text = staffInviteText(nameEl.value.trim());
-      prev.textContent = text;
-      var d = waDigits(phoneEl.value);
-      send.href = "https://wa.me/" + d + "?text=" + encodeURIComponent(text);
-      phoneEl.setCustomValidity(phoneEl.value.trim() && !d ? "Check the number" : "");
-    };
-    nameEl.addEventListener("input", refresh); phoneEl.addEventListener("input", refresh);
+      '<button type="button" class="btn btn-primary" id="invCreate">Create invite</button></div>';
+    var nameEl = dlg.querySelector("#invName"), phoneEl = dlg.querySelector("#invPhone"), err = dlg.querySelector("#invError");
     dlg.querySelector("#askCancel").addEventListener("click", function () { dlg.close(); });
-    send.addEventListener("click", function (e) {
-      if (phoneEl.value.trim() && !waDigits(phoneEl.value)) { e.preventDefault(); toast("Check the WhatsApp number, or leave it empty."); return; }
-      setTimeout(function () { dlg.close(); }, 300);
+    dlg.querySelector("#invCreate").addEventListener("click", async function () {
+      var d = waDigits(phoneEl.value);
+      if (!d) { err.textContent = "Enter their WhatsApp number, e.g. 0772 123 456."; err.hidden = false; return; }
+      this.disabled = true; this.textContent = "Creating…";
+      var roleVal = dlg.querySelector("#invRole").value, name = nameEl.value.trim();
+      var r = await authApi({ action: "invite", phone: phoneEl.value, name: name, role: roleVal }, true);
+      if (!r.ok) { this.disabled = false; this.textContent = "Create invite"; err.textContent = r.error || "Couldn't create the invite."; err.hidden = false; return; }
+      var label = (roles.find(function (o) { return o[0] === r.role; }) || [0, "Sales"])[1];
+      var text = staffInviteText(name, location.origin + "/?invite=" + r.code, label);
+      dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Send the invite' + (name ? " to " + esc(name) : "") + "</h2>" +
+        '<p class="ask-body">Invite code <strong>' + esc(r.code) + "</strong> · joins as " + esc(label) + " · works until " + esc(dateLabel(String(r.expiresAt).slice(0, 10))) + ".</p></div>" +
+        '<div class="invite-preview">' + esc(text) + "</div>" +
+        '<div class="ask-actions" style="flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="askCancel">Done</button>' +
+        '<button type="button" class="btn btn-ghost" id="invCopy">Copy message</button>' +
+        '<a class="btn btn-primary" target="_blank" rel="noopener" href="https://wa.me/' + esc(d) + "?text=" + encodeURIComponent(text) + '">Send on WhatsApp</a></div>';
+      dlg.querySelector("#askCancel").addEventListener("click", function () { dlg.close(); });
+      dlg.querySelector("#invCopy").addEventListener("click", function () {
+        var done = function () { toast("Message copied — paste it in WhatsApp"); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { toast("Couldn't copy — select the message and copy it"); });
+        else toast("Select the message and copy it");
+      });
     });
-    dlg.querySelector("#invCopy").addEventListener("click", function () {
-      var text = staffInviteText(nameEl.value.trim());
-      var done = function () { toast("Message copied — paste it in WhatsApp"); };
-      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { toast("Couldn't copy — select the message and copy it"); });
-      else toast("Select the message and copy it");
-    });
-    refresh();
     dlg.showModal();
     nameEl.focus();
   }
+
   function pinActions(u) {
     if (!u || u.authMethod !== "pin") return "";
-    return '<button type="button" class="account-role" data-view-staff="' + esc(u.id) + '">View ID</button>' +
+    return '<button type="button" class="account-role" data-' + (u.idStatus === "submitted" ? "check-id" : "view-staff") + '="' + esc(u.id) + '">' + (u.idStatus === "submitted" ? "Check ID" : "View ID") + "</button>" +
       '<button type="button" class="account-role" data-reset-pin="' + esc(u.id) + '">Reset PIN</button>';
   }
   function pendingSignups() { return canReviewProspects() ? (state.signups || []) : []; }
@@ -3841,7 +4054,7 @@
       '<button type="button" class="btn btn-sm btn-primary" data-review-signup="' + esc(pendingSignups()[0].id) + '">Review</button></section>';
   }
   function idPhotosHtml(rec) {
-    return '<div class="id-view">' + [["Front", rec.idFront], ["Back", rec.idBack]].filter(function (x) { return x[1]; }).map(function (x) {
+    return '<div class="id-view">' + [["Selfie", rec.selfie], ["ID front", rec.idFront], ["ID back", rec.idBack]].filter(function (x) { return x[1]; }).map(function (x) {
       return '<figure><img src="' + esc(x[1]) + '" alt="National ID ' + x[0].toLowerCase() + '"><figcaption>' + x[0] + "</figcaption></figure>";
     }).join("") + "</div>";
   }
@@ -3849,7 +4062,9 @@
     return '<div class="item-lines">' +
       '<div class="item-line"><span class="k">Legal name</span><span class="v">' + esc(rec.legalName) + "</span></div>" +
       '<div class="item-line"><span class="k">Phone</span><span class="v">' + esc(rec.phone) + "</span></div>" +
-      '<div class="item-line"><span class="k">NIN</span><span class="v" style="font-variant-numeric:tabular-nums;letter-spacing:.04em">' + esc(rec.nin) + "</span></div>" +
+      '<div class="item-line"><span class="k">NIN</span><span class="v" style="font-variant-numeric:tabular-nums;letter-spacing:.04em">' + (rec.nin ? esc(rec.nin) : '<span style="color:var(--amber)">not added yet</span>') + "</span></div>" +
+      (rec.invitedBy ? '<div class="item-line"><span class="k">Invited by</span><span class="v">' + esc(rec.invitedBy) + "</span></div>" : "") +
+      (rec.idStatus === "redo" && rec.idNote ? '<div class="item-line"><span class="k">Asked to redo</span><span class="v">' + esc(rec.idNote) + "</span></div>" : "") +
       '<div class="item-line"><span class="k">Signed up</span><span class="v">' + esc(dateTimeLabel(rec.signupAt)) + "</span></div>" +
       (rec.approvedAt ? '<div class="item-line"><span class="k">Approved</span><span class="v">' + esc((rec.approvedBy || "—") + " · " + dateTimeLabel(rec.approvedAt)) + "</span></div>" : "") +
       "</div>";
@@ -4002,6 +4217,8 @@
     var apprQ = e.target.closest("[data-approve-qual]"); if (apprQ) { approveQualification(apprQ.getAttribute("data-approve-qual")); return; }
     var wv = e.target.closest("[data-watch]"); if (wv) { openVideo(wv.getAttribute("data-watch")); return; }
     if (e.target.closest("[data-invite-staff]")) { inviteStaff(); return; }
+    if (e.target.closest("[data-add-id]")) { openIdForm(); return; }
+    var cki = e.target.closest("[data-check-id]"); if (cki) { checkStaffId(cki.getAttribute("data-check-id")); return; }
     var rsu = e.target.closest("[data-review-signup]"); if (rsu) { reviewSignup(rsu.getAttribute("data-review-signup")); return; }
     var vsi = e.target.closest("[data-view-staff]"); if (vsi) { viewStaffId(vsi.getAttribute("data-view-staff")); return; }
     var rpn = e.target.closest("[data-reset-pin]"); if (rpn) { resetStaffPin(rpn.getAttribute("data-reset-pin")); return; }
@@ -4081,6 +4298,19 @@
   window.addEventListener("online", function () { setSync("syncing", "Back online — syncing…"); syncNow(); });
   window.addEventListener("offline", function () { setSync("error", "Offline — saved on this device"); });
 
+  // Invite link: /?invite=CODE opens "Join the team" (signed-out phones only).
+  (function () {
+    var m = /[?&]invite=([A-Za-z0-9-]+)/.exec(location.search);
+    if (!m) return;
+    history.replaceState(null, "", location.pathname + location.hash);
+    if (settings.auth && settings.user) { toast("You're already signed in. Sign out first to use an invite."); return; }
+    pendingInvite = { code: m[1].toUpperCase(), info: null };
+    authApi({ action: "inviteInfo", code: pendingInvite.code }, true).then(function (r) {
+      if (!pendingInvite) return;
+      if (r.ok) pendingInvite.info = r; else toast(r.error || "That invite didn't work.");
+      if (document.body.classList.contains("locked")) renderLogin("signup", r.ok ? "" : r.error);
+    });
+  })();
   var hashAuth = readAuthFromHash();
   if (hashAuth && hashAuth.access_token) {
     // Landed back from a magic link — complete sign-in.
@@ -4095,11 +4325,13 @@
     setSync("syncing", "Checking…");
     loadShared().then(function (result) {
       if (result === "signin") { signOutLocal(); showLogin("Your session expired. Please sign in again."); }
+      else if (result === "idoverdue") showIdRequired();
       else if (result === "unauth") { var _em = settings.auth && settings.auth.email; signOutLocal(); showDenied(_em, true); }
       else if (result === "ok") { resolveUser(); setSync("connected", "Synced"); syncClosedSales(true); render(); syncNow(); }
       else { setSync("error", "Offline — using this device"); }
     });
   } else {
     showLogin();
+    if (pendingInvite) renderLogin("signup");
   }
 })();
