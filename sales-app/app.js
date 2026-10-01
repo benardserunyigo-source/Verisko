@@ -508,7 +508,7 @@
       sections = emptyState(ICON_CALENDAR, "You're all caught up", "No overdue follow-ups, nothing due today, and no visits waiting. Add a prospect to keep the pipeline moving.", "Add prospect", 'data-new="prospect"');
     }
 
-    content.innerHTML = trainingNudge() + '<div class="stack">' + sections + "</div>";
+    content.innerHTML = certNotice() + trainingNudge() + '<div class="stack">' + sections + "</div>";
   }
 
   function section(title, count, cls, body) {
@@ -1970,6 +1970,37 @@
     } catch (e) { toast(e.message || "Couldn't share the certificate."); }
   }
 
+  // Team lead / Operations / admin: a card on Today when someone earns their
+  // training certificate, until they tap "Got it" (stamps their own
+  // training[myId].certseen, so it syncs across their phones).
+  function newCertsForMe() {
+    if (!canApproveQual()) return [];
+    var seen = myTraining().certseen || "";
+    var me = (settings.user || {}).id;
+    return window.VeriskoSupport.newCertificates(state.users || [], state.training || {}, seen)
+      .filter(function (c) { return c.id !== me; });
+  }
+  function certNotice() {
+    var list = newCertsForMe();
+    if (!list.length) return "";
+    var C = window.VeriskoCommission;
+    return '<section class="card cert-notice"><div class="cert-notice-head"><span class="cert-badge" aria-hidden="true">🎓</span><div><strong>' +
+      (list.length === 1 ? "New training certificate" : list.length + " new training certificates") + "</strong>" +
+      '<div class="settings-note">Completed the Verisko Field Sales Training — all 13 videos and quizzes.</div></div></div>' +
+      list.map(function (c) {
+        return '<div class="cert-notice-row"><div><strong>' + esc(c.name) + "</strong><span>" + esc(c.role === "teamlead" ? "Team lead" : "Sales") + " · " + esc(C.label(C.eventTime(c.cert), true)) + "</span></div>" +
+          '<button type="button" class="btn btn-sm btn-ghost" data-cert-download="' + esc(c.id) + '">Certificate</button></div>';
+      }).join("") +
+      '<div class="item-actions"><button type="button" class="btn btn-sm btn-primary" data-certs-seen>Got it</button>' +
+      '<button type="button" class="btn btn-sm btn-ghost" data-goview-support>Team training</button></div></section>';
+  }
+  function markCertsSeen() {
+    var id = (settings.user || {}).id; if (!id) return;
+    if (!state.training || typeof state.training !== "object") state.training = {};
+    state.training[id] = Object.assign({}, state.training[id] || {}, { certseen: nowIso() });
+    saveData(); render();
+  }
+
   // A one-line reminder on Today until a rep (or Team lead) finishes training.
   function trainingNudge() {
     if (supportInMore()) return "";
@@ -2021,10 +2052,11 @@
     var team = "";
     if (canApproveQual()) {
       var rows = S.teamProgress(state.users || [], state.training || {});
+      var fresh = {}; newCertsForMe().forEach(function (c) { fresh[c.id] = true; });
       team = '<section class="card settings-card"><h2>Team training</h2>' +
         (rows.length ? '<p class="settings-note">Videos complete (watched and quiz passed) for Sales and Team leads, least progress first.</p><div class="team-training">' + rows.map(function (r) {
           var w = Math.round((r.done / r.total) * 100);
-          return '<div class="tt-row"><div class="tt-who"><strong>' + esc(r.name) + "</strong><span>" + esc(r.role === "teamlead" ? "Team lead" : "Sales") + " · " + r.watched + " watched" +
+          return '<div class="tt-row"><div class="tt-who"><strong>' + esc(r.name) + (fresh[r.id] ? ' <span class="tt-new">New</span>' : "") + "</strong><span>" + esc(r.role === "teamlead" ? "Team lead" : "Sales") + " · " + r.watched + " watched" +
             (r.last && /^\d{4}-/.test(r.last) ? " · last " + esc(dateLabel(String(r.last).slice(0, 10))) : "") + "</span></div>" +
             '<div class="tt-bar"><div class="progress" style="margin:0"><div class="progress-bar" style="width:' + w + '%"></div></div></div>' +
             '<div class="tt-count' + (r.done === 0 ? " is-zero" : r.complete ? " is-done" : "") + '">' + (r.complete ? "🎓 " : "") + r.done + "/" + r.total + "</div>" +
@@ -3628,6 +3660,8 @@
     var apprP = e.target.closest("[data-approve-prospect]"); if (apprP) { approveProspect(apprP.getAttribute("data-approve-prospect")); return; }
     var apprQ = e.target.closest("[data-approve-qual]"); if (apprQ) { approveQualification(apprQ.getAttribute("data-approve-qual")); return; }
     var wv = e.target.closest("[data-watch]"); if (wv) { openVideo(wv.getAttribute("data-watch")); return; }
+    if (e.target.closest("[data-certs-seen]")) { markCertsSeen(); return; }
+    if (e.target.closest("[data-goview-support]")) { view = "support"; render(); document.getElementById("main").focus(); return; }
     var cd = e.target.closest("[data-cert-download]"); if (cd) { downloadCertificate(cd.getAttribute("data-cert-download")); return; }
     var cs = e.target.closest("[data-cert-share]"); if (cs) { shareCertificate(cs.getAttribute("data-cert-share")); return; }
     var qz = e.target.closest("[data-quiz]"); if (qz) { openVideo(qz.getAttribute("data-quiz"), true); return; }

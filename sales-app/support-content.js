@@ -216,6 +216,19 @@
       .sort(function (a, b) { return a.done - b.done || a.name.localeCompare(b.name); });
   }
 
+  // Certificates earned that a Team lead / Operations viewer hasn't seen yet:
+  // completion stamp (training[userId].cert) after their "certseen" time. A
+  // viewer who has never dismissed one sees the last 30 days only.
+  function newCertificates(users, training, seenAt, now) {
+    var t = training || {};
+    var nowMs = now ? new Date(now).getTime() : Date.now();
+    var floor = seenAt ? String(seenAt) : new Date(nowMs - 30 * 864e5).toISOString();
+    return (users || []).filter(function (u) { return u && (u.role === "sales" || u.role === "teamlead" || !u.role); })
+      .map(function (u) { var c = (t[u.id] || {}).cert; return c && progress(t[u.id]).complete && String(c) > floor ? { id: u.id, name: u.name || "—", role: u.role || "sales", cert: String(c) } : null; })
+      .filter(Boolean)
+      .sort(function (a, b) { return b.cert.localeCompare(a.cert); });
+  }
+
   // Short answers about using the app. `who`: "all", "sales" or "lead"
   // (Team lead, Operations and admin). Amounts come from the app's settings.
   function faq(opts) {
@@ -245,6 +258,6 @@
     ].filter(function (x) { return !o.who || x.who === "all" || x.who === o.who; });
   }
 
-  var api = { QUIZZES: QUIZZES, quizKey: quizKey, quizResult: quizResult, quizValue: quizValue, quizFor: quizFor, scoreQuiz: scoreQuiz, PARTS: PARTS, VIDEOS: VIDEOS, TOTAL_MINUTES: TOTAL_MINUTES, HOW_TO: HOW_TO, watchUrl: watchUrl, embedUrl: embedUrl, byId: byId, progress: progress, teamProgress: teamProgress, faq: faq };
+  var api = { newCertificates: newCertificates, QUIZZES: QUIZZES, quizKey: quizKey, quizResult: quizResult, quizValue: quizValue, quizFor: quizFor, scoreQuiz: scoreQuiz, PARTS: PARTS, VIDEOS: VIDEOS, TOTAL_MINUTES: TOTAL_MINUTES, HOW_TO: HOW_TO, watchUrl: watchUrl, embedUrl: embedUrl, byId: byId, progress: progress, teamProgress: teamProgress, faq: faq };
   root.VeriskoSupport = api;
 })(typeof window !== "undefined" ? window : globalThis);

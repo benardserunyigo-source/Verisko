@@ -64,3 +64,14 @@ test("help answers are filtered by role and use the app's commission amounts", (
   assert.ok(!sales.some((x) => x.who === "lead"));
   assert.ok(S.faq({ who: "lead" }).some((x) => /approve or disqualify/.test(x.q)));
 });
+
+test("new certificates: earned after the viewer last dismissed, newest first", () => {
+  const done = (cert) => Object.assign(Object.fromEntries(S.VIDEOS.map((v) => ["q-" + v.id, "3/3 T"])), { cert });
+  const users = [{ id: "a", name: "Ab", role: "sales" }, { id: "b", name: "Bea", role: "sales" }, { id: "c", name: "Cy", role: "sales" }, { id: "o", name: "Ops", role: "operations" }];
+  const training = { a: done("2026-10-01T09:00:00Z"), b: done("2026-10-02T09:00:00Z"), c: { "q-v1": "3/3 T", cert: "2026-10-02T10:00:00Z" }, o: done("2026-10-02T11:00:00Z") };
+  assert.deepEqual(S.newCertificates(users, training, "2026-09-30T00:00:00Z").map((x) => x.name), ["Bea", "Ab"], "incomplete and non-field users left out");
+  assert.deepEqual(S.newCertificates(users, training, "2026-10-01T12:00:00Z").map((x) => x.name), ["Bea"]);
+  assert.deepEqual(S.newCertificates(users, training, "2026-10-03T00:00:00Z"), []);
+  assert.deepEqual(S.newCertificates(users, training, "", "2026-11-15T00:00:00Z"), [], "never dismissed: only the last 30 days");
+  assert.equal(S.newCertificates(users, training, "", "2026-10-20T00:00:00Z").length, 2);
+});

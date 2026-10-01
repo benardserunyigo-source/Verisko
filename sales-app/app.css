@@ -658,3 +658,8 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .cert-text .cert-no{font-variant-numeric:tabular-nums;font-weight:600}
 .cert-actions{display:flex;flex-direction:column;gap:6px}
 .tt-cert{grid-column:1/-1;margin-top:-4px}
+.cert-notice{padding:16px;margin-bottom:14px;border:1.5px solid #b8923d;background:linear-gradient(135deg,var(--card),#faf8f3)}
+.cert-notice-head{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px}
+.cert-notice-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--fill)}
+.cert-notice-row span{display:block;font-size:.82em;color:var(--muted)}
+.tt-new{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;background:#b8923d;color:#fff;font-size:.7em;font-weight:700;vertical-align:middle}
