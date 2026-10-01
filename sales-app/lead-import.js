@@ -17,9 +17,10 @@
     location: ["location", "address", "area", "place", "town", "city", "district"],
     vertical: ["vertical", "category", "type", "business type", "industry", "sector"],
     source: ["source", "lead source", "found on", "channel", "from"],
-    notes: ["notes", "note", "comments", "comment", "remarks", "description"],
+    notes: ["notes", "note", "comments", "comment", "remarks", "description", "lead context", "enquiry", "inquiry", "message", "context"],
     assignedTo: ["assigned to", "assign to", "owner email", "rep", "sales rep", "salesperson", "assigned"],
-    website: ["website", "link", "url", "instagram", "instagram link", "profile", "google maps", "maps link"]
+    website: ["website", "link", "url", "instagram", "instagram link", "instagram handle", "handle", "ig handle", "profile", "google maps", "maps link"],
+    supplied: ["date supplied", "date", "date received", "enquiry date"]
   };
   var TEMPLATE = ["Business name", "Contact name", "Phone", "Location", "Category", "Source", "Notes", "Assigned to"];
   // Same list as the prospect form (app.js VERTICALS).
@@ -52,6 +53,8 @@
     else if (/^07\d{8}$/.test(digits)) local = digits.slice(1);
     else if (/^7\d{8}$/.test(digits)) local = digits;
     if (local) return "+256 " + local.slice(0, 3) + " " + local.slice(3, 6) + " " + local.slice(6);
+    // Other East African numbers (+254 Kenya, +255 Tanzania, +250 Rwanda…).
+    if (/^25\d{10}$/.test(digits)) return "+" + digits.slice(0, 3) + " " + digits.slice(3, 6) + " " + digits.slice(6, 9) + " " + digits.slice(9);
     return d.charAt(0) === "+" ? "+" + digits : raw;
   }
   // Comparable phone: the last 9 digits.
@@ -86,6 +89,15 @@
     return clean(v);
   }
 
+  // An Instagram handle reads "IG @name"; links and other text stay as typed.
+  function handle(v) { return v && /^@?[A-Za-z0-9._]+$/.test(v) && !/\.(com|ug|org|net)$/i.test(v) ? "IG @" + v.replace(/^@/, "") : v; }
+  // A date cell may be an Excel serial number, a Date or text.
+  function dateText(v) {
+    var d = v instanceof Date ? v : (typeof v === "number" && v > 20000 && v < 80000) ? new Date(Math.round((v - 25569) * 864e5)) : null;
+    if (!d || isNaN(d)) return clean(v);
+    return d.getUTCDate() + " " + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()] + " " + d.getUTCFullYear();
+  }
+
   // rows: array of arrays, the first non-empty row is the header.
   // Returns { map, leads: [{row, business, contact, phone, ...}], skipped: [{row, reason}] }.
   function parseRows(rows) {
@@ -93,10 +105,14 @@
     rows = (rows || []).map(function (r, i) { return { cells: r, row: i + 1 }; })
       .filter(function (x) { return x.cells && x.cells.some(function (c) { return clean(c); }); });
     if (!rows.length) return { map: {}, leads: [], skipped: [], error: "The file is empty." };
-    var map = mapHeaders(rows[0].cells);
-    if (map.business === undefined && map.phone === undefined) {
-      return { map: map, leads: [], skipped: [], error: "Couldn't find a Business name or Phone column. Use the template's headings in the first row." };
-    }
+    // The headings may sit under a title or summary rows: use the first of the
+    // top 10 rows that has a Phone column (else a Business name column).
+    var top = rows.slice(0, 10), head = -1;
+    top.forEach(function (x, i) { if (head < 0 && mapHeaders(x.cells).phone !== undefined) head = i; });
+    if (head < 0) top.forEach(function (x, i) { if (head < 0 && mapHeaders(x.cells).business !== undefined) head = i; });
+    if (head < 0) return { map: {}, leads: [], skipped: [], error: "Couldn't find a Business name or Phone column. Use the template's headings in the first row." };
+    var map = mapHeaders(rows[head].cells);
+    rows = rows.slice(head);
     var leads = [], skipped = [], seen = {};
     rows.slice(1).forEach(function (x) {
       var r = x.cells, row = x.row;
@@ -104,7 +120,7 @@
       var lead = {
         row: row, business: get("business"), contact: get("contact"), phone: normalizePhone(get("phone")), phone2: normalizePhone(get("phone2")),
         email: get("email"), location: get("location"), vertical: guessVertical(get("vertical")), source: guessSource(get("source")),
-        notes: [get("notes"), get("website")].filter(Boolean).join(" · "), assignedTo: get("assignedTo")
+        notes: [get("notes"), handle(get("website")), get("supplied") ? "Supplied " + dateText(r[map.supplied]) : ""].filter(Boolean).join(" · "), assignedTo: get("assignedTo")
       };
       if (!lead.business && lead.contact) lead.business = lead.contact;
       if (!lead.business && !lead.phone) { skipped.push({ row: row, reason: "No business name or phone" }); return; }
