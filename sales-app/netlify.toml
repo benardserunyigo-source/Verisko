@@ -13,6 +13,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/auth"
+  to = "/.netlify/functions/auth"
+  status = 200
+
+[[redirects]]
   from = "/api/export"
   to = "/.netlify/functions/export"
   status = 200
@@ -29,3 +34,8 @@
   for = "/manifest.webmanifest"
   [headers.values]
     Content-Type = "application/manifest+json"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"

@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=62**.
+  base directory `sales-app`). Current asset version: **v=63**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -335,6 +335,46 @@ mobile polish (v=62)" block at the end of app.css):
   apple-touch 180, drawn from logo.svg) — "Add to Home screen" opens it full
   screen like an app.
 
+## 6f. Staff sign-up with National ID + phone/PIN sign-in (v=63)
+
+Most field staff have no email. The sign-in screen now leads with **phone +
+4-digit PIN** (the phone is remembered on the device, so day to day it's just
+the PIN); email sign-in (Supabase OTP) stays for the Owner and anyone with an
+email.
+- **Sign up** (public, `/api/auth` action `signup`): full name exactly as on
+  the National ID, phone, NIN (14 chars, CM/CF…), photo of the ID front (back
+  optional, resized on the phone to ≤1400px), a PIN (not 1111/1234-style),
+  and consent. Creates a *pending* sign-up only — no access.
+- **Approve** (Owner / Operations): "New staff sign-ups" card (Settings and
+  Dashboard → Manage the team) + a Today nudge. Review shows the details and
+  ID photo; choose Sales / Team lead (Owner also: Operations) → approve, or
+  reject (deletes the sign-up and its photo). Approval adds them to `users`
+  with `authMethod: "pin"`, `phone`, and email `<digits>@staff.verisko` so all
+  existing email-based scoping keeps working.
+- **Sign in** (`login`): phone + PIN → a 30-day signed session token
+  (`vs1.…`, HMAC with a server-generated secret). 5 wrong PINs → 15-minute
+  lock. **Forgot PIN:** Owner/Operations tap Reset PIN → a one-time 6-digit
+  code (48 h) to send on WhatsApp; the person enters it under "Forgot PIN?"
+  and picks a new PIN. Resetting or removing signs them out everywhere.
+- **Storage / privacy:** PIN hashes (PBKDF2), the token secret and phone→user
+  index in Blobs store `verisko-auth`; legal name, NIN and ID photos in
+  `verisko-staff` — never in `app-data`, the client data or the export. Only
+  the Owner and Operations can view an ID (`record`). PIN accounts are
+  server-managed: a device can only change their role (`protectPinUsers`).
+- Code: `netlify/functions/pin-auth.mjs` (helpers, tested), `auth.mjs`
+  (endpoint), `identify()` used by `data.mjs` and `receipt.mjs`. Routes:
+  `/api/auth` is in `_redirects` and `netlify.toml`.
+
+## 6g. Offline loading (v=63)
+
+`sw.js` (service worker, registered after load) keeps a copy of the app on
+the phone: pages are network-first with a 4 s fallback to the saved copy;
+versioned files (`?v=N`) are saved-copy-first and old versions are dropped;
+`/api/*` and other sites are never cached. Bump `CACHE` in sw.js only when its
+own logic changes; Netlify serves sw.js with `Cache-Control: no-cache`.
+Also fixed: a server error (5xx) used to be treated as "access removed" and
+signed people out — it now counts as offline.
+
 ## 6a. Live data export & the Google Sheet
 
 The Owner's answer to "where is my data and how do I see it without the app".
@@ -430,7 +470,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=62, 1 Oct 2026)
+## 8. Current status (live at v=63, 1 Oct 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

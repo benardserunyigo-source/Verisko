@@ -1,16 +1,15 @@
-// Verisko Sales Visit Planner — shared data API backed by Netlify Blobs,
-// gated by Supabase email auth.
+// Verisko Sales Visit Planner — shared data API backed by Netlify Blobs.
 //
-// Every request must carry a valid Supabase access token (Authorization:
-// Bearer <token>). The token is verified with Supabase; the verified email
-// must be on the team allow-list (the `users` list). The very first sign-in on
+// Every request must carry a session (Authorization: Bearer <token>): either a
+// Supabase email session, verified with Supabase, or a staff phone + PIN
+// session issued by /api/auth (pin-auth.mjs). The caller must be on the team
+// allow-list (the `users` list). The very first sign-in on
 // an empty workspace bootstraps the owner. Non-admins cannot alter the team
 // list. Both Supabase values below are public (publishable) and safe to ship.
 import { getStore } from "@netlify/blobs";
+import { AUTH_STORE, STAFF_STORE, identify, protectPinUsers, displayPhone } from "./pin-auth.mjs";
+import { supabaseUser } from "./auth.mjs";
 import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, ownsProspect, keepFollowUps, keepNewerPlan, keepImported, mergeTraining } from "./scope.mjs";
-
-const SUPABASE_URL = "https://cepernltrzrmupgegcib.supabase.co";
-const SUPABASE_KEY = "sb_publishable_hj2NsI1YGmpeQg815ET2Kg_CwznowqE";
 
 const STORE = "verisko-sales";
 const KEY = "app-data";
@@ -26,25 +25,17 @@ export default async (request) => {
     "X-Content-Type-Options": "nosniff"
   };
   try {
-    // 1) Verify the caller's Supabase session.
-    const authHeader = request.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-    if (!token) return json({ ok: false, error: "not_signed_in" }, 401, headers);
-
-    const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}` }
-    });
-    if (!userRes.ok) return json({ ok: false, error: "session_expired" }, 401, headers);
-    const account = await userRes.json();
-    const email = String(account.email || "").toLowerCase();
-    if (!email) return json({ ok: false, error: "no_email" }, 401, headers);
-
-    // 2) Load data and check the allow-list.
+    // 1) Load data and identify the caller (email or staff PIN session).
     const store = getStore(STORE);
     const data = (await store.get(KEY, { type: "json" })) || EMPTY;
     const users = Array.isArray(data.users) ? data.users : [];
+    const who = await identify(request, data, { authStore: getStore(AUTH_STORE), now: Date.now(), supabaseUser });
+    if (who.error) return json({ ok: false, error: who.error }, who.status, headers);
+    const email = who.email;
+
+    // 2) Check the allow-list.
     const bootstrap = users.length === 0;                              // brand-new workspace
-    const me = users.find((u) => String(u.email || "").toLowerCase() === email);
+    const me = who.me;
     if (!me && !bootstrap) return json({ ok: false, error: "not_authorized" }, 403, headers);
     const isAdmin = bootstrap || (me && me.role === "admin");
     const isTeamLead = !bootstrap && !!me && me.role === "teamlead";
@@ -55,6 +46,9 @@ export default async (request) => {
       if (isSales) return json({ ok: true, data: { ...EMPTY, ...scopeForSales(data, email) } }, 200, headers);
       if (isTeamLead) return json({ ok: true, data: { ...EMPTY, ...scopeForTeamLead(data, email) } }, 200, headers);
       const out = { ...EMPTY, ...data };
+      // Owner/Operations: staff sign-ups waiting for approval (no ID photos —
+      // those are fetched one at a time from /api/auth).
+      if (isAdmin || (me && me.role === "operations")) out.signups = await pendingSignups();
       // The spreadsheet export key is Owner/Technical-only: never send it to
       // Sales or Operations devices.
       if (!isAdmin && out.config && typeof out.config === "object") {
@@ -155,6 +149,9 @@ export default async (request) => {
       if (!isAdmin && JSON.stringify(clean.users) !== JSON.stringify(users)) {
         clean.users = canReview ? sanitizeRoster(users, clean.users) : users;
       }
+      // Staff PIN accounts are managed through /api/auth (approve, remove):
+      // a device can only change their role.
+      clean.users = protectPinUsers(users, clean.users);
       // Workspace config: Operations may set commission fields; the petty-cash
       // limit stays admin-only; Sales can't change any of it.
       if (!isAdmin && JSON.stringify(clean.config) !== JSON.stringify(storedConfig)) {
@@ -200,6 +197,17 @@ export default async (request) => {
     return json({ ok: false, error: error.message || "Storage error." }, 500, headers);
   }
 };
+
+async function pendingSignups() {
+  const staff = getStore(STAFF_STORE);
+  const { blobs } = await staff.list({ prefix: "staff/" });
+  const out = [];
+  for (const b of blobs || []) {
+    const r = await staff.get(b.key, { type: "json" });
+    if (r && r.status === "pending") out.push({ id: r.id, legalName: r.legalName, phone: displayPhone(r.phone), nin: r.nin, signupAt: r.signupAt, hasBack: !!r.idBack });
+  }
+  return out.sort((a, b) => String(a.signupAt).localeCompare(String(b.signupAt)));
+}
 
 function json(body, status, headers) {
   return new Response(JSON.stringify(body), { status, headers });

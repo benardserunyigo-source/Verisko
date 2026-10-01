@@ -508,7 +508,7 @@
       sections = emptyState(ICON_CALENDAR, "You're all caught up", "No overdue follow-ups, nothing due today, and no visits waiting. Add a prospect to keep the pipeline moving.", "Add prospect", 'data-new="prospect"');
     }
 
-    content.innerHTML = certNotice() + trainingNudge() + '<div class="stack">' + sections + "</div>";
+    content.innerHTML = signupNotice() + certNotice() + trainingNudge() + '<div class="stack">' + sections + "</div>";
   }
 
   function section(title, count, cls, body) {
@@ -924,13 +924,14 @@
       var actions = "";
       if (actorCanManage(u)) {
         actions += '<select class="account-role-select" data-set-role data-user-id="' + esc(u.id) + '" aria-label="Role for ' + esc(u.name) + '">' + manageableRoleOpts(u.role) + "</select>";
+        actions += pinActions(u);
         actions += '<button type="button" class="account-remove" data-remove-user="' + esc(u.id) + '" aria-label="Remove ' + esc(u.name) + '">Remove</button>';
       }
       return '<div class="account-row" style="background:var(--fill-2)"><span class="user-avatar" aria-hidden="true">' + esc(initials(u.name)) + "</span>" +
-        '<span class="who"><strong>' + esc(u.name) + " · " + esc(roleName(u)) + "</strong><span>" + esc(u.email) + "</span></span>" +
+        '<span class="who"><strong>' + esc(u.name) + " · " + esc(roleName(u)) + "</strong><span>" + esc(contactOf(u)) + "</span></span>" +
         (actions ? '<span class="row-actions">' + actions + "</span>" : "") + "</div>";
     }).join("");
-    return '<section class="card settings-card"><h2>Manage the team</h2>' +
+    return signupsCard() + '<section class="card settings-card"><h2>Manage the team</h2>' +
       "<p>Add or remove salespeople and Operations, and switch their roles. Owner and Technical accounts are managed by the Owner in Settings. Removing someone revokes access immediately.</p>" +
       (users.length ? '<div class="account-list">' + rows + "</div>" : '<p class="settings-note">No sales or operations members yet — add the first one below.</p>') +
       '<form id="addMemberForm" class="add-member">' +
@@ -940,7 +941,8 @@
       '<option value="sales">Sales — prospects &amp; visits</option>' +
       '<option value="teamlead">Team lead — approves qualified prospects, records deposits</option>' +
       '<option value="operations">Operations — also Cash flow</option></select></div>' +
-      '<button type="submit" class="btn btn-ghost btn-block">Add team member</button></form></section>';
+      '<button type="submit" class="btn btn-ghost btn-block">Add team member</button>' +
+      '<p class="settings-note" style="margin-top:8px">No email? Send them ' + esc(location.origin) + ' — they tap <strong>Sign up</strong>, add their National ID and choose a PIN, and you approve them here.</p></form></section>';
   }
 
   /* ------------------------------ INSTALLATIONS ----------------------------- */
@@ -2175,14 +2177,17 @@
       var manageable = u.id !== ownId && u.id !== me.id;
       var actions = "";
       if (manageable) {
-        actions += '<select class="account-role-select" data-set-role data-user-id="' + esc(u.id) + '" aria-label="Role for ' + esc(u.name) + '">' + roleOpts(normRole(u.role)) + "</select>";
+        // PIN accounts can't be made Technical (admin) — they have no email sign-in.
+        var opts = u.authMethod === "pin" ? roleOpts(normRole(u.role)).replace(/<option value="admin"[^<]*<\/option>/, "") : roleOpts(normRole(u.role));
+        actions += '<select class="account-role-select" data-set-role data-user-id="' + esc(u.id) + '" aria-label="Role for ' + esc(u.name) + '">' + opts + "</select>";
+        actions += pinActions(u);
         actions += '<button type="button" class="account-remove" data-remove-user="' + esc(u.id) + '" aria-label="Remove ' + esc(u.name) + '">Remove</button>';
       }
       return '<div class="account-row" style="background:var(--fill-2)"><span class="user-avatar" aria-hidden="true">' + esc(initials(u.name)) + "</span>" +
-        '<span class="who"><strong>' + esc(u.name) + " · " + esc(roleName(u)) + "</strong><span>" + esc(u.email) + "</span></span>" +
+        '<span class="who"><strong>' + esc(u.name) + " · " + esc(roleName(u)) + "</strong><span>" + esc(contactOf(u)) + "</span></span>" +
         (actions ? '<span class="row-actions">' + actions + "</span>" : "") + "</div>";
     }).join("") + "</div>" : '<p class="settings-note">No accounts yet.</p>';
-    content.innerHTML = '<div class="settings-grid">' +
+    content.innerHTML = '<div class="settings-grid">' + signupsCard() +
       '<section class="card settings-card"><h2>Team members</h2>' +
       "<p><strong>Sales</strong> see only their own prospects and visits. <strong>Team leads</strong> see every rep's prospects, approve qualified ones and record client deposits. <strong>Operations</strong> also get the Cash flow tab. <strong>Technical</strong> can also open this Settings page. Removing someone revokes access immediately.</p>" +
       teamRows +
@@ -2195,6 +2200,7 @@
       '<option value="operations">Operations — also Cash flow</option>' +
       '<option value="admin">Technical — also Settings</option></select></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Add team member</button>' +
+      '<p class="settings-note" style="margin-top:8px">No email? Send them ' + esc(location.origin) + ' — they tap <strong>Sign up</strong>, add their National ID and choose a PIN, and you approve them here.</p>' +
       "</form></section>" +
 
       '<section class="card settings-card"><h2>Shared workspace</h2>' +
@@ -3084,10 +3090,11 @@
       var res = await apiData("GET");
       if (res.status === 401) return "signin";
       if (res.status === 403) return "unauth";
+      if (res.status >= 500) return "offline";   // a server hiccup isn't "you were removed" — keep working on the device
       var result = await res.json();
       if (!result.ok) return "unauth";
       if (result.data && result.data.prospects) {
-        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], jobs: result.data.jobs, installations: result.data.installations || [], quotes: result.data.quotes || [], technicians: result.data.technicians || [], config: normalizeConfig(result.data.config), training: result.data.training || {} };
+        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], jobs: result.data.jobs, installations: result.data.installations || [], quotes: result.data.quotes || [], technicians: result.data.technicians || [], config: normalizeConfig(result.data.config), training: result.data.training || {}, signups: result.data.signups || [] };
         migrateToJobs(state);              // fold any legacy quotes/installations the server still holds
         if (!state.jobs) state.jobs = [];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -3259,7 +3266,7 @@
   function showLogin(message) {
     userChip.hidden = true; closeUserMenu();
     document.body.classList.add("locked");
-    renderLogin("email", message);
+    renderLogin("pin", message);
     lockScreen.hidden = false;
   }
   var deniedRemoved = false;
@@ -3306,6 +3313,59 @@
         '<input id="ownerName" name="name" type="text" autocomplete="name" placeholder="e.g. Benard Serunyigo" required></div>' +
         errHtml +
         '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Continue</button></form>';
+    } else if (step === "pin") {
+      var known = settings.lastPhone ? { phone: settings.lastPhone, first: settings.lastFirst || "" } : null;
+      html += '<p class="lock-eyebrow" id="lockTitle">Uganda Operations</p>' +
+        (known ? '<p class="lock-sub">Welcome back' + (known.first ? ", <strong>" + esc(known.first) + "</strong>" : "") + ". Enter your PIN.</p>" : '<p class="lock-sub">Sign in with your phone number and PIN.</p>') +
+        '<form id="loginForm" class="account-fields" data-step="pin">' +
+        '<div class="field"' + (known ? " hidden" : "") + '><label for="pinPhone">Phone number</label>' +
+        '<input id="pinPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="0772 123 456" value="' + esc(known ? known.phone : "") + '" required></div>' +
+        '<div class="field"><label for="pinInput">PIN</label>' +
+        '<input id="pinInput" name="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="current-password" placeholder="••••" required></div>' +
+        errHtml +
+        '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Sign in</button></form>' +
+        '<div class="login-links">' +
+        (known ? '<button type="button" class="account-back" data-login-notme>Not you? Use another number</button>' : "") +
+        '<button type="button" class="account-back" data-login-step="forgot">Forgot PIN?</button>' +
+        '<button type="button" class="account-back" data-login-step="signup">New to Verisko? <strong>Sign up</strong></button>' +
+        '<button type="button" class="account-back" data-login-step="email">Sign in with email instead</button></div>';
+    } else if (step === "signup") {
+      html += '<h1 id="lockTitle">Join the Verisko team</h1>' +
+        '<p class="lock-sub">Sign up with your details exactly as they are on your National ID. Your manager checks them before you can sign in.</p>' +
+        '<form id="loginForm" class="account-fields signup-form" data-step="signup">' +
+        '<div class="field"><label for="suName">Full name (as on your National ID)</label><input id="suName" name="legalName" type="text" autocomplete="name" autocapitalize="words" placeholder="e.g. Nansubuga Beatrice" required></div>' +
+        '<div class="field"><label for="suPhone">Phone number</label><input id="suPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="0772 123 456" required></div>' +
+        '<div class="field"><label for="suNin">National ID number (NIN)</label><input id="suNin" name="nin" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="16" placeholder="CM9001234567AB" required>' +
+        '<p class="helper">14 characters, starting CM or CF.</p></div>' +
+        '<div class="field"><label>Photo of your National ID</label><div class="id-shots">' +
+        '<label class="id-shot" for="suFront"><span class="id-shot-img" id="suFrontPrev">Front<br><small>required</small></span><input id="suFront" type="file" accept="image/*" capture="environment" hidden></label>' +
+        '<label class="id-shot" for="suBack"><span class="id-shot-img" id="suBackPrev">Back<br><small>optional</small></span><input id="suBack" type="file" accept="image/*" capture="environment" hidden></label>' +
+        '</div><p class="helper">Lay the card flat in good light so the writing is clear.</p></div>' +
+        '<div class="field"><label for="suPin">Choose a 4-digit PIN</label><input id="suPin" name="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" placeholder="••••" required></div>' +
+        '<div class="field"><label for="suPin2">Enter the PIN again</label><input id="suPin2" name="pin2" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" placeholder="••••" required></div>' +
+        '<label class="consent"><input type="checkbox" name="consent" required> <span>I agree that Verisko keeps my name, phone number, NIN and ID photo to verify my identity for work. Only the Owner and Operations can see them.</span></label>' +
+        errHtml +
+        '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Sign up</button></form>' +
+        '<button type="button" class="account-back" data-login-step="pin">I already have an account — sign in</button>';
+    } else if (step === "signupDone") {
+      html += '<h1 id="lockTitle">Thank you' + (loginFirst ? ", " + esc(loginFirst) : "") + "!</h1>" +
+        '<p class="lock-sub">Your details were sent to your manager. Once they approve you, sign in here with your <strong>phone number and PIN</strong>.</p>' +
+        '<button type="button" class="btn btn-primary btn-block" data-login-step="pin">Back to sign in</button>';
+    } else if (step === "pending") {
+      html += '<h1 id="lockTitle">Waiting for approval</h1>' +
+        '<p class="lock-sub">Your sign-up hasn\'t been approved yet. Ask your manager to approve it, then sign in again.</p>' +
+        '<button type="button" class="btn btn-primary btn-block" data-login-step="pin">Back to sign in</button>';
+    } else if (step === "forgot") {
+      html += '<h1 id="lockTitle">Reset your PIN</h1>' +
+        '<p class="lock-sub">Ask your manager (the Owner or Operations) to reset your PIN. They\'ll send you a 6-digit code.</p>' +
+        '<form id="loginForm" class="account-fields" data-step="forgot">' +
+        '<div class="field"><label for="fgPhone">Phone number</label><input id="fgPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="0772 123 456" value="' + esc(settings.lastPhone || "") + '" required></div>' +
+        '<div class="field"><label for="fgCode">6-digit code from your manager</label><input id="fgCode" name="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="123456" required></div>' +
+        '<div class="field"><label for="fgPin">New 4-digit PIN</label><input id="fgPin" name="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" placeholder="••••" required></div>' +
+        '<div class="field"><label for="fgPin2">Enter the new PIN again</label><input id="fgPin2" name="pin2" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" placeholder="••••" required></div>' +
+        errHtml +
+        '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Set new PIN and sign in</button></form>' +
+        '<button type="button" class="account-back" data-login-step="pin">Back to sign in</button>';
     } else {
       html += '<p class="lock-eyebrow" id="lockTitle">Uganda Operations</p>' +
         '<p class="lock-sub">Sign in with your email — we\'ll send you a secure sign-in link.</p>' +
@@ -3314,11 +3374,13 @@
         '<input id="loginEmailInput" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com" value="' + esc(loginEmail) + '" required></div>' +
         errHtml +
         '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Email me a sign-in link</button></form>' +
-        '<p class="lock-help">Ask the owner to add your email if you can\'t get in.</p>';
+        '<p class="lock-help">Ask the owner to add your email if you can\'t get in.</p>' +
+        '<button type="button" class="account-back" data-login-step="pin">Sign in with phone and PIN instead</button>';
     }
     lockCard.innerHTML = html;
-    var first = lockCard.querySelector("input");
-    if (first) first.focus();
+    var first = lockCard.querySelector("input:not([hidden]):not([type=file]):not([type=checkbox])");
+    if (first && first.offsetParent) first.focus();
+    if (step === "signup") bindIdShots();
   }
   function loginError(msg) {
     var el = lockCard.querySelector("#loginError") || lockCard.querySelector(".lock-error");
@@ -3331,6 +3393,8 @@
 
   lockCard.addEventListener("click", async function (e) {
     if (e.target.closest("[data-login-restart]")) { renderLogin("email"); return; }
+    var ls = e.target.closest("[data-login-step]"); if (ls) { renderLogin(ls.getAttribute("data-login-step")); return; }
+    if (e.target.closest("[data-login-notme]")) { settings.lastPhone = ""; settings.lastFirst = ""; saveSettings(); renderLogin("pin"); return; }
     if (e.target.closest("[data-login-resend]")) {
       loginBusy(true, "Sending…");
       try { await sendMagicLink(loginEmail); loginBusy(false, "Resend the link"); toast("Sign-in link sent again"); }
@@ -3342,6 +3406,41 @@
     if (!form) return;
     e.preventDefault();
     var step = form.getAttribute("data-step");
+    if (step === "pin") {
+      var phone = form.querySelector("[name=phone]").value.trim(), pin = form.querySelector("[name=pin]").value.trim();
+      if (!phone || !/^\d{4}$/.test(pin)) { loginError("Enter your phone number and your 4-digit PIN."); return; }
+      loginBusy(true, "Signing in…");
+      var r = await authApi({ action: "login", phone: phone, pin: pin }, true);
+      if (r.ok) return afterPinSignIn(phone, r);
+      loginBusy(false, "Sign in");
+      if (r.error === "pending") { renderLogin("pending"); return; }
+      form.querySelector("[name=pin]").value = "";
+      loginError(r.error || "Couldn't sign in. Check your connection and try again.");
+      return;
+    }
+    if (step === "forgot") {
+      var fp = form.querySelector("[name=phone]").value.trim(), code = form.querySelector("[name=code]").value.trim();
+      var np = form.querySelector("[name=pin]").value.trim(), np2 = form.querySelector("[name=pin2]").value.trim();
+      if (np !== np2) { loginError("The two PINs don't match."); return; }
+      loginBusy(true, "Saving…");
+      var fr = await authApi({ action: "resetWithCode", phone: fp, code: code, pin: np }, true);
+      if (fr.ok) return afterPinSignIn(fp, fr);
+      loginBusy(false, "Set new PIN and sign in");
+      loginError(fr.error === "pending" ? "Your sign-up is still waiting for approval." : (fr.error || "Couldn't reset your PIN."));
+      return;
+    }
+    if (step === "signup") {
+      var g = function (n) { var el = form.querySelector("[name=" + n + "]"); return el ? el.value.trim() : ""; };
+      if (g("pin") !== g("pin2")) { loginError("The two PINs don't match."); return; }
+      if (!idShots.front) { loginError("Add a photo of the front of your National ID."); return; }
+      if (!form.querySelector("[name=consent]").checked) { loginError("Please tick the box to agree."); return; }
+      loginBusy(true, "Sending…");
+      var sr = await authApi({ action: "signup", legalName: g("legalName"), phone: g("phone"), nin: g("nin"), pin: g("pin"), idFront: idShots.front, idBack: idShots.back || "", consent: true }, true);
+      if (sr.ok) { loginFirst = g("legalName"); settings.lastPhone = g("phone"); settings.lastFirst = ""; saveSettings(); idShots = {}; renderLogin("signupDone"); return; }
+      loginBusy(false, "Sign up");
+      loginError(sr.error || "Couldn't send your sign-up. Check your connection and try again.");
+      return;
+    }
     if (step === "email") {
       loginEmail = form.querySelector("[name=email]").value.trim().toLowerCase();
       if (!loginEmail) return;
@@ -3360,6 +3459,48 @@
       enterApp();
     }
   });
+
+  /* -------- Staff phone + PIN sign-in (see netlify/functions/auth.mjs) -------- */
+  var loginFirst = "";
+  var idShots = {};
+  // quiet: never throw; returns the JSON body (ok:false + error on failure).
+  async function authApi(body, quiet) {
+    try {
+      var res = await fetch("/api/auth", { method: "POST",
+        headers: Object.assign({ "Content-Type": "application/json" }, settings.auth ? { Authorization: "Bearer " + settings.auth.access_token } : {}),
+        body: JSON.stringify(body) });
+      var j = await res.json().catch(function () { return {}; });
+      if (!res.ok && !j.error) j.error = "Something went wrong (" + res.status + ").";
+      return res.ok ? j : Object.assign({ ok: false }, j);
+    } catch (e) { return { ok: false, error: "You're offline. Check your connection and try again." }; }
+  }
+  async function afterPinSignIn(phone, r) {
+    settings.auth = { access_token: r.token, expires_at: r.expiresAt, email: r.user.email, kind: "pin" };
+    settings.lastPhone = phone; settings.lastFirst = String(r.user.name || "");   // full name (surname-first on IDs)
+    saveSettings();
+    var s = await loadShared();
+    if (s !== "ok") { signOutLocal(); renderLogin("pin", "Signed in, but the workspace is unreachable. Check your connection."); return; }
+    var me = (state.users || []).find(function (u) { return u.id === r.user.id; });
+    if (!me) { signOutLocal(); renderLogin("pending"); return; }
+    settings.user = me; saveSettings();
+    toast("Signed in as " + me.name.split(/\s+/)[0]);
+    enterApp();
+  }
+  function bindIdShots() {
+    ["Front", "Back"].forEach(function (side) {
+      var input = document.getElementById("su" + side), prev = document.getElementById("su" + side + "Prev");
+      if (!input) return;
+      input.addEventListener("change", async function () {
+        var f = input.files && input.files[0]; if (!f) return;
+        try {
+          var url = await resizeImage(f, 1400, 0.8);
+          idShots[side.toLowerCase()] = url;
+          prev.innerHTML = '<img src="' + url + '" alt="ID ' + side.toLowerCase() + '">';
+          prev.classList.add("has-img");
+        } catch (e) { toast("Couldn't read that photo — try again."); }
+      });
+    });
+  }
 
   async function afterVerify(email, session) {
     settings.auth = { access_token: session.access_token, refresh_token: session.refresh_token, expires_at: session.expires_at, email: email };
@@ -3437,8 +3578,10 @@
     document.getElementById("userAvatar").textContent = initials(u.name);
     document.getElementById("userMenuAvatar").textContent = initials(u.name);
     document.getElementById("userMenuName").textContent = u.name + " · " + roleName(u);
-    document.getElementById("userMenuEmail").textContent = u.email;
+    document.getElementById("userMenuEmail").textContent = contactOf(u);
   }
+  // How to reach a team member: email, or phone for PIN sign-in accounts.
+  function contactOf(u) { return u && u.authMethod === "pin" ? (u.phone || "") + " · PIN sign-in" : (u && u.email) || ""; }
   function closeUserMenu() { userMenu.hidden = true; userChip.setAttribute("aria-expanded", "false"); }
   userChip.addEventListener("click", function (e) {
     e.stopPropagation();
@@ -3588,11 +3731,125 @@
       toast(u.id === ownerId() ? "The owner account can't be removed." : (settings.user && u.id === settings.user.id) ? "You can't remove your own account." : "You can't remove that member.");
       return;
     }
+    if (u.authMethod === "pin") {
+      if (!(await confirmSheet("Remove " + u.name + "?", "They're signed out on every phone at once and can't sign in again. Their records stay. To come back, they sign up again and you approve them.", "Remove", true))) return;
+      var rr = await authApi({ action: "remove", userId: id }, true);
+      if (!rr.ok) { toast(rr.error || "Couldn't remove them."); return; }
+      await pullShared();
+      toast(u.name.split(/\s+/)[0] + " removed from the team");
+      return;
+    }
     if (!(await confirmSheet("Remove " + u.name + "?", u.email + " loses access immediately and can't sign in again unless you re-add them. This can't be undone.", "Remove", true))) return;
     state.users = state.users.filter(function (x) { return x.id !== id; });
     saveData();
     render();
     toast(u.name.split(/\s+/)[0] + " removed from the team");
+  }
+
+  /* ---- Staff sign-ups & PIN accounts (Owner / Operations) ---- */
+  function pinActions(u) {
+    if (!u || u.authMethod !== "pin") return "";
+    return '<button type="button" class="account-role" data-view-staff="' + esc(u.id) + '">View ID</button>' +
+      '<button type="button" class="account-role" data-reset-pin="' + esc(u.id) + '">Reset PIN</button>';
+  }
+  function pendingSignups() { return canReviewProspects() ? (state.signups || []) : []; }
+  function signupsCard() {
+    var list = pendingSignups();
+    if (!list.length) return "";
+    return '<section class="card settings-card signup-card"><h2>New staff sign-ups <span class="review-count">' + list.length + "</span></h2>" +
+      "<p>Check each person's National ID, choose their role and approve them. Until then they can't sign in.</p>" +
+      '<div class="account-list">' + list.map(function (x) {
+        return '<div class="account-row" style="background:var(--fill-2)"><span class="user-avatar" aria-hidden="true">' + esc(initials(x.legalName)) + "</span>" +
+          '<span class="who"><strong>' + esc(x.legalName) + "</strong><span>" + esc(x.phone) + " · signed up " + esc(dateLabel(String(x.signupAt).slice(0, 10))) + "</span></span>" +
+          '<span class="row-actions"><button type="button" class="btn btn-sm btn-primary" data-review-signup="' + esc(x.id) + '">Review</button></span></div>';
+      }).join("") + "</div></section>";
+  }
+  // Today: a nudge for the Owner / Operations while sign-ups are waiting.
+  function signupNotice() {
+    var n = pendingSignups().length;
+    if (!n) return "";
+    return '<section class="card training-nudge"><div><strong>' + n + " new staff " + (n === 1 ? "sign-up" : "sign-ups") + " waiting</strong>" +
+      '<div class="settings-note">Check their National ID and approve them so they can sign in.</div></div>' +
+      '<button type="button" class="btn btn-sm btn-primary" data-review-signup="' + esc(pendingSignups()[0].id) + '">Review</button></section>';
+  }
+  function idPhotosHtml(rec) {
+    return '<div class="id-view">' + [["Front", rec.idFront], ["Back", rec.idBack]].filter(function (x) { return x[1]; }).map(function (x) {
+      return '<figure><img src="' + esc(x[1]) + '" alt="National ID ' + x[0].toLowerCase() + '"><figcaption>' + x[0] + "</figcaption></figure>";
+    }).join("") + "</div>";
+  }
+  function staffDetailsHtml(rec) {
+    return '<div class="item-lines">' +
+      '<div class="item-line"><span class="k">Legal name</span><span class="v">' + esc(rec.legalName) + "</span></div>" +
+      '<div class="item-line"><span class="k">Phone</span><span class="v">' + esc(rec.phone) + "</span></div>" +
+      '<div class="item-line"><span class="k">NIN</span><span class="v" style="font-variant-numeric:tabular-nums;letter-spacing:.04em">' + esc(rec.nin) + "</span></div>" +
+      '<div class="item-line"><span class="k">Signed up</span><span class="v">' + esc(dateTimeLabel(rec.signupAt)) + "</span></div>" +
+      (rec.approvedAt ? '<div class="item-line"><span class="k">Approved</span><span class="v">' + esc((rec.approvedBy || "—") + " · " + dateTimeLabel(rec.approvedAt)) + "</span></div>" : "") +
+      "</div>";
+  }
+  async function reviewSignup(id) {
+    toast("Loading their details…");
+    var r = await authApi({ action: "record", id: id }, true);
+    if (!r.ok) { toast(r.error === "not_found" ? "That sign-up was already handled." : (r.error || "Couldn't load the sign-up.")); await pullShared(); return; }
+    var rec = r.record, dlg = document.getElementById("askDialog");
+    var roles = [["sales", "Sales"], ["teamlead", "Team lead"]].concat(isAdmin() ? [["operations", "Operations"]] : []);
+    dlg.classList.add("is-wide");
+    dlg.innerHTML = '<div class="ask-head"><p class="dash-eyebrow" style="margin:0">New staff sign-up</p><h2 id="askTitle">' + esc(rec.legalName) + "</h2></div>" +
+      staffDetailsHtml(rec) + idPhotosHtml(rec) +
+      '<p class="settings-note">Check that the name and NIN match the card and the photo is clear.</p>' +
+      '<div class="field"><label for="suRole">Role</label><select id="suRole">' + roles.map(function (o) { return '<option value="' + o[0] + '">' + o[1] + "</option>"; }).join("") + "</select></div>" +
+      '<div class="ask-actions" style="flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="askCancel">Close</button>' +
+      '<button type="button" class="btn btn-danger" id="suReject">Reject</button>' +
+      '<button type="button" class="btn btn-primary" id="suApprove">Approve</button></div>';
+    var close = function () { dlg.close(); dlg.classList.remove("is-wide"); dlg.innerHTML = ""; };
+    dlg.querySelector("#askCancel").addEventListener("click", close);
+    dlg.addEventListener("cancel", function (e) { e.preventDefault(); close(); }, { once: true });
+    dlg.querySelector("#suApprove").addEventListener("click", async function () {
+      this.disabled = true;
+      var role = dlg.querySelector("#suRole").value;
+      var a = await authApi({ action: "approve", id: id, role: role }, true);
+      close();
+      if (!a.ok) { toast(a.error || "Couldn't approve."); return; }
+      await pullShared();
+      toast(rec.legalName.split(/\s+/)[0] + " approved — they can sign in with their phone and PIN");
+    });
+    dlg.querySelector("#suReject").addEventListener("click", async function () {
+      close();
+      if (!(await confirmSheet("Reject " + rec.legalName + "?", "Their sign-up and ID photo are deleted. They can sign up again if this was a mistake.", "Reject", true))) return;
+      var x = await authApi({ action: "reject", id: id }, true);
+      if (!x.ok) { toast(x.error || "Couldn't reject."); return; }
+      await pullShared();
+      toast("Sign-up rejected and deleted");
+    });
+    dlg.showModal();
+  }
+  async function viewStaffId(userId) {
+    var r = await authApi({ action: "record", id: userId }, true);
+    if (!r.ok) { toast(r.error === "not_found" ? "No ID on file for this account." : (r.error || "Couldn't load their ID.")); return; }
+    var dlg = document.getElementById("askDialog");
+    dlg.classList.add("is-wide");
+    dlg.innerHTML = '<div class="ask-head"><p class="dash-eyebrow" style="margin:0">National ID on file</p><h2 id="askTitle">' + esc(r.record.legalName) + "</h2></div>" +
+      staffDetailsHtml(r.record) + idPhotosHtml(r.record) +
+      '<div class="ask-actions"><button type="button" class="btn btn-primary" id="askCancel">Close</button></div>';
+    var close = function () { dlg.close(); dlg.classList.remove("is-wide"); dlg.innerHTML = ""; };
+    dlg.querySelector("#askCancel").addEventListener("click", close);
+    dlg.addEventListener("cancel", function (e) { e.preventDefault(); close(); }, { once: true });
+    dlg.showModal();
+  }
+  async function resetStaffPin(userId) {
+    var u = (state.users || []).find(function (x) { return x.id === userId; });
+    if (!u) return;
+    if (!(await confirmSheet("Reset " + u.name + "'s PIN?", "They're signed out on every phone. You'll get a 6-digit code to send them; they enter it under “Forgot PIN?” and choose a new PIN. The code works once, for 48 hours.", "Reset PIN", true))) return;
+    var r = await authApi({ action: "resetPin", userId: userId }, true);
+    if (!r.ok) { toast(r.error || "Couldn't reset the PIN."); return; }
+    var digits = String(u.phone || "").replace(/\D/g, "");
+    var msg = "Hello " + u.name.split(/\s+/)[0] + ", your Verisko PIN was reset. Open " + location.origin + " , tap “Forgot PIN?” and enter this code: " + r.code + " (valid 48 hours). Then choose a new 4-digit PIN.";
+    var dlg = document.getElementById("askDialog");
+    dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Send this code to ' + esc(u.name.split(/\s+/)[0]) + "</h2>" +
+      '<p class="ask-body">One-time code, valid for 48 hours:</p></div><div class="reset-code">' + esc(r.code) + "</div>" +
+      '<div class="ask-actions" style="flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="askCancel">Done</button>' +
+      '<a class="btn btn-primary" target="_blank" rel="noopener" href="https://wa.me/' + esc(digits) + "?text=" + encodeURIComponent(msg) + '">Send on WhatsApp</a></div>';
+    dlg.querySelector("#askCancel").addEventListener("click", function () { dlg.close(); });
+    dlg.showModal();
   }
 
   // Danger zone: wipe everything, leaving an empty workspace (type-to-confirm).
@@ -3676,6 +3933,9 @@
     var apprP = e.target.closest("[data-approve-prospect]"); if (apprP) { approveProspect(apprP.getAttribute("data-approve-prospect")); return; }
     var apprQ = e.target.closest("[data-approve-qual]"); if (apprQ) { approveQualification(apprQ.getAttribute("data-approve-qual")); return; }
     var wv = e.target.closest("[data-watch]"); if (wv) { openVideo(wv.getAttribute("data-watch")); return; }
+    var rsu = e.target.closest("[data-review-signup]"); if (rsu) { reviewSignup(rsu.getAttribute("data-review-signup")); return; }
+    var vsi = e.target.closest("[data-view-staff]"); if (vsi) { viewStaffId(vsi.getAttribute("data-view-staff")); return; }
+    var rpn = e.target.closest("[data-reset-pin]"); if (rpn) { resetStaffPin(rpn.getAttribute("data-reset-pin")); return; }
     if (e.target.closest("[data-certs-seen]")) { markCertsSeen(); return; }
     if (e.target.closest("[data-goview-support]")) { view = "support"; render(); document.getElementById("main").focus(); return; }
     var cd = e.target.closest("[data-cert-download]"); if (cd) { downloadCertificate(cd.getAttribute("data-cert-download")); return; }
@@ -3740,6 +4000,11 @@
   });
 
   /* -------------------------------- Start ----------------------------------- */
+  // Offline loading (sw.js): keep a copy of the app on the phone so it opens
+  // with no signal. Registered after load so it never slows the first paint.
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    window.addEventListener("load", function () { navigator.serviceWorker.register("/sw.js").catch(function () {}); });
+  }
   // Load any offline photos waiting to upload (migrates the old localStorage
   // queue into IndexedDB on first run).
   initUploadQueue();
