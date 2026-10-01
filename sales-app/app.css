@@ -651,3 +651,10 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .quiz-review-a{margin-top:4px}
 .quiz-review-why{margin-top:4px;color:var(--muted);font-size:.92em}
 .ask-dialog.is-wide{max-height:92vh;overflow:auto}
+.cert-card{display:flex;align-items:center;gap:14px;padding:16px;margin-bottom:14px;border:1.5px solid #b8923d;background:linear-gradient(135deg,var(--card),#faf8f3)}
+.cert-badge{font-size:30px;line-height:1}
+.cert-text{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.cert-text span{font-size:.85em;color:var(--muted)}
+.cert-text .cert-no{font-variant-numeric:tabular-nums;font-weight:600}
+.cert-actions{display:flex;flex-direction:column;gap:6px}
+.tt-cert{grid-column:1/-1;margin-top:-4px}

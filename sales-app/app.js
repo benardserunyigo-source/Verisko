@@ -1935,9 +1935,39 @@
     var prev = S.quizResult(mine, videoId);
     if (!prev || score >= prev.score) mine[S.quizKey(videoId)] = S.quizValue(score, total, nowIso());
     if (score === total && !mine[videoId]) mine[videoId] = nowIso();
-    state.training[id] = mine;
     var p = S.progress(mine);
-    saveData(score === total ? (p.complete ? "All 13 complete — well done!" : "Quiz passed · " + p.done + " of " + p.total + " complete") : "Quiz saved — " + score + " of " + total + " right");
+    if (p.complete && !mine.cert) mine.cert = nowIso();      // certificate date, fixed from now on
+    state.training[id] = mine;
+    saveData(score === total ? (p.complete ? "All 13 complete — your certificate is ready!" : "Quiz passed · " + p.done + " of " + p.total + " complete") : "Quiz saved — " + score + " of " + total + " right");
+  }
+
+  // Training certificate (certificate.js), for yourself or — Team lead,
+  // Operations, admin — anyone on the team who has completed all 13.
+  function certificateModelFor(userId) {
+    var u = (state.users || []).find(function (x) { return x.id === userId; }) || (userId === (settings.user || {}).id ? settings.user : null);
+    var t = (state.training || {})[userId];
+    return u && t ? window.VeriskoCertificate.buildModel(u, t, window.VeriskoSupport) : null;
+  }
+  async function certificatePdf(userId) {
+    var m = certificateModelFor(userId);
+    if (!m) throw new Error("The certificate is ready once all 13 quizzes are passed.");
+    var JsPDF = await loadJsPdf();
+    return { model: m, doc: window.VeriskoCertificate.renderPdf(JsPDF, m), name: window.VeriskoCertificate.fileName(m) };
+  }
+  async function downloadCertificate(userId) {
+    try { var c = await certificatePdf(userId); c.doc.save(c.name); toast("Certificate saved to your phone"); }
+    catch (e) { toast(e.message || "Couldn't build the certificate."); }
+  }
+  async function shareCertificate(userId) {
+    try {
+      var c = await certificatePdf(userId), file = null;
+      try { file = new File([c.doc.output("blob")], c.name, { type: "application/pdf" }); } catch (e) { file = null; }
+      if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: "Verisko training certificate", text: window.VeriskoCertificate.shareText(c.model) }); return; }
+        catch (e) { if (e && e.name === "AbortError") return; }
+      }
+      c.doc.save(c.name); toast("Certificate saved — share it from your downloads");
+    } catch (e) { toast(e.message || "Couldn't share the certificate."); }
   }
 
   // A one-line reminder on Today until a rep (or Team lead) finishes training.
@@ -1948,6 +1978,14 @@
     return '<section class="card training-nudge"><div><strong>Training: ' + p.done + " of " + p.total + " videos complete</strong>" +
       '<div class="settings-note">Next: ' + esc(p.next.n + ". " + p.next.title) + "</div></div>" +
       '<button type="button" class="btn btn-sm btn-primary" data-watch="' + esc(p.next.id) + '">Watch</button></section>';
+  }
+  function certificateCard() {
+    var me = (settings.user || {}).id, m = me ? certificateModelFor(me) : null;
+    if (!m) return "";
+    return '<section class="card cert-card"><div class="cert-badge" aria-hidden="true">🎓</div><div class="cert-text">' +
+      "<strong>Certificate of Completion</strong><span>" + esc(m.course) + " · " + esc(m.date) + "</span><span class=\"cert-no\">" + esc(m.number) + "</span></div>" +
+      '<div class="cert-actions"><button type="button" class="btn btn-sm btn-primary" data-cert-download="' + esc(me) + '">Download</button>' +
+      '<button type="button" class="btn btn-sm btn-ghost" data-cert-share="' + esc(me) + '">Share</button></div></section>';
   }
   function renderSupport() {
     var S = window.VeriskoSupport;
@@ -1961,7 +1999,7 @@
       '<div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div>' +
       (p.next ? '<button type="button" class="btn btn-primary btn-block" data-watch="' + esc(p.next.id) + '">▶ ' + (p.done ? "Continue: " : "Start: ") + esc(p.next.n + ". " + p.next.title) + "</button>"
         : '<p class="dash-note" style="color:var(--green);font-weight:600">✓ All 13 videos and quizzes complete. Rewatch any video whenever you feel unsure, especially before a big meeting.</p>') +
-      "</section>";
+      "</section>" + certificateCard();
     var how = '<section class="card settings-card"><h2>How to use this page</h2><ol class="help-steps">' +
       S.HOW_TO.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ol></section>";
     var parts = S.PARTS.map(function (part) {
@@ -1989,7 +2027,8 @@
           return '<div class="tt-row"><div class="tt-who"><strong>' + esc(r.name) + "</strong><span>" + esc(r.role === "teamlead" ? "Team lead" : "Sales") + " · " + r.watched + " watched" +
             (r.last && /^\d{4}-/.test(r.last) ? " · last " + esc(dateLabel(String(r.last).slice(0, 10))) : "") + "</span></div>" +
             '<div class="tt-bar"><div class="progress" style="margin:0"><div class="progress-bar" style="width:' + w + '%"></div></div></div>' +
-            '<div class="tt-count' + (r.done === 0 ? " is-zero" : r.complete ? " is-done" : "") + '">' + (r.complete ? "✓ " : "") + r.done + "/" + r.total + "</div></div>";
+            '<div class="tt-count' + (r.done === 0 ? " is-zero" : r.complete ? " is-done" : "") + '">' + (r.complete ? "🎓 " : "") + r.done + "/" + r.total + "</div>" +
+            (r.complete ? '<div class="tt-cert"><button type="button" class="btn btn-sm btn-ghost" data-cert-download="' + esc(r.id) + '">Certificate</button></div>' : "") + "</div>";
         }).join("") + "</div>" : '<p class="settings-note">No sales team members yet.</p>') + "</section>";
     }
     var who = canApproveQual() ? "lead" : "sales";
@@ -2052,7 +2091,7 @@
       var next = nextOf(v);
       dlg.innerHTML = head(v, "Quiz result") +
         '<div class="quiz-score ' + (res.passed ? "is-pass" : "is-fail") + '"><strong>' + res.score + " of " + res.total + " right</strong><span>" +
-        (res.passed ? "Passed — video complete." : "Not yet. Check the answers below, rewatch if you need to, and try again.") + "</span></div>" +
+        (res.passed ? (window.VeriskoSupport.progress(myTraining()).complete ? "Passed — and that's all 13. Congratulations, your certificate is ready." : "Passed — video complete.") : "Not yet. Check the answers below, rewatch if you need to, and try again.") + "</span></div>" +
         '<div class="quiz-review">' + qs.map(function (x, i) {
           var r = res.results[i];
           return '<div class="quiz-review-item ' + (r.correct ? "is-right" : "is-wrong") + '"><div class="quiz-review-q">' + (r.correct ? "✓ " : "✗ ") + esc(x.q) + "</div>" +
@@ -2061,10 +2100,13 @@
             '<div class="quiz-review-why">' + esc(r.why) + "</div></div>";
         }).join("") + "</div>" +
         '<div class="ask-actions" style="flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="askCancel">Close</button>' +
-        (res.passed ? (next ? '<button type="button" class="btn btn-primary" id="quizNext">Next video ›</button>' : "")
+        (res.passed ? (window.VeriskoSupport.progress(myTraining()).complete ? '<button type="button" class="btn btn-primary" id="quizCert">🎓 Get your certificate</button>' : "") +
+          (next ? '<button type="button" class="btn ' + (window.VeriskoSupport.progress(myTraining()).complete ? "btn-ghost" : "btn-primary") + '" id="quizNext">Next video ›</button>' : "")
           : '<button type="button" class="btn btn-ghost" id="quizRewatch">Rewatch video</button><button type="button" class="btn btn-primary" id="quizRetry">Try again</button>') + "</div>";
       dlg.querySelector("#askCancel").addEventListener("click", closeVideo);
       if (res.passed && next) dlg.querySelector("#quizNext").addEventListener("click", function () { fill(next); });
+      var certBtn = dlg.querySelector("#quizCert");
+      if (certBtn) certBtn.addEventListener("click", function () { downloadCertificate((settings.user || {}).id); });
       if (!res.passed) {
         dlg.querySelector("#quizRewatch").addEventListener("click", function () { fill(v); });
         dlg.querySelector("#quizRetry").addEventListener("click", function () { quiz(v); });
@@ -3586,6 +3628,8 @@
     var apprP = e.target.closest("[data-approve-prospect]"); if (apprP) { approveProspect(apprP.getAttribute("data-approve-prospect")); return; }
     var apprQ = e.target.closest("[data-approve-qual]"); if (apprQ) { approveQualification(apprQ.getAttribute("data-approve-qual")); return; }
     var wv = e.target.closest("[data-watch]"); if (wv) { openVideo(wv.getAttribute("data-watch")); return; }
+    var cd = e.target.closest("[data-cert-download]"); if (cd) { downloadCertificate(cd.getAttribute("data-cert-download")); return; }
+    var cs = e.target.closest("[data-cert-share]"); if (cs) { shareCertificate(cs.getAttribute("data-cert-share")); return; }
     var qz = e.target.closest("[data-quiz]"); if (qz) { openVideo(qz.getAttribute("data-quiz"), true); return; }
     var dq = e.target.closest("[data-disqualify]"); if (dq) { disqualifyProspect(dq.getAttribute("data-disqualify")); return; }
     var rq = e.target.closest("[data-reopen-qual]"); if (rq) { reopenQualification(rq.getAttribute("data-reopen-qual")); return; }

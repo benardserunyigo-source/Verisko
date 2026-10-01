@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=59**.
+  base directory `sales-app`). Current asset version: **v=60**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -294,7 +294,14 @@ change). Options are shuffled; all 3 right to pass; retries allowed; the
 result screen explains every answer. A video counts as **complete** once its
 quiz is passed (passing also marks it watched); the best attempt is kept.
 Progress: `state.training[userId][videoId] = ISO time` (watched) and
-`["q-" + videoId] = "<score>/<total> <ISO time>"` (quiz). Server
+`["q-" + videoId] = "<score>/<total> <ISO time>"` (quiz).
+**Certificate (v=60):** when all 13 quizzes are passed, `cert` (ISO time) is
+stamped once in the person's training map — that fixes the certificate date.
+`certificate.js` (model tested; PDF via jsPDF, A4 landscape: name, course,
+Kampala completion date, number `VFS-YYYYMMDD-XXXXX` from the user id) is
+offered as a Certificate card (Download / Share) on the Support centre, on the
+quiz result after the 13th pass, and — for the Team lead / Operations / admin
+— as a Certificate button beside each certified person in Team training. Server
 `mergeTraining()` lets each person change only their own entry; Sales GET
 only their own, the Team lead gets everyone's (Operations/admin get all
 data). The Team lead / Operations / admin see **Team training** (sales +
@@ -396,7 +403,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=59, 1 Oct 2026)
+## 8. Current status (live at v=60, 1 Oct 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console
