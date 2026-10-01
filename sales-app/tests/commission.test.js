@@ -97,3 +97,13 @@ test("qualification request follows the stage", () => {
   assert.equal(C.qualificationRequest(p, "T4"), false);
   assert.equal(p.qualStatus, "approved", "approved stays approved");
 });
+
+test("imported leads (Instagram / Google search lists) earn no commission and skip the approval queue", () => {
+  const p = { id: "imp", createdByEmail: "ab@test", imported: true, stage: "Qualified", qualStatus: "approved", qualApprovedAt: "2026-09-30T08:00:00Z" };
+  const txs = [{ id: "d", direction: "in", amount: 500000, prospectId: "imp", status: "pending", recordedAt: "2026-09-30T08:00:00Z" }];
+  const e = C.earnings([p], [], txs, C.payWeek(new Date("2026-10-01T08:00:00Z"), 0));
+  assert.equal(e.total, 0);
+  const q = { imported: true, stage: "Qualified", qualStatus: "" };
+  assert.equal(C.qualificationRequest(q, "T"), false);
+  assert.equal(q.qualStatus, "");
+});

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, keepFollowUps, keepNewerPlan } from "../netlify/functions/scope.mjs";
+import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, keepFollowUps, keepNewerPlan, keepImported } from "../netlify/functions/scope.mjs";
 
 const data = {
   prospects: [
@@ -175,4 +175,13 @@ test("call notes are append-only and the newer follow-up plan wins", () => {
   assert.equal(out.nextAction, "Lead's plan");
   const newer = keepNewerPlan(stored, [{ id: "p", followUp: "2026-10-09", followUpPlannedAt: "2026-09-30T11:00:00Z" }])[0];
   assert.equal(newer.followUp, "2026-10-09");
+});
+
+test("only the Admin can un-mark an imported lead (no commission)", () => {
+  const stored = [{ id: "p", imported: true, importedBy: "Ben" }];
+  const out = keepImported(stored, [{ id: "p", imported: false, importedBy: "", business: "Edited" }, { id: "n", business: "New" }]);
+  assert.equal(out[0].imported, true);
+  assert.equal(out[0].importedBy, "Ben");
+  assert.equal(out[0].business, "Edited");
+  assert.equal(out[1].imported, undefined);
 });

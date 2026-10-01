@@ -17,7 +17,7 @@
   // legacy value coming from the workbook still renders — this is the pick-list).
   var STAGES = ["New prospect", "Contact attempted", "Qualified", "Appointment proposed", "Appointment confirmed", "Lost", "Postponed"];
   var VERTICALS = ["Pharmacy", "Clinic", "Hospital", "Mobile money", "Retail shop", "Supermarket", "School", "Office", "Warehouse", "Residence", "Other"];
-  var SOURCES = ["Cold visit", "Walk-in prospecting", "Referral", "Website enquiry", "Phone enquiry", "Existing customer", "Other"];
+  var SOURCES = ["Cold visit", "Walk-in prospecting", "Referral", "Instagram", "Facebook", "Google search", "Website enquiry", "Phone enquiry", "Existing customer", "Other"];
   // Common next actions — offered as tap-or-type suggestions to cut typing.
   var NEXT_ACTIONS = ["Call back", "Book a site visit", "Confirm the visit", "Send a quotation", "Visit the site", "Follow up next week", "Wait for their decision"];
   // A job's full lifecycle — from the quote through to handover. One pipeline
@@ -530,6 +530,7 @@
     if (/Qualified/i.test(p.stage) && !appointmentFor(p.id)) {
       actions += '<button class="btn btn-sm btn-ghost" data-schedule="' + p.id + '">Schedule visit</button>';
     }
+    if (canReviewProspects() || isTeamLead() || ownProspect(p)) actions += '<button class="btn btn-sm btn-ghost" data-log-followup="' + p.id + '">Follow-up</button>';
     actions += '<button class="btn btn-sm btn-ghost" data-edit="prospect" data-id="' + p.id + '">Open</button>';
     return '<article class="item tone-' + tone + '">' +
       '<div class="item-top"><div><div class="item-title">' + esc(p.business) + '</div>' +
@@ -582,7 +583,7 @@
         .sort(function (a, b) { return String(b.qualApprovedAt || "").localeCompare(String(a.qualApprovedAt || "")); });
       if (ready.length) {
         review += '<section class="review-section"><h2 class="review-head">Qualified — ready for Operations <span class="review-count">' + ready.length + "</span></h2>" +
-          '<p class="result-note">Approved by the Team lead. Book the site visit or send the quote.</p>' + ready.slice(0, 8).map(readyCard).join("") +
+          '<p class="result-note">Approved by the Team lead (or imported leads marked Qualified). Book the site visit or send the quote.</p>' + ready.slice(0, 8).map(readyCard).join("") +
           (ready.length > 8 ? '<p class="result-note">+' + (ready.length - 8) + " more — filter by stage below.</p>" : "") + "</section>";
       }
     }
@@ -600,6 +601,7 @@
         '<div class="filter-row"><div class="field-inline"><label for="stageFilter">Stage</label>' +
         '<select id="stageFilter"><option value="">All stages</option>' + STAGES.map(function (s) { return '<option value="' + esc(s) + '">' + esc(s) + "</option>"; }).join("") + "</select></div></div>" +
       "</div>" +
+      (isAdmin() ? '<div class="button-row" style="margin:-4px 0 8px"><button type="button" class="btn btn-ghost btn-sm" data-import-leads>Import leads from Excel</button></div>' : "") +
       '<p class="result-note" id="resultNote" aria-live="polite"></p>' +
       '<div class="card-grid" id="prospectGrid"></div>';
     updateProspectGrid();
@@ -612,7 +614,7 @@
     var q = ((document.getElementById("search") || {}).value || "").toLowerCase().trim();
     var stage = ((document.getElementById("stageFilter") || {}).value || "");
     var rows = visibleProspects().filter(function (p) {
-      var haystack = [p.business, p.contact, p.phone, p.location, p.vertical, p.notes].map(function (x) { return x || ""; }).join(" ").toLowerCase();
+      var haystack = [p.business, p.contact, p.phone, p.location, p.vertical, p.notes, p.source, p.imported ? "imported" : ""].map(function (x) { return x || ""; }).join(" ").toLowerCase();
       return (!stage || p.stage === stage) && (!q || haystack.indexOf(q) !== -1);
     }).sort(function (a, b) {
       // Overdue first, then by follow-up date.
@@ -630,7 +632,8 @@
   }
 
   function readyForOperations(p) {
-    return p.qualStatus === "approved" && !p.closedSale && !isClosed(p.stage) && !quoteForProspect(p.id);
+    var qualified = p.qualStatus === "approved" || (p.imported && window.VeriskoCommission.isQualStage(p.stage));
+    return qualified && !p.closedSale && !isClosed(p.stage) && !quoteForProspect(p.id);
   }
   function readyCard(p) {
     var C = window.VeriskoCommission;
@@ -639,7 +642,8 @@
       '<div class="item-meta">' + esc(p.createdBy || "Rep") + " · " + esc(p.location || "No location") + "</div></div>" + stageChip(p.stage) + "</div>" +
       '<div class="item-lines">' +
       '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc([p.contact, p.phone].filter(Boolean).join(" · ") || "—") + "</span></div>" +
-      '<div class="item-line"><span class="k">Approved</span><span class="v">' + esc((p.qualApprovedBy || "Team lead") + (p.qualApprovedAt ? " · " + C.label(C.eventTime(p.qualApprovedAt), true) : "")) + "</span></div>" +
+      (p.imported ? '<div class="item-line"><span class="k">Lead</span><span class="v">Imported' + (p.source ? " · " + esc(p.source) : "") + " · no commission</span></div>"
+        : '<div class="item-line"><span class="k">Approved</span><span class="v">' + esc((p.qualApprovedBy || "Team lead") + (p.qualApprovedAt ? " · " + C.label(C.eventTime(p.qualApprovedAt), true) : "")) + "</span></div>") +
       (appt ? '<div class="item-line"><span class="k">Site visit</span><span class="v">' + esc(dateLabel(appt.date) + " · " + (appt.status || "")) + "</span></div>" : "") + "</div>" +
       '<div class="item-actions">' + (p.phone ? '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>' : "") +
       (!appt ? '<button type="button" class="btn btn-sm btn-ghost" data-schedule="' + esc(p.id) + '">Schedule visit</button>' : "") +
@@ -671,7 +675,7 @@
     return '<article class="item tone-' + tone + '">' +
       '<div class="item-top"><div><div class="item-title">' + esc(p.business) + '</div>' +
       '<div class="item-meta">' + esc(p.vertical) + " · " + esc(p.location || "No location") + "</div></div>" +
-      '<span class="chip-stack">' + stageChip(p.stage) + reviewChip + qualChip(p) + closedSaleChip(p) + "</span></div>" +
+      '<span class="chip-stack">' + stageChip(p.stage) + reviewChip + qualChip(p) + closedSaleChip(p) + (p.imported ? chip("Imported" + (p.source ? " · " + p.source : ""), "grey") : "") + "</span></div>" +
       '<div class="item-lines">' +
       '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc(p.contact || "Unknown") + "</span></div>" +
       '<div class="item-line"><span class="k">Phone</span><span class="v">' + (p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") + "</span></div>" +
@@ -1639,7 +1643,7 @@
       if (pendingGeo) merged.geo = pendingGeo;   // a re-captured pin updates the record
       // A Sales edit re-opens the audit: a sent-back prospect returns to the
       // queue, and an approved one that actually changed goes back to pending.
-      if (!canReviewProspects()) {
+      if (!canReviewProspects() && !prev.imported) {
         if (prev.reviewStatus === "query") { merged.reviewStatus = "pending"; merged.reviewNote = ""; reopened = true; }
         else if (prev.reviewStatus === "approved" && prospectChanged(prev, data, photoPicked)) {
           merged.reviewStatus = "pending"; merged.reviewedBy = ""; merged.reviewedAt = ""; merged.reviewNote = ""; reopened = true;
@@ -1778,6 +1782,136 @@
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(k).then(done, fail); else fail();
   }
 
+  /* -------------------- Import leads from Excel (Admin) --------------------- */
+  // The Admin uploads a call list (Instagram, Google search…). Each row is a
+  // new lead for the Team lead / Operations to call, or updates the existing
+  // lead with the same phone (else business name). Imported leads earn no
+  // commission (commission.js skips `imported`). Parsing: lead-import.js.
+  var IMPORT_SOURCES = ["Instagram", "Google search", "Facebook", "Referral", "Other"];
+  var xlsxLoading = null;
+  function loadXlsx() {
+    if (window.XLSX && window.XLSX.read) return Promise.resolve(window.XLSX);
+    if (xlsxLoading) return xlsxLoading;
+    xlsxLoading = new Promise(function (resolve, reject) {
+      var sc = document.createElement("script");
+      sc.src = "vendor/xlsx.full.min.js?v=0.20.3"; sc.async = true;
+      sc.onload = function () { if (window.XLSX && window.XLSX.read) resolve(window.XLSX); else { xlsxLoading = null; reject(new Error("The Excel reader didn't load. Try again.")); } };
+      sc.onerror = function () { xlsxLoading = null; reject(new Error("Couldn't load the Excel reader. Check your connection and try again.")); };
+      document.head.appendChild(sc);
+    });
+    return xlsxLoading;
+  }
+  function importSection() {
+    if (!isAdmin()) return "";
+    var li = state.config && state.config.lastImport;
+    return '<section class="card settings-card"><h2>Import leads from Excel</h2>' +
+      "<p>Upload a call list (.xlsx, .xls or .csv) — for example businesses found on Instagram or Google search. Each row becomes a lead for the Team lead and Operations to call. A row whose phone number (or business name) is already in the app updates that lead's details instead — its stage, owner and call history stay. Imported leads earn no commission.</p>" +
+      '<p class="settings-note">First row = headings: <strong>Business name, Contact name, Phone, Location, Category, Source, Notes, Assigned to</strong>. Only Phone is required; similar headings (Client, Mobile, WhatsApp, Area…) are recognised.</p>' +
+      '<div class="button-row"><button class="btn btn-primary" data-import-leads>Choose Excel file…</button>' +
+      '<button class="btn btn-ghost" data-lead-template>Download template</button></div>' +
+      (li ? '<p class="settings-note">Last import: ' + esc(li.file || "file") + " · " + esc(dateTimeLabel(li.at)) + " · " + (li.added || 0) + " new, " + (li.updated || 0) + " updated by " + esc(li.by || "—") +
+        ' <button type="button" class="btn btn-ghost btn-sm" data-undo-import>Undo…</button></p>' : "") + "</section>";
+  }
+  function downloadLeadTemplate() {
+    var rows = [window.VeriskoLeadImport.TEMPLATE, ["Acacia Pharmacy", "Grace N.", "0772 460125", "Kira Road, Kampala", "Pharmacy", "Instagram", "Replied to our post", ""]];
+    var csv = rows.map(function (r) { return r.map(function (c) { return /[",\n]/.test(c) ? '"' + String(c).replace(/"/g, '""') + '"' : c; }).join(","); }).join("\r\n");
+    download("verisko-leads-template.csv", "﻿" + csv, "text/csv");
+  }
+  async function readLeadFile(file) {
+    if (!file || !isAdmin()) return;
+    if (file.size > 5 * 1024 * 1024) { toast("That file is over 5 MB — split it and import it in parts."); return; }
+    toast("Reading " + file.name + "…");
+    var rows;
+    try {
+      var XLSX = await loadXlsx();
+      var wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "", blankrows: true });
+    } catch (e) { toast((e && /load/i.test(e.message || "")) ? e.message : "Couldn't read that file. Save it as .xlsx or .csv and try again."); return; }
+    var I = window.VeriskoLeadImport;
+    var parsed = I.parseRows(rows);
+    if (parsed.error) { toast(parsed.error); return; }
+    if (parsed.leads.length > 3000) { toast("That's " + parsed.leads.length + " rows — import at most 3,000 at a time."); return; }
+    openImportPreview(file.name, parsed, I.plan(parsed.leads, state.prospects || []));
+  }
+  function openImportPreview(fileName, parsed, plan) {
+    var I = window.VeriskoLeadImport;
+    var users = state.users || [];
+    var byRole = function (r) { return users.filter(function (u) { return normRole(u.role) === r; }); };
+    var owners = byRole("teamlead").concat(byRole("sales"), byRole("operations"), byRole("admin"));
+    if (!owners.length) owners = [settings.user || {}];
+    var fresh = plan.filter(function (x) { return !x.match; }), updates = plan.filter(function (x) { return x.match; });
+    var unknown = {};
+    if (parsed.map.assignedTo !== undefined) fresh.forEach(function (x) { if (x.lead.assignedTo && !I.findUser(users, x.lead.assignedTo)) unknown[x.lead.assignedTo] = true; });
+    var unknownList = Object.keys(unknown);
+    var dlg = document.getElementById("askDialog");
+    var line = function (n, text) { return '<div class="item-line"><span class="k">' + n + '</span><span class="v">' + text + "</span></div>"; };
+    dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Import leads</h2><p class="ask-body">' + esc(fileName) + "</p></div>" +
+      '<div class="item-lines" style="margin-bottom:10px">' +
+        line(fresh.length, "new " + (fresh.length === 1 ? "lead" : "leads") + " to call") +
+        line(updates.length, "existing " + (updates.length === 1 ? "lead" : "leads") + " updated (phone, contact, location…)") +
+        line(parsed.skipped.length, "rows skipped") + "</div>" +
+      (parsed.skipped.length ? '<p class="ask-body" style="font-size:.85em">' + parsed.skipped.slice(0, 6).map(function (k) { return "Row " + k.row + ": " + esc(k.reason); }).join("<br>") + (parsed.skipped.length > 6 ? "<br>…and " + (parsed.skipped.length - 6) + " more" : "") + "</p>" : "") +
+      (fresh.length ? '<p class="ask-body" style="font-size:.85em;color:var(--muted)">' + fresh.slice(0, 3).map(function (x) { return esc(x.lead.business) + " · " + esc(x.lead.phone); }).join("<br>") + (fresh.length > 3 ? "<br>…" : "") + "</p>" : "") +
+      '<div class="field"><label for="impOwner">Give new leads to</label><select id="impOwner">' + owners.map(function (u, i) {
+        return '<option value="' + esc(u.email || "") + '"' + (i === 0 ? " selected" : "") + ">" + esc((u.name || u.email || "Me") + " · " + roleName(u)) + "</option>";
+      }).join("") + "</select>" + (parsed.map.assignedTo !== undefined ? '<p class="helper">Rows with an “Assigned to” name or email go to that person instead.</p>' : "") + "</div>" +
+      (unknownList.length ? '<p class="ask-body" style="color:var(--amber)">Not on the team, so those rows go to the person above: ' + esc(unknownList.slice(0, 5).join(", ")) + (unknownList.length > 5 ? "…" : "") + "</p>" : "") +
+      '<div class="field"><label for="impSource">Lead source (rows without one)</label><select id="impSource">' + IMPORT_SOURCES.map(function (o) { return "<option>" + esc(o) + "</option>"; }).join("") + "</select></div>" +
+      '<div class="field"><label for="impDate">First call on</label><input id="impDate" type="date" value="' + esc(today) + '"></div>' +
+      '<p class="ask-body">No commission is paid on imported leads.</p>' +
+      '<div class="ask-actions"><button type="button" class="btn btn-ghost" id="askCancel">Cancel</button><button type="button" class="btn btn-primary" id="askOk"' + (plan.length ? "" : " disabled") + ">Import " + (fresh.length + updates.length) + "</button></div>";
+    var onCancel = function (e) { if (e) e.preventDefault(); dlg.close(); };
+    dlg.querySelector("#askCancel").addEventListener("click", onCancel);
+    dlg.addEventListener("cancel", onCancel, { once: true });
+    dlg.querySelector("#askOk").addEventListener("click", function () {
+      var owner = dlg.querySelector("#impOwner").value, src = dlg.querySelector("#impSource").value, date = dlg.querySelector("#impDate").value || today;
+      dlg.close();
+      applyLeadImport(fileName, plan, owner, src, date);
+    });
+    dlg.showModal();
+  }
+  function applyLeadImport(fileName, plan, ownerEmail, sourceDefault, callDate) {
+    if (!isAdmin()) return;
+    var I = window.VeriskoLeadImport;
+    var me = settings.user || {}, users = state.users || [];
+    var lc = function (v) { return String(v || "").toLowerCase(); };
+    var owner = users.find(function (u) { return lc(u.email) === lc(ownerEmail); }) || me;
+    var batch = uid(), at = nowIso(), added = 0, updated = 0;
+    plan.forEach(function (x) {
+      var l = x.lead;
+      if (x.match) { if (I.applyUpdate(x.match, l).length) updated++; return; }
+      var who = (l.assignedTo && I.findUser(users, l.assignedTo)) || owner;
+      var p = {
+        id: uid(), business: l.business, vertical: l.vertical || "Other", contact: l.contact, phone: l.phone, phone2: l.phone2, email: l.email,
+        location: l.location, decisionMaker: "Unknown", concern: "", existing: "", areas: "", budget: "",
+        stage: "New prospect", source: l.source || sourceDefault, nextAction: "First call", followUp: callDate, notes: l.notes, created: today,
+        createdBy: who.name || "", createdByEmail: lc(who.email), photoId: "", geo: null, followUps: [],
+        reviewStatus: "approved", reviewedBy: me.name || "", reviewedAt: today, reviewNote: "", qualStatus: "",
+        imported: true, importedAt: at, importedBy: me.name || "", importBatch: batch
+      };
+      stampPlan(p);
+      state.prospects.push(p); added++;
+    });
+    if (!state.config || typeof state.config !== "object") state.config = defaultConfig();
+    state.config.lastImport = { id: batch, at: at, by: me.name || "", file: fileName, added: added, updated: updated };
+    saveData("Imported " + added + " new " + (added === 1 ? "lead" : "leads") + (updated ? " · updated " + updated : "") + " — ready to call");
+    render();
+  }
+  async function undoLeadImport() {
+    var li = state.config && state.config.lastImport;
+    if (!li || !isAdmin()) return;
+    var batch = (state.prospects || []).filter(function (p) { return p.importBatch === li.id; });
+    var untouched = batch.filter(function (p) { return !(p.followUps || []).length && p.stage === "New prospect" && !quoteForProspect(p.id) && !appointmentFor(p.id); });
+    var ok = await confirmSheet("Undo the last import?", "Removes " + untouched.length + " of the " + batch.length + " leads added from " + (li.file || "the file") +
+      ". Leads someone has already called or moved on are kept. Details updated on existing leads are not undone.", "Remove " + untouched.length + " leads", true);
+    if (!ok) return;
+    var drop = {}; untouched.forEach(function (p) { drop[p.id] = true; });
+    state.prospects = state.prospects.filter(function (p) { return !drop[p.id]; });
+    delete state.config.lastImport;
+    saveData("Removed " + untouched.length + " imported leads"); render();
+  }
+
   /* -------------------------------- SETTINGS -------------------------------- */
   function renderSettings() {
     setHead("Owner settings", "Settings", "Team, connection, and data.", "", false);
@@ -1821,6 +1955,7 @@
       '<div class="button-row"><button class="btn btn-ghost" data-sync>Refresh shared data</button></div></section>' +
 
       exportSection() +
+      importSection() +
 
       '<section class="card settings-card"><h2>Cash flow</h2>' +
       "<p>Every expense (money out) needs a receipt before it can be approved. If the cash-flow team has already vetted a payment, whoever records it can tick “Already pre-approved by the cash-flow team” to submit without a receipt — you still give the final approval here.</p></section>" +
@@ -1922,6 +2057,9 @@
         if (source.reviewStatus === "query" && source.reviewNote) {
           html += '<div class="field full"><div class="rev-noproof">Sent back: ' + esc(source.reviewNote) + "</div></div>";
         }
+        if (source.imported) {
+          html += '<div class="field full"><p class="helper">Imported' + (source.source ? " from " + esc(source.source) : "") + " by " + esc(source.importedBy || "the Admin") + (source.importedAt ? " on " + esc(dateLabel(String(source.importedAt).slice(0, 10))) : "") + " — no commission on this lead.</p></div>";
+        }
         if (source.qualStatus === "disqualified") {
           html += '<div class="field full"><div class="rev-noproof">Disqualified by ' + esc(source.qualApprovedBy || "the Team lead") + ": " + esc(source.qualReason || "no reason given") + (source.qualNote ? " — " + esc(source.qualNote) : "") + ". No qualification commission. The Team lead or Operations can re-open it.</div></div>";
         } else if (source.qualStatus === "query") {
@@ -1937,8 +2075,8 @@
           var fq = quoteForProspect(id);
           var statusHtml = source.closedSale
             ? '<p class="helper" style="color:var(--green);font-weight:600">Closed sale' + (source.closedAuto ? " — " + (source.closedBy === "Client deposit" ? "the client paid a deposit" : "the client accepted the quote") : "") + ".</p>" +
-              (firstPaymentFor(source) ? '<p class="helper">Client\'s first deposit recorded ' + dateLabel(firstPaymentFor(source)) + " — " + money(commissionRate()) + " commission earned.</p>"
-                : '<p class="helper" style="color:var(--amber)">The rep earns ' + money(commissionRate()) + " as soon as the client's first deposit is recorded.</p>")
+              (firstPaymentFor(source) ? '<p class="helper">Client\'s first deposit recorded ' + dateLabel(firstPaymentFor(source)) + (source.imported ? "." : " — " + money(commissionRate()) + " commission earned.") + "</p>"
+                : source.imported ? "" : '<p class="helper" style="color:var(--amber)">The rep earns ' + money(commissionRate()) + " as soon as the client's first deposit is recorded.</p>")
             : (fq ? '<p class="helper">Quoted — ' + esc(fq.ref || "job") + " is " + esc(fq.stage || "Draft") + ". It becomes a closed sale when the client accepts.</p>"
               : '<p class="helper">No quote yet. The sale closes automatically once the client accepts a quote.</p>');
           html += '<div class="field full"><label>Quote &amp; sale</label>' + statusHtml +
@@ -2491,7 +2629,7 @@
   }
 
   /* ---------------- Qualified prospects (UGX 2,500, Team lead) --------------- */
-  function needsQualApproval(p) { return p.qualStatus === "pending"; }
+  function needsQualApproval(p) { return p.qualStatus === "pending" && !p.imported; }
   function qualChip(p) {
     if (p.qualStatus === "approved") return chip("Qualified · " + money(commissionPerQualified()), "green", "✓");
     if (p.qualStatus === "pending") return chip("Awaiting team lead", "amber", "◔");
@@ -2603,10 +2741,10 @@
   function recordDeposit(id) {
     if (!canRecordDeposit()) return;
     var p = prospect(id); if (!p || !p.id) return;
-    var first = !firstPaymentFor(p);
+    var first = !firstPaymentFor(p) && !p.imported;
     var dlg = document.getElementById("askDialog");
     dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Record client deposit</h2><p class="ask-body">' + esc(p.business) +
-      (first ? " · first deposit earns " + esc(p.createdBy || "the rep") + " " + money(commissionRate()) + "." : " · this client already has a deposit.") + "</p></div>" +
+      (first ? " · first deposit earns " + esc(p.createdBy || "the rep") + " " + money(commissionRate()) + "." : p.imported ? " · imported lead — no commission." : " · this client already has a deposit.") + "</p></div>" +
       '<div class="field"><label for="depAmount">Amount (UGX)</label><input id="depAmount" type="number" inputmode="numeric" min="1" step="1000" placeholder="e.g. 500000"></div>' +
       '<div class="field"><label for="depMethod">Method</label><select id="depMethod"><option>MTN MoMo</option><option>Airtel Money</option><option>Cash</option><option>Bank</option></select></div>' +
       '<div class="field"><label for="depDate">Date</label><input id="depDate" type="date" value="' + esc(today) + '"></div>' +
@@ -3228,6 +3366,11 @@
     reader.readAsText(file); this.value = "";
   });
 
+  document.getElementById("leadImportInput").addEventListener("change", function () {
+    var file = this.files[0]; this.value = "";
+    readLeadFile(file);
+  });
+
   /* ------------------------------- Wiring ----------------------------------- */
   document.querySelectorAll("[data-close]").forEach(function (b) {
     b.addEventListener("click", function () { hideFormError(); dialog.close(); });
@@ -3288,6 +3431,9 @@
     var oex = e.target.closest("[data-open-export]"); if (oex) { window.open(exportUrl(oex.getAttribute("data-open-export")), "_blank", "noopener"); return; }
     if (e.target.closest("[data-export]")) exportJson();
     if (e.target.closest("[data-import]")) document.getElementById("importInput").click();
+    if (e.target.closest("[data-import-leads]")) { if (isAdmin()) document.getElementById("leadImportInput").click(); return; }
+    if (e.target.closest("[data-lead-template]")) { downloadLeadTemplate(); return; }
+    if (e.target.closest("[data-undo-import]")) { undoLeadImport(); return; }
     if (e.target.closest("[data-sync]")) pullShared();
     var rm = e.target.closest("[data-remove-user]"); if (rm) { removeUser(rm.dataset.removeUser); return; }
     if (e.target.closest("[data-reset]")) { resetDemo(); return; }

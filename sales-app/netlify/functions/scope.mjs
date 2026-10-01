@@ -110,6 +110,20 @@ export function keepNewerPlan(storedProspects, prospects) {
   });
 }
 
+// Leads the Admin imported (Instagram / Google search lists) earn no
+// commission; only the Admin can change that or their import stamp.
+const IMPORT_FIELDS = ["imported", "importedAt", "importedBy", "importBatch"];
+export function keepImported(storedProspects, prospects) {
+  const prevById = new Map(arr(storedProspects).map((p) => [p.id, p]));
+  return arr(prospects).map((p) => {
+    const prev = p && prevById.get(p.id);
+    if (!prev || !prev.imported) return p;
+    const out = { ...p };
+    IMPORT_FIELDS.forEach((k) => { out[k] = prev[k] === undefined ? "" : prev[k]; });
+    return out;
+  });
+}
+
 // Merge a Team lead's POST: their own records like a rep. On everyone else's
 // prospects: the qualification decision (approve, disqualify with a reason,
 // re-open), the planned follow-up, and new call notes they logged themselves.

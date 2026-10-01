@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=54**.
+  base directory `sales-app`). Current asset version: **v=55**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -252,6 +252,31 @@ Rep dashboard: this week, last week, month to date vs `commissionTarget`.
 Team lead / Ops / admin console: pay per rep for any week (‹ Earlier).
 `normalizeConfig()` rule 3 adds the 2,500 rate once.
 
+## 6c. Import leads from Excel (Admin only, since v=55)
+
+Settings → "Import leads from Excel" (also a button on Prospects for admin).
+The Admin picks an .xlsx/.xls/.csv call list (Instagram, Google search…);
+`vendor/xlsx.full.min.js` (SheetJS 0.20.3, Apache-2.0) is lazy-loaded to read
+it, and `lead-import.js` (pure, tested) maps headings by synonyms (Business
+name/Client/Name, Phone/Mobile/WhatsApp, Contact, Location/Area, Category,
+Source, Notes, Assigned to), normalises Ugandan phones to `+256 7XX XXX XXX`,
+skips rows with no phone (keeping spreadsheet row numbers) and de-duplicates.
+Each row either **updates** the existing prospect with the same phone (else
+business name) — only non-empty details, never stage/owner/history/commission
+— or becomes a **new lead**: owner chosen in the preview (default the Team
+lead; an "Assigned to" cell overrides), `stage "New prospect"`, `nextAction
+"First call"`, `followUp` = the chosen first-call date (so it lands on the
+owner's Today list), `reviewStatus "approved"` (no GPS/photo audit, and no
+re-review when edited), and `imported: true` + `importedAt/By/importBatch`.
+**Imported leads earn no commission** (Ben, 1 Oct 2026: they come from
+Instagram / Google search) — `commission.js` skips them for both the 2,500
+and the 100,000, and they never enter the qualification approval queue; once
+marked Qualified they go straight to Operations' "ready" list. Server:
+`keepImported()` lets only the Admin change those fields. "Undo…" removes the
+last batch's leads nobody has called or moved yet (`config.lastImport`).
+The Team lead and Operations work the list with Call + Follow-up (also on
+Today cards).
+
 ## 6a. Live data export & the Google Sheet
 
 The Owner's answer to "where is my data and how do I see it without the app".
@@ -347,7 +372,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=54, 30 Sep 2026)
+## 8. Current status (live at v=55, 1 Oct 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

@@ -7,6 +7,8 @@
 //   • Client deposit — UGX 100,000 once per client, as soon as the client's
 //     first deposit is recorded (pending or approved; a sent-back entry does
 //     not count); counted when the deposit was recorded.
+// Leads the Admin imported from a spreadsheet (imported: true — Instagram,
+// Google search…) earn neither.
 (function (root) {
   "use strict";
 
@@ -90,7 +92,7 @@
       return reps[k];
     }
     (prospects || []).forEach(function (p) {
-      if (!p || !p.createdByEmail) return;
+      if (!p || !p.createdByEmail || p.imported) return;
       if (opts.email && lc(p.createdByEmail) !== lc(opts.email)) return;
       if (p.qualStatus === "approved" && inPeriod(eventTime(p.qualApprovedAt), period)) rep(p).qualified.push({ id: p.id, business: p.business, at: eventTime(p.qualApprovedAt) });
       if (p.qualStatus === "pending") rep(p).pendingQual++;
@@ -112,7 +114,7 @@
   // asks the Team lead to approve; dropping back cancels a pending request;
   // editing a sent-back one re-submits it. Approved stays approved.
   function qualificationRequest(p, nowIso) {
-    if (!p) return false;
+    if (!p || p.imported) return false;      // no commission → nothing to approve
     var s = p.qualStatus || "";
     if (isQualStage(p.stage)) {
       if (s === "" || s === "query") { p.qualStatus = "pending"; p.qualRequestedAt = nowIso; return true; }
