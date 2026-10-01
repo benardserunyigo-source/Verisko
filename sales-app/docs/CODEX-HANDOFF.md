@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=51**.
+  base directory `sales-app`). Current asset version: **v=52**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -98,7 +98,19 @@ Three roles, resolved from `settings.user.role`:
 - **operations** — records cash in/out, manages jobs/technicians, reviews
   prospects. Cannot self-approve.
 - **sales** — prospects + site visits + a personal dashboard only. Never sees
-  cash flow, jobs, or settings.
+  cash flow, jobs, or settings, and **never sees another rep's records**
+  (since v=52). The server scopes it (`netlify/functions/scope.mjs`, tested):
+  `scopeForSales()` makes a Sales GET return only prospects whose
+  `createdByEmail` is theirs, the visits on those prospects, minimal job
+  stubs and approved client payments for those clients (for the commission
+  dashboard), themselves plus Operations/admin by name only (no emails), and
+  only the commission settings. `mergeSalesWrite()` folds a Sales POST back
+  into the full workspace: other reps' prospects/visits stay as stored,
+  records the device sends that belong to someone else are ignored, and a new
+  prospect is stamped with the sender's email. In the app, `visibleProspects()`
+  / `visibleAppointments()` filter Today, Prospects, Visits and the visit form
+  for Sales too, covering phones with an older full cache. Prospects with an
+  empty `createdByEmail` (demo/legacy) are visible to no salesperson.
 
 Gate helpers in `app.js`: `isAdmin()`, `canCashflow()`, `canReviewProspects()`,
 `canInstalls()` (ops+admin). Nav: 4 primary tabs (Today, Dashboard, Prospects,
@@ -227,8 +239,9 @@ The Owner's answer to "where is my data and how do I see it without the app".
 ## 7. How to run & test locally (the app is auth-gated)
 
 **Automated tests:** `npm install && npm test` runs `tests/*.test.js` with the
-built-in Node runner (currently 24 tests: cash-flow period maths, the export
-flattening/CSV, the quotation model/share text, and closed-sale rules). Add a test whenever you touch a pure function. `node_modules`
+built-in Node runner (currently 31 tests: cash-flow period maths, the export
+flattening/CSV, the quotation model/share text, closed-sale rules, and Sales
+data scoping). Add a test whenever you touch a pure function. `node_modules`
 is git-ignored via `sales-app/.gitignore`.
 
 **Browser smoke test:** because sign-in needs a Supabase OTP, bypass it by
@@ -281,7 +294,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=51, 28 Sep 2026)
+## 8. Current status (live at v=52, 30 Sep 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

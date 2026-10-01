@@ -268,6 +268,20 @@
   /* -------------------------------- Helpers --------------------------------- */
   function prospect(id) { return state.prospects.find(function (p) { return p.id === id; }) || {}; }
   function appointmentFor(id) { return state.appointments.find(function (a) { return a.prospectId === id; }); }
+  // Each salesperson works only their own pipeline. The server already sends a
+  // Sales account just its own records; this also hides anything left over in
+  // an older cached copy on the phone. Operations/admin see everything.
+  function isMineProspect(p) {
+    if (canReviewProspects()) return true;
+    var me = ((settings.user || {}).email || "").toLowerCase();
+    return !!(p && me && (p.createdByEmail || "").toLowerCase() === me);
+  }
+  function visibleProspects() { return (state.prospects || []).filter(isMineProspect); }
+  function visibleAppointments() {
+    if (canReviewProspects()) return state.appointments || [];
+    var ids = {}; visibleProspects().forEach(function (p) { ids[p.id] = true; });
+    return (state.appointments || []).filter(function (a) { return ids[a.prospectId]; });
+  }
 
   function toast(message) {
     var el = document.getElementById("toast");
@@ -454,7 +468,7 @@
   function renderToday() {
     setHead("Your work today", "Today", "Your priorities, most urgent first.", "Add prospect", true);
 
-    var active = state.prospects.filter(function (p) { return !isClosed(p.stage); });
+    var active = visibleProspects().filter(function (p) { return !isClosed(p.stage); });
 
     var overdue = active.filter(function (p) { return isOverdue(p.followUp); });
     var dueToday = active.filter(function (p) { return isToday(p.followUp); });
@@ -465,9 +479,9 @@
       return /Qualified/i.test(p.stage) && !appointmentFor(p.id) && !seen[p.id];
     });
 
-    var awaiting = state.appointments.filter(function (a) { return /Proposed|Rescheduled/i.test(a.status); })
+    var awaiting = visibleAppointments().filter(function (a) { return /Proposed|Rescheduled/i.test(a.status); })
       .sort(function (a, b) { return (a.date || "").localeCompare(b.date || ""); });
-    var confirmed = state.appointments.filter(function (a) { return a.status === "Confirmed" && (!a.date || a.date >= today); })
+    var confirmed = visibleAppointments().filter(function (a) { return a.status === "Confirmed" && (!a.date || a.date >= today); })
       .sort(function (a, b) { return (a.date || "").localeCompare(b.date || ""); });
 
     var sections = "";
@@ -566,7 +580,7 @@
     if (!grid) return;
     var q = ((document.getElementById("search") || {}).value || "").toLowerCase().trim();
     var stage = ((document.getElementById("stageFilter") || {}).value || "");
-    var rows = state.prospects.filter(function (p) {
+    var rows = visibleProspects().filter(function (p) {
       var haystack = [p.business, p.contact, p.phone, p.location, p.vertical, p.notes].map(function (x) { return x || ""; }).join(" ").toLowerCase();
       return (!stage || p.stage === stage) && (!q || haystack.indexOf(q) !== -1);
     }).sort(function (a, b) {
@@ -627,7 +641,7 @@
     var listEl = document.getElementById("visitList");
     if (!listEl) return;
     var filter = ((document.getElementById("visitFilter") || {}).value || "");
-    var rows = state.appointments.filter(function (a) { return !filter || a.status === filter; })
+    var rows = visibleAppointments().filter(function (a) { return !filter || a.status === filter; })
       .sort(function (a, b) {
         // Attention first: Proposed/Rescheduled, then by date.
         var rank = function (s) { return /Proposed|Rescheduled/i.test(s) ? 0 : /Confirmed/i.test(s) ? 1 : 2; };
@@ -1847,7 +1861,7 @@
     }
     if (type === "appointment") {
       document.getElementById("dialogTitle").textContent = id ? "Edit site visit" : "Schedule site visit";
-      var options = state.prospects.map(function (p) { return { value: p.id, label: p.business }; });
+      var options = visibleProspects().map(function (p) { return { value: p.id, label: p.business }; });
       var selected = source.prospectId || presetProspect || "";
       // Assign the visit to a real Operations/admin person, not a typed constant.
       var meOps = settings.user && (settings.user.role === "operations" || settings.user.role === "admin") ? settings.user.name : "";

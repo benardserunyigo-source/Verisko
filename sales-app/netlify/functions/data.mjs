@@ -7,6 +7,7 @@
 // an empty workspace bootstraps the owner. Non-admins cannot alter the team
 // list. Both Supabase values below are public (publishable) and safe to ship.
 import { getStore } from "@netlify/blobs";
+import { scopeForSales, mergeSalesWrite } from "./scope.mjs";
 
 const SUPABASE_URL = "https://cepernltrzrmupgegcib.supabase.co";
 const SUPABASE_KEY = "sb_publishable_hj2NsI1YGmpeQg815ET2Kg_CwznowqE";
@@ -46,8 +47,11 @@ export default async (request) => {
     const me = users.find((u) => String(u.email || "").toLowerCase() === email);
     if (!me && !bootstrap) return json({ ok: false, error: "not_authorized" }, 403, headers);
     const isAdmin = bootstrap || (me && me.role === "admin");
+    const isSales = !bootstrap && !!me && me.role !== "admin" && me.role !== "operations";
 
     if (request.method === "GET") {
+      // A salesperson only ever receives their own records (scope.mjs).
+      if (isSales) return json({ ok: true, data: { ...EMPTY, ...scopeForSales(data, email) } }, 200, headers);
       const out = { ...EMPTY, ...data };
       // The spreadsheet export key is Owner/Technical-only: never send it to
       // Sales or Operations devices.
@@ -82,6 +86,16 @@ export default async (request) => {
       };
       const canCash = isAdmin || (me && me.role === "operations");
       const canReview = isAdmin || (me && me.role === "operations"); // prospect audit
+
+      // A Sales device only holds its own records: merge them into the stored
+      // workspace and keep every other rep's prospects and visits as stored.
+      if (isSales) {
+        const merged = mergeSalesWrite(data, clean, email);
+        clean.prospects = merged.prospects;
+        clean.appointments = merged.appointments;
+        clean.quotes = Array.isArray(data.quotes) ? data.quotes : [];
+        clean.installations = Array.isArray(data.installations) ? data.installations : [];
+      }
 
       // Prospect audit (Sales roles only): can't self-approve, and can't delete
       // an approved prospect or a site visit tied to one — that would erase the
