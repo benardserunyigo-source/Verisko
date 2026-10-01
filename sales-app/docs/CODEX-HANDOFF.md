@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=61**.
+  base directory `sales-app`). Current asset version: **v=62**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -315,6 +315,26 @@ data). The Team lead / Operations / admin see **Team training** (sales +
 team leads, least progress first). Sales and Team leads who haven't
 finished get a one-line training reminder on Today.
 
+## 6e. Phone, tablet and web layout (v=62)
+
+Usage is ~70% phone, ~30% computer, so the base CSS is the phone layout and
+wider screens are layered on with `min-width` media queries (see the "Web +
+mobile polish (v=62)" block at the end of app.css):
+- **Phone (< 700px):** bottom tab bar (Sales/Team lead: Today, Dashboard,
+  Prospects, Visits, Support; Operations/admin: … More), single-column cards,
+  forms as bottom sheets. Small selects use 16px text so iPhones don't zoom.
+- **Tablet (≥ 700px):** card lists flow into as many 320px+ columns as fit.
+- **Sidebar (≥ 860px):** left sidebar that lists **every** screen the role can
+  open (no "More" — `isWideLayout()` in `applyRole()`, re-applied when the
+  window is resized); dialogs are centred (`position:fixed; inset:0;
+  margin:auto` — modal dialogs in the top layer otherwise pin to the top-left)
+  and 700px wide for the two-column forms.
+- **Computer (≥ 1080px):** content up to 1200px (1400px from 1500px), 4-up
+  metric tiles, hover feedback on cards for mouse/trackpad users.
+- **Installable:** `manifest.webmanifest` + `icons/` (192, 512, maskable 512,
+  apple-touch 180, drawn from logo.svg) — "Add to Home screen" opens it full
+  screen like an app.
+
 ## 6a. Live data export & the Google Sheet
 
 The Owner's answer to "where is my data and how do I see it without the app".
@@ -410,7 +430,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=61, 1 Oct 2026)
+## 8. Current status (live at v=62, 1 Oct 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

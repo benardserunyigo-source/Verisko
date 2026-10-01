@@ -3463,6 +3463,13 @@
   }
 
   // Which "More" destinations apply to the current role.
+  // Sidebar layout (matches the 860px breakpoint in app.css).
+  var wideMq = window.matchMedia ? window.matchMedia("(min-width: 860px)") : null;
+  function isWideLayout() { return !!(wideMq && wideMq.matches); }
+  if (wideMq) {
+    var onWideChange = function () { if (settings.user) { applyRole(); updateNavActive(); } };
+    if (wideMq.addEventListener) wideMq.addEventListener("change", onWideChange); else if (wideMq.addListener) wideMq.addListener(onWideChange);
+  }
   function moreViewsForRole() {
     var v = [];
     if (canInstalls()) { v.push("jobs"); v.push("cashflow"); }
@@ -3483,6 +3490,15 @@
     if (supBtn) supBtn.hidden = supportInMore();
     var moreBtn = document.querySelector(".mainnav [data-more]");
     if (moreBtn) moreBtn.hidden = moreViewsForRole().length === 0;
+    // On a computer or tablet (sidebar layout) there's room for everything:
+    // list every screen this role can open and drop "More".
+    if (isWideLayout()) {
+      moreViewsForRole().forEach(function (v) {
+        var b = document.querySelector('.mainnav .nav-item[data-view="' + v + '"]');
+        if (b) b.hidden = false;
+      });
+      if (moreBtn) moreBtn.hidden = true;
+    }
     if (view === "settings" && !isAdmin()) view = "today";
     if ((view === "cashflow" || view === "jobs") && !canInstalls()) view = "today";
     updateNavActive();
