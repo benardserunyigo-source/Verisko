@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=67**.
+  base directory `sales-app`). Current asset version: **v=68**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -418,6 +418,19 @@ own logic changes; Netlify serves sw.js with `Cache-Control: no-cache`.
 Also fixed: a server error (5xx) used to be treated as "access removed" and
 signed people out — it now counts as offline.
 
+## 6i. Problem reports from phones (v=68)
+
+Any crash (`error` / `unhandledrejection`) and any failure right after signing
+in (email link or PIN) is reported by `reportProblem()` to `/api/auth`
+action `clientError` (public, short text only) → Blobs store `verisko-diag`
+("err/<time>"), with the browser's user agent, app version and email. Read
+them with the export key: `/api/export?key=…&table=diagnostics` (JSON, newest
+100; not part of "all", so never in the spreadsheet). The person sees "We
+couldn't open the app on this phone" (or a "storage blocked" message)
+instead of being dropped back on the sign-in page. The email-link landing now
+shows "Signing you in…", and an expired or already-used link goes to the email
+screen with a clear message (it used to land on the phone + PIN screen).
+
 ## 6a. Live data export & the Google Sheet
 
 The Owner's answer to "where is my data and how do I see it without the app".
@@ -513,7 +526,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=67, 1 Oct 2026)
+## 8. Current status (live at v=68, 1 Oct 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

@@ -3380,6 +3380,8 @@
         '<input id="ownerName" name="name" type="text" autocomplete="name" placeholder="e.g. Benard Serunyigo" required></div>' +
         errHtml +
         '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Continue</button></form>';
+    } else if (step === "signingIn") {
+      html += '<h1 id="lockTitle">Signing you in…</h1><p class="lock-sub">One moment while we open your workspace.</p>';
     } else if (step === "pin") {
       var known = settings.lastPhone ? { phone: settings.lastPhone, first: settings.lastFirst || "" } : null;
       html += '<p class="lock-eyebrow" id="lockTitle">Uganda Operations</p>' +
@@ -3530,6 +3532,49 @@
     }
   });
 
+
+  /* ---------------- Problem reports (why didn't the app open?) -------------- */
+  // Any crash, and any failure right after signing in, is reported to the
+  // server (/api/auth clientError → the export's "diagnostics" table) with the
+  // phone's browser details, and the person sees a clear screen instead of
+  // being dropped back on the sign-in page.
+  var APP_VERSION = "v68";
+  var reportsSent = 0;
+  function reportProblem(where, err) {
+    if (reportsSent >= 5) return;
+    reportsSent++;
+    try {
+      fetch("/api/auth", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "clientError", where: where, message: String((err && (err.message || err)) || "unknown"), stack: String((err && err.stack) || ""),
+          email: (settings && settings.auth && settings.auth.email) || loginEmail || "", app: APP_VERSION, view: typeof view === "string" ? view : "", online: navigator.onLine }) }).catch(function () {});
+    } catch (e) { /* never let reporting break anything */ }
+  }
+  window.addEventListener("error", function (e) { reportProblem("crash", e.error || e.message); });
+  window.addEventListener("unhandledrejection", function (e) { reportProblem("promise", e.reason); });
+  function storageWorks() {
+    try { localStorage.setItem("verisko_probe", "1"); localStorage.removeItem("verisko_probe"); return true; } catch (e) { return false; }
+  }
+  // Shown when the app can't open on this phone (after reporting it).
+  function showOpenProblem(where, err) {
+    reportProblem(where, err);
+    var blocked = !storageWorks();
+    userChip.hidden = true; closeUserMenu();
+    document.getElementById("onboarding").hidden = true;
+    document.body.classList.add("locked");
+    lockScreen.hidden = false;
+    lockCard.innerHTML = '<div class="onb-icon warn" aria-hidden="true">!</div>' +
+      '<h1 id="lockTitle">We couldn\'t open the app on this phone</h1>' +
+      (blocked
+        ? '<p class="lock-sub">This browser is blocking the app from saving on your phone. Turn off <strong>private / incognito</strong> mode, or allow cookies and site data for this site, then try again.</p>'
+        : '<p class="lock-sub">You signed in, but something on this phone stopped the app from opening. The details were sent to the Verisko team.</p>' +
+          '<p class="lock-help">Meanwhile: update Chrome or Safari, or try on another phone or a computer.</p>') +
+      '<p class="lock-help" style="font-size:12px;color:var(--faint)">' + esc(String((err && (err.message || err)) || "").slice(0, 140)) + "</p>" +
+      '<button type="button" class="btn btn-primary btn-block" id="openRetry">Try again</button>' +
+      '<button type="button" class="account-back" id="openSignOut">Sign in again</button>';
+    lockCard.querySelector("#openRetry").addEventListener("click", function () { location.reload(); });
+    lockCard.querySelector("#openSignOut").addEventListener("click", function () { try { signOutLocal(); } catch (e) {} location.reload(); });
+  }
+
   /* -------- Staff phone + PIN sign-in (see netlify/functions/auth.mjs) -------- */
   var loginFirst = "";
   // quiet: never throw; returns the JSON body (ok:false + error on failure).
@@ -3560,6 +3605,9 @@
     });
   }
   async function afterPinSignIn(phone, r) {
+    try { await finishPinSignIn(phone, r); } catch (err) { showOpenProblem("pin-sign-in", err); }
+  }
+  async function finishPinSignIn(phone, r) {
     settings.auth = { access_token: r.token, expires_at: r.expiresAt, email: r.user.email, kind: "pin" };
     settings.lastPhone = phone; settings.lastFirst = String(r.user.name || "");   // full name (surname-first on IDs)
     saveSettings();
@@ -3575,16 +3623,21 @@
 
 
   async function afterVerify(email, session) {
-    settings.auth = { access_token: session.access_token, refresh_token: session.refresh_token, expires_at: session.expires_at, email: email };
-    saveSettings();
-    var s = await loadShared();
-    if (s === "unauth") { signOutLocal(); showDenied(email, false); return; }
-    if (s === "offline") { renderLogin("email", "Signed in, but the workspace is unreachable. Check your connection."); return; }
-    var existing = (state.users || []).find(function (u) { return u.email.toLowerCase() === email.toLowerCase(); });
-    if (existing) { settings.user = existing; saveSettings(); toast("Signed in as " + existing.name.split(/\s+/)[0]); enterApp(); return; }
-    if ((state.users || []).length === 0) { renderLogin("name"); return; } // bootstrap the owner
-    signOutLocal(); showDenied(email, false);
+    try {
+      settings.auth = { access_token: session.access_token, refresh_token: session.refresh_token, expires_at: session.expires_at, email: email };
+      saveSettings();
+      var s = await loadShared();
+      if (s === "unauth") { signOutLocal(); showDenied(email, false); return; }
+      if (s === "signin") { signOutLocal(); renderLogin("email", "That sign-in link has expired or was already used. Enter your email to get a new one."); reportProblem("email-link-401", "session rejected by the server"); return; }
+      if (s === "idoverdue") { showIdRequired(); return; }
+      if (s === "offline") { renderLogin("email", "Signed in, but the workspace is unreachable. Check your connection and tap the link again."); reportProblem("email-link-offline", "data load failed after sign-in"); return; }
+      var existing = (state.users || []).find(function (u) { return String(u.email || "").toLowerCase() === email.toLowerCase(); });
+      if (existing) { settings.user = existing; saveSettings(); toast("Signed in as " + existing.name.split(/\s+/)[0]); enterApp(); return; }
+      if ((state.users || []).length === 0) { renderLogin("name"); return; } // bootstrap the owner
+      signOutLocal(); showDenied(email, false);
+    } catch (err) { showOpenProblem("email-sign-in", err); }
   }
+
 
   // Refresh the local identity from the shared team list (handles rename/removal).
   function resolveUser() {
@@ -4312,15 +4365,17 @@
     });
   })();
   var hashAuth = readAuthFromHash();
-  if (hashAuth && hashAuth.access_token) {
+  if (!storageWorks()) showOpenProblem("storage-blocked", "This browser won't let the app save on this phone");
+  else if (hashAuth && hashAuth.access_token) {
     // Landed back from a magic link — complete sign-in.
-    showLogin(); setSync("syncing", "Signing you in…");
+    showLogin(); renderLogin("signingIn"); setSync("syncing", "Signing you in…");
     loginEmail = emailFromJwt(hashAuth.access_token);
     afterVerify(loginEmail, { access_token: hashAuth.access_token, refresh_token: hashAuth.refresh_token, expires_at: Number(hashAuth.expires_at) });
   } else if (hashAuth && hashAuth.error) {
-    showLogin(hashAuth.error_description ? decodeURIComponent(hashAuth.error_description.replace(/\+/g, " ")) : "That sign-in link didn't work — please request a new one.");
+    showLogin(); renderLogin("email", "That sign-in link has expired or was already used. Enter your email to get a new one.");
+    reportProblem("email-link-error", (hashAuth.error_code || hashAuth.error || "") + " " + (hashAuth.error_description || ""));
   } else if (settings.auth && settings.user) {
-    enterApp(); // open straight to the app from cached data (offline-friendly)
+    try { enterApp(); } catch (err) { showOpenProblem("start", err); } // open straight to the app from cached data (offline-friendly)
     if (syncClosedSales(true)) render();
     setSync("syncing", "Checking…");
     loadShared().then(function (result) {

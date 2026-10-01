@@ -59,6 +59,16 @@ export default async (request) => {
       return { ok: true, token: signToken(secret, { uid, v, exp }), expiresAt: Math.floor(exp / 1000), user };
     };
 
+    // A phone reports that the app failed to open or crashed (no sign-in
+    // needed — it may be the sign-in that failed). Short text only.
+    if (action === "clientError") {
+      const t = (v, n) => String(v == null ? "" : v).slice(0, n);
+      const rec = { at: nowIso, where: t(body.where, 60), message: t(body.message, 300), stack: t(body.stack, 1200), ua: t(request.headers.get("user-agent"), 300),
+        email: t(body.email, 120), app: t(body.app, 20), view: t(body.view, 40), online: !!body.online };
+      await getStore("verisko-diag").setJSON("err/" + nowIso + "-" + Math.random().toString(36).slice(2, 7), rec);
+      return reply({ ok: true });
+    }
+
     if (action === "inviteInfo") {
       const inv = await auth.get("invite/" + cleanInviteCode(body.code), { type: "json" });
       const problem = inviteProblem(inv, now);

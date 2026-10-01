@@ -32,6 +32,17 @@ export default async (request) => {
     const photo = url.searchParams.get("photo") || "";
     if (photo) return servePhoto(photo);
 
+    // App problems reported from people's phones (newest first). Not part of
+    // "all", so the spreadsheet never shows it.
+    if ((url.searchParams.get("table") || "").toLowerCase() === "diagnostics") {
+      const diag = getStore("verisko-diag");
+      const { blobs } = await diag.list({ prefix: "err/" });
+      const keys = (blobs || []).map((b) => b.key).sort().reverse().slice(0, 100);
+      const rows = [];
+      for (const k of keys) { const r = await diag.get(k, { type: "json" }); if (r) rows.push(r); }
+      return json({ ok: true, table: "diagnostics", rows }, 200);
+    }
+
     const base = `${url.origin}/api/export?key=${encodeURIComponent(given)}`;
     const tables = buildTables(data, base);
     const table = (url.searchParams.get("table") || "").toLowerCase();
