@@ -321,7 +321,10 @@
       var result = function () { return { choice: selected, text: input ? input.value.trim() : "" }; };
       var valid = function () {
         if (opts.input && opts.input.confirmWord) return (input.value || "").trim().toUpperCase() === opts.input.confirmWord.toUpperCase();
-        if (opts.requireValue) { var r = result(); return !!(r.choice || r.text); }
+        var r = result();
+        if (opts.requireChoice && !r.choice) return false;
+        if (opts.textFor && r.choice === opts.textFor && !r.text) return false;
+        if (opts.requireValue) return !!(r.choice || r.text);
         return true;
       };
       var refresh = function () { okBtn.disabled = !valid(); };
@@ -569,7 +572,24 @@
         .sort(function (a, b) { return String(a.qualRequestedAt || "").localeCompare(String(b.qualRequestedAt || "")); });
       if (qq.length) {
         review += '<section class="review-section"><h2 class="review-head">Qualified prospects to approve <span class="review-count">' + qq.length + "</span></h2>" +
-          '<p class="result-note">Each approval pays the rep ' + money(commissionPerQualified()) + " on Saturday.</p>" + qq.map(qualCard).join("") + "</section>";
+          '<p class="result-note">Each approval pays the rep ' + money(commissionPerQualified()) + " on Saturday. Not eligible? Disqualify it with a reason — the rep sees why.</p>" + qq.map(qualCard).join("") + "</section>";
+      }
+    }
+    // Operations: leads the Team lead has approved as qualified that still
+    // need a site visit or a quote.
+    if (canReviewProspects()) {
+      var ready = (state.prospects || []).filter(readyForOperations)
+        .sort(function (a, b) { return String(b.qualApprovedAt || "").localeCompare(String(a.qualApprovedAt || "")); });
+      if (ready.length) {
+        review += '<section class="review-section"><h2 class="review-head">Qualified — ready for Operations <span class="review-count">' + ready.length + "</span></h2>" +
+          '<p class="result-note">Approved by the Team lead. Book the site visit or send the quote.</p>' + ready.slice(0, 8).map(readyCard).join("") +
+          (ready.length > 8 ? '<p class="result-note">+' + (ready.length - 8) + " more — filter by stage below.</p>" : "") + "</section>";
+      }
+    }
+    if (!canApproveQual()) {
+      var dqs = visibleProspects().filter(unreadDisqualified);
+      if (dqs.length) {
+        review += '<section class="review-section"><h2 class="review-head">Disqualified — see why <span class="review-count">' + dqs.length + "</span></h2>" + dqs.map(disqualifiedNoticeCard).join("") + "</section>";
       }
     }
     content.innerHTML =
@@ -609,15 +629,36 @@
     grid.classList.toggle("card-grid", rows.length > 0);
   }
 
+  function readyForOperations(p) {
+    return p.qualStatus === "approved" && !p.closedSale && !isClosed(p.stage) && !quoteForProspect(p.id);
+  }
+  function readyCard(p) {
+    var C = window.VeriskoCommission;
+    var appt = appointmentFor(p.id);
+    return '<article class="item tone-navy"><div class="item-top"><div><div class="item-title">' + esc(p.business) + "</div>" +
+      '<div class="item-meta">' + esc(p.createdBy || "Rep") + " · " + esc(p.location || "No location") + "</div></div>" + stageChip(p.stage) + "</div>" +
+      '<div class="item-lines">' +
+      '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc([p.contact, p.phone].filter(Boolean).join(" · ") || "—") + "</span></div>" +
+      '<div class="item-line"><span class="k">Approved</span><span class="v">' + esc((p.qualApprovedBy || "Team lead") + (p.qualApprovedAt ? " · " + C.label(C.eventTime(p.qualApprovedAt), true) : "")) + "</span></div>" +
+      (appt ? '<div class="item-line"><span class="k">Site visit</span><span class="v">' + esc(dateLabel(appt.date) + " · " + (appt.status || "")) + "</span></div>" : "") + "</div>" +
+      '<div class="item-actions">' + (p.phone ? '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>' : "") +
+      (!appt ? '<button type="button" class="btn btn-sm btn-ghost" data-schedule="' + esc(p.id) + '">Schedule visit</button>' : "") +
+      (canInstalls() ? '<button type="button" class="btn btn-sm btn-primary" data-make-install="' + esc(p.id) + '">Create quote</button>' : "") +
+      '<button type="button" class="btn btn-sm btn-ghost" data-log-followup="' + esc(p.id) + '">Follow-up</button></div></article>';
+  }
+
   function prospectCard(p) {
     var appt = appointmentFor(p.id);
     var actions = "";
-    // A Team lead works other reps' prospects read-only (approve, deposit).
+    // A Team lead can't edit other reps' prospects, but can log calls, plan
+    // the next follow-up, decide qualification and record deposits.
     var canWork = canReviewProspects() || ownProspect(p);
     if (p.phone) actions += '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>';
-    if (canWork) actions += '<button class="btn btn-sm btn-ghost" data-log-followup="' + p.id + '">Follow-up</button>';
+    if (canWork || isTeamLead()) actions += '<button class="btn btn-sm btn-ghost" data-log-followup="' + p.id + '">Follow-up</button>';
     if (canWork && /Qualified/i.test(p.stage) && !appt) actions += '<button class="btn btn-sm btn-ghost" data-schedule="' + p.id + '">Schedule</button>';
     if (canApproveQual() && p.qualStatus === "pending" && !ownProspect(p)) actions += '<button class="btn btn-sm btn-primary" data-approve-qual="' + esc(p.id) + '">Approve qualified</button>';
+    if (canDisqualify(p)) actions += '<button class="btn btn-sm btn-ghost" data-disqualify="' + esc(p.id) + '">Disqualify</button>';
+    if (canApproveQual() && p.qualStatus === "disqualified") actions += '<button class="btn btn-sm btn-ghost" data-reopen-qual="' + esc(p.id) + '">Re-open</button>';
     if (canInstalls()) {
       var pq = quoteForProspect(p.id);
       actions += pq ? '<button class="btn btn-sm btn-ghost" data-edit="job" data-id="' + esc(pq.id) + '">Open quote</button>'
@@ -635,7 +676,8 @@
       '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc(p.contact || "Unknown") + "</span></div>" +
       '<div class="item-line"><span class="k">Phone</span><span class="v">' + (p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") + "</span></div>" +
       '<div class="item-line"><span class="k">Next action</span><span class="v">' + esc(p.nextAction || "Not set") + "</span></div>" +
-      '<div class="item-line"><span class="k">Follow-up</span><span class="v">' + (isOverdue(p.followUp) ? '<span style="color:var(--red);font-weight:700">' + dateLabel(p.followUp) + " · overdue</span>" : dateLabel(p.followUp)) + "</span></div>" +
+      '<div class="item-line"><span class="k">Follow-up</span><span class="v">' + (isOverdue(p.followUp) ? '<span style="color:var(--red);font-weight:700">' + dateLabel(p.followUp) + " · overdue</span>" : dateLabel(p.followUp)) + plannedByNote(p) + "</span></div>" +
+      followUpSummaryLine(p) + disqualifiedLine(p) +
       "</div>" +
       (p.createdBy ? '<div class="added-by">Added by ' + esc(p.createdBy) + "</div>" : "") +
       '<div class="item-actions">' + actions + "</div></article>";
@@ -794,6 +836,7 @@
     var mtd = commissionFor(monthToDate(), { email: email }).total;
     var pending = ps.filter(function (p) { return p.qualStatus === "pending"; }).length;
     var sentBack = ps.filter(function (p) { return p.qualStatus === "query"; }).length;
+    var disq = ps.filter(unreadDisqualified).length;
     var qualAll = ps.filter(function (p) { return p.qualStatus === "approved"; }).length;
     var depAll = ps.filter(function (p) { return !!firstPaymentFor(p); }).length;
     var pct = target ? Math.min(100, Math.round((mtd / target) * 100)) : 0;
@@ -805,6 +848,7 @@
       '<div class="pay-summary" style="margin-top:12px">' + commLine(w.qualified.length, perQ, "qualified prospects approved") + commLine(w.deposits.length, perD, "client deposits") + "</div>" +
       (pending ? '<div class="dash-note">' + pending + " qualified " + (pending === 1 ? "prospect is" : "prospects are") + " waiting for the Team lead (" + money(pending * perQ) + " once approved).</div>" : "") +
       (sentBack ? '<div class="dash-note" style="color:var(--amber)">' + sentBack + " sent back by the Team lead — open " + (sentBack === 1 ? "it" : "them") + " in Prospects to see why.</div>" : "") +
+      (disq ? '<div class="dash-note" style="color:var(--red)">' + disq + " disqualified by the Team lead or Operations — open Prospects to see why.</div>" : "") +
       '<div class="dash-note">Last week: <strong>' + money(lw.total) + "</strong> (paid " + C.label(last.payday, true) + ").</div>" +
       '<div class="dash-foot" style="margin-top:12px">Month to date ' + money(mtd) + " of " + money(target) + " target</div>" +
       '<div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div></section>';
@@ -1601,6 +1645,7 @@
           merged.reviewStatus = "pending"; merged.reviewedBy = ""; merged.reviewedAt = ""; merged.reviewNote = ""; reopened = true;
         }
       }
+      if ((prev.followUp || "") !== (merged.followUp || "") || (prev.nextAction || "") !== (merged.nextAction || "")) stampPlan(merged);
       state.prospects[idx] = merged;
     } else {
       // The site GPS pin is a must-have for Sales: it proves the rep visited.
@@ -1624,6 +1669,7 @@
         reviewedBy: reviewer ? (settings.user && settings.user.name) || "" : "",
         reviewedAt: reviewer ? today : "", reviewNote: ""
       }));
+      if (data.followUp || data.nextAction) stampPlan(state.prospects[state.prospects.length - 1]);
     }
     window.VeriskoCommission.qualificationRequest(state.prospects.find(function (x) { return x.id === pid; }), nowIso());
     if (queuePhoto) await queueUpload(pid, pendingProof);
@@ -1876,7 +1922,9 @@
         if (source.reviewStatus === "query" && source.reviewNote) {
           html += '<div class="field full"><div class="rev-noproof">Sent back: ' + esc(source.reviewNote) + "</div></div>";
         }
-        if (source.qualStatus === "query") {
+        if (source.qualStatus === "disqualified") {
+          html += '<div class="field full"><div class="rev-noproof">Disqualified by ' + esc(source.qualApprovedBy || "the Team lead") + ": " + esc(source.qualReason || "no reason given") + (source.qualNote ? " — " + esc(source.qualNote) : "") + ". No qualification commission. The Team lead or Operations can re-open it.</div></div>";
+        } else if (source.qualStatus === "query") {
           html += '<div class="field full"><div class="rev-noproof">Not qualified yet' + (source.qualNote ? ": " + esc(source.qualNote) : "") + ". Update the prospect and save — it goes back to the Team lead.</div></div>";
         } else if (source.qualStatus === "pending") {
           html += '<div class="field full"><p class="helper" style="color:var(--amber)">Waiting for the Team lead to approve it as qualified (' + money(commissionPerQualified()) + ").</p></div>";
@@ -1898,7 +1946,7 @@
               : '<button type="button" class="btn btn-primary btn-block" data-make-install="' + esc(id) + '">Create quote</button>') : "") + "</div>";
         }
         html += '<div class="field full followup-block"><label>Follow-ups</label>' + followUpHistory(source) +
-          '<button type="button" class="btn btn-ghost btn-block" data-log-followup="' + esc(id) + '" style="margin-top:10px">Log a follow-up (with location)</button></div>';
+          '<button type="button" class="btn btn-ghost btn-block" data-log-followup="' + esc(id) + '" style="margin-top:10px">Log a call / plan the next follow-up</button></div>';
       }
     }
     if (type === "appointment") {
@@ -2201,6 +2249,7 @@
     if (a.status === "Confirmed") { p.stage = "Appointment confirmed"; p.nextAction = "Operations site visit"; p.followUp = a.date; }
     else if (/Proposed|Rescheduled/i.test(a.status)) { p.stage = "Appointment proposed"; p.nextAction = "Confirm the site visit"; p.followUp = a.date; }
     else if (/Cancelled|No-show/i.test(a.status)) { if (/Appointment/i.test(p.stage)) { p.stage = "Qualified"; p.nextAction = "Re-book the site visit"; } }
+    stampPlan(p);
     window.VeriskoCommission.qualificationRequest(p, nowIso());
   }
 
@@ -2324,7 +2373,7 @@
     if (canApproveQual()) n += ps.filter(needsQualApproval).length;
     if (canReviewProspects() || isTeamLead()) return n;
     var mine = (settings.user && settings.user.email || "").toLowerCase();
-    return ps.filter(function (p) { return (p.reviewStatus === "query" || p.qualStatus === "query") && (p.createdByEmail || "").toLowerCase() === mine; }).length;
+    return ps.filter(function (p) { return (p.reviewStatus === "query" || p.qualStatus === "query" || unreadDisqualified(p)) && (p.createdByEmail || "").toLowerCase() === mine; }).length;
   }
   function updateProspectBadge() {
     var b = document.getElementById("prospectBadge");
@@ -2338,28 +2387,72 @@
     var fs = (p.followUps || []).slice().reverse();
     if (!fs.length) return '<p class="rev-petty">No follow-ups logged yet. Use “Log follow-up” on the prospect to record one.</p>';
     return '<div class="followup-list">' + fs.map(function (f) {
-      return '<div class="followup-item"><div class="followup-meta">' + esc(dateTimeLabel(f.at)) + " · " + esc(f.by || "—") + (f.geo ? " · " + mapLink(f.geo) : " · <span class=\"nogeo\">no location</span>") + "</div>" +
+      var office = f.role && f.role !== "Sales";
+      return '<div class="followup-item"><div class="followup-meta">' + esc(dateTimeLabel(f.at)) + " · " + esc(f.by || "—") + (office ? " (" + esc(f.role) + ")" : "") +
+        (f.geo ? " · " + mapLink(f.geo) : office ? "" : " · <span class=\"nogeo\">no location</span>") + (f.next ? " · next " + esc(dateLabel(f.next)) : "") + "</div>" +
         '<div class="followup-note">' + esc(f.note || "") + "</div></div>";
     }).join("") + "</div>";
   }
 
-  async function logFollowUp(id) {
+  // One sheet for every role: what happened on the call, notes, and when to
+  // follow up next. Reps on their own prospect also stamp their GPS (proof of
+  // visit); Team lead / Operations calls from the office don't need it.
+  var FOLLOW_OUTCOMES = ["Answered", "No answer", "Call back later", "Not interested", "Visited", "Messaged", "Quoted"];
+  function logFollowUp(id) {
     var p = prospect(id);
     if (!p || !p.id) return;
-    // Mostly taps: pick what happened, optionally add a note.
-    var r = await openSheet({ title: "Log a follow-up", body: p.business,
-      choices: ["Called", "No answer", "Visited", "Messaged", "Quoted"], input: { placeholder: "Add a note (optional)" },
-      requireValue: true, confirmLabel: "Log follow-up" });
-    if (!r) return;
-    var note = combineNote(r);
-    toast("Getting your location…");
-    var geo = (await captureGeo()).geo;
-    if (!p.followUps) p.followUps = [];
-    p.followUps.push({ at: nowIso(), by: (settings.user && settings.user.name) || "", byEmail: (settings.user && settings.user.email) || "", note: note, geo: geo });
-    saveData("Follow-up logged" + (geo ? " with location" : " (no location)"));
-    render();
-    // If the prospect's form is open, refresh it so the new entry shows.
-    if (dialog.open && editing && editing.type === "prospect" && editing.id === id) openForm("prospect", id);
+    if (!(canReviewProspects() || isTeamLead() || ownProspect(p))) return;
+    var dlg = document.getElementById("askDialog");
+    var plus2 = new Date(Date.now() + 2 * 864e5 + 3 * 3600e3).toISOString().slice(0, 10);
+    var nextDate = p.followUp && p.followUp >= today ? p.followUp : plus2;
+    var recent = (p.followUps || []).slice(-3).reverse();
+    var tries = noAnswerCount(p);
+    dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Follow-up</h2><p class="ask-body">' + esc(p.business) + (p.contact ? " · " + esc(p.contact) : "") +
+      (p.phone ? ' · <a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "") + "</p></div>" +
+      (recent.length ? '<div class="followup-list" style="max-height:150px;overflow:auto;margin-bottom:10px">' + recent.map(function (f) {
+        return '<div class="followup-item"><div class="followup-meta">' + esc(dateTimeLabel(f.at)) + " · " + esc(f.by || "—") + '</div><div class="followup-note">' + esc(f.note || "") + "</div></div>";
+      }).join("") + "</div>" : "") +
+      (tries >= 2 && canDisqualify(p) ? '<p class="ask-body" style="color:var(--red)">' + tries + " unanswered calls so far — you can disqualify this lead from its card.</p>" : "") +
+      '<div class="ask-choices" role="group" aria-label="What happened">' + FOLLOW_OUTCOMES.map(function (c) { return '<button type="button" class="ask-chip" data-choice="' + esc(c) + '">' + esc(c) + "</button>"; }).join("") + "</div>" +
+      '<textarea class="ask-input" id="fuNote" rows="3" placeholder="Call notes — what did they say?"></textarea>' +
+      '<div class="field"><label for="fuDate">Next follow-up</label><input id="fuDate" type="date" value="' + esc(nextDate) + '"></div>' +
+      '<div class="field"><label for="fuAction">Next action</label><input id="fuAction" type="text" list="fuActionList" autocomplete="off" placeholder="Tap a suggestion or type" value="' + esc(p.nextAction || "") + '">' +
+      '<datalist id="fuActionList">' + NEXT_ACTIONS.map(function (a) { return "<option>" + esc(a) + "</option>"; }).join("") + "</datalist></div>" +
+      '<div class="ask-actions"><button type="button" class="btn btn-ghost" id="askCancel">Cancel</button><button type="button" class="btn btn-primary" id="askOk" disabled>Save follow-up</button></div>';
+    var selected = "", note = dlg.querySelector("#fuNote"), ok = dlg.querySelector("#askOk");
+    var dateEl = dlg.querySelector("#fuDate"), actEl = dlg.querySelector("#fuAction");
+    var refresh = function () { ok.disabled = !(selected || note.value.trim() || dateEl.value !== (p.followUp || "") || actEl.value.trim() !== (p.nextAction || "")); };
+    dlg.querySelectorAll(".ask-chip").forEach(function (b) {
+      b.addEventListener("click", function () {
+        selected = selected === b.dataset.choice ? "" : b.dataset.choice;
+        dlg.querySelectorAll(".ask-chip").forEach(function (x) { x.classList.toggle("is-on", x === b && !!selected); });
+        refresh();
+      });
+    });
+    [note, dateEl, actEl].forEach(function (el) { el.addEventListener("input", refresh); el.addEventListener("change", refresh); });
+    var onCancel = function (e) { if (e) e.preventDefault(); dlg.close(); };
+    dlg.querySelector("#askCancel").addEventListener("click", onCancel);
+    dlg.addEventListener("cancel", onCancel, { once: true });
+    ok.addEventListener("click", async function () {
+      if (ok.disabled) return;
+      ok.disabled = true;
+      var text = note.value.trim();
+      var date = dateEl.value || "", action = actEl.value.trim();
+      dlg.close();
+      var logged = !!(selected || text);
+      var geo = null;
+      var wantGeo = logged && (selected === "Visited" || (ownProspect(p) && !canReviewProspects() && !isTeamLead()));
+      if (wantGeo) { toast("Getting your location…"); geo = (await captureGeo()).geo; }
+      if (logged) addFollowUpEntry(p, { outcome: selected, note: combineNote({ choice: selected, text: text }), geo: geo, next: date });
+      if (date !== (p.followUp || "") || action !== (p.nextAction || "")) { p.followUp = date; p.nextAction = action; stampPlan(p); }
+      var n = noAnswerCount(p);
+      saveData(logged ? "Follow-up saved" + (date ? " · next " + dateLabel(date) : "") + (wantGeo ? (geo ? " with location" : " (no location)") : "") : "Next follow-up planned");
+      if (selected === "No answer" && n >= 3 && canDisqualify(p)) toast(n + " unanswered calls — consider disqualifying this lead.");
+      render();
+      // If the prospect's form is open, refresh it so the new entry shows.
+      if (dialog.open && editing && editing.type === "prospect" && editing.id === id) openForm("prospect", id);
+    });
+    dlg.showModal(); note.focus();
   }
 
   // Review queue card for a pending prospect (reviewers only).
@@ -2403,6 +2496,7 @@
     if (p.qualStatus === "approved") return chip("Qualified · " + money(commissionPerQualified()), "green", "✓");
     if (p.qualStatus === "pending") return chip("Awaiting team lead", "amber", "◔");
     if (p.qualStatus === "query") return chip("Qualification sent back", "red", "!");
+    if (p.qualStatus === "disqualified") return chip("Disqualified", "red", "✕");
     return "";
   }
   function qualCard(p) {
@@ -2412,9 +2506,11 @@
       '<div class="item-lines">' +
       '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc([p.contact, p.phone].filter(Boolean).join(" · ") || "—") + "</span></div>" +
       '<div class="item-line"><span class="k">Concern</span><span class="v">' + esc(p.concern || "—") + "</span></div>" +
-      '<div class="item-line"><span class="k">Asked</span><span class="v">' + esc(p.qualRequestedAt ? C.label(C.eventTime(p.qualRequestedAt), true) : "—") + "</span></div></div>" +
+      '<div class="item-line"><span class="k">Asked</span><span class="v">' + esc(p.qualRequestedAt ? C.label(C.eventTime(p.qualRequestedAt), true) : "—") + "</span></div>" +
+      followUpSummaryLine(p) + "</div>" +
       '<div class="item-actions"><button type="button" class="btn btn-sm btn-primary" data-approve-qual="' + esc(p.id) + '">Approve (' + money(commissionPerQualified()) + ")</button>" +
-      '<button type="button" class="btn btn-sm btn-ghost" data-sendback-qual="' + esc(p.id) + '">Send back</button>' +
+      '<button type="button" class="btn btn-sm btn-ghost" data-disqualify="' + esc(p.id) + '">Disqualify</button>' +
+      '<button type="button" class="btn btn-sm btn-ghost" data-log-followup="' + esc(p.id) + '">Follow-up</button>' +
       (p.phone ? '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>' : "") + "</div></article>";
   }
   function approveQualification(id) {
@@ -2424,15 +2520,81 @@
     p.qualStatus = "approved"; p.qualApprovedBy = (settings.user && settings.user.name) || ""; p.qualApprovedAt = nowIso(); p.qualNote = "";
     saveData("Approved — " + money(commissionPerQualified()) + " to " + (p.createdBy || "the rep") + " this week"); render();
   }
-  async function sendBackQualification(id) {
-    if (!canApproveQual()) return;
-    var p = prospect(id); if (!p || !p.id) return;
-    var r = await openSheet({ title: "Not qualified yet", body: "Tell the rep what's missing. It comes back to you when they update it.",
-      choices: ["No decision-maker yet", "No budget", "Not interested", "Needs a site visit first"], input: { placeholder: "Add a note (optional)" },
-      requireValue: true, confirmLabel: "Send back" });
+  // Disqualify (Team lead or Operations): the reason is picked from a list —
+  // "Other" needs a written reason — and goes back to the rep. The lead moves
+  // to Lost and earns no qualification commission; it can be re-opened.
+  var DQ_REASONS = ["No answer after several calls", "Not interested in cameras", "Not interested in an installation", "No budget", "Not the decision-maker", "Other"];
+  function canDisqualify(p) {
+    if (!canApproveQual() || !p || p.closedSale) return false;
+    if (p.qualStatus === "approved" || p.qualStatus === "disqualified") return false;
+    return isAdmin() || !ownProspect(p);
+  }
+  async function disqualifyProspect(id) {
+    var p = prospect(id); if (!canDisqualify(p)) return;
+    var tries = noAnswerCount(p);
+    var r = await openSheet({ title: "Disqualify this lead", body: p.business + " · " + (p.createdBy || "the rep") + " sees this reason." + (tries ? " " + tries + " unanswered " + (tries === 1 ? "call" : "calls") + " logged." : ""),
+      choices: DQ_REASONS, input: { placeholder: "Details — required if you pick Other" },
+      requireChoice: true, textFor: "Other", confirmLabel: "Disqualify", danger: true });
     if (!r) return;
-    p.qualStatus = "query"; p.qualNote = combineNote(r); p.qualApprovedBy = (settings.user && settings.user.name) || ""; p.qualApprovedAt = "";
-    saveData("Sent back to " + (p.createdBy || "the rep")); render();
+    var who = (settings.user && settings.user.name) || "";
+    var reason = r.choice === "Other" ? r.text : r.choice;
+    p.qualStatus = "disqualified"; p.qualReason = reason; p.qualNote = r.choice === "Other" ? "" : r.text;
+    p.qualApprovedBy = who; p.qualApprovedAt = ""; p.qualDecidedAt = nowIso(); p.qualSeen = false;
+    p.stage = "Lost"; p.followUp = ""; p.nextAction = ""; stampPlan(p);
+    addFollowUpEntry(p, { outcome: "Disqualified", note: "Disqualified — " + reason + (p.qualNote ? " — " + p.qualNote : "") });
+    saveData("Disqualified — " + (p.createdBy || "the rep") + " will see why"); render();
+  }
+  function reopenQualification(id) {
+    if (!canApproveQual()) return;
+    var p = prospect(id); if (!p || !p.id || p.qualStatus !== "disqualified") return;
+    p.qualStatus = ""; p.qualReason = ""; p.qualNote = ""; p.qualApprovedBy = ""; p.qualDecidedAt = ""; p.qualSeen = false;
+    p.stage = "Contact attempted"; p.nextAction = "Call back"; p.followUp = today; stampPlan(p);
+    addFollowUpEntry(p, { outcome: "Re-opened", note: "Re-opened — back in the pipeline" });
+    saveData("Re-opened — back in " + (p.createdBy || "the rep") + "'s pipeline"); render();
+  }
+  function markDisqualifiedSeen(id) {
+    var p = prospect(id); if (!p || !p.id) return;
+    p.qualSeen = true; saveData(); render();
+  }
+  function unreadDisqualified(p) { return !!p && p.qualStatus === "disqualified" && !p.qualSeen; }
+  function disqualifiedLine(p) {
+    if (p.qualStatus !== "disqualified") return "";
+    return '<div class="item-line"><span class="k">Disqualified</span><span class="v" style="color:var(--red)">' + esc(p.qualReason || "No reason given") +
+      (p.qualNote ? " — " + esc(p.qualNote) : "") + (p.qualApprovedBy ? ' <span style="color:var(--muted)">· ' + esc(p.qualApprovedBy) + "</span>" : "") + "</span></div>";
+  }
+  function disqualifiedNoticeCard(p) {
+    return '<article class="item tone-red"><div class="item-top"><div><div class="item-title">' + esc(p.business) + "</div>" +
+      '<div class="item-meta">' + esc(p.location || "No location") + "</div></div>" + qualChip(p) + "</div>" +
+      '<div class="item-lines">' + disqualifiedLine(p) + "</div>" +
+      '<div class="item-actions"><button type="button" class="btn btn-sm btn-primary" data-qual-seen="' + esc(p.id) + '">Got it</button></div></article>';
+  }
+
+  /* ---------------- Follow-ups: call notes + the next planned date ---------- */
+  function stampPlan(p) {
+    if (!p) return;
+    p.followUpPlannedAt = nowIso();
+    p.followUpPlannedBy = (settings.user && settings.user.name) || "";
+    p.followUpPlannedByEmail = ((settings.user && settings.user.email) || "").toLowerCase();
+  }
+  function addFollowUpEntry(p, f) {
+    if (!p.followUps) p.followUps = [];
+    p.followUps.push(Object.assign({ at: nowIso(), by: (settings.user && settings.user.name) || "", byEmail: (settings.user && settings.user.email) || "",
+      role: ({ admin: "Admin", operations: "Operations", teamlead: "Team lead" })[(settings.user || {}).role] || "Sales", note: "", geo: null }, f));
+  }
+  function noAnswerCount(p) {
+    return (p.followUps || []).filter(function (f) { return f && (f.outcome === "No answer" || /^No answer/i.test(f.note || "")); }).length;
+  }
+  function plannedByNote(p) {
+    if (!p.followUp || !p.followUpPlannedByEmail) return "";
+    if ((p.followUpPlannedByEmail || "").toLowerCase() === (p.createdByEmail || "").toLowerCase()) return "";
+    return ' <span style="color:var(--muted)">· planned by ' + esc(p.followUpPlannedBy || "the team") + "</span>";
+  }
+  function followUpSummaryLine(p) {
+    var fs = p.followUps || [];
+    if (!fs.length) return "";
+    var last = fs[fs.length - 1], na = noAnswerCount(p);
+    return '<div class="item-line"><span class="k">Calls &amp; notes</span><span class="v">' + fs.length + (na ? ' · <span style="color:var(--red);font-weight:600">' + na + " unanswered</span>" : "") +
+      '<br><span style="color:var(--muted)">' + esc(dateTimeLabel(last.at)) + " · " + esc(last.by || "—") + ":</span> " + esc(last.note || "") + "</span></div>";
   }
 
   // Record a client deposit against a prospect (Team lead or Operations/admin).
@@ -2668,7 +2830,7 @@
   function isAdmin() { return !!(settings.user && settings.user.role === "admin"); }
   function isTeamLead() { return !!(settings.user && settings.user.role === "teamlead"); }
   // The Team lead (and the Owner/Technical) approve qualified prospects.
-  function canApproveQual() { return isAdmin() || isTeamLead(); }
+  function canApproveQual() { return canReviewProspects() || isTeamLead(); }
   // Client deposits can be recorded by the Team lead and Operations/admin.
   function canRecordDeposit() { return canCashflow() || isTeamLead(); }
   function canCashflow() { return isAdmin() || !!(settings.user && settings.user.role === "operations"); }
@@ -3101,7 +3263,9 @@
     var back = e.target.closest("[data-sendback-id]"); if (back) { sendBackTx(back.getAttribute("data-sendback-id")); return; }
     var apprP = e.target.closest("[data-approve-prospect]"); if (apprP) { approveProspect(apprP.getAttribute("data-approve-prospect")); return; }
     var apprQ = e.target.closest("[data-approve-qual]"); if (apprQ) { approveQualification(apprQ.getAttribute("data-approve-qual")); return; }
-    var backQ = e.target.closest("[data-sendback-qual]"); if (backQ) { sendBackQualification(backQ.getAttribute("data-sendback-qual")); return; }
+    var dq = e.target.closest("[data-disqualify]"); if (dq) { disqualifyProspect(dq.getAttribute("data-disqualify")); return; }
+    var rq = e.target.closest("[data-reopen-qual]"); if (rq) { reopenQualification(rq.getAttribute("data-reopen-qual")); return; }
+    var qs = e.target.closest("[data-qual-seen]"); if (qs) { markDisqualifiedSeen(qs.getAttribute("data-qual-seen")); return; }
     var dep = e.target.closest("[data-record-deposit]"); if (dep) { recordDeposit(dep.getAttribute("data-record-deposit")); return; }
     var cw = e.target.closest("[data-comm-week]"); if (cw) { commWeekShift = Math.min(0, commWeekShift + Number(cw.getAttribute("data-comm-week"))); render(); return; }
     var backP = e.target.closest("[data-sendback-prospect]"); if (backP) { sendBackProspect(backP.getAttribute("data-sendback-prospect")); return; }

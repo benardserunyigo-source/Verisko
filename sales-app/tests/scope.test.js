@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual } from "../netlify/functions/scope.mjs";
+import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, keepFollowUps, keepNewerPlan } from "../netlify/functions/scope.mjs";
 
 const data = {
   prospects: [
@@ -124,4 +124,55 @@ test("a Team lead's save: decides qualifications on others, adds deposits, chang
   assert.equal(added[0].createdByEmail, "lead@test");
   assert.equal(m.transactions.find((t) => t.id === "t2").amount, 300000, "existing entries unchanged");
   assert.equal(m.transactions.length, data.transactions.length + 1);
+});
+
+test("a Team lead disqualifies another rep's lead with a reason: it moves to Lost; re-open puts it back", () => {
+  const view = scopeForTeamLead(data, "lead@test");
+  const dq = { qualStatus: "disqualified", qualReason: "No answer after several calls", qualNote: "5 calls", qualApprovedBy: "Lead", qualDecidedAt: "2026-09-30T09:00:00Z", qualSeen: false, stage: "Lost", business: "RENAMED" };
+  const m = mergeTeamLeadWrite(data, { ...view, prospects: view.prospects.map((p) => (p.id === "b1" ? { ...p, ...dq } : p)) }, "lead@test");
+  const b1 = m.prospects.find((p) => p.id === "b1");
+  assert.equal(b1.qualStatus, "disqualified");
+  assert.equal(b1.qualReason, "No answer after several calls");
+  assert.equal(b1.stage, "Lost");
+  assert.equal(b1.business, "Bea's Clinic");
+  const stored2 = { ...data, prospects: m.prospects };
+  const m2 = mergeTeamLeadWrite(stored2, { prospects: m.prospects.map((p) => (p.id === "b1" ? { ...p, qualStatus: "", qualReason: "", stage: "Contact attempted" } : p)) }, "lead@test");
+  assert.equal(m2.prospects.find((p) => p.id === "b1").stage, "Contact attempted");
+  // A stage change without a qualification decision is ignored.
+  const m3 = mergeTeamLeadWrite(data, { prospects: data.prospects.map((p) => (p.id === "b1" ? { ...p, stage: "Lost" } : p)) }, "lead@test");
+  assert.equal(m3.prospects.find((p) => p.id === "b1").stage, undefined);
+});
+
+test("a rep can't undo a disqualification, only mark the reason as read", () => {
+  const prev = { qualStatus: "disqualified", qualReason: "Not interested in cameras", stage: "Lost", qualSeen: false };
+  const g = guardRepQual({ qualStatus: "pending", qualReason: "", stage: "Qualified", qualSeen: true }, prev);
+  assert.equal(g.qualStatus, "disqualified");
+  assert.equal(g.qualReason, "Not interested in cameras");
+  assert.equal(g.stage, "Lost");
+  assert.equal(g.qualSeen, true);
+});
+
+test("a Team lead logs call notes and plans the next follow-up on another rep's prospect", () => {
+  const stored = { ...data, prospects: data.prospects.map((p) => (p.id === "b1" ? { ...p, followUp: "2026-10-01", followUps: [{ at: "T1", byEmail: "bea@test", note: "Called" }] } : p)) };
+  const view = scopeForTeamLead(stored, "lead@test");
+  const inc = view.prospects.map((p) => (p.id !== "b1" ? p : {
+    ...p, followUp: "2026-10-03", nextAction: "Call back", followUpPlannedAt: "2026-09-30T10:00:00Z", followUpPlannedBy: "Lead",
+    followUps: p.followUps.concat([{ at: "T2", byEmail: "lead@test", note: "No answer" }, { at: "T3", byEmail: "bea@test", note: "forged" }])
+  }));
+  const b1 = mergeTeamLeadWrite(stored, { prospects: inc }, "lead@test").prospects.find((p) => p.id === "b1");
+  assert.equal(b1.followUp, "2026-10-03");
+  assert.equal(b1.nextAction, "Call back");
+  assert.equal(b1.followUpPlannedByEmail, "lead@test");
+  assert.deepEqual(b1.followUps.map((f) => f.at), ["T1", "T2"], "only their own new notes");
+});
+
+test("call notes are append-only and the newer follow-up plan wins", () => {
+  const stored = [{ id: "p", followUps: [{ at: "T1", byEmail: "a", note: "x" }, { at: "T2", byEmail: "lead", note: "y" }], followUp: "2026-10-05", nextAction: "Lead's plan", followUpPlannedAt: "2026-09-30T10:00:00Z" }];
+  const stale = [{ id: "p", followUps: [{ at: "T1", byEmail: "a", note: "x" }, { at: "T3", byEmail: "a", note: "z" }], followUp: "2026-10-01", nextAction: "Old", followUpPlannedAt: "2026-09-29T10:00:00Z" }];
+  const out = keepNewerPlan(stored, keepFollowUps(stored, stale))[0];
+  assert.deepEqual(out.followUps.map((f) => f.at), ["T1", "T2", "T3"]);
+  assert.equal(out.followUp, "2026-10-05");
+  assert.equal(out.nextAction, "Lead's plan");
+  const newer = keepNewerPlan(stored, [{ id: "p", followUp: "2026-10-09", followUpPlannedAt: "2026-09-30T11:00:00Z" }])[0];
+  assert.equal(newer.followUp, "2026-10-09");
 });

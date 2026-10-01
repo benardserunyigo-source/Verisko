@@ -14,7 +14,12 @@
 const lc = (v) => String(v || "").toLowerCase();
 const arr = (v) => (Array.isArray(v) ? v : []);
 const COMMISSION_KEYS = ["commissionPerSale", "commissionPerQualified", "commissionTarget", "commissionRule"];
-const LEAD_QUAL_FIELDS = ["qualStatus", "qualApprovedBy", "qualApprovedAt", "qualNote"];
+const LEAD_QUAL_FIELDS = ["qualStatus", "qualApprovedBy", "qualApprovedAt", "qualNote", "qualReason", "qualDecidedAt", "qualSeen"];
+const QUAL_STATUSES = ["", "pending", "approved", "query", "disqualified"];
+// The planned next follow-up. Whoever changes it stamps followUpPlannedAt, so
+// a phone holding an older copy can't overwrite a newer plan.
+const PLAN_FIELDS = ["followUp", "nextAction", "followUpPlannedBy", "followUpPlannedByEmail", "followUpPlannedAt"];
+const followKey = (f) => [f && f.at, lc(f && f.byEmail), f && f.note].join("|");
 
 const jobStub = (j) => ({ id: j.id, ref: j.ref, prospectId: j.prospectId, stage: j.stage, createdAt: j.createdAt });
 // Client money in that isn't sent back — what earns deposit commission.
@@ -63,21 +68,53 @@ export function scopeForTeamLead(data, email) {
 }
 
 // A rep (or a Team lead on their own prospect) may only ask for qualification
-// or withdraw the ask; approving, sending back and the lead's notes are kept
-// exactly as stored. Approved stays approved.
+// or withdraw the ask; approving, disqualifying and the lead's notes are kept
+// exactly as stored. Approved stays approved; a disqualified lead stays
+// disqualified (and Lost) until the Team lead or Operations re-open it. The
+// rep may only mark the reason as read (qualSeen).
 export function guardRepQual(p, prev) {
   const w = prev || {};
   const ws = w.qualStatus || "", ps = p.qualStatus || "";
-  const keepLead = { qualApprovedBy: w.qualApprovedBy || "", qualApprovedAt: w.qualApprovedAt || "", qualNote: w.qualNote || "" };
+  const keepLead = { qualApprovedBy: w.qualApprovedBy || "", qualApprovedAt: w.qualApprovedAt || "", qualNote: w.qualNote || "", qualReason: w.qualReason || "", qualDecidedAt: w.qualDecidedAt || "" };
+  if (ws === "disqualified") {
+    return { ...p, ...keepLead, qualStatus: ws, qualRequestedAt: w.qualRequestedAt || "", stage: w.stage || p.stage, qualSeen: !!(p.qualSeen || w.qualSeen) };
+  }
   if (ws !== "approved" && (ps === "" || ps === "pending")) {
     return { ...p, ...keepLead, qualStatus: ps, qualRequestedAt: ps === "pending" ? (p.qualRequestedAt || w.qualRequestedAt || "") : "" };
   }
   return { ...p, ...keepLead, qualStatus: ws, qualRequestedAt: w.qualRequestedAt || "" };
 }
 
-// Merge a Team lead's POST: their own records like a rep; on everyone else's
-// prospects only the qualification decision; new client deposits appended
-// (always pending, stamped with their email). Nothing else changes.
+// Follow-up history is append-only for every role: entries already stored are
+// never dropped or edited, and new ones from the device are added.
+export function keepFollowUps(storedProspects, prospects) {
+  const prevById = new Map(arr(storedProspects).map((p) => [p.id, p]));
+  return arr(prospects).map((p) => {
+    const prev = p && prevById.get(p.id);
+    if (!prev || !arr(prev.followUps).length) return p;
+    const seen = new Set(arr(prev.followUps).map(followKey));
+    const added = arr(p.followUps).filter((f) => f && !seen.has(followKey(f)));
+    return { ...p, followUps: arr(prev.followUps).concat(added) };
+  });
+}
+
+// The newer follow-up plan wins (see PLAN_FIELDS).
+export function keepNewerPlan(storedProspects, prospects) {
+  const prevById = new Map(arr(storedProspects).map((p) => [p.id, p]));
+  return arr(prospects).map((p) => {
+    const prev = p && prevById.get(p.id);
+    if (!prev || !prev.followUpPlannedAt || String(p.followUpPlannedAt || "") >= String(prev.followUpPlannedAt)) return p;
+    const out = { ...p };
+    PLAN_FIELDS.forEach((k) => { out[k] = prev[k] === undefined ? "" : prev[k]; });
+    return out;
+  });
+}
+
+// Merge a Team lead's POST: their own records like a rep. On everyone else's
+// prospects: the qualification decision (approve, disqualify with a reason,
+// re-open), the planned follow-up, and new call notes they logged themselves.
+// New client deposits are appended (always pending, stamped with their
+// email). Nothing else changes.
 export function mergeTeamLeadWrite(stored, incoming, email) {
   const base = mergeSalesWrite(stored, incoming, email);
   const incById = new Map(arr(incoming.prospects).filter((p) => p && p.id).map((p) => [p.id, p]));
@@ -87,7 +124,19 @@ export function mergeTeamLeadWrite(stored, incoming, email) {
     if (!inc) return p;
     const out = { ...p };
     LEAD_QUAL_FIELDS.forEach((k) => { if (inc[k] !== undefined) out[k] = inc[k]; });
-    if (!["", "pending", "approved", "query"].includes(out.qualStatus || "")) out.qualStatus = p.qualStatus || "";
+    if (!QUAL_STATUSES.includes(out.qualStatus || "")) out.qualStatus = p.qualStatus || "";
+    // Disqualifying moves the lead to Lost; re-opening puts it back in play.
+    const was = p.qualStatus || "", now = out.qualStatus || "";
+    if (now === "disqualified" && was !== "disqualified") out.stage = "Lost";
+    else if (was === "disqualified" && now !== "disqualified" && typeof inc.stage === "string" && inc.stage !== "Lost") out.stage = inc.stage;
+    if (String(inc.followUpPlannedAt || "") > String(p.followUpPlannedAt || "")) {
+      PLAN_FIELDS.forEach((k) => { out[k] = inc[k] === undefined ? "" : inc[k]; });
+      out.followUpPlannedByEmail = lc(email);
+    }
+    const seen = new Set(arr(p.followUps).map(followKey));
+    const mine = arr(inc.followUps).filter((f) => f && !seen.has(followKey(f)) && lc(f.byEmail) === lc(email))
+      .map((f) => ({ ...f, note: String(f.note || "").slice(0, 1000) }));
+    if (mine.length) out.followUps = arr(p.followUps).concat(mine);
     return out;
   });
   const storedTx = arr(stored.transactions);

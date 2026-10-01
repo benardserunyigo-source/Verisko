@@ -7,7 +7,7 @@
 // an empty workspace bootstraps the owner. Non-admins cannot alter the team
 // list. Both Supabase values below are public (publishable) and safe to ship.
 import { getStore } from "@netlify/blobs";
-import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, ownsProspect } from "./scope.mjs";
+import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, ownsProspect, keepFollowUps, keepNewerPlan } from "./scope.mjs";
 
 const SUPABASE_URL = "https://cepernltrzrmupgegcib.supabase.co";
 const SUPABASE_KEY = "sb_publishable_hj2NsI1YGmpeQg815ET2Kg_CwznowqE";
@@ -99,6 +99,10 @@ export default async (request) => {
         clean.quotes = Array.isArray(data.quotes) ? data.quotes : [];
         clean.installations = Array.isArray(data.installations) ? data.installations : [];
       }
+
+      // Every role: call notes are never lost (append-only) and a phone with
+      // an older copy can't overwrite a newer follow-up plan.
+      clean.prospects = keepNewerPlan(storedProspects, keepFollowUps(storedProspects, clean.prospects));
 
       // Prospect audit (Sales roles only): can't self-approve, and can't delete
       // an approved prospect or a site visit tied to one — that would erase the

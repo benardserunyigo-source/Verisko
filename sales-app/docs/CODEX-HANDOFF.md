@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=53**.
+  base directory `sales-app`). Current asset version: **v=54**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -102,8 +102,10 @@ Three roles, resolved from `settings.user.role`:
   (`scopeForTeamLead`), approves qualified prospects (UGX 2,500 each) and
   records client deposits from a prospect card. No cash book, jobs, settings
   or team emails; can't edit other reps' records (`mergeTeamLeadWrite` keeps
-  only the qualification decision and appends new money-in entries, always
-  `pending`, stamped with their email). Operations/admin can assign the role.
+  only the qualification decision — approve, disqualify, re-open — the planned
+  follow-up, call notes they logged themselves, and new money-in entries,
+  always `pending`, stamped with their email). Operations/admin can assign
+  the role.
 - **sales** — prospects + site visits + a personal dashboard only. Never sees
   cash flow, jobs, or settings, and **never sees another rep's records**
   (since v=52). The server scopes it (`netlify/functions/scope.mjs`, tested):
@@ -216,8 +218,30 @@ week runs from one Saturday noon (inclusive) to the next (`payWeek()` in
   confirmed, `qualificationRequest()` sets `qualStatus="pending"` (from the
   prospect form or a visit status change). The Team lead (or admin) approves
   (`qualStatus="approved"`, `qualApprovedAt` ISO timestamp → counts in that
-  pay week) or sends back (`"query"` + `qualNote`; the rep's next save
-  re-submits). Reps can only ask/withdraw — `guardRepQual()` on the server.
+  pay week). Since v=54 **Operations** can approve too, and either can
+  **Disqualify** (any open, not-approved lead, from its card or the queue):
+  a reason picked from `DQ_REASONS` (no answer after several calls, not
+  interested in cameras / an installation, no budget, not the decision-maker,
+  or **Other**, which requires typed text) → `qualStatus="disqualified"`,
+  `qualReason`, optional `qualNote`, `qualDecidedAt`, stage **Lost**, no
+  commission. The rep sees a "Disqualified — see why" card + badge until they
+  tap Got it (`qualSeen`). Only the Team lead / Operations can **Re-open** it.
+  Legacy `"query"` (sent back, pre-v=54) still displays. Reps can only
+  ask/withdraw — `guardRepQual()` on the server also keeps a disqualified lead
+  disqualified and Lost.
+- **Follow-ups (v=54).** One sheet for every role: outcome chips (Answered,
+  No answer, Call back later, Not interested, Visited, Messaged, Quoted), call
+  notes, and the next follow-up date + action. The Team lead and Operations
+  can use it on any rep's prospect. Entries are `followUps[]` `{at, by,
+  byEmail, role, outcome, note, geo, next}`; GPS only for a rep on their own
+  prospect or a "Visited" outcome. Changing the plan stamps
+  `followUpPlannedAt/By/ByEmail`. Server (all roles): `keepFollowUps()` makes
+  call notes append-only and `keepNewerPlan()` stops a phone with an older
+  copy overwriting a newer plan. Cards show "Calls & notes: N · K unanswered"
+  and "planned by …"; 3+ unanswered calls prompts the lead to disqualify.
+- **Operations' "Qualified — ready for Operations" list** (Prospects): leads
+  the Team lead approved that still have no quote (book the visit / create the
+  quote).
 - **Client deposit — `config.commissionPerSale` (UGX 100,000), once per
   client.** Counts as soon as the client's first deposit is recorded (money
   in linked to the prospect or its job, status pending or approved, not
@@ -323,7 +347,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=53, 30 Sep 2026)
+## 8. Current status (live at v=54, 30 Sep 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console
