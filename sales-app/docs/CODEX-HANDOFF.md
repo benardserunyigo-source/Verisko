@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=63**.
+  base directory `sales-app`). Current asset version: **v=64**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -365,6 +365,12 @@ email.
   (endpoint), `identify()` used by `data.mjs` and `receipt.mjs`. Routes:
   `/api/auth` is in `_redirects` and `netlify.toml`.
 
+**Invite on WhatsApp (v=64):** "Invite staff on WhatsApp" (Settings → Team
+members, Dashboard → Manage the team) opens `inviteStaff()`: optional first
+name and WhatsApp number, a preview of `staffInviteText()` (link, sign-up
+steps, sign-in with phone + PIN, add to home screen, the 13 training videos),
+Copy, and Send on WhatsApp (wa.me with or without a number).
+
 ## 6g. Offline loading (v=63)
 
 `sw.js` (service worker, registered after load) keeps a copy of the app on
@@ -470,7 +476,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=63, 1 Oct 2026)
+## 8. Current status (live at v=64, 1 Oct 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

@@ -942,7 +942,8 @@
       '<option value="teamlead">Team lead — approves qualified prospects, records deposits</option>' +
       '<option value="operations">Operations — also Cash flow</option></select></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Add team member</button>' +
-      '<p class="settings-note" style="margin-top:8px">No email? Send them ' + esc(location.origin) + ' — they tap <strong>Sign up</strong>, add their National ID and choose a PIN, and you approve them here.</p></form></section>';
+      '<p class="settings-note" style="margin-top:10px">No email? Invite them on WhatsApp — they sign up with their National ID and a PIN, and you approve them here.</p>' +
+      '<button type="button" class="btn btn-primary btn-block" data-invite-staff style="margin-top:8px">Invite staff on WhatsApp</button></form></section>';
   }
 
   /* ------------------------------ INSTALLATIONS ----------------------------- */
@@ -2200,7 +2201,8 @@
       '<option value="operations">Operations — also Cash flow</option>' +
       '<option value="admin">Technical — also Settings</option></select></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Add team member</button>' +
-      '<p class="settings-note" style="margin-top:8px">No email? Send them ' + esc(location.origin) + ' — they tap <strong>Sign up</strong>, add their National ID and choose a PIN, and you approve them here.</p>' +
+      '<p class="settings-note" style="margin-top:10px">No email? Invite them on WhatsApp — they sign up with their National ID and a PIN, and you approve them here.</p>' +
+      '<button type="button" class="btn btn-primary btn-block" data-invite-staff style="margin-top:8px">Invite staff on WhatsApp</button>' +
       "</form></section>" +
 
       '<section class="card settings-card"><h2>Shared workspace</h2>' +
@@ -3747,6 +3749,64 @@
   }
 
   /* ---- Staff sign-ups & PIN accounts (Owner / Operations) ---- */
+  // The WhatsApp onboarding message: how to sign up, sign in, install the app
+  // and start training. Plain words, short lines.
+  function staffInviteText(name) {
+    var me = (settings.user && settings.user.name) || "";
+    return "Hello" + (name ? " " + name : "") + " \uD83D\uDC4B Welcome to the Verisko team!\n\n" +
+      "Please set up your Verisko app account:\n\n" +
+      "1\uFE0F\u20E3 Open " + location.origin + " on your phone\n" +
+      "2\uFE0F\u20E3 Tap *Sign up*\n" +
+      "3\uFE0F\u20E3 Enter your full name *exactly as on your National ID*, your phone number and your NIN\n" +
+      "4\uFE0F\u20E3 Take a clear photo of your National ID\n" +
+      "5\uFE0F\u20E3 Choose a 4-digit PIN. Keep it secret — don't share it with anyone\n" +
+      "6\uFE0F\u20E3 Tap *Sign up*. We check your details and approve you\n\n" +
+      "Once you're approved, sign in with your *phone number and PIN*.\n\n" +
+      "\uD83D\uDCF2 Tip: put the app on your home screen. Android: Chrome menu (⋮) → *Add to Home screen*. iPhone: Share → *Add to Home Screen*.\n\n" +
+      "\uD83C\uDF93 Then open *Support* in the app and watch the 13 training videos. Pass each quiz to get your certificate.\n\n" +
+      "Questions? Reply to this message." + (me ? "\n— " + me + ", Verisko" : "");
+  }
+  function waDigits(phone) {
+    var d = String(phone || "").replace(/\D/g, "");
+    if (/^0\d{9}$/.test(d)) d = "256" + d.slice(1);
+    else if (/^7\d{8}$/.test(d)) d = "256" + d;
+    return /^\d{11,15}$/.test(d) ? d : "";
+  }
+  function inviteStaff() {
+    if (!canReviewProspects()) return;
+    var dlg = document.getElementById("askDialog");
+    dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Invite staff on WhatsApp</h2>' +
+      '<p class="ask-body">A welcome message with the app link and how to sign up, sign in and start training.</p></div>' +
+      '<div class="field"><label for="invName">Their first name <span class="optional-tag">optional</span></label><input id="invName" type="text" autocomplete="off" placeholder="e.g. Grace"></div>' +
+      '<div class="field"><label for="invPhone">Their WhatsApp number <span class="optional-tag">optional</span></label><input id="invPhone" type="tel" inputmode="tel" autocomplete="off" placeholder="0772 123 456"><p class="helper">Leave it empty to choose the person in WhatsApp.</p></div>' +
+      '<div class="invite-preview" id="invPreview"></div>' +
+      '<div class="ask-actions" style="flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="askCancel">Close</button>' +
+      '<button type="button" class="btn btn-ghost" id="invCopy">Copy message</button>' +
+      '<a class="btn btn-primary" id="invSend" target="_blank" rel="noopener" href="#">Send on WhatsApp</a></div>';
+    var nameEl = dlg.querySelector("#invName"), phoneEl = dlg.querySelector("#invPhone"), prev = dlg.querySelector("#invPreview"), send = dlg.querySelector("#invSend");
+    var refresh = function () {
+      var text = staffInviteText(nameEl.value.trim());
+      prev.textContent = text;
+      var d = waDigits(phoneEl.value);
+      send.href = "https://wa.me/" + d + "?text=" + encodeURIComponent(text);
+      phoneEl.setCustomValidity(phoneEl.value.trim() && !d ? "Check the number" : "");
+    };
+    nameEl.addEventListener("input", refresh); phoneEl.addEventListener("input", refresh);
+    dlg.querySelector("#askCancel").addEventListener("click", function () { dlg.close(); });
+    send.addEventListener("click", function (e) {
+      if (phoneEl.value.trim() && !waDigits(phoneEl.value)) { e.preventDefault(); toast("Check the WhatsApp number, or leave it empty."); return; }
+      setTimeout(function () { dlg.close(); }, 300);
+    });
+    dlg.querySelector("#invCopy").addEventListener("click", function () {
+      var text = staffInviteText(nameEl.value.trim());
+      var done = function () { toast("Message copied — paste it in WhatsApp"); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { toast("Couldn't copy — select the message and copy it"); });
+      else toast("Select the message and copy it");
+    });
+    refresh();
+    dlg.showModal();
+    nameEl.focus();
+  }
   function pinActions(u) {
     if (!u || u.authMethod !== "pin") return "";
     return '<button type="button" class="account-role" data-view-staff="' + esc(u.id) + '">View ID</button>' +
@@ -3933,6 +3993,7 @@
     var apprP = e.target.closest("[data-approve-prospect]"); if (apprP) { approveProspect(apprP.getAttribute("data-approve-prospect")); return; }
     var apprQ = e.target.closest("[data-approve-qual]"); if (apprQ) { approveQualification(apprQ.getAttribute("data-approve-qual")); return; }
     var wv = e.target.closest("[data-watch]"); if (wv) { openVideo(wv.getAttribute("data-watch")); return; }
+    if (e.target.closest("[data-invite-staff]")) { inviteStaff(); return; }
     var rsu = e.target.closest("[data-review-signup]"); if (rsu) { reviewSignup(rsu.getAttribute("data-review-signup")); return; }
     var vsi = e.target.closest("[data-view-staff]"); if (vsi) { viewStaffId(vsi.getAttribute("data-view-staff")); return; }
     var rpn = e.target.closest("[data-reset-pin]"); if (rpn) { resetStaffPin(rpn.getAttribute("data-reset-pin")); return; }
