@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=58**.
+  base directory `sales-app`). Current asset version: **v=59**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -286,7 +286,15 @@ page" steps, and role-filtered Quick help answers (commission amounts come
 from config). Videos play in-app (Loom embed iframe, with an "Open in Loom"
 link as fallback); "Next" swaps the video in place. To change a video, edit
 `VIDEOS` and keep its `id` — progress is stored against it.
-Progress: `state.training[userId][videoId] = ISO time`. Server
+**Quizzes (v=59):** each video has a 3-question quiz (`QUIZZES` in
+`support-content.js`, written from each Loom video's public summary and
+chapters — the pricing questions use UGX 1,650,000 / 2,200,000 / 2,700,000,
+the 40/30/30 plan and the UGX 250,000 admin fee, so update them if prices
+change). Options are shuffled; all 3 right to pass; retries allowed; the
+result screen explains every answer. A video counts as **complete** once its
+quiz is passed (passing also marks it watched); the best attempt is kept.
+Progress: `state.training[userId][videoId] = ISO time` (watched) and
+`["q-" + videoId] = "<score>/<total> <ISO time>"` (quiz). Server
 `mergeTraining()` lets each person change only their own entry; Sales GET
 only their own, the Team lead gets everyone's (Operations/admin get all
 data). The Team lead / Operations / admin see **Team training** (sales +
@@ -388,7 +396,7 @@ git push origin main
 curl -s "https://verisko-sales-2026.netlify.app/index.html?cb=$RANDOM" | grep -o 'app.js?v=[0-9]*'
 ```
 
-## 8. Current status (live at v=58, 1 Oct 2026)
+## 8. Current status (live at v=59, 1 Oct 2026)
 
 Working and smoke-tested (Sales role, phone viewport, seeded local copy): the
 welcome tour, Today, Prospects, Visits and Dashboard render with no console

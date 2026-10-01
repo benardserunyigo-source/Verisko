@@ -14,19 +14,48 @@ test("the library has 13 videos in 5 parts, numbered in order, each with a Loom 
   assert.match(S.embedUrl(S.VIDEOS[0]), /^https:\/\/www\.loom\.com\/embed\/95873acd1c0a4bc0bafa59193781a4dd\?/);
 });
 
-test("progress counts watched videos and points at the first unwatched one", () => {
+test("progress: a video is complete once its quiz is passed; next = first not passed", () => {
   const p0 = S.progress({});
-  assert.equal(p0.done, 0); assert.equal(p0.next.id, "v1"); assert.equal(p0.complete, false);
-  const p = S.progress({ v1: "2026-10-01T08:00:00Z", v2: "2026-10-01T09:00:00Z", v4: "2026-10-02T07:00:00Z", junk: "x" });
-  assert.equal(p.done, 3); assert.equal(p.next.id, "v3"); assert.equal(p.last, "2026-10-02T07:00:00Z");
-  const all = Object.fromEntries(S.VIDEOS.map((v) => [v.id, "T"]));
+  assert.equal(p0.done, 0); assert.equal(p0.watched, 0); assert.equal(p0.next.id, "v1"); assert.equal(p0.complete, false);
+  const p = S.progress({ v1: "2026-10-01T08:00:00Z", "q-v1": "3/3 2026-10-01T08:05:00Z", v2: "2026-10-01T09:00:00Z", "q-v2": "2/3 2026-10-01T09:05:00Z", v4: "2026-10-02T07:00:00Z", junk: "x" });
+  assert.equal(p.watched, 3); assert.equal(p.done, 1, "only v1's quiz is passed");
+  assert.equal(p.next.id, "v2", "v2's quiz still needs passing");
+  assert.equal(p.last, "2026-10-02T07:00:00Z");
+  const all = Object.fromEntries(S.VIDEOS.map((v) => [S.quizKey(v.id), "3/3 T"]));
   assert.equal(S.progress(all).complete, true); assert.equal(S.progress(all).next, null);
+});
+
+test("every video has a 3-question quiz with distinct options", () => {
+  S.VIDEOS.forEach((v) => {
+    const qs = S.QUIZZES[v.id];
+    assert.equal(qs.length, 3, v.id);
+    qs.forEach((x) => {
+      const opts = [x.a, ...x.wrong];
+      assert.ok(opts.length >= 3 && new Set(opts).size === opts.length, x.q);
+      assert.ok(x.why && x.q.length > 5);
+    });
+  });
+});
+
+test("quizzes shuffle options but score by the answer text; all 3 right to pass", () => {
+  const q = S.quizFor("v6", () => 0);
+  assert.equal(q.length, 3);
+  q.forEach((x) => assert.ok(x.options.includes(x.answer)));
+  const right = S.QUIZZES.v6.map((x) => x.a);
+  assert.deepEqual(S.scoreQuiz("v6", right), { ...S.scoreQuiz("v6", right), score: 3, total: 3, passed: true });
+  const twoOfThree = S.scoreQuiz("v6", [right[0], "UGX 1,650,000", right[2]]);
+  assert.equal(twoOfThree.score, 2); assert.equal(twoOfThree.passed, false);
+  assert.equal(twoOfThree.results[1].correct, false); assert.equal(twoOfThree.results[1].answer, "40% on installation day, 30% after 30 days, 30% after 60 days");
+  assert.equal(S.quizValue(3, 3, "2026-10-01T08:00:00.000Z").length <= 40, true, "fits the server's 40-character limit");
+  assert.deepEqual(S.quizResult({ "q-v6": "3/3 2026-10-01T08:00:00.000Z" }, "v6"), { score: 3, total: 3, at: "2026-10-01T08:00:00.000Z", passed: true });
+  assert.equal(S.quizResult({}, "v6"), null);
 });
 
 test("team progress lists sales and team leads, least progress first", () => {
   const users = [{ id: "a", name: "Ab", role: "sales" }, { id: "b", name: "Bea", role: "sales" }, { id: "l", name: "Lead", role: "teamlead" }, { id: "o", name: "Ops", role: "operations" }];
-  const t = S.teamProgress(users, { a: { v1: "T", v2: "T" }, l: { v1: "T" } });
+  const t = S.teamProgress(users, { a: { v1: "T", "q-v1": "3/3 T", "q-v2": "3/3 T" }, l: { "q-v1": "3/3 T" } });
   assert.deepEqual(t.map((r) => [r.name, r.done]), [["Bea", 0], ["Lead", 1], ["Ab", 2]]);
+  assert.equal(t[2].watched, 1);
 });
 
 test("help answers are filtered by role and use the app's commission amounts", () => {

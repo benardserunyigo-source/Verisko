@@ -1926,12 +1926,26 @@
     var p = window.VeriskoSupport.progress(mine);
     saveData(on ? (p.complete ? "All 13 videos watched — well done!" : "Marked as watched · " + p.done + " of " + p.total) : "Marked as not watched");
   }
+  // Keep the best quiz attempt; passing also counts the video as watched.
+  function saveQuizResult(videoId, score, total) {
+    var S = window.VeriskoSupport, id = (settings.user || {}).id;
+    if (!id) { toast("Sign in to save your progress."); return; }
+    if (!state.training || typeof state.training !== "object") state.training = {};
+    var mine = Object.assign({}, state.training[id] || {});
+    var prev = S.quizResult(mine, videoId);
+    if (!prev || score >= prev.score) mine[S.quizKey(videoId)] = S.quizValue(score, total, nowIso());
+    if (score === total && !mine[videoId]) mine[videoId] = nowIso();
+    state.training[id] = mine;
+    var p = S.progress(mine);
+    saveData(score === total ? (p.complete ? "All 13 complete — well done!" : "Quiz passed · " + p.done + " of " + p.total + " complete") : "Quiz saved — " + score + " of " + total + " right");
+  }
+
   // A one-line reminder on Today until a rep (or Team lead) finishes training.
   function trainingNudge() {
     if (supportInMore()) return "";
     var p = window.VeriskoSupport.progress(myTraining());
     if (p.complete) return "";
-    return '<section class="card training-nudge"><div><strong>Training: ' + p.done + " of " + p.total + " videos watched</strong>" +
+    return '<section class="card training-nudge"><div><strong>Training: ' + p.done + " of " + p.total + " videos complete</strong>" +
       '<div class="settings-note">Next: ' + esc(p.next.n + ". " + p.next.title) + "</div></div>" +
       '<button type="button" class="btn btn-sm btn-primary" data-watch="' + esc(p.next.id) + '">Watch</button></section>';
   }
@@ -1942,11 +1956,11 @@
     var pct = Math.round((p.done / p.total) * 100);
     var hero = '<section class="card dash-hero">' +
       '<p class="dash-eyebrow">Your training</p>' +
-      '<div class="dash-big">' + p.done + " of " + p.total + "</div>" +
-      '<div class="dash-sub">videos watched · about ' + S.TOTAL_MINUTES + " minutes in total</div>" +
+      '<div class="dash-big">' + p.done + " of " + p.total + " complete</div>" +
+      '<div class="dash-sub">Watch each video, then pass its 3-question quiz · ' + p.watched + " watched · about " + S.TOTAL_MINUTES + " minutes of video</div>" +
       '<div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div>' +
       (p.next ? '<button type="button" class="btn btn-primary btn-block" data-watch="' + esc(p.next.id) + '">▶ ' + (p.done ? "Continue: " : "Start: ") + esc(p.next.n + ". " + p.next.title) + "</button>"
-        : '<p class="dash-note" style="color:var(--green);font-weight:600">✓ All done. Rewatch any video whenever you feel unsure, especially before a big meeting.</p>') +
+        : '<p class="dash-note" style="color:var(--green);font-weight:600">✓ All 13 videos and quizzes complete. Rewatch any video whenever you feel unsure, especially before a big meeting.</p>') +
       "</section>";
     var how = '<section class="card settings-card"><h2>How to use this page</h2><ol class="help-steps">' +
       S.HOW_TO.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ol></section>";
@@ -1954,23 +1968,26 @@
       var vids = S.VIDEOS.filter(function (v) { return v.part === part.n; });
       return '<section class="support-part"><h2 class="review-head">Part ' + part.n + ": " + esc(part.title) + "</h2>" +
         vids.map(function (v) {
-          var seen = !!mine[v.id];
-          return '<article class="item video-item' + (seen ? " is-seen" : "") + '">' +
-            '<div class="video-row"><span class="vid-num" aria-hidden="true">' + (seen ? "✓" : v.n) + "</span>" +
+          var seen = !!mine[v.id], qr = S.quizResult(mine, v.id), done = !!(qr && qr.passed);
+          var status = done ? '<span class="vid-status is-done">✓ Complete · quiz ' + qr.score + "/" + qr.total + "</span>"
+            : qr ? '<span class="vid-status is-retry">Quiz ' + qr.score + "/" + qr.total + " — try again</span>"
+            : seen ? '<span class="vid-status">Watched · quiz to do</span>' : "";
+          return '<article class="item video-item' + (done ? " is-seen" : "") + '">' +
+            '<div class="video-row"><span class="vid-num" aria-hidden="true">' + (done ? "✓" : v.n) + "</span>" +
             '<div><div class="item-title">' + v.n + ". " + esc(v.title) + "</div>" +
-            '<div class="item-meta video-desc">' + esc(v.desc) + "</div></div></div>" +
-            '<div class="item-actions"><button type="button" class="btn btn-sm btn-primary" data-watch="' + esc(v.id) + '">▶ Watch</button>' +
-            '<button type="button" class="btn btn-sm btn-ghost" data-toggle-watched="' + esc(v.id) + '" aria-pressed="' + seen + '">' + (seen ? "✓ Watched" : "Mark watched") + "</button></div></article>";
+            '<div class="item-meta video-desc">' + esc(v.desc) + "</div>" + status + "</div></div>" +
+            '<div class="item-actions"><button type="button" class="btn btn-sm ' + (done || !seen ? "btn-primary" : "btn-ghost") + '" data-watch="' + esc(v.id) + '">▶ Watch</button>' +
+            '<button type="button" class="btn btn-sm ' + (seen && !done ? "btn-primary" : "btn-ghost") + '" data-quiz="' + esc(v.id) + '">' + (done ? "Retake quiz" : "Take quiz") + "</button></div></article>";
         }).join("") + "</section>";
     }).join("");
     var team = "";
     if (canApproveQual()) {
       var rows = S.teamProgress(state.users || [], state.training || {});
       team = '<section class="card settings-card"><h2>Team training</h2>' +
-        (rows.length ? '<p class="settings-note">Sales and Team leads, least progress first.</p><div class="team-training">' + rows.map(function (r) {
+        (rows.length ? '<p class="settings-note">Videos complete (watched and quiz passed) for Sales and Team leads, least progress first.</p><div class="team-training">' + rows.map(function (r) {
           var w = Math.round((r.done / r.total) * 100);
-          return '<div class="tt-row"><div class="tt-who"><strong>' + esc(r.name) + "</strong><span>" + esc(r.role === "teamlead" ? "Team lead" : "Sales") +
-            (r.last ? " · last " + esc(dateLabel(String(r.last).slice(0, 10))) : "") + "</span></div>" +
+          return '<div class="tt-row"><div class="tt-who"><strong>' + esc(r.name) + "</strong><span>" + esc(r.role === "teamlead" ? "Team lead" : "Sales") + " · " + r.watched + " watched" +
+            (r.last && /^\d{4}-/.test(r.last) ? " · last " + esc(dateLabel(String(r.last).slice(0, 10))) : "") + "</span></div>" +
             '<div class="tt-bar"><div class="progress" style="margin:0"><div class="progress-bar" style="width:' + w + '%"></div></div></div>' +
             '<div class="tt-count' + (r.done === 0 ? " is-zero" : r.complete ? " is-done" : "") + '">' + (r.complete ? "✓ " : "") + r.done + "/" + r.total + "</div></div>";
         }).join("") + "</div>" : '<p class="settings-note">No sales team members yet.</p>') + "</section>";
@@ -1982,33 +1999,77 @@
     }).join("") + '<p class="settings-note" style="margin-top:12px">Still stuck? Write your question down and bring it to your immediate supervisor.</p></section>';
     content.innerHTML = hero + team + how + parts + help;
   }
-  // Play a video inside the app (Loom embed), with a link out as a fallback.
-  // "Next" swaps the video in place.
-  function openVideo(videoId) {
+  // Play a video inside the app (Loom embed), with a link out as a fallback,
+  // then its quiz in the same dialog. "Next" swaps the video in place.
+  function openVideo(videoId, startWithQuiz) {
     var S = window.VeriskoSupport;
     if (!S.byId(videoId)) return;
     var dlg = document.getElementById("askDialog");
+    function head(v, label) { return '<div class="ask-head"><p class="dash-eyebrow" style="margin:0">' + label + '</p><h2 id="askTitle">' + esc(v.n + ". " + v.title) + "</h2></div>"; }
+    function nextOf(v) { return S.VIDEOS.find(function (x) { return x.n === v.n + 1; }); }
     function fill(v) {
-      var seen = !!myTraining()[v.id];
-      var next = S.VIDEOS.find(function (x) { return x.n === v.n + 1; });
-      dlg.innerHTML = '<div class="ask-head"><p class="dash-eyebrow" style="margin:0">Video ' + v.n + " of " + S.VIDEOS.length + '</p><h2 id="askTitle">' + esc(v.title) + "</h2></div>" +
+      var qr = S.quizResult(myTraining(), v.id), passed = !!(qr && qr.passed), next = nextOf(v);
+      dlg.innerHTML = head(v, "Video " + v.n + " of " + S.VIDEOS.length) +
         '<div class="video-frame"><iframe src="' + esc(S.embedUrl(v)) + '" title="' + esc(v.title) + '" allow="fullscreen; autoplay; picture-in-picture" allowfullscreen></iframe></div>' +
         '<p class="ask-body">' + esc(v.desc) + "</p>" +
         '<p class="settings-note">Video not playing? <a href="' + esc(S.watchUrl(v)) + '" target="_blank" rel="noopener">Open it in Loom</a>.</p>' +
+        (passed ? '<p class="settings-note" style="color:var(--green);font-weight:600">✓ Quiz passed ' + qr.score + "/" + qr.total + "</p>" : "") +
         '<div class="ask-actions" style="flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="askCancel">Close</button>' +
-        '<button type="button" class="btn ' + (seen ? "btn-ghost" : "btn-primary") + '" id="vidSeen">' + (seen ? "✓ Watched" : "Mark as watched") + "</button>" +
-        (next ? '<button type="button" class="btn btn-ghost" id="vidNext">Next ›</button>' : "") + "</div>";
+        '<button type="button" class="btn ' + (passed ? "btn-ghost" : "btn-primary") + '" id="vidQuiz">' + (passed ? "Retake quiz" : "Take the quiz →") + "</button>" +
+        (passed && next ? '<button type="button" class="btn btn-primary" id="vidNext">Next video ›</button>' : "") + "</div>";
       dlg.querySelector("#askCancel").addEventListener("click", closeVideo);
-      dlg.querySelector("#vidSeen").addEventListener("click", function () {
-        var on = !myTraining()[v.id];
-        setWatched(v.id, on);
-        this.textContent = on ? "✓ Watched" : "Mark as watched";
-        this.className = "btn " + (on ? "btn-ghost" : "btn-primary");
-      });
-      if (next) dlg.querySelector("#vidNext").addEventListener("click", function () {
+      dlg.querySelector("#vidQuiz").addEventListener("click", function () {
         if (!myTraining()[v.id]) setWatched(v.id, true);
-        fill(next);
+        quiz(v);
       });
+      if (passed && next) dlg.querySelector("#vidNext").addEventListener("click", function () { fill(next); });
+    }
+    function quiz(v) {
+      var qs = S.quizFor(v.id);
+      dlg.innerHTML = head(v, "Quiz · " + qs.length + " questions · get them all right to pass") +
+        '<form class="quiz" id="quizForm">' + qs.map(function (x, i) {
+          return '<fieldset class="quiz-q"><legend>' + (i + 1) + ". " + esc(x.q) + "</legend>" +
+            x.options.map(function (o, j) {
+              return '<label class="quiz-opt"><input type="radio" name="q' + i + '" value="' + j + '"><span>' + esc(o) + "</span></label>";
+            }).join("") + "</fieldset>";
+        }).join("") + "</form>" +
+        '<div class="ask-actions" style="flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="quizBack">‹ Back to video</button>' +
+        '<button type="button" class="btn btn-primary" id="quizCheck" disabled>Check answers</button></div>';
+      var formEl = dlg.querySelector("#quizForm"), check = dlg.querySelector("#quizCheck");
+      var picked = function () { return qs.map(function (x, i) { var el = formEl.querySelector('input[name="q' + i + '"]:checked'); return el ? x.options[Number(el.value)] : null; }); };
+      formEl.addEventListener("change", function () { check.disabled = picked().some(function (a) { return a === null; }); });
+      dlg.querySelector("#quizBack").addEventListener("click", function () { fill(v); });
+      check.addEventListener("click", function () {
+        var answers = picked();
+        if (answers.some(function (a) { return a === null; })) return;
+        var res = S.scoreQuiz(v.id, answers);
+        saveQuizResult(v.id, res.score, res.total);
+        results(v, qs, answers, res);
+      });
+      dlg.scrollTop = 0;
+    }
+    function results(v, qs, answers, res) {
+      var next = nextOf(v);
+      dlg.innerHTML = head(v, "Quiz result") +
+        '<div class="quiz-score ' + (res.passed ? "is-pass" : "is-fail") + '"><strong>' + res.score + " of " + res.total + " right</strong><span>" +
+        (res.passed ? "Passed — video complete." : "Not yet. Check the answers below, rewatch if you need to, and try again.") + "</span></div>" +
+        '<div class="quiz-review">' + qs.map(function (x, i) {
+          var r = res.results[i];
+          return '<div class="quiz-review-item ' + (r.correct ? "is-right" : "is-wrong") + '"><div class="quiz-review-q">' + (r.correct ? "✓ " : "✗ ") + esc(x.q) + "</div>" +
+            (r.correct ? "" : '<div class="quiz-review-a">You chose: ' + esc(answers[i]) + "</div>") +
+            '<div class="quiz-review-a"><strong>Answer:</strong> ' + esc(r.answer) + "</div>" +
+            '<div class="quiz-review-why">' + esc(r.why) + "</div></div>";
+        }).join("") + "</div>" +
+        '<div class="ask-actions" style="flex-wrap:wrap"><button type="button" class="btn btn-ghost" id="askCancel">Close</button>' +
+        (res.passed ? (next ? '<button type="button" class="btn btn-primary" id="quizNext">Next video ›</button>' : "")
+          : '<button type="button" class="btn btn-ghost" id="quizRewatch">Rewatch video</button><button type="button" class="btn btn-primary" id="quizRetry">Try again</button>') + "</div>";
+      dlg.querySelector("#askCancel").addEventListener("click", closeVideo);
+      if (res.passed && next) dlg.querySelector("#quizNext").addEventListener("click", function () { fill(next); });
+      if (!res.passed) {
+        dlg.querySelector("#quizRewatch").addEventListener("click", function () { fill(v); });
+        dlg.querySelector("#quizRetry").addEventListener("click", function () { quiz(v); });
+      }
+      dlg.scrollTop = 0;
     }
     // Tidy up here rather than on the dialog's "close" event, which some
     // in-app browsers never fire.
@@ -2020,7 +2081,7 @@
     }
     function onEsc(e) { e.preventDefault(); closeVideo(); }
     dlg.classList.add("is-wide");
-    fill(S.byId(videoId));
+    if (startWithQuiz) quiz(S.byId(videoId)); else fill(S.byId(videoId));
     dlg.addEventListener("cancel", onEsc);
     dlg.showModal();
   }
@@ -3525,7 +3586,7 @@
     var apprP = e.target.closest("[data-approve-prospect]"); if (apprP) { approveProspect(apprP.getAttribute("data-approve-prospect")); return; }
     var apprQ = e.target.closest("[data-approve-qual]"); if (apprQ) { approveQualification(apprQ.getAttribute("data-approve-qual")); return; }
     var wv = e.target.closest("[data-watch]"); if (wv) { openVideo(wv.getAttribute("data-watch")); return; }
-    var tw = e.target.closest("[data-toggle-watched]"); if (tw) { var vid = tw.getAttribute("data-toggle-watched"); setWatched(vid, !myTraining()[vid]); render(); return; }
+    var qz = e.target.closest("[data-quiz]"); if (qz) { openVideo(qz.getAttribute("data-quiz"), true); return; }
     var dq = e.target.closest("[data-disqualify]"); if (dq) { disqualifyProspect(dq.getAttribute("data-disqualify")); return; }
     var rq = e.target.closest("[data-reopen-qual]"); if (rq) { reopenQualification(rq.getAttribute("data-reopen-qual")); return; }
     var qs = e.target.closest("[data-qual-seen]"); if (qs) { markDisqualifiedSeen(qs.getAttribute("data-qual-seen")); return; }
