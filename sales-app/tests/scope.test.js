@@ -197,3 +197,20 @@ test("training progress: each person changes only their own entry; a rep receive
   assert.deepEqual(scopeForSales(data2, "ab@test").training, { ua: { v1: "T" } });
   assert.deepEqual(Object.keys(scopeForTeamLead(data2, "lead@test").training), ["ua", "ub"]);
 });
+
+test("Sales and Team lead devices can't mark bookings confirmed or visits real (scheme 4 pay)", async () => {
+  const { guardVisitChecks } = await import("../netlify/functions/scope.mjs");
+  const stored = [{ id: "a1", prospectId: "p", status: "Proposed" }, { id: "a2", prospectId: "p", callConfirmedAt: "2026-10-05T08:00:00Z", callConfirmedBy: "Ops" }];
+  const incoming = [
+    { id: "a1", prospectId: "p", status: "Confirmed", callConfirmedAt: "2026-10-06T08:00:00Z", visitResult: "real", visitResultAt: "2026-10-06T09:00:00Z" },
+    { id: "a2", prospectId: "p", callConfirmedAt: "", visitResult: "real" },
+    { id: "a3", prospectId: "p", visitResult: "real", callConfirmedAt: "2026-10-06T08:00:00Z" }
+  ];
+  const out = guardVisitChecks(stored, incoming);
+  assert.equal(out[0].status, "Confirmed", "ordinary edits still go through");
+  assert.equal(out[0].callConfirmedAt, undefined);
+  assert.equal(out[0].visitResult, undefined);
+  assert.equal(out[1].callConfirmedAt, "2026-10-05T08:00:00Z", "an office confirmation can't be removed");
+  assert.equal(out[1].visitResult, undefined);
+  assert.equal(out[2].visitResult, undefined, "a new booking starts unchecked");
+});

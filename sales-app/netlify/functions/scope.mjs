@@ -13,7 +13,9 @@
 
 const lc = (v) => String(v || "").toLowerCase();
 const arr = (v) => (Array.isArray(v) ? v : []);
-const COMMISSION_KEYS = ["commissionPerSale", "commissionPerQualified", "commissionTarget", "commissionRule"];
+const COMMISSION_KEYS = ["commissionPerSale", "commissionPerQualified", "commissionTarget", "commissionRule", "payScheme", "schemeStart", "perVisit", "floatAmount", "floatMinBookings", "floatGraceDays", "floatStart"];
+// Office-call and site-visit checks on a booking — written only by Operations/admin.
+export const VISIT_CHECK_FIELDS = ["callConfirmedAt", "callConfirmedBy", "callConfirmedByEmail", "visitResult", "visitResultAt", "visitResultBy", "visitResultByEmail", "visitResultReason", "visitResultNote"];
 const LEAD_QUAL_FIELDS = ["qualStatus", "qualApprovedBy", "qualApprovedAt", "qualNote", "qualReason", "qualDecidedAt", "qualSeen"];
 const QUAL_STATUSES = ["", "pending", "approved", "query", "disqualified"];
 // The planned next follow-up. Whoever changes it stamps followUpPlannedAt, so
@@ -24,7 +26,7 @@ const followKey = (f) => [f && f.at, lc(f && f.byEmail), f && f.note].join("|");
 const jobStub = (j) => ({ id: j.id, ref: j.ref, prospectId: j.prospectId, stage: j.stage, createdAt: j.createdAt });
 // Client money in that isn't sent back — what earns deposit commission.
 const isClientDeposit = (t) => !!t && t.direction === "in" && t.status !== "query";
-const depositStub = (t) => ({ id: t.id, direction: "in", status: t.status, amount: t.amount, date: t.date, createdAt: t.createdAt, recordedAt: t.recordedAt || "", prospectId: t.prospectId || "", installId: t.installId || "" });
+const depositStub = (t) => ({ id: t.id, direction: "in", status: t.status, amount: t.amount, date: t.date, createdAt: t.createdAt, recordedAt: t.recordedAt || "", reviewedAt: t.reviewedAt || "", approvedAt: t.approvedAt || "", prospectId: t.prospectId || "", installId: t.installId || "" });
 const commissionConfig = (data) => {
   const cfg = data.config && typeof data.config === "object" ? data.config : {};
   const out = {};
@@ -221,4 +223,21 @@ export function mergeSalesWrite(stored, incoming, email) {
   });
   const appointments = storedAppts.filter((a) => !myIds.has(a.prospectId)).concat(apptMine);
   return { prospects, appointments };
+}
+
+// Sales and Team lead devices can't mark a booking as office-confirmed or a
+// visit as real / not real (those trigger pay): keep exactly what the server
+// holds, and blank them on a brand-new booking.
+export function guardVisitChecks(storedAppointments, appointments) {
+  const prevById = new Map(arr(storedAppointments).map((a) => [a.id, a]));
+  return arr(appointments).map((a) => {
+    if (!a) return a;
+    const prev = prevById.get(a.id) || {};
+    const out = { ...a };
+    VISIT_CHECK_FIELDS.forEach((k) => {
+      if (prev[k] === undefined || prev[k] === "") delete out[k];
+      else out[k] = prev[k];
+    });
+    return out;
+  });
 }

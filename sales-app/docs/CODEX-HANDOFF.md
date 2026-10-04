@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=69**.
+  base directory `sales-app`). Current asset version: **v=70**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -251,6 +251,41 @@ week runs from one Saturday noon (inclusive) to the next (`payWeek()` in
 Rep dashboard: this week, last week, month to date vs `commissionTarget`.
 Team lead / Ops / admin console: pay per rep for any week (‹ Earlier).
 `normalizeConfig()` rule 3 adds the 2,500 rate once.
+
+## 6b-2. Pay scheme 4 (since v=70, from Sat 3 Oct 2026 12:00 Kampala)
+
+Replaces the 2,500-per-qualified-lead pay, which reps could earn with leads
+that only looked real. Weeks that **start** on or after `config.schemeStart`
+use it; earlier weeks keep the old rule so past pay never changes
+(`VeriskoCommission.weekPay()` picks the rule; a period that straddles the
+switch, e.g. month to date, is split and added). All in `commission.js`, tested
+in `tests/commission-scheme4.test.js`.
+- **Verified site visit — `config.perVisit` (UGX 10,000)**, once per client, in
+  the pay week of `appointment.visitResultAt` when Operations/admin tap **Visit
+  done → Real customer, interested** on the visit card. **Not real** needs a
+  reason (`NOT_REAL_REASONS`, Other needs text) and pays nothing. The Owner can
+  **Undo visit result**.
+- **Client deposit — `config.commissionPerSale` (UGX 100,000)**, once per client,
+  only when the first deposit is **approved** (money landed), in the week of
+  `transaction.approvedAt` (stamped when the Owner approves; older approvals
+  fall back to `reviewedAt`). A pending deposit earns nothing.
+- **Monday float — `config.floatAmount` (UGX 50,000)** for transport and food.
+  Paid each Monday to Sales reps with at least `config.floatMinBookings` (2)
+  **office-confirmed bookings** in the pay week that ended the Saturday before
+  (`floatFor`, `floatMondayFor`). A booking counts once Operations/admin tap
+  **Called — confirmed** on the visit (they called the customer from the office
+  line), once per client, and stops counting if the visit is marked not real.
+  New reps get it for their first `config.floatGraceDays` (14) days from
+  `user.created`. Missing the minimum loses only the next Monday's float; it
+  comes back after a week with 2 confirmed bookings. No float before
+  `config.floatStart` (2026-10-12). The app shows the float; paying it is done
+  outside the app.
+- **Server (`guardVisitChecks` in scope.mjs):** Sales and Team lead devices can
+  never set or clear `callConfirmed*` / `visitResult*`; non-admins can't change
+  a transaction's `approvedAt`. New config keys are in `COMMISSION_KEYS` so reps
+  receive them.
+- The Team lead's qualification queue stays as a quality gate, but approving no
+  longer pays. Settings → Commission settings edits every amount and date.
 
 ## 6c. Import leads from Excel (Admin only, since v=55)
 

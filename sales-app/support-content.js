@@ -234,13 +234,25 @@
   function faq(opts) {
     var o = opts || {};
     var perQ = o.perQualified || "UGX 2,500", perD = o.perDeposit || "UGX 100,000";
+    // Pay scheme 4 (from 3 Oct 2026): pay for verified site visits, approved
+    // deposits and a Monday float — no pay for qualifying alone.
+    var s4 = !!o.perVisit, perV = o.perVisit, flt = o.floatAmount || "UGX 50,000", minB = o.floatMinBookings || 2;
+    var earnA = s4
+      ? perV + " for every client whose site visit Operations marks “Real customer, interested”, and " + perD + " when your client's first deposit is approved and the money is in. Paid every Saturday at 12:00 noon. Every Monday you also get " + flt + " for transport and food if you had at least " + minB + " site bookings the office confirmed by phone last week (new reps get it for their first 2 weeks). Miss it and next Monday's " + flt + " is not paid — book " + minB + " confirmed visits that week and it comes back."
+      : perQ + " for every prospect you move to Qualified that the Team lead approves, and " + perD + " when your client pays their first deposit. Commission is paid every Saturday at 12:00 noon — your Dashboard shows this week's total.";
+    var approveA = s4
+      ? "Open Prospects → Qualified prospects to approve. Approving passes the lead to Operations to book a site visit; the rep is paid only when Operations marks that visit real. Disqualify asks for a reason from the list — choose Other to write your own. The rep sees the reason, and the lead moves to Lost."
+      : "Open Prospects → Qualified prospects to approve. Approve pays the rep " + perQ + " on Saturday. Disqualify asks for a reason from the list — choose Other to write your own. The rep sees the reason, and the lead moves to Lost.";
+    var depositA = s4
+      ? "Tap Record deposit on the prospect. The rep's " + perD + " counts once the Owner approves the money in Cash flow."
+      : "Tap Record deposit on the prospect. The rep's " + perD + " counts straight away; the Owner still approves the money in Cash flow.";
     return [
       { who: "all", q: "How do I add a prospect?",
         a: "Tap + Add prospect on Today or Prospects. Fill in the business, the contact and their phone, take a photo of the business, and capture the GPS pin while you are at the site — the pin is required. Operations checks every new prospect." },
       { who: "all", q: "How do I log a call and plan the next follow-up?",
         a: "Tap Follow-up on the prospect. Pick what happened (Answered, No answer, Call back later…), write a short note of what they said, and set the next follow-up date and action. It is saved to the prospect's history, and the follow-up shows on Today when it is due." },
       { who: "sales", q: "How do I earn commission?",
-        a: perQ + " for every prospect you move to Qualified that the Team lead approves, and " + perD + " when your client pays their first deposit. Commission is paid every Saturday at 12:00 noon — your Dashboard shows this week's total." },
+        a: earnA },
       { who: "sales", q: "My prospect was sent back or disqualified — what now?",
         a: "Sent back: open it, fix what the note asks for, and save — it goes back for review. Disqualified: the reason is shown on the prospect; tap Got it. Only the Team lead or Operations can re-open a disqualified lead." },
       { who: "all", q: "Why is there no commission on some leads?",
@@ -248,11 +260,13 @@
       { who: "all", q: "Can I give a discount?",
         a: "No. Quote only the approved package prices (video 6). If the budget is tight, offer a smaller package instead of inventing a discount." },
       { who: "lead", q: "How do I approve or disqualify a qualified prospect?",
-        a: "Open Prospects → Qualified prospects to approve. Approve pays the rep " + perQ + " on Saturday. Disqualify asks for a reason from the list — choose Other to write your own. The rep sees the reason, and the lead moves to Lost." },
+        a: approveA },
       { who: "lead", q: "How do I work the imported call list?",
         a: "Imported leads appear on Today as “First call”. Tap Call, then Follow-up to log what happened and plan the next call. After three unanswered calls, consider disqualifying the lead with the reason “No answer after several calls”." },
       { who: "lead", q: "How do I record a client's deposit?",
-        a: "Tap Record deposit on the prospect. The rep's " + perD + " counts straight away; the Owner still approves the money in Cash flow." },
+        a: depositA },
+      { who: "lead", q: "How do I confirm a booking and mark a site visit? (Operations)",
+        a: s4 ? "Open Visits. Call the customer from the office line and tap Called — confirmed when they say they expect our team: that counts toward the rep's " + minB + " bookings for the Monday " + flt + ". After the visit, tap Visit done and choose Real customer, interested (pays the rep " + perV + ") or Not real with a reason." : "Open Visits and confirm the visit once the handoff is complete." },
       { who: "all", q: "The app says “Saved on device — sync pending”.",
         a: "You were offline. Your work is safe on this phone. Keep the app open once you have signal again and it sends your changes; don't sign out until it says Synced." }
     ].filter(function (x) { return !o.who || x.who === "all" || x.who === o.who; });

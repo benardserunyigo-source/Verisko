@@ -198,7 +198,21 @@
 
   // Shared workspace config defaults. commissionPerSale = UGX 80,000 per
   // Operations-verified closed sale; commissionTarget = monthly goal.
-  function defaultConfig() { return { pettyLimit: 20000, commissionPerSale: 100000, commissionPerQualified: 2500, commissionTarget: 1600000, commissionRule: 3 }; }
+  function defaultConfig() { return applyScheme4({ pettyLimit: 20000, commissionPerSale: 100000, commissionPerQualified: 2500, commissionTarget: 1600000, commissionRule: 3 }); }
+  // Pay scheme 4 (3 Oct 2026): UGX 10,000 per site visit Operations marks real,
+  // UGX 100,000 per APPROVED first deposit, and a UGX 50,000 Monday float for
+  // reps with 2+ office-confirmed bookings the week before (first 2 weeks
+  // free). Weeks from schemeStart use it; earlier weeks keep the old rule.
+  function applyScheme4(cfg) {
+    cfg.payScheme = 4; cfg.commissionRule = 4;
+    if (!cfg.schemeStart) cfg.schemeStart = "2026-10-03T09:00:00.000Z";   // Sat 3 Oct 2026, 12:00 Kampala
+    if (!(Number(cfg.perVisit) > 0)) cfg.perVisit = 10000;
+    if (!(Number(cfg.floatAmount) >= 0) || cfg.floatAmount === undefined || cfg.floatAmount === "") cfg.floatAmount = 50000;
+    if (cfg.floatMinBookings === undefined || cfg.floatMinBookings === "") cfg.floatMinBookings = 2;
+    if (cfg.floatGraceDays === undefined || cfg.floatGraceDays === "") cfg.floatGraceDays = 14;
+    if (!cfg.floatStart) cfg.floatStart = "2026-10-12";                     // first Monday float
+    return cfg;
+  }
   // Commission rule v2 (28 Sep 2026): UGX 100,000 per closed sale, earned once
   // the client's first payment is recorded and approved. Applied once to any
   // workspace still on the old rate; Operations/admin devices push it up.
@@ -207,6 +221,7 @@
     if (Number(cfg.commissionRule) < 2 || !cfg.commissionRule) { cfg.commissionPerSale = 100000; cfg.commissionRule = 2; }
     // Rule 3 (30 Sep 2026): add UGX 2,500 per Team-lead-approved qualified prospect.
     if (Number(cfg.commissionRule) < 3) { if (!(Number(cfg.commissionPerQualified) > 0)) cfg.commissionPerQualified = 2500; cfg.commissionRule = 3; }
+    if (Number(cfg.commissionRule) < 4) applyScheme4(cfg);
     return cfg;
   }
 
@@ -569,7 +584,7 @@
         .sort(function (a, b) { return String(a.qualRequestedAt || "").localeCompare(String(b.qualRequestedAt || "")); });
       if (qq.length) {
         review += '<section class="review-section"><h2 class="review-head">Qualified prospects to approve <span class="review-count">' + qq.length + "</span></h2>" +
-          '<p class="result-note">Each approval pays the rep ' + money(commissionPerQualified()) + " on Saturday. Not eligible? Disqualify it with a reason — the rep sees why.</p>" + qq.map(qualCard).join("") + "</section>";
+          '<p class="result-note">' + (scheme4() ? "Approve to pass it to Operations for a site visit — the rep is paid only when Operations marks the visit real." : "Each approval pays the rep " + money(commissionPerQualified()) + " on Saturday.") + " Not eligible? Disqualify it with a reason — the rep sees why.</p>" + qq.map(qualCard).join("") + "</section>";
       }
     }
     // Operations: leads the Team lead has approved as qualified that still
@@ -729,6 +744,7 @@
     var actions = "";
     if (p.phone) actions += '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call contact</a>';
     if (/Proposed|Rescheduled/i.test(a.status)) actions += '<button class="btn btn-sm btn-primary" data-confirm="' + a.id + '">Confirm visit</button>';
+    actions += visitCheckActions(a);
     actions += '<button class="btn btn-sm btn-ghost" data-edit="appointment" data-id="' + a.id + '">Edit</button>';
 
     var flag = isConfirmed ? '<div class="handoff-flag"><span aria-hidden="true">✓</span> Ready for handoff to Operations</div>' : "";
@@ -746,10 +762,76 @@
       lineHtml("Phone", p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") +
       line("Location", esc(p.location || "Not recorded")) +
       (a.directions ? line("Directions & access", esc(a.directions)) : "") +
+      visitCheckLines(a) +
       warn +
       "</div><div class=\"item-actions\">" + actions + "</div></article>";
   }
   function line(k, v) { return '<div class="item-line"><span class="k">' + k + '</span><span class="v">' + v + "</span></div>"; }
+
+  /* ---- Pay scheme 4: office call + site-visit result (Operations/admin) ---- */
+  var NOT_REAL_REASONS = ["Property or business not found", "Customer wasn't expecting us", "Not the decision-maker", "Not interested", "Just looking / no budget", "Other"];
+  function visitCheckLines(a) {
+    var call = a.callConfirmedAt
+      ? '<span style="color:var(--green);font-weight:600">✓ Confirmed by phone</span> · ' + esc(a.callConfirmedBy || "") + " · " + esc(dateTimeLabel(a.callConfirmedAt))
+      : '<span style="color:var(--muted)">Not called yet — the office confirms by phone</span>';
+    var res = a.visitResult === "real"
+      ? '<span style="color:var(--green);font-weight:600">✓ Real customer, interested</span> · ' + esc(a.visitResultBy || "") + " · " + esc(dateTimeLabel(a.visitResultAt))
+      : a.visitResult === "not_real"
+        ? '<span style="color:var(--red);font-weight:600">✕ Not real</span> — ' + esc(a.visitResultReason || "") + (a.visitResultNote ? " (" + esc(a.visitResultNote) + ")" : "") + " · " + esc(a.visitResultBy || "")
+        : '<span style="color:var(--muted)">Not visited yet</span>';
+    return line("Office call", call) + line("Site visit", res);
+  }
+  function visitCheckActions(a) {
+    if (!canReviewProspects() || a.status === "Cancelled") return "";
+    var out = "";
+    if (!a.callConfirmedAt && !a.visitResult) out += '<button class="btn btn-sm btn-ghost" data-call-ok="' + esc(a.id) + '">Called — confirmed</button>';
+    if (!a.visitResult) out += '<button class="btn btn-sm btn-primary" data-visit-done="' + esc(a.id) + '">Visit done</button>';
+    else if (isAdmin()) out += '<button class="btn btn-sm btn-ghost" data-visit-undo="' + esc(a.id) + '">Undo visit result</button>';
+    return out;
+  }
+  function markCallConfirmed(id) {
+    var a = state.appointments.find(function (x) { return x.id === id; });
+    if (!a || !canReviewProspects()) return;
+    var p = prospect(a.prospectId);
+    confirmSheet("Customer confirmed by phone?", "Only tap Confirm if you called " + (p.contact || p.business || "the customer") + " from the office line and they said they expect our team. This counts toward the rep's Monday float.", "Confirm").then(function (ok) {
+      if (!ok) return;
+      a.callConfirmedAt = nowIso(); a.callConfirmedBy = (settings.user && settings.user.name) || ""; a.callConfirmedByEmail = ((settings.user && settings.user.email) || "").toLowerCase();
+      saveData("Booking confirmed by phone");
+      render();
+    });
+  }
+  function markVisitDone(id) {
+    var a = state.appointments.find(function (x) { return x.id === id; });
+    if (!a || !canReviewProspects()) return;
+    var p = prospect(a.prospectId);
+    openSheet({ title: "Site visit at " + (p.business || "this site"), body: "Mark only what you saw at the property. Real pays the rep " + money(payOpts().perVisit) + " on Saturday.",
+      choices: ["Real customer, interested", "Not real"], requireChoice: true, confirmLabel: "Save" }).then(function (r) {
+      if (!r) return;
+      var stamp = function (result, reason, note) {
+        a.visitResult = result; a.visitResultAt = nowIso(); a.visitResultBy = (settings.user && settings.user.name) || "";
+        a.visitResultByEmail = ((settings.user && settings.user.email) || "").toLowerCase(); a.visitResultReason = reason || ""; a.visitResultNote = note || "";
+        if (a.status !== "Cancelled") a.status = "Completed";
+        saveData(result === "real" ? "Visit marked real — the rep earns " + money(payOpts().perVisit) : "Visit marked not real");
+        render();
+      };
+      if (r.choice === "Real customer, interested") { stamp("real"); return; }
+      openSheet({ title: "Why not real?", body: "The rep sees this reason.", choices: NOT_REAL_REASONS, input: { placeholder: "Details — required if you pick Other" },
+        requireChoice: true, textFor: "Other", confirmLabel: "Mark not real", danger: true }).then(function (x) {
+        if (!x) return;
+        stamp("not_real", x.choice, x.text);
+      });
+    });
+  }
+  function undoVisitResult(id) {
+    var a = state.appointments.find(function (x) { return x.id === id; });
+    if (!a || !isAdmin()) return;
+    confirmSheet("Undo the visit result?", "The rep's pay for this visit is removed if it hasn't been paid yet.", "Undo", true).then(function (ok) {
+      if (!ok) return;
+      ["visitResult", "visitResultAt", "visitResultBy", "visitResultByEmail", "visitResultReason", "visitResultNote"].forEach(function (k) { a[k] = ""; });
+      saveData("Visit result removed");
+      render();
+    });
+  }
   function lineHtml(k, v) { return line(k, v); }
 
   /* -------------------------------- CASH FLOW ------------------------------- */
@@ -811,10 +893,33 @@
   // UGX 100,000 per client once their first deposit is recorded.
   var commWeekShift = 0;
   function commissionOpts(extra) {
-    return Object.assign({ perQualified: commissionPerQualified(), perDeposit: commissionRate(), users: state.users || [] }, extra || {});
+    return Object.assign({ perQualified: commissionPerQualified(), perDeposit: commissionRate(), users: state.users || [] }, payOpts(), extra || {});
   }
   function commissionFor(period, extra) {
-    return window.VeriskoCommission.earnings(state.prospects || [], state.jobs || [], state.transactions || [], period, commissionOpts(extra));
+    return window.VeriskoCommission.weekPay({ prospects: state.prospects || [], appointments: state.appointments || [], jobs: state.jobs || [], transactions: state.transactions || [] }, period, commissionOpts(extra));
+  }
+  // Scheme 4 settings (see applyScheme4).
+  function cfgNum(k, d) { var v = state.config && state.config[k]; var n = Number(v); return v !== undefined && v !== "" && n >= 0 && !isNaN(n) ? n : d; }
+  function payOpts() {
+    var c = state.config || {};
+    return { schemeStart: c.schemeStart || "2026-10-03T09:00:00.000Z", perVisit: cfgNum("perVisit", 10000), floatAmount: cfgNum("floatAmount", 50000),
+      floatMinBookings: cfgNum("floatMinBookings", 2), floatGraceDays: cfgNum("floatGraceDays", 14), floatStart: c.floatStart || "2026-10-12" };
+  }
+  function scheme4(period) { return window.VeriskoCommission.isScheme4(period || window.VeriskoCommission.payWeek(new Date(), 0), payOpts()); }
+  function userByEmail(email) { email = (email || "").toLowerCase(); return (state.users || []).find(function (u) { return (u.email || "").toLowerCase() === email; }) || { email: email }; }
+  // Monday float for one rep: this Monday (judged on last week) and next
+  // Monday (judged on this week so far).
+  function floatsFor(email) {
+    // next = the Monday this pay week decides (its bookings so far);
+    // now = the Monday the previous pay week already decided.
+    var C = window.VeriskoCommission, u = userByEmail(email), o = payOpts();
+    var nextMon = C.floatMondayFor(C.payWeek(new Date(), 0)), lastMon = new Date(nextMon.getTime() - 7 * 864e5);
+    return { now: C.floatFor(u, state.prospects || [], state.appointments || [], lastMon, o), next: C.floatFor(u, state.prospects || [], state.appointments || [], nextMon, o) };
+  }
+  function floatLine(f, when) {
+    if (!f.active) return '<div class="dash-note">Monday float of ' + money(f.fullAmount) + " " + esc(f.reason) + ".</div>";
+    return '<div class="dash-note">' + when + " (" + window.VeriskoCommission.label(f.monday) + "): " +
+      (f.earned ? '<strong style="color:var(--green)">' + money(f.amount) + " ✓</strong> — " + esc(f.reason) : '<strong style="color:var(--red)">not paid</strong> — ' + esc(f.reason)) + "</div>";
   }
   function monthToDate() {
     var C = window.VeriskoCommission, now = new Date();
@@ -848,6 +953,31 @@
     var depAll = ps.filter(function (p) { return !!firstPaymentFor(p); }).length;
     var pct = target ? Math.min(100, Math.round((mtd / target) * 100)) : 0;
 
+    if (scheme4(week)) {
+      var fl = floatsFor(email), perV = payOpts().perVisit, minB = payOpts().floatMinBookings;
+      var soFar = fl.next.bookings.length;
+      var hero4 = '<section class="card dash-hero">' +
+        '<p class="dash-eyebrow">Pay this week</p>' +
+        '<div class="dash-big">' + money(w.total) + "</div>" +
+        '<div class="dash-sub">Paid ' + C.label(week.payday, true) + " · since " + C.label(week.start, true) + "</div>" +
+        '<div class="pay-summary" style="margin-top:12px">' + commLine((w.visits || []).length, perV, "site visits Operations marked real") + commLine(w.deposits.length, perD, "approved client deposits") + "</div>" +
+        '<div class="dash-note">Confirmed bookings this week: <strong>' + soFar + " of " + minB + "</strong>" + (soFar >= minB ? " — the " + C.label(fl.next.monday) + " float is safe ✓" : " — " + (minB - soFar) + " more for the " + money(fl.next.fullAmount) + " on " + C.label(fl.next.monday)) + ".</div>" +
+        floatLine(fl.now, "Monday float") +
+        '<div class="dash-note">Last week: <strong>' + money(lw.total) + "</strong> (paid " + C.label(last.payday, true) + ").</div>" +
+        '<div class="dash-foot" style="margin-top:12px">Month to date ' + money(mtd) + " of " + money(target) + " target</div>" +
+        '<div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div></section>';
+      var tiles4 = '<div class="metric-grid">' + metricTile(total, "My prospects") + metricTile(soFar, "Confirmed bookings this week") +
+        metricTile(depAll, "Clients with a deposit") + metricTile(conv + "%", "Close rate") + "</div>";
+      var how4 = '<p class="result-note">You earn ' + money(perV) + " when Operations visits your client and marks them a real, interested customer, and " + money(perD) +
+        " when their first deposit is approved. Paid every Saturday at 12:00 noon. Each Monday: " + money(payOpts().floatAmount) + " for transport and food if the office confirmed at least " + minB +
+        " of your site bookings by phone the week before.</p>";
+      var byStage4 = STAGES.map(function (s) { return { label: s, n: ps.filter(function (p) { return p.stage === s; }).length }; }).filter(function (x) { return x.n > 0; });
+      var maxN4 = byStage4.reduce(function (m, x) { return Math.max(m, x.n); }, 1);
+      var bars4 = byStage4.length ? '<section class="card dash-bars"><h2 class="dash-h2">My pipeline by stage</h2>' +
+        byStage4.map(function (x) { return '<div class="bar-row"><span class="bar-label">' + esc(x.label) + '</span><span class="bar-track"><span class="bar-fill" style="width:' + Math.round((x.n / maxN4) * 100) + '%"></span></span><span class="bar-count">' + x.n + "</span></div>"; }).join("") + "</section>" : "";
+      content.innerHTML = hero4 + tiles4 + how4 + bars4;
+      return;
+    }
     var hero = '<section class="card dash-hero">' +
       '<p class="dash-eyebrow">Commission this week</p>' +
       '<div class="dash-big">' + money(w.total) + "</div>" +
@@ -907,10 +1037,47 @@
           '<span class="lead-comm">' + money(r.total) + "</span></div>";
       }).join("") + "</section>" : '<p class="result-note">No commission earned in this week yet.</p>';
 
+    if (scheme4(week)) {
+      var po = payOpts();
+      var nV = e.reps.reduce(function (n, r) { return n + (r.visits || []).length; }, 0);
+      var nB = e.reps.reduce(function (n, r) { return n + (r.bookings || 0); }, 0);
+      hero = '<section class="card dash-hero">' + nav +
+        '<p class="dash-eyebrow">' + (isCurrent ? "Pay so far · paid " : "Pay for week paid ") + C.label(week.payday, true) + "</p>" +
+        '<div class="dash-big">' + money(e.total) + "</div>" +
+        '<div class="dash-sub">' + nV + " real site visits × " + money(po.perVisit) + " · " + nD + " approved deposits × " + money(perD) + "</div>" +
+        '<div class="dash-note">Week from ' + C.label(week.start, true) + " to " + C.label(week.end, true) + " (Kampala time). " + nB + (nB === 1 ? " booking" : " bookings") + " confirmed by phone. Monday floats are listed below.</div></section>";
+      board = e.reps.length ? '<section class="card dash-bars"><h2 class="dash-h2">Pay per rep</h2>' +
+        '<div class="lead-head"><span>Rep</span><span>Visits · Deposits · Booked</span><span>Pay</span></div>' +
+        e.reps.map(function (r) {
+          var detail = (r.visits || []).map(function (d) { return esc(d.business || ""); }).concat(r.deposits.map(function (d) { return "deposit: " + esc(d.business || ""); })).join(", ");
+          return '<div class="lead-row"><span class="lead-name"><strong>' + esc(r.name) + "</strong><small>" + (detail || "Nothing paid this week yet") + "</small></span>" +
+            '<span class="lead-closed">' + (r.visits || []).length + " · " + r.deposits.length + " · " + (r.bookings || 0) + "</span>" +
+            '<span class="lead-comm">' + money(r.total) + "</span></div>";
+        }).join("") + "</section>" : '<p class="result-note">No pay earned in this week yet.</p>';
+      var reps = (state.users || []).filter(function (u) { return u && u.role === "sales"; });
+      var floats = reps.length ? '<section class="card dash-bars"><h2 class="dash-h2">Monday float · ' + money(po.floatAmount) + "</h2>" +
+        '<p class="result-note" style="margin-top:0">Paid each Monday to reps with at least ' + po.floatMinBookings + " bookings the office confirmed by phone in the week before. New reps get it for their first " + Math.round(po.floatGraceDays / 7) + " weeks.</p>" +
+        '<div class="lead-head"><span>Rep</span><span>' + window.VeriskoCommission.label(floatsFor("").now.monday) + '</span><span>' + window.VeriskoCommission.label(floatsFor("").next.monday) + "</span></div>" +
+        reps.map(function (u) {
+          var f = floatsFor(u.email);
+          var cell = function (x) { return !x.active ? "—" : x.earned ? '<span style="color:var(--green)">' + money(x.amount) + "</span>" : '<span style="color:var(--red)">0</span>'; };
+          return '<div class="lead-row"><span class="lead-name"><strong>' + esc(u.name) + "</strong><small>This pay week: " + f.next.bookings.length + " of " + po.floatMinBookings + " confirmed" + (f.next.inGrace ? " · first weeks" : "") + "</small></span>" +
+            '<span class="lead-closed">' + cell(f.now) + '</span><span class="lead-comm">' + (f.next.active ? (f.next.earned ? money(f.next.amount) : f.next.bookings.length + "/" + po.floatMinBookings) : "—") + "</span></div>";
+        }).join("") + "</section>" : "";
+      board += floats;
+    }
     var editor = canReviewProspects() ? '<section class="card settings-card"><h2>Commission settings</h2>' +
-      "<p>Paid weekly, every Saturday at 12:00 noon. A qualified prospect counts once the Team lead approves it; a client counts once, as soon as their first deposit is recorded.</p>" +
+      (scheme4(week)
+        ? "<p>Paid every Saturday at 12:00 noon: a client counts once when Operations marks their site visit real, and once when their first deposit is approved. The Monday float goes to reps with enough office-confirmed bookings the week before.</p>"
+        : "<p>Paid weekly, every Saturday at 12:00 noon. A qualified prospect counts once the Team lead approves it; a client counts once, as soon as their first deposit is recorded.</p>") +
       '<form id="commissionForm" class="add-member">' +
-      '<div class="field"><label for="commQual">Per qualified prospect (UGX)</label><input id="commQual" name="commQual" type="number" inputmode="numeric" min="0" step="500" value="' + perQ + '"></div>' +
+      (scheme4(week)
+        ? '<div class="field"><label for="commVisit">Per site visit marked real (UGX)</label><input id="commVisit" name="commVisit" type="number" inputmode="numeric" min="0" step="500" value="' + payOpts().perVisit + '"></div>' +
+          '<div class="field"><label for="commFloat">Monday float — transport &amp; food (UGX)</label><input id="commFloat" name="commFloat" type="number" inputmode="numeric" min="0" step="1000" value="' + payOpts().floatAmount + '"></div>' +
+          '<div class="field"><label for="commMinB">Confirmed bookings needed per week</label><input id="commMinB" name="commMinB" type="number" inputmode="numeric" min="0" step="1" value="' + payOpts().floatMinBookings + '"></div>' +
+          '<div class="field"><label for="commGrace">Float for new reps for their first (days)</label><input id="commGrace" name="commGrace" type="number" inputmode="numeric" min="0" step="1" value="' + payOpts().floatGraceDays + '"></div>' +
+          '<div class="field"><label for="commFloatStart">First Monday float on</label><input id="commFloatStart" name="commFloatStart" type="date" value="' + esc(payOpts().floatStart) + '"></div>'
+        : '<div class="field"><label for="commQual">Per qualified prospect (UGX)</label><input id="commQual" name="commQual" type="number" inputmode="numeric" min="0" step="500" value="' + perQ + '"></div>') +
       '<div class="field"><label for="commRate">Per client deposit (UGX)</label><input id="commRate" name="commRate" type="number" inputmode="numeric" min="0" step="1000" value="' + perD + '"></div>' +
       '<div class="field"><label for="commTarget">Monthly target per rep (UGX)</label><input id="commTarget" name="commTarget" type="number" inputmode="numeric" min="0" step="10000" value="' + target + '"></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Save commission settings</button></form></section>' : "";
@@ -1700,7 +1867,7 @@
     var t = state.transactions.find(function (x) { return x.id === editing.id; });
     if (!t) return;
     if (t.direction === "out" && !t.proofId && !pendingProof && !t.preapproved) { showFormError("Attach a receipt before approving — or the recorder can mark it pre-approved by the cash-flow team."); return; }
-    t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.reviewNote = "";
+    t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.approvedAt = nowIso(); t.reviewNote = "";
     dialog.close(); saveData("Entry approved"); render();
   }
   async function sendBackTransaction() {
@@ -1713,7 +1880,7 @@
     var t = state.transactions.find(function (x) { return x.id === id; });
     if (!t) return;
     if (needsProof(t)) { toast("Add a proof photo before approving."); return; }
-    t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.reviewNote = "";
+    t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.approvedAt = nowIso(); t.reviewNote = "";
     saveData("Entry approved"); render();
   }
   async function sendBackTx(id) {
@@ -2081,7 +2248,8 @@
         }).join("") + "</div>" : '<p class="settings-note">No sales team members yet.</p>') + "</section>";
     }
     var who = canApproveQual() ? "lead" : "sales";
-    var faq = S.faq({ who: who, perQualified: money(commissionPerQualified()), perDeposit: money(commissionRate()) });
+    var faq = S.faq(Object.assign({ who: who, perQualified: money(commissionPerQualified()), perDeposit: money(commissionRate()) },
+      scheme4() ? { perVisit: money(payOpts().perVisit), floatAmount: money(payOpts().floatAmount), floatMinBookings: payOpts().floatMinBookings } : {}));
     var help = '<section class="card settings-card"><h2>Quick help</h2>' + faq.map(function (x) {
       return '<details class="help-item"><summary>' + esc(x.q) + "</summary><p>" + esc(x.a) + "</p></details>";
     }).join("") + '<p class="settings-note" style="margin-top:12px">Still stuck? Write your question down and bring it to your immediate supervisor.</p></section>';
@@ -4299,6 +4467,9 @@
     var edit = e.target.closest("[data-edit]"); if (edit) { openForm(edit.dataset.edit, edit.dataset.id); return; }
     var sched = e.target.closest("[data-schedule]"); if (sched) { openForm("appointment", null, sched.dataset.schedule); return; }
     var confirmBtn = e.target.closest("[data-confirm]"); if (confirmBtn) { confirmVisit(confirmBtn.dataset.confirm); return; }
+    var callOk = e.target.closest("[data-call-ok]"); if (callOk) { markCallConfirmed(callOk.getAttribute("data-call-ok")); return; }
+    var visitDone = e.target.closest("[data-visit-done]"); if (visitDone) { markVisitDone(visitDone.getAttribute("data-visit-done")); return; }
+    var visitUndo = e.target.closest("[data-visit-undo]"); if (visitUndo) { undoVisitResult(visitUndo.getAttribute("data-visit-undo")); return; }
     var neu = e.target.closest("[data-new]"); if (neu) { openForm(neu.dataset.new); return; }
     var cashMode = e.target.closest("[data-cash-mode]"); if (cashMode) { cashPeriodMode = cashMode.dataset.cashMode; cashPeriodAnchor = today; renderCashflow(); return; }
     var cashStep = e.target.closest("[data-cash-step]"); if (cashStep) { cashPeriodAnchor = window.VeriskoCashflowReport.shiftCashflowAnchor(cashPeriodAnchor, cashPeriodMode, Number(cashStep.dataset.cashStep)); renderCashflow(); return; }
@@ -4329,6 +4500,9 @@
       if (!state.config || typeof state.config !== "object") state.config = {};
       state.config.commissionPerSale = Math.max(0, Math.round(Number(commForm.querySelector("[name=commRate]").value) || 0));
       var cq = commForm.querySelector("[name=commQual]"); if (cq) state.config.commissionPerQualified = Math.max(0, Math.round(Number(cq.value) || 0));
+      var cnum = function (n, k) { var el = commForm.querySelector("[name=" + n + "]"); if (el && el.value !== "") state.config[k] = Math.max(0, Math.round(Number(el.value) || 0)); };
+      cnum("commVisit", "perVisit"); cnum("commFloat", "floatAmount"); cnum("commMinB", "floatMinBookings"); cnum("commGrace", "floatGraceDays");
+      var cfs = commForm.querySelector("[name=commFloatStart]"); if (cfs && /^\d{4}-\d{2}-\d{2}$/.test(cfs.value)) state.config.floatStart = cfs.value;
       state.config.commissionTarget = Math.max(0, Math.round(Number(commForm.querySelector("[name=commTarget]").value) || 0));
       saveData("Commission settings saved");
       render();

@@ -63,6 +63,9 @@ test("help answers are filtered by role and use the app's commission amounts", (
   assert.ok(sales.some((x) => /UGX 3,000/.test(x.a) && /UGX 120,000/.test(x.a)));
   assert.ok(!sales.some((x) => x.who === "lead"));
   assert.ok(S.faq({ who: "lead" }).some((x) => /approve or disqualify/.test(x.q)));
+  const s4 = S.faq({ who: "sales", perVisit: "UGX 10,000", perDeposit: "UGX 100,000", floatAmount: "UGX 50,000", floatMinBookings: 2 });
+  const earn = s4.find((x) => /earn commission/.test(x.q)).a;
+  assert.ok(/UGX 10,000/.test(earn) && /approved/.test(earn) && /UGX 50,000/.test(earn) && !/2,500/.test(earn), "scheme 4 wording");
 });
 
 test("new certificates: earned after the viewer last dismissed, newest first", () => {

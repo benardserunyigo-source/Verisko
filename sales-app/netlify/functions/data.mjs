@@ -9,7 +9,7 @@
 import { getStore } from "@netlify/blobs";
 import { AUTH_STORE, STAFF_STORE, identify, protectPinUsers, displayPhone, idOverdue } from "./pin-auth.mjs";
 import { supabaseUser } from "./auth.mjs";
-import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, ownsProspect, keepFollowUps, keepNewerPlan, keepImported, mergeTraining } from "./scope.mjs";
+import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, ownsProspect, keepFollowUps, keepNewerPlan, keepImported, mergeTraining, guardVisitChecks } from "./scope.mjs";
 
 const STORE = "verisko-sales";
 const KEY = "app-data";
@@ -146,6 +146,10 @@ export default async (request) => {
         });
       }
 
+      // Pay scheme 4: only Operations/admin confirm a booking by phone or mark
+      // a site visit real / not real — those earn the rep pay.
+      if (!canReview) clean.appointments = guardVisitChecks(storedAppointments, clean.appointments);
+
       // Team roster: admins manage everyone. Operations manage only the
       // non-admin roster (Sales/Operations) — never the Owner or Technical
       // accounts, and can never grant admin. Sales can't change it at all.
@@ -183,8 +187,10 @@ export default async (request) => {
             const prev = prevById[t.id];
             // Operations cannot approve — revert any new/changed approval to its prior state (pending).
             if (t && t.status === "approved" && (!prev || prev.status !== "approved")) {
-              return prev || { ...t, status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: "" };
+              return prev || { ...t, status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: "", approvedAt: "" };
             }
+            // The approval time decides which week deposit commission is paid in.
+            if (t && (t.approvedAt || "") !== ((prev && prev.approvedAt) || "")) return { ...t, approvedAt: (prev && prev.approvedAt) || "" };
             return t;
           });
         }
