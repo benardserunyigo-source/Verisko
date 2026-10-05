@@ -127,9 +127,9 @@
 
   /* ------------------------------------------------------------------------
    * Pay scheme 4 (from 3 Oct 2026). Pays only for proof:
-   *   • Verified site visit — config.perVisit (UGX 10,000), once per client,
-   *     when Operations stands at the property and marks the visit
-   *     "Real customer, interested" (appointment.visitResult = "real",
+   *   • Site visit carried out — config.perVisit (UGX 10,000), once per client,
+   *     when Operations was on site and the client let us assess it for a
+   *     quote, whatever they decide (appointment.visitResult = "real",
    *     visitResultAt = when). Paid in the pay week of visitResultAt.
    *   • Client deposit — config.commissionPerSale (UGX 100,000), once per
    *     client, only when the first deposit is APPROVED (money landed);
@@ -140,7 +140,7 @@
    *     week that ended the Saturday before, or who is in their first
    *     config.floatGraceDays (14) days. A booking counts once the office
    *     called the customer and confirmed (appointment.callConfirmedAt), and
-   *     stops counting if Operations later marks the visit "not real".
+   *     stops counting if Operations marks that the visit didn't happen ("not_real").
    * Weeks that started before config.schemeStart keep the old rule (2,500 per
    * approved qualified prospect + 100,000 per recorded deposit) so past pay
    * history never changes.
@@ -158,7 +158,7 @@
     });
     return best ? { tx: best, at: bestAt } : null;
   }
-  // The first visit Operations marked real for this client (one pay per client).
+  // The first visit Operations carried out for this client (one pay per client).
   function firstRealVisit(p, appts) {
     var best = null, bestAt = null;
     (appts || []).forEach(function (a) {

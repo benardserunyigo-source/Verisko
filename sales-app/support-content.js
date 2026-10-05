@@ -238,10 +238,10 @@
     // deposits and a Monday float — no pay for qualifying alone.
     var s4 = !!o.perVisit, perV = o.perVisit, flt = o.floatAmount || "UGX 50,000", minB = o.floatMinBookings || 2;
     var earnA = s4
-      ? perV + " for every client whose site visit Operations marks “Real customer, interested”, and " + perD + " when your client's first deposit is approved and the money is in. Paid every Saturday at 12:00 noon. Every Monday you also get " + flt + " for transport and food if you had at least " + minB + " site bookings the office confirmed by phone last week (new reps get it for their first 2 weeks). Miss it and next Monday's " + flt + " is not paid — book " + minB + " confirmed visits that week and it comes back."
+      ? perV + " for every client Operations visits who lets us look around to prepare a quote — even if they don't buy — and " + perD + " when your client's first deposit is approved and the money is in. Paid every Saturday at 12:00 noon. Every Monday you also get " + flt + " for transport and food if you had at least " + minB + " site bookings the office confirmed by phone last week (new reps get it for their first 2 weeks). Miss it and next Monday's " + flt + " is not paid — book " + minB + " confirmed visits that week and it comes back."
       : perQ + " for every prospect you move to Qualified that the Team lead approves, and " + perD + " when your client pays their first deposit. Commission is paid every Saturday at 12:00 noon — your Dashboard shows this week's total.";
     var approveA = s4
-      ? "Open Prospects → Qualified prospects to approve. Approving passes the lead to Operations to book a site visit; the rep is paid only when Operations marks that visit real. Disqualify asks for a reason from the list — choose Other to write your own. The rep sees the reason, and the lead moves to Lost."
+      ? "Open Prospects → Qualified prospects to approve. Approving passes the lead to Operations to book a site visit; the rep is paid once Operations carries out that visit. Disqualify asks for a reason from the list — choose Other to write your own. The rep sees the reason, and the lead moves to Lost."
       : "Open Prospects → Qualified prospects to approve. Approve pays the rep " + perQ + " on Saturday. Disqualify asks for a reason from the list — choose Other to write your own. The rep sees the reason, and the lead moves to Lost.";
     var depositA = s4
       ? "Tap Record deposit on the prospect. The rep's " + perD + " counts once the Owner approves the money in Cash flow."
@@ -266,7 +266,7 @@
       { who: "lead", q: "How do I record a client's deposit?",
         a: depositA },
       { who: "lead", q: "How do I confirm a booking and mark a site visit? (Operations)",
-        a: s4 ? "Open Visits. Call the customer from the office line and tap Called — confirmed when they say they expect our team: that counts toward the rep's " + minB + " bookings for the Monday " + flt + ". After the visit, tap Visit done and choose Real customer, interested (pays the rep " + perV + ") or Not real with a reason." : "Open Visits and confirm the visit once the handoff is complete." },
+        a: s4 ? "Open Visits. Call the customer from the office line and tap Called — confirmed when they say they expect our team: that counts toward the rep's " + minB + " bookings for the Monday " + flt + ". After the visit, tap Visit done and choose Visited — client let us assess for a quote (pays the rep " + perV + ", whatever the client decides) or Visit didn't happen with a reason." : "Open Visits and confirm the visit once the handoff is complete." },
       { who: "all", q: "The app says “Saved on device — sync pending”.",
         a: "You were offline. Your work is safe on this phone. Keep the app open once you have signal again and it sends your changes; don't sign out until it says Synced." }
     ].filter(function (x) { return !o.who || x.who === "all" || x.who === o.who; });

@@ -199,7 +199,8 @@
   // Shared workspace config defaults. commissionPerSale = UGX 80,000 per
   // Operations-verified closed sale; commissionTarget = monthly goal.
   function defaultConfig() { return applyScheme4({ pettyLimit: 20000, commissionPerSale: 100000, commissionPerQualified: 2500, commissionTarget: 1600000, commissionRule: 3 }); }
-  // Pay scheme 4 (3 Oct 2026): UGX 10,000 per site visit Operations marks real,
+  // Pay scheme 4 (3 Oct 2026): UGX 10,000 per site visit Operations carries out
+  // (the client let us assess the site for a quote — whatever they decide),
   // UGX 100,000 per APPROVED first deposit, and a UGX 50,000 Monday float for
   // reps with 2+ office-confirmed bookings the week before (first 2 weeks
   // free). Weeks from schemeStart use it; earlier weeks keep the old rule.
@@ -584,7 +585,7 @@
         .sort(function (a, b) { return String(a.qualRequestedAt || "").localeCompare(String(b.qualRequestedAt || "")); });
       if (qq.length) {
         review += '<section class="review-section"><h2 class="review-head">Qualified prospects to approve <span class="review-count">' + qq.length + "</span></h2>" +
-          '<p class="result-note">' + (scheme4() ? "Approve to pass it to Operations for a site visit — the rep is paid only when Operations marks the visit real." : "Each approval pays the rep " + money(commissionPerQualified()) + " on Saturday.") + " Not eligible? Disqualify it with a reason — the rep sees why.</p>" + qq.map(qualCard).join("") + "</section>";
+          '<p class="result-note">' + (scheme4() ? "Approve to pass it to Operations for a site visit — the rep is paid once Operations carries out the visit." : "Each approval pays the rep " + money(commissionPerQualified()) + " on Saturday.") + " Not eligible? Disqualify it with a reason — the rep sees why.</p>" + qq.map(qualCard).join("") + "</section>";
       }
     }
     // Operations: leads the Team lead has approved as qualified that still
@@ -769,15 +770,18 @@
   function line(k, v) { return '<div class="item-line"><span class="k">' + k + '</span><span class="v">' + v + "</span></div>"; }
 
   /* ---- Pay scheme 4: office call + site-visit result (Operations/admin) ---- */
-  var NOT_REAL_REASONS = ["Property or business not found", "Customer wasn't expecting us", "Not the decision-maker", "Not interested", "Just looking / no budget", "Other"];
+  // Visit done = Operations was on site and the client let us assess it for a
+  // quote (pays the rep, whatever the client decides). Didn't happen = no pay.
+  var VISIT_DONE_LABEL = "Visited — client let us assess for a quote", VISIT_FAILED_LABEL = "Visit didn't happen";
+  var NOT_REAL_REASONS = ["Nobody there / client didn't show", "Address or business not found", "Client refused the visit", "Client wasn't expecting us", "Other"];
   function visitCheckLines(a) {
     var call = a.callConfirmedAt
       ? '<span style="color:var(--green);font-weight:600">✓ Confirmed by phone</span> · ' + esc(a.callConfirmedBy || "") + " · " + esc(dateTimeLabel(a.callConfirmedAt))
       : '<span style="color:var(--muted)">Not called yet — the office confirms by phone</span>';
     var res = a.visitResult === "real"
-      ? '<span style="color:var(--green);font-weight:600">✓ Real customer, interested</span> · ' + esc(a.visitResultBy || "") + " · " + esc(dateTimeLabel(a.visitResultAt))
+      ? '<span style="color:var(--green);font-weight:600">✓ Visited — quote assessment done</span> · ' + esc(a.visitResultBy || "") + " · " + esc(dateTimeLabel(a.visitResultAt))
       : a.visitResult === "not_real"
-        ? '<span style="color:var(--red);font-weight:600">✕ Not real</span> — ' + esc(a.visitResultReason || "") + (a.visitResultNote ? " (" + esc(a.visitResultNote) + ")" : "") + " · " + esc(a.visitResultBy || "")
+        ? '<span style="color:var(--red);font-weight:600">✕ Visit didn\'t happen</span> — ' + esc(a.visitResultReason || "") + (a.visitResultNote ? " (" + esc(a.visitResultNote) + ")" : "") + " · " + esc(a.visitResultBy || "")
         : '<span style="color:var(--muted)">Not visited yet</span>';
     return line("Office call", call) + line("Site visit", res);
   }
@@ -804,19 +808,19 @@
     var a = state.appointments.find(function (x) { return x.id === id; });
     if (!a || !canReviewProspects()) return;
     var p = prospect(a.prospectId);
-    openSheet({ title: "Site visit at " + (p.business || "this site"), body: "Mark only what you saw at the property. Real pays the rep " + money(payOpts().perVisit) + " on Saturday.",
-      choices: ["Real customer, interested", "Not real"], requireChoice: true, confirmLabel: "Save" }).then(function (r) {
+    openSheet({ title: "Site visit at " + (p.business || "this site"), body: "Choose the first one if you were on site and the client let you look around to prepare a quote, whatever they decide. It pays the rep " + money(payOpts().perVisit) + " on Saturday.",
+      choices: [VISIT_DONE_LABEL, VISIT_FAILED_LABEL], requireChoice: true, confirmLabel: "Save" }).then(function (r) {
       if (!r) return;
       var stamp = function (result, reason, note) {
         a.visitResult = result; a.visitResultAt = nowIso(); a.visitResultBy = (settings.user && settings.user.name) || "";
         a.visitResultByEmail = ((settings.user && settings.user.email) || "").toLowerCase(); a.visitResultReason = reason || ""; a.visitResultNote = note || "";
         if (a.status !== "Cancelled") a.status = "Completed";
-        saveData(result === "real" ? "Visit marked real — the rep earns " + money(payOpts().perVisit) : "Visit marked not real");
+        saveData(result === "real" ? "Visit done — the rep earns " + money(payOpts().perVisit) : "Marked: visit didn't happen");
         render();
       };
-      if (r.choice === "Real customer, interested") { stamp("real"); return; }
-      openSheet({ title: "Why not real?", body: "The rep sees this reason.", choices: NOT_REAL_REASONS, input: { placeholder: "Details — required if you pick Other" },
-        requireChoice: true, textFor: "Other", confirmLabel: "Mark not real", danger: true }).then(function (x) {
+      if (r.choice === VISIT_DONE_LABEL) { stamp("real"); return; }
+      openSheet({ title: "Why didn't the visit happen?", body: "The rep sees this reason. No pay, and it doesn't count toward their bookings.", choices: NOT_REAL_REASONS, input: { placeholder: "Details — required if you pick Other" },
+        requireChoice: true, textFor: "Other", confirmLabel: "Save", danger: true }).then(function (x) {
         if (!x) return;
         stamp("not_real", x.choice, x.text);
       });
@@ -960,7 +964,7 @@
         '<p class="dash-eyebrow">Pay this week</p>' +
         '<div class="dash-big">' + money(w.total) + "</div>" +
         '<div class="dash-sub">Paid ' + C.label(week.payday, true) + " · since " + C.label(week.start, true) + "</div>" +
-        '<div class="pay-summary" style="margin-top:12px">' + commLine((w.visits || []).length, perV, "site visits Operations marked real") + commLine(w.deposits.length, perD, "approved client deposits") + "</div>" +
+        '<div class="pay-summary" style="margin-top:12px">' + commLine((w.visits || []).length, perV, "site visits Operations carried out") + commLine(w.deposits.length, perD, "approved client deposits") + "</div>" +
         '<div class="dash-note">Confirmed bookings this week: <strong>' + soFar + " of " + minB + "</strong>" + (soFar >= minB ? " — the " + C.label(fl.next.monday) + " float is safe ✓" : " — " + (minB - soFar) + " more for the " + money(fl.next.fullAmount) + " on " + C.label(fl.next.monday)) + ".</div>" +
         floatLine(fl.now, "Monday float") +
         '<div class="dash-note">Last week: <strong>' + money(lw.total) + "</strong> (paid " + C.label(last.payday, true) + ").</div>" +
@@ -968,7 +972,7 @@
         '<div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div></section>';
       var tiles4 = '<div class="metric-grid">' + metricTile(total, "My prospects") + metricTile(soFar, "Confirmed bookings this week") +
         metricTile(depAll, "Clients with a deposit") + metricTile(conv + "%", "Close rate") + "</div>";
-      var how4 = '<p class="result-note">You earn ' + money(perV) + " when Operations visits your client and marks them a real, interested customer, and " + money(perD) +
+      var how4 = '<p class="result-note">You earn ' + money(perV) + " for every client Operations visits who lets us look around to prepare a quote — even if they don't buy — and " + money(perD) +
         " when their first deposit is approved. Paid every Saturday at 12:00 noon. Each Monday: " + money(payOpts().floatAmount) + " for transport and food if the office confirmed at least " + minB +
         " of your site bookings by phone the week before.</p>";
       var byStage4 = STAGES.map(function (s) { return { label: s, n: ps.filter(function (p) { return p.stage === s; }).length }; }).filter(function (x) { return x.n > 0; });
@@ -1044,7 +1048,7 @@
       hero = '<section class="card dash-hero">' + nav +
         '<p class="dash-eyebrow">' + (isCurrent ? "Pay so far · paid " : "Pay for week paid ") + C.label(week.payday, true) + "</p>" +
         '<div class="dash-big">' + money(e.total) + "</div>" +
-        '<div class="dash-sub">' + nV + " real site visits × " + money(po.perVisit) + " · " + nD + " approved deposits × " + money(perD) + "</div>" +
+        '<div class="dash-sub">' + nV + " site visits done × " + money(po.perVisit) + " · " + nD + " approved deposits × " + money(perD) + "</div>" +
         '<div class="dash-note">Week from ' + C.label(week.start, true) + " to " + C.label(week.end, true) + " (Kampala time). " + nB + (nB === 1 ? " booking" : " bookings") + " confirmed by phone. Monday floats are listed below.</div></section>";
       board = e.reps.length ? '<section class="card dash-bars"><h2 class="dash-h2">Pay per rep</h2>' +
         '<div class="lead-head"><span>Rep</span><span>Visits · Deposits · Booked</span><span>Pay</span></div>' +
@@ -1068,11 +1072,11 @@
     }
     var editor = canReviewProspects() ? '<section class="card settings-card"><h2>Commission settings</h2>' +
       (scheme4(week)
-        ? "<p>Paid every Saturday at 12:00 noon: a client counts once when Operations marks their site visit real, and once when their first deposit is approved. The Monday float goes to reps with enough office-confirmed bookings the week before.</p>"
+        ? "<p>Paid every Saturday at 12:00 noon: a client counts once when Operations carries out their site visit, and once when their first deposit is approved. The Monday float goes to reps with enough office-confirmed bookings the week before.</p>"
         : "<p>Paid weekly, every Saturday at 12:00 noon. A qualified prospect counts once the Team lead approves it; a client counts once, as soon as their first deposit is recorded.</p>") +
       '<form id="commissionForm" class="add-member">' +
       (scheme4(week)
-        ? '<div class="field"><label for="commVisit">Per site visit marked real (UGX)</label><input id="commVisit" name="commVisit" type="number" inputmode="numeric" min="0" step="500" value="' + payOpts().perVisit + '"></div>' +
+        ? '<div class="field"><label for="commVisit">Per site visit carried out (UGX)</label><input id="commVisit" name="commVisit" type="number" inputmode="numeric" min="0" step="500" value="' + payOpts().perVisit + '"></div>' +
           '<div class="field"><label for="commFloat">Monday float — transport &amp; food (UGX)</label><input id="commFloat" name="commFloat" type="number" inputmode="numeric" min="0" step="1000" value="' + payOpts().floatAmount + '"></div>' +
           '<div class="field"><label for="commMinB">Confirmed bookings needed per week</label><input id="commMinB" name="commMinB" type="number" inputmode="numeric" min="0" step="1" value="' + payOpts().floatMinBookings + '"></div>' +
           '<div class="field"><label for="commGrace">Float for new reps for their first (days)</label><input id="commGrace" name="commGrace" type="number" inputmode="numeric" min="0" step="1" value="' + payOpts().floatGraceDays + '"></div>' +

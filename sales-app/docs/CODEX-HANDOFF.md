@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=70**.
+  base directory `sales-app`). Current asset version: **v=71**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -260,11 +260,13 @@ use it; earlier weeks keep the old rule so past pay never changes
 (`VeriskoCommission.weekPay()` picks the rule; a period that straddles the
 switch, e.g. month to date, is split and added). All in `commission.js`, tested
 in `tests/commission-scheme4.test.js`.
-- **Verified site visit — `config.perVisit` (UGX 10,000)**, once per client, in
-  the pay week of `appointment.visitResultAt` when Operations/admin tap **Visit
-  done → Real customer, interested** on the visit card. **Not real** needs a
-  reason (`NOT_REAL_REASONS`, Other needs text) and pays nothing. The Owner can
-  **Undo visit result**.
+- **Site visit carried out — `config.perVisit` (UGX 10,000)**, once per client,
+  in the pay week of `appointment.visitResultAt` when Operations/admin tap
+  **Visit done → Visited — client let us assess for a quote** (since v=71 it
+  pays whatever the client decides; stored as `visitResult: "real"`).
+  **Visit didn't happen** (`"not_real"`) needs a reason (`NOT_REAL_REASONS`:
+  nobody there, address not found, client refused, client wasn't expecting
+  us, Other with text) and pays nothing. The Owner can **Undo visit result**.
 - **Client deposit — `config.commissionPerSale` (UGX 100,000)**, once per client,
   only when the first deposit is **approved** (money landed), in the week of
   `transaction.approvedAt` (stamped when the Owner approves; older approvals
