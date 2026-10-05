@@ -2575,7 +2575,9 @@
         // Next step.
         '<div class="field-group-title">Next step</div>' +
         field("existing", "Do they have cameras now?", "segmented", camerasNow, { full: true, options: CAMERAS_NOW }) +
-        field("stage", "Stage", "select", source.stage || "New prospect", { options: STAGES }) +
+        // The stage follows what happens (booking, visit, quote, disqualify) —
+        // only Operations/admin set it by hand; reps never pick it.
+        (canReviewProspects() ? field("stage", "Stage", "select", source.stage || "New prospect", { options: STAGES }) : "") +
         field("followUp", "Next follow-up", "date", source.followUp || (id ? "" : today)) +
         '<div class="field full"><label for="f_nextAction">Next action</label>' +
         '<div class="segmented chip-fill">' + NEXT_ACTIONS.map(function (a) { return '<button type="button" class="seg-btn" data-fill-next="' + esc(a) + '">' + esc(a) + "</button>"; }).join("") + "</div>" +
