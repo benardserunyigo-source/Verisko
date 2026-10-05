@@ -15,7 +15,7 @@ cash-flow reconciliation, with role-based access and an audit trail.
 - **Live URL:** https://verisko-sales-2026.netlify.app/
 - **Repo:** git at `/Users/ben/Verisko`, branch **`main`**. Hosted on Netlify
   (auto-deploys on push to `main`; Netlify site name `verisko-sales-2026`,
-  base directory `sales-app`). Current asset version: **v=71**.
+  base directory `sales-app`). Current asset version: **v=72**.
 - **Where the data lives:** one JSON document in Netlify Blobs (store
   `verisko-sales`, key `app-data`) plus one blob per photo (store
   `verisko-receipts`). Nothing lives in Supabase except the login accounts.
@@ -288,6 +288,30 @@ in `tests/commission-scheme4.test.js`.
   receive them.
 - The Team lead's qualification queue stays as a quality gate, but approving no
   longer pays. Settings → Commission settings edits every amount and date.
+
+## 6b-3. "Book a site check" — the one-minute rep form (since v=72)
+
+For **Sales and Team leads**, "+ Book site check" (the old Add prospect) opens
+one screen that creates the prospect **and** its site visit in a single save
+(`booking.js`, pure, tested in `tests/booking.test.js`; Operations/admin keep
+the full prospect form, and editing a lead still uses it). Questions, in
+order: business or home name, owner's name, does this person decide (Yes /
+Decides with someone / No — No blocks the booking), phone (must be a Ugandan
+mobile; refused if the number is already on a prospect this device can see),
+area (chips, last one remembered in `localStorage.verisko_last_area`),
+landmark, type of place (6 chips → `vertical`), what to watch (multi chips →
+`places`, live "about N cameras"), when can we come (Tomorrow morning 09:00 /
+afternoon 14:00, Pick a day, Later: 2 weeks / 1 month; Sundays move to
+Monday), optional note. The GPS pin is captured automatically when the form
+opens (retried on save; required). Save sets `stage "Appointment proposed"`,
+`source "Walk-in prospecting"`, `nextAction "Office to confirm by phone"`
+(later visits: follow-up 3 days before), `quickBooked: true`, review status
+pending, and adds a `Proposed` visit owned by the first Operations user.
+`quickBooked` leads never enter the Team lead's qualification queue
+(`qualificationRequest`): the office's confirmation call is the check. Visit
+cards show "Wants to watch · about N cameras" and who decides. Duplicate check
+limit: a Sales phone only sees its own leads, so two reps can still book the
+same number — Operations spots it on the Visits list.
 
 ## 6c. Import leads from Excel (Admin only, since v=55)
 

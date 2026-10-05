@@ -115,6 +115,9 @@
   // editing a sent-back one re-submits it. Approved stays approved.
   function qualificationRequest(p, nowIso) {
     if (!p || p.imported) return false;      // no commission → nothing to approve
+    // Booked straight from "Book a site check": the office's phone call is the
+    // check now, so it never enters the Team lead's approval queue.
+    if (p.quickBooked) { if (p.qualStatus === "pending") { p.qualStatus = ""; p.qualRequestedAt = ""; return true; } return false; }
     var s = p.qualStatus || "";
     if (isQualStage(p.stage)) {
       if (s === "" || s === "query") { p.qualStatus = "pending"; p.qualRequestedAt = nowIso; return true; }

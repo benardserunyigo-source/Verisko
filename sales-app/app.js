@@ -484,7 +484,7 @@
 
   /* --------------------------------- TODAY ---------------------------------- */
   function renderToday() {
-    setHead("Your work today", "Today", "Your priorities, most urgent first.", "Add prospect", true);
+    setHead("Your work today", "Today", "Your priorities, most urgent first.", canReviewProspects() ? "Add prospect" : "Book site check", true);
 
     var active = visibleProspects().filter(function (p) { return !isClosed(p.stage); });
 
@@ -569,7 +569,7 @@
 
   /* ------------------------------- PROSPECTS --------------------------------- */
   function renderProspects() {
-    setHead("Your pipeline", "Prospects", "Search and manage your pipeline.", "Add prospect", true);
+    setHead("Your pipeline", "Prospects", "Search and manage your pipeline.", canReviewProspects() ? "Add prospect" : "Book site check", true);
     // Reviewers get a queue of prospects awaiting audit, pinned at the top.
     var review = "";
     if (canReviewProspects()) {
@@ -762,6 +762,8 @@
       line("Contact", esc(p.contact || "Unknown")) +
       lineHtml("Phone", p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") +
       line("Location", esc(p.location || "Not recorded")) +
+      (p.places ? line("Wants to watch", esc(p.places) + " · about " + window.VeriskoBooking.cameras(p.places) + " cameras") : "") +
+      (p.decides && p.decides !== "Yes, they decide" ? line("Decides", esc(p.decides)) : "") +
       (a.directions ? line("Directions & access", esc(a.directions)) : "") +
       visitCheckLines(a) +
       warn +
@@ -2433,6 +2435,68 @@
     window.VeriskoQualify.QUESTIONS.forEach(function (q) { var el = document.getElementById("f_" + q.key); p[q.key] = el ? el.value : ""; });
     box.innerHTML = qualVerdictHtml(p);
   }
+  /* ------------- "Book a site check" — the one-minute rep form ------------- */
+  function lastArea() { try { return localStorage.getItem("verisko_last_area") || ""; } catch (e) { return ""; } }
+  function quickBookingHtml() {
+    var B = window.VeriskoBooking;
+    return '<p class="helper full" style="grid-column:1/-1;margin:0 0 4px">Book a visit only for an owner who wants our team to come and look. You earn ' + money(payOpts().perVisit) + " when our team visits.</p>" +
+      field("business", "Business or home name", "text", "", { required: true, full: true, placeholder: "e.g. Samaries Boutique" }) +
+      field("contact", "Owner's name", "text", "", { required: true, full: true, placeholder: "The person you talked to" }) +
+      field("decides", "Is this the person who decides?", "segmented", "", { full: true, options: B.DECIDES.slice(0, 2).map(function (v) { return { value: v, label: v === B.DECIDES[0] ? "Yes" : "Decides with someone" }; }).concat([{ value: B.DECIDES[2], label: "No" }]) }) +
+      field("phone", "Phone number", "tel", "", { required: true, full: true, placeholder: "0772 123 456" }) +
+      field("area", "Area", "segmented", lastArea(), { full: true, options: B.AREAS }) +
+      field("landmark", "Landmark", "text", "", { required: true, full: true, placeholder: "e.g. opposite Total, blue gate" }) +
+      field("placeType", "Type of place", "segmented", "", { full: true, options: B.PLACE_TYPES.map(function (t) { return t.label; }) }) +
+      field("places", "What do they want to watch? (tap all)", "multi", "", { full: true, options: B.WATCH }) +
+      '<p class="helper full" id="camEst" style="grid-column:1/-1;margin-top:-6px"></p>' +
+      field("when", "When can we come?", "segmented", "", { full: true, options: B.WHEN }) +
+      '<div class="field full" id="pickDay" hidden><div style="display:flex;gap:10px">' +
+      '<input type="date" name="pickDate" aria-label="Visit day" min="' + today + '" value="' + plusDays(1) + '" style="flex:1">' +
+      '<input type="time" name="pickTime" aria-label="Visit time" value="10:00" style="flex:1"></div></div>' +
+      '<div class="field full"><label>Your location <span class="optional-tag">taken automatically</span></label>' +
+      '<div class="geo-status" id="geoStatus" aria-live="polite"><span class="geo-none">Getting your location…</span></div>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-capture-geo hidden>Try again</button></div>' +
+      '<details class="field full"><summary style="cursor:pointer;font-weight:600">Add a note <span class="optional-tag">Optional</span></summary>' +
+      '<textarea id="f_notes" name="notes" placeholder="Anything our team should know" style="margin-top:8px"></textarea></details>';
+  }
+  function autoCaptureGeo() {
+    var el = document.getElementById("geoStatus"), btn = document.querySelector("[data-capture-geo]");
+    captureGeo().then(function (res) {
+      if (res.geo) pendingGeo = res.geo;
+      if (el) el.innerHTML = pendingGeo ? '<span class="geo-ok">📍 Location captured' + (pendingGeo.acc ? ' <span class="geo-acc">±' + pendingGeo.acc + " m</span>" : "") + "</span>" : geoStatusHtml(null, res.error);
+      if (btn) { btn.hidden = !!pendingGeo; btn.textContent = "Try again"; }
+    });
+  }
+  function updateCamEst() {
+    var el = document.getElementById("camEst"), h = document.getElementById("f_places");
+    if (!el || !h) return;
+    var n = window.VeriskoBooking.cameras(h.value);
+    el.textContent = n ? "About " + n + " cameras — our team confirms at the visit." : "";
+  }
+  async function saveQuickBooking(data) {
+    var B = window.VeriskoBooking, saveBtn = document.getElementById("saveButton");
+    if (!pendingGeo) {
+      saveBtn.disabled = true; saveBtn.textContent = "Getting location…";
+      var g = await captureGeo(); if (g.geo) pendingGeo = g.geo;
+      saveBtn.disabled = false; saveBtn.textContent = "Book site check";
+    }
+    var r = B.check(data, { today: today, geo: pendingGeo, prospects: visibleProspects() });
+    if (!r.ok) { showFormError(r.errors.slice(0, 3).join(" ") + (r.errors.length > 3 ? " (" + (r.errors.length - 3) + " more)" : "")); return; }
+    var ops = (state.users || []).filter(function (u) { return u.role === "operations"; })[0] || (state.users || []).filter(function (u) { return u.role === "admin"; })[0];
+    var b = B.build(data, { today: today, slot: r.slot, phone: r.phone, director: (ops && ops.name) || "Operations", nowIso: nowIso() });
+    var me = settings.user || {}, pid = uid();
+    var p = Object.assign(b.prospect, { id: pid, created: today, createdBy: me.name || "", createdByEmail: me.email || "", photoId: "", geo: pendingGeo, followUps: [],
+      reviewStatus: "pending", reviewedBy: "", reviewedAt: "", reviewNote: "" });
+    stampPlan(p);
+    state.prospects.push(p);
+    var v = b.visit; delete v.later;
+    state.appointments.push(Object.assign({ id: uid(), prospectId: pid, created: today, createdBy: me.name || "" }, v));
+    try { localStorage.setItem("verisko_last_area", data.area || ""); } catch (e) {}
+    hideFormError(); dialog.close();
+    saveData("Booked ✓ The office will call " + p.contact + " to confirm. You earn " + money(payOpts().perVisit) + " when our team visits.");
+    render();
+  }
+
   function field(name, label, type, value, opts) {
     opts = opts || {};
     var required = opts.required ? ' required aria-required="true"' : "";
@@ -2483,6 +2547,13 @@
     if (type === "prospect") {
       pendingGeo = source.geo || null;   // pin already on file (edit) or none yet (new)
       document.getElementById("dialogTitle").textContent = id ? "Edit prospect" : "Add prospect";
+      // Sales and Team leads add a lead by booking its site check: one screen,
+      // under a minute (booking.js). Operations/admin keep the full form.
+      if (!id && !canReviewProspects()) {
+        editing.quick = true;
+        document.getElementById("dialogTitle").textContent = "Book a site check";
+        html += quickBookingHtml();
+      } else {
       var Qz = window.VeriskoQualify;
       var CAMERAS_NOW = ["None", "Yes, working", "Yes, broken or not enough"];
       var camerasNow = CAMERAS_NOW.indexOf(source.existing) !== -1 ? source.existing : (/^(no|none)$/i.test(String(source.existing || "").trim()) ? "None" : "");
@@ -2553,6 +2624,7 @@
         }
         html += '<div class="field full followup-block"><label>Follow-ups</label>' + followUpHistory(source) +
           '<button type="button" class="btn btn-ghost btn-block" data-log-followup="' + esc(id) + '" style="margin-top:10px">Log a call / plan the next follow-up</button></div>';
+      }
       }
     }
     if (type === "appointment") {
@@ -2695,6 +2767,7 @@
     }
     if (type === "job") { recalcQuoteForm(); updateMatTotal(); }
     document.getElementById("saveButton").textContent = id ? "Save changes" : "Save";
+    if (editing.quick) { document.getElementById("saveButton").textContent = "Book site check"; autoCaptureGeo(); }
     if (!dialog.open) dialog.showModal();
     var first = formContent.querySelector('input:not([type=hidden]),select,textarea');
     if (first) first.focus();
@@ -2792,6 +2865,7 @@
       var vals = [].map.call(mb.parentNode.querySelectorAll('.multi-btn[aria-pressed="true"]'), function (b) { return b.getAttribute("data-val"); });
       var mh = document.getElementById("f_" + mname); if (mh) mh.value = vals.join(", ");
       updateQualVerdict();
+      if (editing && editing.quick) updateCamEst();
       return;
     }
     var btn = e.target.closest(".seg-btn");
@@ -2816,6 +2890,7 @@
     // Job: the camera-count segmented control re-prices the quote live.
     if (name === "cameraCount" && editing && editing.type === "job") recalcQuoteForm();
     if (editing && editing.type === "prospect") updateQualVerdict();
+    if (name === "when" && editing && editing.quick) { var pd = document.getElementById("pickDay"); if (pd) pd.hidden = hidden.value !== "Pick a day"; }
   });
 
   form.addEventListener("submit", function (e) {
@@ -2823,7 +2898,7 @@
     var data = Object.fromEntries(new FormData(form).entries());
     var type = editing.type;
     if (type === "transaction") { saveTransaction(data); return; }
-    if (type === "prospect") { saveProspect(data); return; }
+    if (type === "prospect") { if (editing.quick) { saveQuickBooking(data); return; } saveProspect(data); return; }
     if (type === "job") { saveJob(data); return; }
     var collection = state[type + "s"];
 

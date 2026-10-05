@@ -107,3 +107,12 @@ test("imported leads (Instagram / Google search lists) earn no commission and sk
   assert.equal(C.qualificationRequest(q, "T"), false);
   assert.equal(q.qualStatus, "");
 });
+
+test("leads booked with 'Book a site check' skip the Team lead's approval queue", () => {
+  const p = { stage: "Appointment proposed", qualStatus: "", quickBooked: true };
+  assert.equal(C.qualificationRequest(p, "T"), false);
+  assert.equal(p.qualStatus, "");
+  const q = { stage: "Appointment proposed", qualStatus: "pending", quickBooked: true };
+  assert.equal(C.qualificationRequest(q, "T"), true);
+  assert.equal(q.qualStatus, "", "an old pending request is withdrawn");
+});
