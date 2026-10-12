@@ -1,0 +1,1 @@
+{"name":"verisko-watch","version":"1.0.0","private":true,"type":"module","scripts":{"test":"node --test tests/*.test.mjs","start":"node dev.mjs","build":"node --check public/app.js && node --check netlify/functions/api.mjs"},"engines":{"node":">=22"}}
