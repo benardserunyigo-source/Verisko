@@ -4,13 +4,15 @@ Separate Netlify-ready, mobile-friendly installation-health dashboard for Techni
 
 ## Status
 
-Implemented: site overview, search, status filters, fault queue, device detail, recent events, acknowledge and verified-close actions, 60-second foreground refresh, stale-report handling, secure staff gateway, isolated sample demo.
+Implemented: site overview, search, status filters, fault queue, device detail, recent events, acknowledgement, installation onboarding, private-IP inventory, mini-PC config generation and agent, repair scheduling/rescheduling, verified completion, queued client/account-manager updates and message status history. Secure staff gateway, 60-second foreground refresh, stale-report handling and isolated sample demo remain.
+
+**Version 2 activation guide: [WORKFLOW-SETUP.md](WORKFLOW-SETUP.md).** User requested message flow only. WhatsApp sending remains disabled. New workflow SQL and the agent are staged, not deployed to production.
 
 Not deployed or connected to live monitoring yet. Demo actions are in-memory only; live actions persist through the existing monitoring functions. No actual SMS is sent by this application. The existing backend currently documents a console-only SMS sender.
 
 ## Run
 
-Requires Node 22 or later. No package dependencies.
+Requires Node 22 or later. No runtime package dependencies. `npm ci` installs the pinned development-only embedded PostgreSQL engine for database tests.
 
 ```
 npm test
@@ -49,7 +51,7 @@ The gateway validates identity through `/auth/v1/user` on every private request,
 ## Before calling this live
 
 1. Deploy the existing monitoring schema and functions if not already live. Confirm the API key has only `api` scope.
-2. Connect real sites and their reporting boxes. Registered sites only are shown: this does NOT auto-import all sales jobs or provision boxes. Site provisioning remains an owner/backend task.
+2. Activate the reviewed workflow database before using Add installation and config generation. Registered sites only are shown; this does NOT auto-import all sales jobs. Existing sites need controlled notification-profile onboarding. Install and field-test the mini-PC agent.
 3. Fix the existing repository's 1,000-row pagination limitation before scaling. This gateway refuses summaries at the known cap, but cannot repair upstream truncation or prove completeness beyond that cap. Detail history is the latest 50 incidents/events returned by the backend.
 4. Configure the new site variables and approved staff. Staff without work email need an approved account; this separate app does not reuse sales phone/PIN login.
 5. Test an approved Operations account and Technical account. Test a non-approved/Sales account is rejected.
@@ -64,7 +66,7 @@ The gateway validates identity through `/auth/v1/user` on every private request,
 - Needs attention: unresolved incident, down device or no box report for at least 15 minutes.
 - Paused/closed: never treated as healthy.
 
-Acknowledge means the team has seen the fault, not that someone has repaired it. Verify repair asks for explicit playback/repair confirmation. Existing backend stores actor/time; it does not currently return actor details, task notes, assigned technicians or due dates, so this dashboard does not invent those fields. Unknown-email counts flag items for backend review, without exposing raw customer email.
+Acknowledge means the team has seen the fault, not that someone has repaired it. Version 2 stores technician, visit window, repair notes and change history in separate workflow tables. Verify repair requires a note, playback confirmation, a fresh site report and a reachable affected camera/recorder. Unknown-email counts flag items for backend review, without exposing raw customer email.
 
 ## References
 

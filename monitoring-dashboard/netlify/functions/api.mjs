@@ -1,3 +1,4 @@
+import {workflow} from './lib/workflow.mjs';
 const cookieName='__Host-verisko_watch';
 const json=(status,body,extra={})=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...extra}});
 export function staffMap(env){try{const v=JSON.parse(env.STAFF_ACCESS||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{}}catch{return {}}}
@@ -22,11 +23,15 @@ export async function handle(request,env=process.env,fetcher=fetch){
   const user={email:person.email,role:role(person.email)};
   if(path==='session')return json(200,{ok:true,user},{'Set-Cookie':cookieName+'='+token+'; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600'});
   if(path==='me')return json(200,{ok:true,user});
+  if(['onboard','workflow','schedule','complete','rotate-box'].includes(path)){
+   try{return json(200,{ok:true,...await workflow(path,body,user,env,fetcher)})}catch(e){return json(400,{error:e.message})}
+  }
   if(!['summary','detail','incident'].includes(path))return json(404,{error:'Not found'});
   if(!env.MONITORING_API_KEY)return json(503,{error:'Monitoring feed is not connected. Ask the owner to finish setup.'});
   const payload=path==='summary'?{action:'summary'}:path==='detail'?{action:'detail',siteId:body.siteId}:{action:body.action,incidentId:body.incidentId,by:person.email};
   if(path==='detail'&&(typeof body.siteId!=='string'||body.siteId.length>100))return json(400,{error:'Invalid site'});
   if(path==='incident'&&(!['acknowledge','fix'].includes(body.action)||typeof body.incidentId!=='string'||body.incidentId.length>100))return json(400,{error:'Invalid action'});
+  if(path==='incident'&&body.action==='fix')return json(400,{error:'Use Verify repair to record the repair and queue client updates.'});
   const r=await call(base+'/functions/v1/'+(path==='incident'?'incident-update':'sites-read'),{method:'POST',headers:{Authorization:'Bearer '+env.MONITORING_API_KEY,'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok)return json(r.status===404?404:502,{error:'Monitoring service could not complete the request.'});const result=await r.json();
   if(path==='summary'&&Array.isArray(result.sites)){if(result.sites.length>=1000||result.sites.reduce((n,s)=>n+(s.devices?.length||0),0)>=1000||result.sites.reduce((n,s)=>n+(s.incidents?.length||0),0)>=1000)return json(503,{error:'Monitoring list may be incomplete. Backend pagination is required.'});result.unknown=(result.unknown||[]).map(e=>({id:e.id,siteId:e.site_id}));}
   return json(200,result);

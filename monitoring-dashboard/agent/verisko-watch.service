@@ -1,0 +1,17 @@
+[Unit]
+Description=Verisko site health reporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=verisko-watch
+ExecStart=/usr/bin/python3 /opt/verisko-watch/watch-agent.py /etc/verisko-watch/config.json
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
