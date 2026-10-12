@@ -138,7 +138,11 @@ alter table alert_rules enable row level security;
 alter table alert_contacts enable row level security;
 
 -- Only the Edge Functions (service role) may use these tables. Granted explicitly, so this
--- does not depend on the project's default privileges.
+-- does not depend on the project's default privileges. The public-facing roles are cut off
+-- twice over: row level security above, and no privileges here.
+revoke all on sites, devices, access_keys, events, device_state, incidents, alert_rules, alert_contacts
+  from anon, authenticated;
+revoke all on sequence site_code_seq from anon, authenticated;
 grant select, insert, update, delete on sites, devices, access_keys, events, device_state,
   incidents, alert_rules, alert_contacts to service_role;
 grant usage on sequence site_code_seq to service_role;

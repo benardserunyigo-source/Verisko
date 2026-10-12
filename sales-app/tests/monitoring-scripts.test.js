@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { dirname, join, normalize } from "node:path";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { buildPayload, FUNCTION_NAMES, isDeployable } from "../monitoring/scripts/make-deploy-payload.mjs";
 import { describeKey } from "../monitoring/scripts/make-key.mjs";
 import { buildBoxScenario, buildEmailScenario } from "../monitoring/scripts/replay-fake-events.mjs";
@@ -41,6 +43,19 @@ test("only .mjs and .ts files are deployable", () => {
   assert.equal(isDeployable("_shared/.DS_Store"), false);
   assert.equal(isDeployable("_shared/notes.md"), false);
   assert.equal(isDeployable("_shared/rules.mjs.bak"), false);
+});
+
+test("a stray editor or system file in _shared is never bundled", () => {
+  const root = mkdtempSync(join(tmpdir(), "verisko-bundle-"));
+  mkdirSync(join(root, "ingest"));
+  mkdirSync(join(root, "_shared", "handlers"), { recursive: true });
+  writeFileSync(join(root, "ingest", "index.ts"), 'import { x } from "../_shared/a.mjs";\n');
+  writeFileSync(join(root, "_shared", "a.mjs"), "export const x = 1;\n");
+  writeFileSync(join(root, "_shared", "handlers", "b.mjs"), "export const y = 2;\n");
+  writeFileSync(join(root, "_shared", ".DS_Store"), "junk");
+  writeFileSync(join(root, "_shared", "notes.md"), "notes");
+  const names = buildPayload("ingest", root).files.map((f) => f.name);
+  assert.deepEqual(names, ["index.ts", "_shared/a.mjs", "_shared/handlers/b.mjs"]);
 });
 
 test("an unknown function name is refused", () => assert.throws(() => buildPayload("nope")));

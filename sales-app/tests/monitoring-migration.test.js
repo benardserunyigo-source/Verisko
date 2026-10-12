@@ -30,6 +30,10 @@ test("the service role is granted every table, and nothing is granted to anon or
   const granted = grant[1].split(",").map((x) => x.trim()).sort();
   assert.deepEqual(granted, [...tables].sort());
   assert.ok(!/grant [^;]*to (anon|authenticated)/i.test(sql));
+  const revoke = sql.match(/revoke all on (sites[\s\S]*?) from anon, authenticated;/);
+  assert.ok(revoke, "no revoke from anon and authenticated");
+  assert.deepEqual(revoke[1].split(",").map((x) => x.trim()).sort(), [...tables].sort());
+  assert.match(sql, /revoke all on sequence site_code_seq from anon, authenticated;/);
 });
 
 test("every function pins its search_path and is only executable by the service role", () => {
