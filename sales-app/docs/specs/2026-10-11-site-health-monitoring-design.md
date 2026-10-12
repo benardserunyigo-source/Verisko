@@ -47,7 +47,7 @@ Units, each with one purpose:
 | Box agent (Python 3, standard library only) | Every 60 seconds checks the recorder and cameras on the site network and posts one summary. Queues posts on disk while offline. Outbound HTTPS only. | ingest |
 | SMS sender | One function behind an interface, so the provider can change. | provider API |
 
-Code location, all inside `sales-app/`: `monitoring/engine/`, `monitoring/supabase/` (migrations and functions), `monitoring/apps-script/`, `monitoring/box-agent/`, `netlify/functions/sites.mjs`, and Sites screen additions in `app.js`. The engine is plain ES module JavaScript with JSDoc types, so it runs in Deno and in the existing `node --test` setup with no build step.
+Code location, all inside `sales-app/`: `monitoring/supabase/` (migrations, functions and the shared engine), `monitoring/apps-script/`, `monitoring/box-agent/`, `netlify/functions/sites.mjs`, and Sites screen additions in `app.js`. The engine is plain ES module JavaScript with JSDoc types, so it runs in Deno and in the existing `node --test` setup with no build step.
 
 ## 5. Data model (Supabase, public schema)
 
@@ -127,3 +127,28 @@ Starting success targets: in bench tests, every seeded fault produces an SMS wit
 | Box hardware model | Bench test of an N100 unit and a Pi 4 | Step 5 |
 | Whether the box ships free with the care plan | Ben | Pricing only, not the build |
 | Whether cameras sit behind the recorder's private network | A wiring photo from one finished install | Which device checks the box can do in step 5 |
+
+## 12. Changes made while planning (11 October 2026)
+
+These refine sections 4 to 6. Where this section disagrees with an earlier one, this section wins.
+
+- Shared code, including the engine, lives in `monitoring/supabase/functions/_shared/`, because each Supabase function is bundled from its own folder.
+- Access keys have four kinds: box, email, api and watch. The API key and watch key are ordinary hashed rows in `access_keys`, so nothing is set in the Supabase dashboard. The one Netlify setting holds the raw API key. The raw watch key is kept in Supabase Vault for the scheduler.
+- New columns: `sites.box_last_seen_at`, `devices.label_key` (case-insensitive label) and `incidents.created_at`. A partial unique index allows one live incident per site, device and kind.
+- Devices are created automatically when a box or an email first mentions them. A mistyped label creates a new device.
+- Box reports become events only when a device changes state. An all-ok report only updates the last-seen time. A report older than a device's current state is dropped, not stored.
+- A paused site keeps its history and device state but raises no incidents and sends no SMS.
+- A manual Fixed tap sends no SMS. Automatic recoveries do.
+- If an SMS fails, or no contact exists yet, the incident stays unnotified and the watcher retries for two hours.
+- The foundation ships a console SMS sender. Real texts arrive at build step 4.
+
+## 13. Follow-ups found in code review (11 October 2026)
+
+Fixed before deployment: explicit database grants and pinned function search paths, site codes that grow past four digits, a malformed id is "not found" rather than a server error, only source files are bundled, and the watch key is created inside Postgres so its raw value never leaves the database.
+
+Not yet fixed, and which plan must fix each:
+
+- **Before real SMS (build step 4):** two posts for the same fault at the same moment can both send an "opened" text, and the watcher's retry can overlap a text still being sent. Fix: make `save()` report which incidents it created and text only those, and retry only incidents older than two minutes. Also add an SMS budget per hour, so a leaked email key cannot run up costs.
+- **Before the Sites screen (build step 3):** the database returns at most 1,000 rows per query, so the summary and watcher reads must page through results. The fake and real repositories must return identical shapes and ordering for the summary and detail calls.
+- **Before the email reader (build step 2):** an acknowledged camera fault opened by email can expire after 24 hours while a box still sees the camera down, then reopen with a new text. Fix: a box "down" report should refresh the incident's last-seen time. Expiry should also set the device back to unknown. A report older than a device's latest event, not just older than its current state, should count as out of order.
+- **Later:** other files in the app folder are still publicly served because the app is published from its source folder (for example `README.md`, `APP_PLAN.md`, `netlify.toml`, `package.json` and `node_modules`). Fix by publishing from a dedicated folder. The migration is not repeatable, so a half-applied run needs manual cleanup. One database query per check when a box reports, a paused or closed site that still has an open silent incident, and a manual Fixed on a device that is still down reopens it within a minute, so the screen should point staff to Acknowledge for known issues.
