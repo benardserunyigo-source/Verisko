@@ -3088,7 +3088,31 @@ curl -s -X POST "$INGEST_URL" -H "authorization: Bearer $BOX_KEY" -H "content-ty
 
 Expected: `{"ok":true,"opened":0,"fixed":1,"sms":1}`.
 
-- [ ] **Step 6: Clean up the test data**
+- [ ] **Step 6: Check the two calls the Operations app will make**
+
+These use the api key. Read it into a variable without printing it:
+
+```bash
+export API_KEY=$(cat ~/.verisko-monitoring/api-<number>.key)
+export FN=https://cepernltrzrmupgegcib.supabase.co/functions/v1
+curl -s -X POST "$FN/sites-read" -H "authorization: Bearer $API_KEY" -H "content-type: application/json" -d '{"action":"summary"}'
+```
+
+Expected: JSON that starts `{"ok":true,"sites":[` and shows the smoke site (client name `SMOKE TEST`) with its devices `Box`, `Camera 7` and `Recorder`, and exactly one open incident, `disk_full`.
+
+Call `execute_sql` with `select id from incidents where site_id = '<the-site-id>' and kind = 'disk_full';` and note the incident id. Then:
+
+```bash
+curl -s -X POST "$FN/sites-read" -H "authorization: Bearer $API_KEY" -H "content-type: application/json" -d '{"action":"detail","siteId":"<the-site-id>"}'
+curl -s -X POST "$FN/incident-update" -H "authorization: Bearer $API_KEY" -H "content-type: application/json" -d '{"incidentId":"<the-incident-id>","action":"acknowledge","by":"smoke@test"}'
+curl -s -X POST "$FN/incident-update" -H "authorization: Bearer $API_KEY" -H "content-type: application/json" -d '{"incidentId":"<the-incident-id>","action":"acknowledge","by":"smoke@test"}'
+curl -s -w " [%{http_code}]\n" -X POST "$FN/incident-update" -H "authorization: Bearer $API_KEY" -H "content-type: application/json" -d '{"incidentId":"not-a-uuid","action":"fix","by":"x"}'
+curl -s -w " [%{http_code}]\n" -X POST "$FN/sites-read" -H "authorization: Bearer $BOX_KEY" -H "content-type: application/json" -d '{"action":"summary"}'
+```
+
+Expected, in order: the detail call returns `"ok":true` with three incidents (`camera_offline` fixed, `disk_full` open, `site_silent` fixed) and a list of events; the first acknowledge returns `{"ok":true,"changed":true,"state":"acknowledged"}`; the second returns `{"ok":true,"changed":false,"state":"acknowledged"}`; the malformed id returns `{"error":"no such incident"} [404]`; the box key is refused with `{"error":"this key cannot do that"} [403]`.
+
+- [ ] **Step 7: Clean up the test data**
 
 Call `execute_sql` with:
 
