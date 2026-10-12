@@ -37,7 +37,7 @@
 | `monitoring/supabase/migrations/20261012000000_monitoring_tables.sql` | The tables. |
 | `monitoring/scripts/*.mjs` | Deploy bundle builder, key maker, smoke-test replay. |
 | `tests/helpers/fake-repo.mjs`, `tests/helpers/harness.mjs` | In-memory database and shared handler test setup. |
-| `tests/monitoring-*.test.js` | Eight test files, 106 tests in all. |
+| `tests/monitoring-*.test.js` | Nine test files, 109 tests in all. |
 
 ---
 
@@ -2008,6 +2008,10 @@ test("the service role is granted every table, and nothing is granted to anon or
   const granted = grant[1].split(",").map((x) => x.trim()).sort();
   assert.deepEqual(granted, [...tables].sort());
   assert.ok(!/grant [^;]*to (anon|authenticated)/i.test(sql));
+  const revoke = sql.match(/revoke all on (sites[\s\S]*?) from anon, authenticated;/);
+  assert.ok(revoke, "no revoke from anon and authenticated");
+  assert.deepEqual(revoke[1].split(",").map((x) => x.trim()).sort(), [...tables].sort());
+  assert.match(sql, /revoke all on sequence site_code_seq from anon, authenticated;/);
 });
 
 test("every function pins its search_path and is only executable by the service role", () => {
@@ -2176,7 +2180,11 @@ alter table alert_rules enable row level security;
 alter table alert_contacts enable row level security;
 
 -- Only the Edge Functions (service role) may use these tables. Granted explicitly, so this
--- does not depend on the project's default privileges.
+-- does not depend on the project's default privileges. The public-facing roles are cut off
+-- twice over: row level security above, and no privileges here.
+revoke all on sites, devices, access_keys, events, device_state, incidents, alert_rules, alert_contacts
+  from anon, authenticated;
+revoke all on sequence site_code_seq from anon, authenticated;
 grant select, insert, update, delete on sites, devices, access_keys, events, device_state,
   incidents, alert_rules, alert_contacts to service_role;
 grant usage on sequence site_code_seq to service_role;
@@ -2222,6 +2230,8 @@ Create `tests/monitoring-scripts.test.js`:
 import test from "node:test";
 import assert from "node:assert/strict";
 import { dirname, join, normalize } from "node:path";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { buildPayload, FUNCTION_NAMES, isDeployable } from "../monitoring/scripts/make-deploy-payload.mjs";
 import { describeKey } from "../monitoring/scripts/make-key.mjs";
 import { buildBoxScenario, buildEmailScenario } from "../monitoring/scripts/replay-fake-events.mjs";
@@ -2262,6 +2272,19 @@ test("only .mjs and .ts files are deployable", () => {
   assert.equal(isDeployable("_shared/.DS_Store"), false);
   assert.equal(isDeployable("_shared/notes.md"), false);
   assert.equal(isDeployable("_shared/rules.mjs.bak"), false);
+});
+
+test("a stray editor or system file in _shared is never bundled", () => {
+  const root = mkdtempSync(join(tmpdir(), "verisko-bundle-"));
+  mkdirSync(join(root, "ingest"));
+  mkdirSync(join(root, "_shared", "handlers"), { recursive: true });
+  writeFileSync(join(root, "ingest", "index.ts"), 'import { x } from "../_shared/a.mjs";\n');
+  writeFileSync(join(root, "_shared", "a.mjs"), "export const x = 1;\n");
+  writeFileSync(join(root, "_shared", "handlers", "b.mjs"), "export const y = 2;\n");
+  writeFileSync(join(root, "_shared", ".DS_Store"), "junk");
+  writeFileSync(join(root, "_shared", "notes.md"), "notes");
+  const names = buildPayload("ingest", root).files.map((f) => f.name);
+  assert.deepEqual(names, ["index.ts", "_shared/a.mjs", "_shared/handlers/b.mjs"]);
 });
 
 test("an unknown function name is refused", () => assert.throws(() => buildPayload("nope")));
@@ -2791,6 +2814,62 @@ Expected: all five paths print `text/html; charset=UTF-8` (the app shell, not th
 
 ---
 
+### Task 9c: Follow-ups from the re-review
+
+A focused re-review of Task 9b confirmed every fix and suggested three cheap improvements, made before the migration is applied. **The code shown in Tasks 8 and 9 already includes the migration change and the test additions.** If you ran those tasks from an earlier copy of this plan, replace the migration, `tests/monitoring-migration.test.js` and `tests/monitoring-scripts.test.js` with the versions shown above, then do the steps below.
+
+| Suggestion | Done |
+|---|---|
+| Cut the two public-facing database roles off twice: RLS and no privileges | The migration now revokes all privileges on every table and the sequence from `anon` and `authenticated` |
+| The malformed-id fix and the error-detail fix had no test | New tests below run the real repository against a stub that fails if touched |
+| The bundle filter was only tested as a yes/no predicate | A test builds a real temporary folder with a `.DS_Store` and a `.md` file and checks they are left out |
+
+**Files:**
+- Create: `tests/monitoring-repo.test.js`
+
+- [ ] **Step 1: Write the repository tests**
+
+They pass straight away, because the fixes are already in `repo.mjs`. They exist to stop those fixes being undone later.
+
+Create `tests/monitoring-repo.test.js`:
+
+```javascript
+import test from "node:test";
+import assert from "node:assert/strict";
+import { makeRepo } from "../monitoring/supabase/functions/_shared/repo.mjs";
+
+test("a malformed id is simply not found and never reaches the database", async () => {
+  const db = new Proxy({}, { get() { throw new Error("the database must not be touched"); } });
+  const repo = makeRepo(db);
+  assert.equal(await repo.getSiteDetail("not-a-uuid"), null);
+  assert.equal(await repo.getSiteDetail(undefined), null);
+  assert.equal(await repo.setIncidentState({ incidentId: "nope", action: "fix", by: "a", nowIso: "2026-10-12T10:00:00Z" }), null);
+});
+
+test("database errors keep their code and details so the logs can say what failed", async () => {
+  const db = { from: () => ({ select: async () => ({ error: { message: "permission denied", code: "42501", details: "no grant" } }) }) };
+  await assert.rejects(() => makeRepo(db).loadRules(), /permission denied \[42501\] no grant/);
+});
+```
+
+- [ ] **Step 2: Run the whole monitoring suite**
+
+Run: `node --test tests/monitoring-*.test.js`
+Expected: `ℹ tests 109`, `ℹ pass 109`, `ℹ fail 0`.
+
+- [ ] **Step 3: Commit and push**
+
+```bash
+cd /Users/ben/Verisko
+git add sales-app/monitoring sales-app/tests/monitoring-repo.test.js sales-app/tests/monitoring-migration.test.js sales-app/tests/monitoring-scripts.test.js
+git commit -m "sales-app: monitoring re-review follow-ups (revoke public roles, repo and bundle tests)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git push origin main
+```
+
+---
+
 ### Task 10: Apply the migration, create keys, deploy the functions
 
 These steps use the Supabase connector tools, not shell commands. Supabase project: `cepernltrzrmupgegcib`.
@@ -2881,7 +2960,7 @@ from vault.decrypted_secrets where name = 'monitoring_watch_key';
 ```
 
 Expected: success. Then call `execute_sql` with `select kind, site_id is null as no_site, revoked_at from access_keys where kind = 'watch';`
-Expected: one row: `watch true null`. If the `vault.create_secret` statement says the name already exists, the key was already made: do not run it again.
+Expected: one row: `watch true null`. If the `vault.create_secret` statement says the name already exists, the key was already made: do not run it again. If the statement says `gen_random_bytes` or `digest` does not exist, the extension functions are in the `extensions` schema and not on the search path: run it again with `extensions.gen_random_bytes` and `extensions.digest`.
 
 - [ ] **Step 3: Create the two scheduled jobs**
 
@@ -3120,7 +3199,7 @@ Not yet fixed, and which plan must fix each:
 - **Before real SMS (build step 4):** two posts for the same fault at the same moment can both send an "opened" text, and the watcher's retry can overlap a text still being sent. Fix: make `save()` report which incidents it created and text only those, and retry only incidents older than two minutes. Also add an SMS budget per hour, so a leaked email key cannot run up costs.
 - **Before the Sites screen (build step 3):** the database returns at most 1,000 rows per query, so the summary and watcher reads must page through results. The fake and real repositories must return identical shapes and ordering for the summary and detail calls.
 - **Before the email reader (build step 2):** an acknowledged camera fault opened by email can expire after 24 hours while a box still sees the camera down, then reopen with a new text. Fix: a box "down" report should refresh the incident's last-seen time. Expiry should also set the device back to unknown. A report older than a device's latest event, not just older than its current state, should count as out of order.
-- **Later:** one database query per check when a box reports, a paused or closed site that still has an open silent incident, and a manual Fixed on a device that is still down reopens it within a minute, so the screen should point staff to Acknowledge for known issues.
+- **Later:** other files in the app folder are still publicly served because the app is published from its source folder (for example `README.md`, `APP_PLAN.md`, `netlify.toml`, `package.json` and `node_modules`). Fix by publishing from a dedicated folder. The migration is not repeatable, so a half-applied run needs manual cleanup. One database query per check when a box reports, a paused or closed site that still has an open silent incident, and a manual Fixed on a device that is still down reopens it within a minute, so the screen should point staff to Acknowledge for known issues.
 """
 open(p, "w").write(s)
 print("spec updated")
@@ -3132,7 +3211,7 @@ Expected output: `spec updated`.
 - [ ] **Step 3: Run the whole app test suite**
 
 Run: `npm test`
-Expected: every test passes, including the 106 monitoring tests, and none fail.
+Expected: every test passes, including the 109 monitoring tests, and none fail.
 
 - [ ] **Step 4: Commit and push**
 
