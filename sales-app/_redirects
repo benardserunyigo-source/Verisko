@@ -3,4 +3,7 @@
 /api/export /.netlify/functions/export 200
 /api/auth /.netlify/functions/auth 200
 /monitoring/* /index.html 200!
+/docs/* /index.html 200!
+/tests/* /index.html 200!
+/netlify/* /index.html 200!
 /* /index.html 200

@@ -6,8 +6,9 @@
 // as already processed by its event row, so if a write fails midway the retry still
 // reaches the incident step.
 
-const NO_DEVICE = null;
-const must = (res) => { if (res.error) throw new Error(res.error.message); return res.data; };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const fail = (error) => { throw new Error(`${error.message} [${error.code || "no code"}] ${error.details || ""}`.trim()); };
+const must = (res) => { if (res.error) fail(res.error); return res.data; };
 
 const toSite = (r) => r && ({ id: r.id, code: r.code, name: r.client_name, area: r.area, feeds: r.feeds || [], status: r.status, boxLastSeenAt: r.box_last_seen_at });
 const toIncident = (r) => ({
@@ -45,14 +46,14 @@ export function makeRepo(db) {
       const ins = await db.from("devices").insert({ site_id: siteId, kind, label, channel }).select("id,kind,label").single();
       if (ins.error) {
         if (ins.error.code === "23505") { d = await find(); if (d) return d; } // another request created it first
-        throw new Error(ins.error.message);
+        fail(ins.error);
       }
       return ins.data;
     },
 
     async hasEvent(dedupeKey) {
       const res = await db.from("events").select("id", { count: "exact", head: true }).eq("dedupe_key", dedupeKey);
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) fail(res.error);
       return (res.count || 0) > 0;
     },
 
@@ -61,11 +62,11 @@ export function makeRepo(db) {
       for (const o of ops || []) {
         if (o.op === "open") {
           const ins = await db.from("incidents").insert({
-            site_id: o.siteId, device_id: o.deviceId || NO_DEVICE, kind: o.kind, source: o.source,
+            site_id: o.siteId, device_id: o.deviceId || null, kind: o.kind, source: o.source,
             opened_at: o.openedAt, last_seen_at: o.lastSeenAt, area_group: o.areaGroup || null,
           }).select("id").single();
           if (!ins.error) { created[o.ref] = ins.data.id; continue; }
-          if (ins.error.code !== "23505") throw new Error(ins.error.message);
+          if (ins.error.code !== "23505") fail(ins.error);
           // A live incident already exists for this site, device and kind: use it.
           let q = db.from("incidents").select("id").eq("site_id", o.siteId).eq("kind", o.kind).neq("state", "fixed");
           q = o.deviceId ? q.eq("device_id", o.deviceId) : q.is("device_id", null);
@@ -110,7 +111,7 @@ export function makeRepo(db) {
       const sites = must(await db.from("sites").select(SITE_COLS)).map(toSite);
       const boxes = must(await db.from("devices").select("id,site_id").eq("kind", "box"));
       const boxBySite = Object.fromEntries(boxes.map((b) => [b.site_id, b.id]));
-      const incidents = must(await db.from("incidents").select("*").neq("state", "fixed")).map((r) => ({ ...toIncident(r) }));
+      const incidents = must(await db.from("incidents").select("*").neq("state", "fixed")).map(toIncident);
       return { sites: sites.map((s) => ({ ...s, boxDeviceId: boxBySite[s.id] || null })), incidents };
     },
 
@@ -137,6 +138,7 @@ export function makeRepo(db) {
     },
 
     async getSiteDetail(siteId) {
+      if (!UUID.test(siteId)) return null; // a malformed id is simply not found, not a database error
       const site = must(await db.from("sites").select(SITE_COLS + ",care_plan,job_ref").eq("id", siteId).maybeSingle());
       if (!site) return null;
       const devices = must(await db.from("devices").select("id,kind,label,channel").eq("site_id", siteId));
@@ -153,6 +155,7 @@ export function makeRepo(db) {
     },
 
     async setIncidentState({ incidentId, action, by, nowIso }) {
+      if (!UUID.test(incidentId)) return null;
       const current = must(await db.from("incidents").select("id,state").eq("id", incidentId).maybeSingle());
       if (!current) return null;
       const patch = action === "acknowledge"

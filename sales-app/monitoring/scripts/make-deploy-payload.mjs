@@ -14,6 +14,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const FUNCTIONS = join(here, "..", "supabase", "functions");
 export const FUNCTION_NAMES = ["ingest", "watch", "sites-read", "incident-update"];
 
+// Only source files are deployed; a stray .DS_Store or editor file must never travel with them.
+export const isDeployable = (path) => /\.(mjs|ts)$/.test(path);
+
 const walk = (dir) => readdirSync(dir).flatMap((n) => {
   const p = join(dir, n);
   return statSync(p).isDirectory() ? walk(p) : [p];
@@ -22,7 +25,7 @@ const walk = (dir) => readdirSync(dir).flatMap((n) => {
 export function buildPayload(name, root = FUNCTIONS) {
   if (!FUNCTION_NAMES.includes(name)) throw new Error(`unknown function ${name}`);
   const entry = readFileSync(join(root, name, "index.ts"), "utf8").replaceAll("../_shared/", "./_shared/");
-  const shared = walk(join(root, "_shared")).sort().map((p) => ({
+  const shared = walk(join(root, "_shared")).filter(isDeployable).sort().map((p) => ({
     name: relative(root, p).split("\\").join("/"),
     content: readFileSync(p, "utf8"),
   }));

@@ -4,9 +4,17 @@
 
 create sequence if not exists site_code_seq start 1;
 
+-- VS-0001, VS-0002 ... and keeps growing past VS-9999 without ever repeating a code.
+create function next_site_code() returns text language plpgsql set search_path = public, pg_temp as $$
+declare n bigint := nextval('site_code_seq');
+begin
+  return 'VS-' || lpad(n::text, greatest(4, length(n::text)), '0');
+end;
+$$;
+
 create table sites (
   id uuid primary key default gen_random_uuid(),
-  code text not null unique default ('VS-' || lpad(nextval('site_code_seq')::text, 4, '0')),
+  code text not null unique default next_site_code(),
   job_ref text,
   client_name text not null,
   area text not null default '',
@@ -111,13 +119,14 @@ create table alert_contacts (
 
 -- Counts a repeated report against one incident without a read-then-write race.
 create function monitoring_repeat(p_id uuid, p_seen timestamptz, p_count boolean)
-returns void language sql as $$
+returns void language sql set search_path = public, pg_temp as $$
   update incidents
      set last_seen_at = greatest(last_seen_at, p_seen),
          repeat_count = repeat_count + case when p_count then 1 else 0 end
    where id = p_id and state <> 'fixed';
 $$;
 revoke all on function monitoring_repeat(uuid, timestamptz, boolean) from public, anon, authenticated;
+revoke all on function next_site_code() from public, anon, authenticated;
 
 alter table sites enable row level security;
 alter table devices enable row level security;
@@ -127,3 +136,11 @@ alter table device_state enable row level security;
 alter table incidents enable row level security;
 alter table alert_rules enable row level security;
 alter table alert_contacts enable row level security;
+
+-- Only the Edge Functions (service role) may use these tables. Granted explicitly, so this
+-- does not depend on the project's default privileges.
+grant select, insert, update, delete on sites, devices, access_keys, events, device_state,
+  incidents, alert_rules, alert_contacts to service_role;
+grant usage on sequence site_code_seq to service_role;
+grant execute on function monitoring_repeat(uuid, timestamptz, boolean) to service_role;
+grant execute on function next_site_code() to service_role;

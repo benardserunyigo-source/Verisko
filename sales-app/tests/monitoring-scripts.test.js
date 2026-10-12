@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { dirname, join, normalize } from "node:path";
-import { buildPayload, FUNCTION_NAMES } from "../monitoring/scripts/make-deploy-payload.mjs";
+import { buildPayload, FUNCTION_NAMES, isDeployable } from "../monitoring/scripts/make-deploy-payload.mjs";
 import { describeKey } from "../monitoring/scripts/make-key.mjs";
 import { buildBoxScenario, buildEmailScenario } from "../monitoring/scripts/replay-fake-events.mjs";
 import { DEFAULT_RULES } from "../monitoring/supabase/functions/_shared/rules.mjs";
@@ -35,6 +35,14 @@ test("every relative import in every payload points at a file inside that payloa
   }
 });
 
+test("only .mjs and .ts files are deployable", () => {
+  assert.equal(isDeployable("_shared/rules.mjs"), true);
+  assert.equal(isDeployable("ingest/index.ts"), true);
+  assert.equal(isDeployable("_shared/.DS_Store"), false);
+  assert.equal(isDeployable("_shared/notes.md"), false);
+  assert.equal(isDeployable("_shared/rules.mjs.bak"), false);
+});
+
 test("an unknown function name is refused", () => assert.throws(() => buildPayload("nope")));
 
 // ---------- keys ----------
@@ -52,6 +60,7 @@ test("describeKey refuses bad combinations and injection", async () => {
   await assert.rejects(() => describeKey("box", "x'); drop table sites;--", "k"));
   await assert.rejects(() => describeKey("api", UUID, "k"));
   await assert.rejects(() => describeKey("root", null, "k"));
+  await assert.rejects(() => describeKey("watch", null, "k"), /kind must be one of/);
 });
 
 // ---------- replay scenario ----------
