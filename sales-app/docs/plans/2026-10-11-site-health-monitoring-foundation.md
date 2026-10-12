@@ -37,7 +37,7 @@
 | `monitoring/supabase/migrations/20261012000000_monitoring_tables.sql` | The tables. |
 | `monitoring/scripts/*.mjs` | Deploy bundle builder, key maker, smoke-test replay. |
 | `tests/helpers/fake-repo.mjs`, `tests/helpers/harness.mjs` | In-memory database and shared handler test setup. |
-| `tests/monitoring-*.test.js` | Eight test files, 102 tests in all. |
+| `tests/monitoring-*.test.js` | Eight test files, 106 tests in all. |
 
 ---
 
@@ -1971,7 +1971,7 @@ git push origin main
 
 - [ ] **Step 1: Write the failing test**
 
-It checks that the migration seeds the same alert rules as `rules.mjs`, and that every table has row level security on with no policies.
+It checks that the migration seeds the same alert rules as `rules.mjs`, that every table has row level security on with no policies, that only the service role is granted the tables and functions, that every function pins its `search_path`, and that site codes keep growing past four digits.
 
 Create `tests/monitoring-migration.test.js`:
 
@@ -2000,6 +2000,30 @@ test("every table in the migration has row level security switched on", () => {
   assert.deepEqual(secured, tables);
   assert.ok(!/create policy/i.test(sql), "no policies: only the service role may touch these tables");
 });
+
+test("the service role is granted every table, and nothing is granted to anon or authenticated", () => {
+  const tables = [...sql.matchAll(/^create table (\w+)/gm)].map((m) => m[1]);
+  const grant = sql.match(/grant select, insert, update, delete on ([\s\S]*?) to service_role;/);
+  assert.ok(grant, "no table grant to service_role");
+  const granted = grant[1].split(",").map((x) => x.trim()).sort();
+  assert.deepEqual(granted, [...tables].sort());
+  assert.ok(!/grant [^;]*to (anon|authenticated)/i.test(sql));
+});
+
+test("every function pins its search_path and is only executable by the service role", () => {
+  const fns = [...sql.matchAll(/^create function (\w+)\(([^)]*)\)[\s\S]*?\$\$;/gm)];
+  assert.equal(fns.length, 2);
+  for (const [whole, name] of fns) {
+    assert.match(whole, /set search_path = public, pg_temp/, `${name} does not pin search_path`);
+    assert.match(sql, new RegExp(`revoke all on function ${name}\\([^)]*\\) from public, anon, authenticated;`));
+    assert.match(sql, new RegExp(`grant execute on function ${name}\\([^)]*\\) to service_role;`));
+  }
+});
+
+test("site codes come from next_site_code, which widens past four digits", () => {
+  assert.match(sql, /code text not null unique default next_site_code\(\)/);
+  assert.match(sql, /lpad\(n::text, greatest\(4, length\(n::text\)\), '0'\)/);
+});
 ```
 
 - [ ] **Step 2: Run it and confirm it fails**
@@ -2018,9 +2042,17 @@ Create `monitoring/supabase/migrations/20261012000000_monitoring_tables.sql`:
 
 create sequence if not exists site_code_seq start 1;
 
+-- VS-0001, VS-0002 ... and keeps growing past VS-9999 without ever repeating a code.
+create function next_site_code() returns text language plpgsql set search_path = public, pg_temp as $$
+declare n bigint := nextval('site_code_seq');
+begin
+  return 'VS-' || lpad(n::text, greatest(4, length(n::text)), '0');
+end;
+$$;
+
 create table sites (
   id uuid primary key default gen_random_uuid(),
-  code text not null unique default ('VS-' || lpad(nextval('site_code_seq')::text, 4, '0')),
+  code text not null unique default next_site_code(),
   job_ref text,
   client_name text not null,
   area text not null default '',
@@ -2125,13 +2157,14 @@ create table alert_contacts (
 
 -- Counts a repeated report against one incident without a read-then-write race.
 create function monitoring_repeat(p_id uuid, p_seen timestamptz, p_count boolean)
-returns void language sql as $$
+returns void language sql set search_path = public, pg_temp as $$
   update incidents
      set last_seen_at = greatest(last_seen_at, p_seen),
          repeat_count = repeat_count + case when p_count then 1 else 0 end
    where id = p_id and state <> 'fixed';
 $$;
 revoke all on function monitoring_repeat(uuid, timestamptz, boolean) from public, anon, authenticated;
+revoke all on function next_site_code() from public, anon, authenticated;
 
 alter table sites enable row level security;
 alter table devices enable row level security;
@@ -2141,12 +2174,20 @@ alter table device_state enable row level security;
 alter table incidents enable row level security;
 alter table alert_rules enable row level security;
 alter table alert_contacts enable row level security;
+
+-- Only the Edge Functions (service role) may use these tables. Granted explicitly, so this
+-- does not depend on the project's default privileges.
+grant select, insert, update, delete on sites, devices, access_keys, events, device_state,
+  incidents, alert_rules, alert_contacts to service_role;
+grant usage on sequence site_code_seq to service_role;
+grant execute on function monitoring_repeat(uuid, timestamptz, boolean) to service_role;
+grant execute on function next_site_code() to service_role;
 ```
 
 - [ ] **Step 4: Run it and confirm it passes**
 
 Run: `node --test tests/monitoring-migration.test.js`
-Expected: `ℹ pass 2` and `ℹ fail 0`.
+Expected: `ℹ pass 5` and `ℹ fail 0`.
 
 - [ ] **Step 5: Commit**
 
@@ -2173,7 +2214,7 @@ The real database access, the four Edge Function entry points, and the three scr
 
 - [ ] **Step 1: Write the failing test**
 
-It checks the deploy bundles (every import resolves inside the bundle), the key maker (never prints the raw key, refuses bad input), the replay scenario, and runs that scenario end to end through the real handlers.
+It checks the deploy bundles (every import resolves inside the bundle, and only `.mjs` and `.ts` files are bundled), the key maker (never prints the raw key, refuses bad input and refuses to make a watch key), the replay scenario, and runs that scenario end to end through the real handlers.
 
 Create `tests/monitoring-scripts.test.js`:
 
@@ -2181,7 +2222,7 @@ Create `tests/monitoring-scripts.test.js`:
 import test from "node:test";
 import assert from "node:assert/strict";
 import { dirname, join, normalize } from "node:path";
-import { buildPayload, FUNCTION_NAMES } from "../monitoring/scripts/make-deploy-payload.mjs";
+import { buildPayload, FUNCTION_NAMES, isDeployable } from "../monitoring/scripts/make-deploy-payload.mjs";
 import { describeKey } from "../monitoring/scripts/make-key.mjs";
 import { buildBoxScenario, buildEmailScenario } from "../monitoring/scripts/replay-fake-events.mjs";
 import { DEFAULT_RULES } from "../monitoring/supabase/functions/_shared/rules.mjs";
@@ -2215,6 +2256,14 @@ test("every relative import in every payload points at a file inside that payloa
   }
 });
 
+test("only .mjs and .ts files are deployable", () => {
+  assert.equal(isDeployable("_shared/rules.mjs"), true);
+  assert.equal(isDeployable("ingest/index.ts"), true);
+  assert.equal(isDeployable("_shared/.DS_Store"), false);
+  assert.equal(isDeployable("_shared/notes.md"), false);
+  assert.equal(isDeployable("_shared/rules.mjs.bak"), false);
+});
+
 test("an unknown function name is refused", () => assert.throws(() => buildPayload("nope")));
 
 // ---------- keys ----------
@@ -2232,6 +2281,7 @@ test("describeKey refuses bad combinations and injection", async () => {
   await assert.rejects(() => describeKey("box", "x'); drop table sites;--", "k"));
   await assert.rejects(() => describeKey("api", UUID, "k"));
   await assert.rejects(() => describeKey("root", null, "k"));
+  await assert.rejects(() => describeKey("watch", null, "k"), /kind must be one of/);
 });
 
 // ---------- replay scenario ----------
@@ -2299,6 +2349,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const FUNCTIONS = join(here, "..", "supabase", "functions");
 export const FUNCTION_NAMES = ["ingest", "watch", "sites-read", "incident-update"];
 
+// Only source files are deployed; a stray .DS_Store or editor file must never travel with them.
+export const isDeployable = (path) => /\.(mjs|ts)$/.test(path);
+
 const walk = (dir) => readdirSync(dir).flatMap((n) => {
   const p = join(dir, n);
   return statSync(p).isDirectory() ? walk(p) : [p];
@@ -2307,7 +2360,7 @@ const walk = (dir) => readdirSync(dir).flatMap((n) => {
 export function buildPayload(name, root = FUNCTIONS) {
   if (!FUNCTION_NAMES.includes(name)) throw new Error(`unknown function ${name}`);
   const entry = readFileSync(join(root, name, "index.ts"), "utf8").replaceAll("../_shared/", "./_shared/");
-  const shared = walk(join(root, "_shared")).sort().map((p) => ({
+  const shared = walk(join(root, "_shared")).filter(isDeployable).sort().map((p) => ({
     name: relative(root, p).split("\\").join("/"),
     content: readFileSync(p, "utf8"),
   }));
@@ -2331,17 +2384,18 @@ Create `monitoring/scripts/make-key.mjs`:
 //   node monitoring/scripts/make-key.mjs box <site-uuid>
 //   node monitoring/scripts/make-key.mjs email
 //   node monitoring/scripts/make-key.mjs api
-//   node monitoring/scripts/make-key.mjs watch
-//   node monitoring/scripts/make-key.mjs vault-sql <path-to-watch-key-file>   (prints the Vault SQL)
+//
+// The watch key is NOT made here: it is created inside Postgres so the raw value never leaves
+// the database (see the foundation plan, Task 11).
 
-import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { generateKey, hashKey } from "../supabase/functions/_shared/keys.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const KINDS = ["box", "email", "api", "watch"];
+const KINDS = ["box", "email", "api"]; // the watch key is created inside Postgres, never here
 
 export async function describeKey(kind, siteId, rawKey) {
   if (!KINDS.includes(kind)) throw new Error(`kind must be one of ${KINDS.join(", ")}`);
@@ -2355,18 +2409,14 @@ export async function describeKey(kind, siteId, rawKey) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [kind, arg] = process.argv.slice(2);
   try {
-    if (kind === "vault-sql") {
-      const raw = readFileSync(arg, "utf8").trim();
-      console.log(`select vault.create_secret('${raw}', 'monitoring_watch_key');`);
-    } else {
-      const raw = generateKey(kind);
-      const dir = join(homedir(), ".verisko-monitoring");
-      mkdirSync(dir, { recursive: true, mode: 0o700 });
-      const file = join(dir, `${kind}-${Date.now()}.key`);
-      writeFileSync(file, raw + "\n", { mode: 0o600 });
-      console.error(`raw key saved to ${file} (readable only by you)`);
-      console.log(await describeKey(kind, arg, raw));
-    }
+    const raw = generateKey(kind);
+    const sql = await describeKey(kind, arg, raw); // refuses a bad kind before anything is written
+    const dir = join(homedir(), ".verisko-monitoring");
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const file = join(dir, `${kind}-${Date.now()}.key`);
+    writeFileSync(file, raw + "\n", { mode: 0o600 });
+    console.error(`raw key saved to ${file} (readable only by you)`);
+    console.log(sql);
   } catch (err) { console.error(err.message); process.exit(1); }
 }
 ```
@@ -2427,8 +2477,9 @@ Create `monitoring/supabase/functions/_shared/repo.mjs`:
 // as already processed by its event row, so if a write fails midway the retry still
 // reaches the incident step.
 
-const NO_DEVICE = null;
-const must = (res) => { if (res.error) throw new Error(res.error.message); return res.data; };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const fail = (error) => { throw new Error(`${error.message} [${error.code || "no code"}] ${error.details || ""}`.trim()); };
+const must = (res) => { if (res.error) fail(res.error); return res.data; };
 
 const toSite = (r) => r && ({ id: r.id, code: r.code, name: r.client_name, area: r.area, feeds: r.feeds || [], status: r.status, boxLastSeenAt: r.box_last_seen_at });
 const toIncident = (r) => ({
@@ -2466,14 +2517,14 @@ export function makeRepo(db) {
       const ins = await db.from("devices").insert({ site_id: siteId, kind, label, channel }).select("id,kind,label").single();
       if (ins.error) {
         if (ins.error.code === "23505") { d = await find(); if (d) return d; } // another request created it first
-        throw new Error(ins.error.message);
+        fail(ins.error);
       }
       return ins.data;
     },
 
     async hasEvent(dedupeKey) {
       const res = await db.from("events").select("id", { count: "exact", head: true }).eq("dedupe_key", dedupeKey);
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) fail(res.error);
       return (res.count || 0) > 0;
     },
 
@@ -2482,11 +2533,11 @@ export function makeRepo(db) {
       for (const o of ops || []) {
         if (o.op === "open") {
           const ins = await db.from("incidents").insert({
-            site_id: o.siteId, device_id: o.deviceId || NO_DEVICE, kind: o.kind, source: o.source,
+            site_id: o.siteId, device_id: o.deviceId || null, kind: o.kind, source: o.source,
             opened_at: o.openedAt, last_seen_at: o.lastSeenAt, area_group: o.areaGroup || null,
           }).select("id").single();
           if (!ins.error) { created[o.ref] = ins.data.id; continue; }
-          if (ins.error.code !== "23505") throw new Error(ins.error.message);
+          if (ins.error.code !== "23505") fail(ins.error);
           // A live incident already exists for this site, device and kind: use it.
           let q = db.from("incidents").select("id").eq("site_id", o.siteId).eq("kind", o.kind).neq("state", "fixed");
           q = o.deviceId ? q.eq("device_id", o.deviceId) : q.is("device_id", null);
@@ -2531,7 +2582,7 @@ export function makeRepo(db) {
       const sites = must(await db.from("sites").select(SITE_COLS)).map(toSite);
       const boxes = must(await db.from("devices").select("id,site_id").eq("kind", "box"));
       const boxBySite = Object.fromEntries(boxes.map((b) => [b.site_id, b.id]));
-      const incidents = must(await db.from("incidents").select("*").neq("state", "fixed")).map((r) => ({ ...toIncident(r) }));
+      const incidents = must(await db.from("incidents").select("*").neq("state", "fixed")).map(toIncident);
       return { sites: sites.map((s) => ({ ...s, boxDeviceId: boxBySite[s.id] || null })), incidents };
     },
 
@@ -2558,6 +2609,7 @@ export function makeRepo(db) {
     },
 
     async getSiteDetail(siteId) {
+      if (!UUID.test(siteId)) return null; // a malformed id is simply not found, not a database error
       const site = must(await db.from("sites").select(SITE_COLS + ",care_plan,job_ref").eq("id", siteId).maybeSingle());
       if (!site) return null;
       const devices = must(await db.from("devices").select("id,kind,label,channel").eq("site_id", siteId));
@@ -2574,6 +2626,7 @@ export function makeRepo(db) {
     },
 
     async setIncidentState({ incidentId, action, by, nowIso }) {
+      if (!UUID.test(incidentId)) return null;
       const current = must(await db.from("incidents").select("id,state").eq("id", incidentId).maybeSingle());
       if (!current) return null;
       const patch = action === "acknowledge"
@@ -2650,7 +2703,7 @@ node --check monitoring/supabase/functions/_shared/repo.mjs && echo "repo syntax
 node --test tests/monitoring-*.test.js
 ```
 
-Expected: `repo syntax ok`, then `ℹ tests 102`, `ℹ pass 102`, `ℹ fail 0`.
+Expected: `repo syntax ok`, then `ℹ tests 106`, `ℹ pass 106`, `ℹ fail 0`.
 
 - [ ] **Step 7: Commit**
 
@@ -2662,6 +2715,79 @@ git commit -m "sales-app: monitoring real repository, Edge Function entry points
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 git push origin main
 ```
+
+---
+
+### Task 9b: Fixes from the code review
+
+A senior review of Tasks 0 to 9 found no critical defects. These fixes were made before anything was deployed. **The code shown in Tasks 3, 8 and 9 already includes them.** If you ran Tasks 3 to 9 from an earlier copy of this plan, replace `repo.mjs`, `make-key.mjs`, `make-deploy-payload.mjs`, the migration, `tests/monitoring-migration.test.js` and `tests/monitoring-scripts.test.js` with the versions shown above, then do the steps below.
+
+| Review finding | Fix |
+|---|---|
+| The database might not grant the service role access to new tables and functions | The migration grants them explicitly and pins each function's `search_path` |
+| Site codes would repeat after 9,999 sites | `next_site_code()` widens past four digits |
+| A malformed id sent to the read or update calls would be a 500, not a 404 | `repo.mjs` treats a non-UUID id as "not found" |
+| Database error codes and details were dropped from logs | `repo.mjs` includes them in the thrown error |
+| A stray `.DS_Store` would be bundled into a deploy | Only `.mjs` and `.ts` files are bundled |
+| The raw watch key would pass through chat | The key maker refuses `watch`; Task 11 creates that key inside Postgres |
+| The plan and tests are public, because the app is published from this folder | Step 1 below hides `/docs`, `/tests` and `/netlify` as well |
+
+**Files:**
+- Modify: `_redirects`
+
+- [ ] **Step 1: Hide the other folders that hold monitoring source**
+
+The app's service worker only caches files the home page references, and nothing in the app loads from these three paths. Add these lines to `_redirects` directly below the `/monitoring/*` line:
+
+```
+/docs/* /index.html 200!
+/tests/* /index.html 200!
+/netlify/* /index.html 200!
+```
+
+The file should now read:
+
+```
+/api/data /.netlify/functions/data 200
+/api/receipt /.netlify/functions/receipt 200
+/api/export /.netlify/functions/export 200
+/api/auth /.netlify/functions/auth 200
+/monitoring/* /index.html 200!
+/docs/* /index.html 200!
+/tests/* /index.html 200!
+/netlify/* /index.html 200!
+/* /index.html 200
+```
+
+- [ ] **Step 2: Run the whole monitoring suite**
+
+Run: `node --test tests/monitoring-*.test.js`
+Expected: `ℹ tests 106`, `ℹ pass 106`, `ℹ fail 0`.
+
+- [ ] **Step 3: Commit and push**
+
+```bash
+cd /Users/ben/Verisko
+git add sales-app/_redirects sales-app/monitoring sales-app/tests/monitoring-migration.test.js sales-app/tests/monitoring-scripts.test.js
+git commit -m "sales-app: monitoring review fixes (grants, search_path, site codes, error detail, bundle filter, hide docs/tests/netlify)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git push origin main
+```
+
+- [ ] **Step 4: Confirm the folders are hidden and the app still works**
+
+Wait about a minute for Netlify to deploy, then run:
+
+```bash
+for p in docs/CODEX-HANDOFF.md tests/booking.test.js netlify/functions/data.mjs docs/plans/2026-10-11-site-health-monitoring-foundation.md monitoring/README.md; do
+  printf "%-72s " $p; curl -s -o /dev/null -w "%{content_type}\n" https://verisko-sales-2026.netlify.app/$p
+done
+curl -s -o /dev/null -w "api/data: %{http_code}\n" https://verisko-sales-2026.netlify.app/api/data
+curl -s -o /dev/null -w "home: %{http_code} %{content_type}\n" https://verisko-sales-2026.netlify.app/
+```
+
+Expected: all five paths print `text/html; charset=UTF-8` (the app shell, not the file), `api/data: 401`, and `home: 200 text/html; charset=UTF-8`. If any path still prints `text/markdown` or `application/javascript`, wait another minute and retry before assuming the rule failed. If `api/data` is not 401 or the home page is not 200, run `git revert HEAD && git push origin main` and stop.
 
 ---
 
@@ -2687,19 +2813,18 @@ Expected: six rows: `camera_offline 5 true 24`, `disk_error 0 true null`, `disk_
 Call `get_advisors` with `project_id` `cepernltrzrmupgegcib` and type `security`.
 Expected: no `rls_disabled_in_public` finding. Notices that RLS is enabled with no policies are expected and intended, because only the Edge Functions use these tables.
 
-- [ ] **Step 4: Create the api, watch and email keys**
+- [ ] **Step 4: Create the api and email keys**
 
 ```bash
 cd /Users/ben/Verisko
 node sales-app/monitoring/scripts/make-key.mjs api
-node sales-app/monitoring/scripts/make-key.mjs watch
 node sales-app/monitoring/scripts/make-key.mjs email
 ```
 
-Each command prints `raw key saved to /Users/ben/.verisko-monitoring/<kind>-<number>.key (readable only by you)` on the error stream and one `insert into access_keys ...` statement on the output. Run each printed statement with `execute_sql`. Do not copy any raw key anywhere.
+Each command prints `raw key saved to /Users/ben/.verisko-monitoring/<kind>-<number>.key (readable only by you)` on the error stream and one `insert into access_keys ...` statement on the output. Run each printed statement with `execute_sql`. Do not copy any raw key anywhere. The watch key is created inside the database in Task 11, so its raw value is never seen.
 
 Then call `execute_sql` with `select kind, site_id is null as no_site, revoked_at from access_keys order by kind;`
-Expected: three rows: `api true null`, `email true null`, `watch true null`.
+Expected: two rows: `api true null` and `email true null`.
 
 - [ ] **Step 5: Deploy the four functions**
 
@@ -2743,16 +2868,20 @@ create extension if not exists pg_net;
 
 Expected: success. If either errors, enable `pg_cron` and `pg_net` in the Supabase dashboard under Database, Extensions, then continue.
 
-- [ ] **Step 2: Store the watch key in Vault**
+- [ ] **Step 2: Create the watch key inside the database**
 
-The command below prints one `select vault.create_secret(...)` line. It is the only place a raw key is printed, and it is meant to be run straight away through the connector and not saved or repeated.
+The key is generated, stored in Vault, and registered by its hash, all in one place. Its raw value is never printed or copied. Run this once:
 
-```bash
-cd /Users/ben/Verisko
-node sales-app/monitoring/scripts/make-key.mjs vault-sql ~/.verisko-monitoring/watch-<number>.key
+```sql
+create extension if not exists pgcrypto;
+select vault.create_secret(encode(gen_random_bytes(32), 'hex'), 'monitoring_watch_key');
+insert into access_keys (kind, key_hash, note)
+select 'watch', encode(digest(decrypted_secret, 'sha256'), 'hex'), 'created inside Postgres'
+from vault.decrypted_secrets where name = 'monitoring_watch_key';
 ```
 
-Run the printed statement with `execute_sql`. Expected: success, returns one uuid.
+Expected: success. Then call `execute_sql` with `select kind, site_id is null as no_site, revoked_at from access_keys where kind = 'watch';`
+Expected: one row: `watch true null`. If the `vault.create_secret` statement says the name already exists, the key was already made: do not run it again.
 
 - [ ] **Step 3: Create the two scheduled jobs**
 
@@ -2934,21 +3063,21 @@ The real database code is `_shared/repo.mjs`. It is checked by the live smoke te
 
 Four kinds of key, all stored only as SHA-256 hashes in `access_keys`:
 
-| Kind | Used by | Tied to a site |
-|---|---|---|
-| `box` | The box agent at one customer site | Yes |
-| `email` | The Google Apps Script that reads recorder emails | No |
-| `api` | The Operations app's Netlify function | No |
-| `watch` | The one-minute database scheduler | No |
+| Kind | Used by | Tied to a site | Made by |
+|---|---|---|---|
+| `box` | The box agent at one customer site | Yes | `scripts/make-key.mjs` |
+| `email` | The Google Apps Script that reads recorder emails | No | `scripts/make-key.mjs` |
+| `api` | The Operations app's Netlify function | No | `scripts/make-key.mjs` |
+| `watch` | The one-minute database scheduler | No | Inside Postgres only. The raw value lives in Supabase Vault and never leaves the database. |
 
-Raw keys live in `~/.verisko-monitoring/` on the machine that made them. Never commit one.
+Raw box, email and api keys live in `~/.verisko-monitoring/` on the machine that made them. Never commit one.
 To revoke a key, set its `revoked_at` in `access_keys`.
 
 ## Deploy
 
 1. Apply `supabase/migrations/*.sql` with the Supabase connector.
 2. For each function: `node monitoring/scripts/make-deploy-payload.mjs <name>`, then deploy the printed file list with `verify_jwt` false.
-3. Schedule the watcher and cleanup (see the foundation plan, Task 11).
+3. Create the watch key and schedule the watcher and cleanup (see the foundation plan, Task 11).
 
 ## Known limits
 
@@ -2981,6 +3110,17 @@ These refine sections 4 to 6. Where this section disagrees with an earlier one, 
 - A manual Fixed tap sends no SMS. Automatic recoveries do.
 - If an SMS fails, or no contact exists yet, the incident stays unnotified and the watcher retries for two hours.
 - The foundation ships a console SMS sender. Real texts arrive at build step 4.
+
+## 13. Follow-ups found in code review (11 October 2026)
+
+Fixed before deployment: explicit database grants and pinned function search paths, site codes that grow past four digits, a malformed id is "not found" rather than a server error, only source files are bundled, and the watch key is created inside Postgres so its raw value never leaves the database.
+
+Not yet fixed, and which plan must fix each:
+
+- **Before real SMS (build step 4):** two posts for the same fault at the same moment can both send an "opened" text, and the watcher's retry can overlap a text still being sent. Fix: make `save()` report which incidents it created and text only those, and retry only incidents older than two minutes. Also add an SMS budget per hour, so a leaked email key cannot run up costs.
+- **Before the Sites screen (build step 3):** the database returns at most 1,000 rows per query, so the summary and watcher reads must page through results. The fake and real repositories must return identical shapes and ordering for the summary and detail calls.
+- **Before the email reader (build step 2):** an acknowledged camera fault opened by email can expire after 24 hours while a box still sees the camera down, then reopen with a new text. Fix: a box "down" report should refresh the incident's last-seen time. Expiry should also set the device back to unknown. A report older than a device's latest event, not just older than its current state, should count as out of order.
+- **Later:** one database query per check when a box reports, a paused or closed site that still has an open silent incident, and a manual Fixed on a device that is still down reopens it within a minute, so the screen should point staff to Acknowledge for known issues.
 """
 open(p, "w").write(s)
 print("spec updated")
@@ -2992,7 +3132,7 @@ Expected output: `spec updated`.
 - [ ] **Step 3: Run the whole app test suite**
 
 Run: `npm test`
-Expected: every test passes, including the 102 monitoring tests, and none fail.
+Expected: every test passes, including the 106 monitoring tests, and none fail.
 
 - [ ] **Step 4: Commit and push**
 
@@ -3031,6 +3171,8 @@ Expected: the first two print `text/html; charset=UTF-8` (the app shell, not the
 | 9: keys per site, hashed, revocable; status only; no inbound ports on the box | Tasks 3, 8, 10 |
 | 9: privacy of the monitoring files on the public site (added) | Tasks 0, 13 |
 | 10: step 1 verification (unit tests, replayed fake events, no hardware) | Tasks 1 to 9 and 12 |
+
+**Review follow-ups not fixed here** are recorded in section 13 of the spec, each tied to the plan that must fix it.
 
 **Not in this plan, by design** (each needs a fact we do not have yet, so each gets its own plan):
 
