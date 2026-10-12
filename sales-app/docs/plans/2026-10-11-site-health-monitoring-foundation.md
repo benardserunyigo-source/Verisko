@@ -2942,10 +2942,10 @@ Call `execute_sql` with:
 
 ```sql
 create extension if not exists pg_cron;
-create extension if not exists pg_net;
+create extension if not exists pg_net with schema extensions;
 ```
 
-Expected: success. If either errors, enable `pg_cron` and `pg_net` in the Supabase dashboard under Database, Extensions, then continue.
+Expected: success. `pg_net` goes in the `extensions` schema: the default, the `public` schema, makes the Supabase security advisor warn. If either statement errors, enable `pg_cron` and `pg_net` in the Supabase dashboard under Database, Extensions, then continue.
 
 - [ ] **Step 2: Create the watch key inside the database**
 
