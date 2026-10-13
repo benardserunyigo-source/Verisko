@@ -19,3 +19,11 @@
 - Browser console: no errors at inspection.
 - Existing sales-app files untouched. No live sales-role smoke test was run because this is a separate application, not a modification of that app.
 - Not verified: actual Supabase sign-in, production Netlify functions, live site readings, cross-device live updates, email delivery or SMS delivery. These require deployment configuration and a controlled live test.
+# Camera status view · 12 October 2026
+
+- Added floor/area map with one accessible tap target per camera. Brian demo: 2 / 2 / 1 / 2 / 1 cameras. Recorder kept separate.
+- Optional fifth setup column records floor/area. Existing four-column entries remain supported. Missing locations show “Area not set”.
+- Camera faults match device IDs, not the site alone. Late site readings become unknown, including while the detail stays open.
+- Browser verified at 320px: no horizontal overflow, camera selection, repair scheduling, simulated recovery, verified completion and demo message history. Demo changes cleared by reloading.
+- WhatsApp remains disabled. No production database changes or Netlify deployment performed.
+- Fixed onboarding request to retain raw device rows for the server’s existing validation.
