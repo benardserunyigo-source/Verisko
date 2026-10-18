@@ -2,6 +2,13 @@
 
 ## Recruitment intake added 18 October 2026 (v77)
 
+Current intake UI v79: 8 of 10 questions use choices; only name/phone always
+need typing. Other area/university/course reveals a short text field; Pick a
+date reveals a calendar. Availability uses day checkboxes plus time. Experience
+and fieldwork readiness replace the two essays, which are now covered by video.
+`formVersion=pick-v1` selects validation and reviewer labels; legacy answers
+and already-open older forms keep working with their original question labels.
+
 Public application: `/apply.html` (also `/apply`). Ten short questions, then a
 two-minute video. No CV or applicant account. New-role allowance is UGX 30,000
 weekly; this does not change the existing staff commission/float calculator.

@@ -1,5 +1,12 @@
 # Application intake verification
 
+## v79: simpler selections
+
+- 230 tests passed, including selection validation, missing/Other values, normalised-answer retries and original labels for older submissions.
+- Browser: selected area/course/study year; selected Other university and filled its conditional name; picked Monday/Wednesday afternoons, start within one week, no experience and training requested; uploaded a generated video; received a success reference.
+- Admin inbox displayed the actual Other university, selected days/time, start choice and the new experience/readiness labels. The synthetic application and video were deleted afterwards.
+- At 360px, options have large tap targets and no horizontal overflow. No written essay questions remain. Video prompt still asks motivation and how the person would approach a business owner.
+
 - Baseline: 220 tests, four role smoke tests before edits. After intake: 226 tests, all passing.
 - Local browser: ten required answers → generated 3-second test MP4 → consent → multipart upload → successful reference → Operations/Admin inbox → video playback (duration 3, readyState 4, no playback error) → saved Interview review and notes → Admin deleted test record and video.
 - Admin and Operations see Applications; Sales and Team lead do not. API tests separately deny unauthorized list/record/video, not only navigation.

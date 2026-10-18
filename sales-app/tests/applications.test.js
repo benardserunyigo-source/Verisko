@@ -1,7 +1,12 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {createApplicationsHandler} from '../netlify/functions/lib/applications-core.mjs';
-import {validateAnswers,videoInfo,CHUNK_SIZE} from '../application-model.mjs';
+import {validateAnswers,videoInfo,CHUNK_SIZE,FORM_VERSION,questionsFor} from '../application-model.mjs';
 const answers={fullName:'TEST ONLY Applicant',phone:'0772123456',area:'TEST Nakawa',university:'TEST University',course:'Bachelor of Business',study:'Year 3',availability:'Weekday afternoons',startDate:'2026-11-01',approach:'I would ask about their security needs.',motivation:'I enjoy meeting business owners.'};
+const picked={...answers,formVersion:FORM_VERSION,area:'Nakawa',university:'MUBS',course:'Business Administration',availabilityDays:['Monday','Wednesday'],availabilityTime:'Afternoons',startDate:'Within 1 week',approach:'No, this would be my first role',motivation:'Yes, with some training'};
+test('pick answers normalize days and remain valid when sent again',()=>{const result=validateAnswers(picked);assert.equal(result.availability,'Monday, Wednesday · Afternoons');assert.deepEqual(validateAnswers(result),result);assert.equal(result.startDate,'Within 1 week')});
+test('Other fields and a chosen date are required and preserved',()=>{assert.throws(()=>validateAnswers({...picked,university:'Other'}));const result=validateAnswers({...picked,university:'Other',universityOther:'TEST University',course:'Other',courseOther:'Bachelor of IT',startDate:'Pick a date',startDateOther:'2026-11-01'});assert.equal(result.university,'TEST University');assert.equal(result.course,'Bachelor of IT');assert.equal(result.startDate,'2026-11-01');assert.deepEqual(validateAnswers(result),result)});
+test('pick answers reject missing days, unknown time and invented selections',()=>{for(const change of [{availabilityDays:[]},{availabilityDays:['Someday']},{availabilityTime:'Unknown'},{approach:'Some essay'},{motivation:''}])assert.throws(()=>validateAnswers({...picked,...change}))});
+test('old answers keep their original interview question labels',()=>{assert.match(questionsFor(answers)[8][1],/shop owner/);assert.match(questionsFor(picked)[8][1],/customer service/);assert.equal(validateAnswers(answers).approach,answers.approach)});
 export class MemoryStore{
  constructor(){this.rows=new Map()}
  async set(key,value,options={}){if(options.onlyIfNew&&this.rows.has(key))return {modified:false};this.rows.set(key,value instanceof ArrayBuffer?value.slice(0):value);return {modified:true}}

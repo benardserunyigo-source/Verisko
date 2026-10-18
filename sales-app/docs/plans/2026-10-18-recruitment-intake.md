@@ -1,5 +1,20 @@
 # Field-sales application MVP
 
+## Tap-to-select revision (v79)
+
+Eight of ten questions now use selections. Only name and WhatsApp phone always
+need typing. Area, university and bachelor’s course have dropdowns plus a
+required text field only for Other. Study year is a dropdown. Availability is
+day checkboxes plus a time choice. Start time is a choice, with a calendar only
+for Pick a date. Experience and readiness for fieldwork are single-choice
+answers. Motivation and the customer-approach explanation are covered by the
+two-minute video instead of written essays. No auto-rejection or scoring.
+
+New answers carry formVersion=pick-v1. Their selections and conditional values
+are validated on the server. Existing submissions and already-open older forms
+remain compatible. The reviewer uses each submission’s original question
+labels so old essay answers are never relabelled as experience/readiness.
+
 ## Applicant journey
 
 Public /apply.html → role and pay → 6 personal/study questions → 4 availability/sales questions → record or choose a video up to two minutes → preview → consent → send → reference.

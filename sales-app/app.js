@@ -479,7 +479,7 @@
     var host = document.getElementById("viewContent");
     host.innerHTML = '<p class="help">Loading applications…</p>';
     try {
-      var module = await import("./applications-ui.mjs?v=78");
+      var module = await import("./applications-ui.mjs?v=79");
       if (view !== "applications") return;
       await module.mountApplications({ host: host, token: function () { return settings.auth ? settings.auth.access_token : ""; }, esc: esc, confirm: openSheet, role: settings.user.role });
     } catch (error) { if (view === "applications") host.textContent = "Could not open applications. Refresh and try again."; }
@@ -3796,7 +3796,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v78";
+  var APP_VERSION = "v79";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
