@@ -737,37 +737,54 @@
       emptyState(ICON_PIN, "No site visits yet", "Qualify a prospect, then schedule a site visit.", "Schedule visit", 'data-new="appointment"');
   }
 
-  // Full visit card. Confirmed visits get the distinct "ready for handoff" style.
+  // Visit card: a short summary (who, when, where, what's next, one main
+  // button). Tap it or "Details" to open the full handoff info and every action.
+  var openVisits = {};
+  function visitNextStep(a, gaps) {
+    if (a.status === "Cancelled") return { tone: "muted", text: "Cancelled" };
+    if (a.visitResult === "real") return { tone: "green", text: "✓ Visited — quote assessment done" };
+    if (a.visitResult === "not_real") return { tone: "red", text: "✕ Visit didn't happen" };
+    if (a.status !== "Confirmed" && hasGaps(gaps)) return { tone: "amber", text: "Add " + listAnd(gaps.prospect.concat(gaps.appointment)) + " to confirm" };
+    if (/Proposed|Rescheduled/i.test(a.status)) return { tone: "amber", text: "Waiting to be confirmed" };
+    if (a.callConfirmedAt) return { tone: "green", text: "✓ Confirmed by phone · visit next" };
+    if (a.status === "Confirmed") return { tone: "muted", text: "Office to call the client" };
+    return { tone: "muted", text: a.status || "" };
+  }
   function handoffCard(a, compact) {
     var p = prospect(a.prospectId);
     var isConfirmed = a.status === "Confirmed";
     var gaps = handoffGaps(a);
-    var actions = "";
-    if (p.phone) actions += '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call contact</a>';
-    if (/Proposed|Rescheduled/i.test(a.status)) actions += '<button class="btn btn-sm btn-primary" data-confirm="' + a.id + '">Confirm visit</button>';
-    actions += visitCheckActions(a);
-    actions += '<button class="btn btn-sm btn-ghost" data-edit="appointment" data-id="' + a.id + '">Edit</button>';
+    var open = !!openVisits[a.id];
+    var next = visitNextStep(a, gaps);
+    var area = String(p.location || "").split(/[,–-]/)[0].trim();
 
-    var flag = isConfirmed ? '<div class="handoff-flag"><span aria-hidden="true">✓</span> Ready for handoff to Operations</div>' : "";
-    var warn = (!isConfirmed && hasGaps(gaps)) ?
-      '<div class="item-line"><span class="k">To confirm</span><span class="v" style="color:var(--amber);font-weight:650">Add ' + esc(listAnd(gaps.prospect.concat(gaps.appointment))) + "</span></div>" : "";
+    // One main button on the summary; the rest live in Details.
+    var main = "";
+    if (/Proposed|Rescheduled/i.test(a.status)) main = '<button class="btn btn-sm btn-primary" data-confirm="' + a.id + '">Confirm visit</button>';
+    else if (canReviewProspects() && a.status !== "Cancelled" && !a.visitResult) main = '<button class="btn btn-sm btn-primary" data-visit-done="' + esc(a.id) + '">Visit done</button>';
+    var call = p.phone ? '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>' : "";
+    var more = visitCheckActions(a).replace(/<button class="btn btn-sm btn-primary" data-visit-done="[^"]*">Visit done<\/button>/, main.indexOf("data-visit-done") > -1 ? "" : "$&") +
+      '<button class="btn btn-sm btn-ghost" data-edit="appointment" data-id="' + a.id + '">Edit</button>';
 
-    return '<article class="item ' + (isConfirmed ? "handoff" : "tone-amber") + '">' + flag +
-      '<div class="item-top"><div><div class="item-title">' + esc(p.business || "Unknown prospect") + '</div>' +
-      '<div class="item-meta"><strong>' + esc(relDay(a.date)) + "</strong> · " + esc(a.time || "no time") + "</div></div>" + apptChip(a.status) + "</div>" +
-      '<div class="handoff-grid">' +
+    return '<article class="item visit-card ' + (isConfirmed ? "handoff" : "tone-amber") + (open ? " open" : "") + '" data-visit-card="' + esc(a.id) + '">' +
+      '<button type="button" class="visit-sum" data-visit-toggle="' + esc(a.id) + '" aria-expanded="' + open + '">' +
+      '<span class="item-top"><span class="item-title">' + esc(p.business || "Unknown prospect") + "</span>" + apptChip(a.status) + "</span>" +
+      '<span class="item-meta"><strong>' + esc(relDay(a.date)) + "</strong> · " + esc(a.time || "no time") + (area ? " · " + esc(area) : "") + "</span>" +
+      '<span class="visit-next ' + next.tone + '">' + esc(next.text) + "</span></button>" +
+      '<div class="visit-details"' + (open ? "" : " hidden") + '><div class="visit-lines">' +
       line("When", esc(dateLabel(a.date)) + (a.time ? " at " + esc(a.time) : "")) +
-      line("Operations owner", esc(a.director || "Not set")) +
       line("Purpose", esc(a.purpose || "Site visit")) +
       line("Contact", esc(p.contact || "Unknown")) +
       lineHtml("Phone", p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") +
       line("Location", esc(p.location || "Not recorded")) +
+      (a.directions ? line("Directions", esc(a.directions)) : "") +
       (p.places ? line("Wants to watch", esc(p.places) + " · about " + window.VeriskoBooking.cameras(p.places) + " cameras") : "") +
       (p.decides && p.decides !== "Yes, they decide" ? line("Decides", esc(p.decides)) : "") +
-      (a.directions ? line("Directions & access", esc(a.directions)) : "") +
+      line("Operations", esc(a.director || "Not set")) +
       visitCheckLines(a) +
-      warn +
-      "</div><div class=\"item-actions\">" + actions + "</div></article>";
+      '</div><div class="item-actions">' + more + "</div></div>" +
+      '<div class="item-actions visit-quick">' + call + main +
+      '<button type="button" class="btn btn-sm btn-ghost visit-more" data-visit-toggle="' + esc(a.id) + '">' + (open ? "Less" : "Details") + "</button></div></article>";
   }
   function line(k, v) { return '<div class="item-line"><span class="k">' + k + '</span><span class="v">' + v + "</span></div>"; }
 
@@ -4601,6 +4618,18 @@
     var qsc = e.target.closest("[data-quote-share]"); if (qsc) { shareQuote(qsc.getAttribute("data-quote-share")); return; }
     var edit = e.target.closest("[data-edit]"); if (edit) { openForm(edit.dataset.edit, edit.dataset.id); return; }
     var sched = e.target.closest("[data-schedule]"); if (sched) { openForm("appointment", null, sched.dataset.schedule); return; }
+    var vt = e.target.closest("[data-visit-toggle]");
+    if (vt) {
+      var vid = vt.getAttribute("data-visit-toggle"), card = vt.closest("[data-visit-card]");
+      openVisits[vid] = !openVisits[vid];
+      if (card) {
+        card.classList.toggle("open", !!openVisits[vid]);
+        card.querySelector(".visit-details").hidden = !openVisits[vid];
+        card.querySelector(".visit-sum").setAttribute("aria-expanded", String(!!openVisits[vid]));
+        card.querySelector(".visit-more").textContent = openVisits[vid] ? "Less" : "Details";
+      }
+      return;
+    }
     var confirmBtn = e.target.closest("[data-confirm]"); if (confirmBtn) { confirmVisit(confirmBtn.dataset.confirm); return; }
     var callOk = e.target.closest("[data-call-ok]"); if (callOk) { markCallConfirmed(callOk.getAttribute("data-call-ok")); return; }
     var visitDone = e.target.closest("[data-visit-done]"); if (visitDone) { markVisitDone(visitDone.getAttribute("data-visit-done")); return; }
