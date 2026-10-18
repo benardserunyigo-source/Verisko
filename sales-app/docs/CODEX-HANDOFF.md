@@ -1,5 +1,25 @@
 # Verisko Uganda Operations — Handoff for Codex
 
+## Recruitment intake added 18 October 2026 (v77)
+
+Public application: `/apply.html` (also `/apply`). Ten short questions, then a
+two-minute video. No CV or applicant account. New-role allowance is UGX 30,000
+weekly; this does not change the existing staff commission/float calculator.
+Operations/admin: More → Applications, or Applications in the desktop sidebar.
+Private records and multipart video live in `verisko-applications`, never in
+`app-data` or exports. `/api/applications` enforces staff identity and role for
+every read, video part and review. Sales/Team lead cannot read applications.
+See `docs/plans/2026-10-18-recruitment-intake.md` for flow, storage, upload,
+privacy, rate limits and verification. `application-preview.mjs` under
+`docs/tools/` is local-only synthetic QA, not production auth.
+
+Camera and microphone are allowed only on `/apply*`. The service worker bypasses
+application pages/modules so an applicant page cannot replace the staff offline
+shell. MP4/WebM files up to 24 MB, sent in 1 MB parts. Recording stops at two
+minutes; server bounds bytes and checks container headers, not codec duration.
+The daily cleanup removes expired incomplete uploads. Admin can explicitly
+delete a received application and its video.
+
 You are taking over an in-production web app. This document is everything you
 need to work on it safely. Read it fully before touching code.
 

@@ -10,7 +10,7 @@
 //     same file are dropped.
 //   • /api/* and other websites (Supabase, Loom…): never cached.
 // Bump CACHE only when this file's own logic changes.
-const CACHE = "verisko-shell-v1";
+const CACHE = "verisko-shell-v2";
 const SHELL = "/";
 const NAV_TIMEOUT_MS = 4000;
 const EXTRA = ["/logo.svg", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png"];
@@ -48,6 +48,7 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
+  if (url.pathname.startsWith("/apply") || url.pathname.startsWith("/application")) return;
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/") || url.pathname.startsWith("/.netlify/")) return;
   if (req.mode === "navigate") { event.respondWith(page(req)); return; }
   event.respondWith(asset(req, url));

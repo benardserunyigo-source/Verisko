@@ -37,7 +37,7 @@
     { key: "credentials", label: "Login & warranty handed over" }
   ];
   // Operations/admin extras live behind the bottom-nav "More" sheet.
-  var MORE_VIEWS = ["jobs", "cashflow", "settings"];
+  var MORE_VIEWS = ["jobs", "cashflow", "applications", "settings"];
 
   /* ---------------------------- Quote calculator ---------------------------- */
   // Site-scoring rubric (answer points drive the site tier).
@@ -460,6 +460,7 @@
     if (view === "settings" && !isAdmin()) view = "today";      // Settings is admin-only
     if (view === "cashflow" && !canCashflow()) view = "today";  // Cash flow is Operations + admin
     if (view === "jobs" && !canInstalls()) view = "today";      // Jobs is Operations + admin
+    if (view === "applications" && !canInstalls()) view = "today";
     updateNavActive();
     updateCashBadge();
     updateProspectBadge();
@@ -471,6 +472,17 @@
     else if (view === "cashflow") renderCashflow();
     else if (view === "settings") renderSettings();
     else if (view === "support") renderSupport();
+    else if (view === "applications") renderApplications();
+  }
+  async function renderApplications() {
+    setHead("GROW THE TEAM", "Applications", "Read applications, watch introductions and keep review notes.", "", false);
+    var host = document.getElementById("viewContent");
+    host.innerHTML = '<p class="help">Loading applications…</p>';
+    try {
+      var module = await import("./applications-ui.mjs?v=77");
+      if (view !== "applications") return;
+      await module.mountApplications({ host: host, token: function () { return settings.auth ? settings.auth.access_token : ""; }, esc: esc, confirm: openSheet, role: settings.user.role });
+    } catch (error) { if (view === "applications") host.textContent = "Could not open applications. Refresh and try again."; }
   }
   // Highlight the current tab — or the More button when the view lives there.
   function updateNavActive() {
@@ -3784,7 +3796,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v69";
+  var APP_VERSION = "v77";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -3989,7 +4001,7 @@
   }
   function moreViewsForRole() {
     var v = [];
-    if (canInstalls()) { v.push("jobs"); v.push("cashflow"); }
+    if (canInstalls()) { v.push("jobs"); v.push("cashflow"); v.push("applications"); }
     if (supportInMore()) v.push("support");
     if (isAdmin()) v.push("settings");
     return v;
