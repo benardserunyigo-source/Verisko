@@ -2,7 +2,13 @@
 
 ## Recruitment intake added 18 October 2026 (v77)
 
-Current intake UI v79: 8 of 10 questions use choices; only name/phone always
+Current intake UI v80: availability asks about the full three-month contract,
+not this week's timetable. Consent comes before recording. Stopping a recording
+automatically uploads a private draft; final Submit publishes it to the inbox.
+Failed uploads keep the local video and offer Retry upload; reconnect retries.
+`pick-v2` records keep three-month labels; `pick-v1` keeps weekly labels.
+
+Previous intake UI v79: 8 of 10 questions use choices; only name/phone always
 need typing. Other area/university/course reveals a short text field; Pick a
 date reveals a calendar. Availability uses day checkboxes plus time. Experience
 and fieldwork readiness replace the two essays, which are now covered by video.

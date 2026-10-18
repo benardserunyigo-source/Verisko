@@ -1,4 +1,4 @@
-import {questionsFor,STATUSES} from './application-model.mjs?v=79';
+import {questionsFor,STATUSES} from './application-model.mjs?v=80';
 export async function mountApplications({host,token,esc:E,confirm,role}){
  let records=[],cursor=null,active=null,videoURL=null;
  const auth=()=>({Authorization:'Bearer '+token()});

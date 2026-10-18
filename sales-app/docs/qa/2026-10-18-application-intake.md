@@ -16,3 +16,22 @@
 - QR images decode to the exact live /apply.html URL. No fabricated QR or private employer URL.
 - BrighterMonday updated and read back: UGX 30,000 Monday transport/airtime, no CV required by Verisko intake, ten answers and two-minute video, public form URL. Its advert remains awaiting platform approval; the standalone intake does not depend on that approval.
 - v78 adds the shareable QR card and guards late inbox responses when navigating away. No change to historic commissions/float or existing data.
+
+## v80: three-month availability and automatic video upload
+
+- New `pick-v2` choice asks whether the applicant can work for all three months,
+  including alongside classes or with availability to discuss. Older versions
+  retain their original labels and validation.
+- Consent is required before recording. The real recording controller was
+  tested with a synthetic recorder: Stop triggers create/chunk without Submit;
+  Submit only completes the application. No real camera or microphone used.
+- Controller tests cover network interruption, same-session retry, disabled
+  submission while incomplete, consent gating, and a new draft on retake.
+- Browser preview: ten answers → consent → synthetic 3-second MP4 → automatic
+  upload at 100% → Submit → reference VSG-APP-7E2D65FA. Private local API readback
+  confirmed the new availability answer and video metadata. All local data is
+  in memory and discarded when the preview stops; no production test written.
+- Backend tests confirm uploaded drafts remain invisible until final Submit.
+- Full automated suite: 235 passing. Production visibility of the staff inbox
+  still requires the owner's real signed-in session; this change does not
+  bypass or weaken that requirement.
