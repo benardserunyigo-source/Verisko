@@ -535,38 +535,9 @@
   }
 
   // A prospect row on Today with the single most useful next action.
-  function prospectAction(p, tone) {
-    var canSchedule = /Qualified|Contact attempted|New prospect/i.test(p.stage) && !appointmentFor(p.id);
-    var actions = "";
-    if (p.phone) actions += '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>';
-    if (/Qualified/i.test(p.stage) && !appointmentFor(p.id)) {
-      actions += '<button class="btn btn-sm btn-ghost" data-schedule="' + p.id + '">Schedule visit</button>';
-    }
-    if (canReviewProspects() || isTeamLead() || ownProspect(p)) actions += '<button class="btn btn-sm btn-ghost" data-log-followup="' + p.id + '">Follow-up</button>';
-    actions += '<button class="btn btn-sm btn-ghost" data-edit="prospect" data-id="' + p.id + '">Open</button>';
-    return '<article class="item tone-' + tone + '">' +
-      '<div class="item-top"><div><div class="item-title">' + esc(p.business) + '</div>' +
-      '<div class="item-meta">' + esc(p.vertical) + " · " + esc(p.location || "No location") + "</div></div>" + followChip(p.followUp) + "</div>" +
-      '<div class="item-lines"><div class="item-line"><span class="k">Next action</span><span class="v">' + esc(p.nextAction || "Not set") + "</span></div>" +
-      '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc(p.contact || "Unknown") + (p.phone ? " · " + esc(p.phone) : "") + "</span></div></div>" +
-      '<div class="item-actions">' + actions + "</div></article>";
-  }
-
+  function prospectAction(p) { return prospectCard(p); }
   // A proposed appointment row on Today with a Confirm action.
-  function visitAction(a) {
-    var p = prospect(a.prospectId);
-    var actions = "";
-    if (p.phone) actions += '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>';
-    actions += '<button class="btn btn-sm btn-primary" data-confirm="' + a.id + '">Confirm visit</button>';
-    actions += '<button class="btn btn-sm btn-ghost" data-edit="appointment" data-id="' + a.id + '">Edit</button>';
-    return '<article class="item tone-amber">' +
-      '<div class="item-top"><div><div class="item-title">' + esc(p.business || "Unknown prospect") + '</div>' +
-      '<div class="item-meta"><strong>' + esc(relDay(a.date)) + "</strong> · " + esc(a.time || "no time") + " · " + esc(a.director || "no owner") + "</div></div>" + apptChip(a.status) + "</div>" +
-      '<div class="item-lines"><div class="item-line"><span class="k">Contact</span><span class="v">' + esc(p.contact || "Unknown") + "</span></div>" +
-      '<div class="item-line"><span class="k">Location</span><span class="v">' + esc(p.location || "Not recorded") + "</span></div></div>" +
-      '<div class="item-actions">' + actions + "</div></article>";
-  }
-
+  function visitAction(a) { return handoffCard(a); }
   /* ------------------------------- PROSPECTS --------------------------------- */
   function renderProspects() {
     setHead("Your pipeline", "Prospects", "Search and manage your pipeline.", canReviewProspects() ? "Add prospect" : "Book site check", true);
@@ -650,19 +621,18 @@
   function readyCard(p) {
     var C = window.VeriskoCommission;
     var appt = appointmentFor(p.id);
-    return '<article class="item tone-navy"><div class="item-top"><div><div class="item-title">' + esc(p.business) + "</div>" +
-      '<div class="item-meta">' + esc(p.createdBy || "Rep") + " · " + esc(p.location || "No location") + "</div></div>" + stageChip(p.stage) + "</div>" +
-      '<div class="item-lines">' +
-      '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc([p.contact, p.phone].filter(Boolean).join(" · ") || "—") + "</span></div>" +
-      (p.imported ? '<div class="item-line"><span class="k">Lead</span><span class="v">Imported' + (p.source ? " · " + esc(p.source) : "") + " · no commission</span></div>"
-        : '<div class="item-line"><span class="k">Approved</span><span class="v">' + esc((p.qualApprovedBy || "Team lead") + (p.qualApprovedAt ? " · " + C.label(C.eventTime(p.qualApprovedAt), true) : "")) + "</span></div>") +
-      (appt ? '<div class="item-line"><span class="k">Site visit</span><span class="v">' + esc(dateLabel(appt.date) + " · " + (appt.status || "")) + "</span></div>" : "") + "</div>" +
-      '<div class="item-actions">' + (p.phone ? '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>' : "") +
-      (!appt ? '<button type="button" class="btn btn-sm btn-ghost" data-schedule="' + esc(p.id) + '">Schedule visit</button>' : "") +
-      (canInstalls() ? '<button type="button" class="btn btn-sm btn-primary" data-make-install="' + esc(p.id) + '">Create quote</button>' : "") +
-      '<button type="button" class="btn btn-sm btn-ghost" data-log-followup="' + esc(p.id) + '">Follow-up</button></div></article>';
+    var main = canInstalls() ? '<button type="button" class="btn btn-sm btn-primary" data-make-install="' + esc(p.id) + '">Create quote</button>'
+      : (!appt ? '<button type="button" class="btn btn-sm btn-ghost" data-schedule="' + esc(p.id) + '">Schedule visit</button>' : "");
+    return xCard({ key: "r:" + p.id, cls: "tone-navy", title: esc(p.business), chip: stageChip(p.stage),
+      meta: esc([p.createdBy || "Rep", areaOf(p.location)].filter(Boolean).join(" · ")),
+      next: appt ? { tone: "muted", text: "Site visit " + relDay(appt.date) + " · " + (appt.status || "") } : { tone: "amber", text: "No site visit booked yet" },
+      quick: callBtn(p.phone) + main,
+      lines: line("Contact", esc([p.contact, p.phone].filter(Boolean).join(" · ") || "—")) + line("Location", esc(p.location || "—")) +
+        (p.imported ? line("Lead", "Imported" + (p.source ? " · " + esc(p.source) : "") + " · no commission")
+          : line("Approved", esc((p.qualApprovedBy || "Team lead") + (p.qualApprovedAt ? " · " + C.label(C.eventTime(p.qualApprovedAt), true) : "")))),
+      more: (canInstalls() && !appt ? '<button type="button" class="btn btn-sm btn-ghost" data-schedule="' + esc(p.id) + '">Schedule visit</button>' : "") +
+        '<button type="button" class="btn btn-sm btn-ghost" data-log-followup="' + esc(p.id) + '">Follow-up</button>' });
   }
-
   function quickQuestionsLine(p) {
     if (p.closedSale || isClosed(p.stage) || p.qualStatus === "approved") return "";
     var v = window.VeriskoQualify.verdict(p);
@@ -670,42 +640,57 @@
       : v.missing.length ? v.answered + " of 5 answered" : '<span style="color:var(--amber)">' + esc(v.stoppers.join(" · ")) + "</span>";
     return '<div class="item-line"><span class="k">5 questions</span><span class="v">' + txt + "</span></div>";
   }
+  function prospectNext(p, appt) {
+    if (p.qualStatus === "disqualified") return { tone: "red", text: "Disqualified — " + (p.qualReason || "see Details") };
+    if (p.qualStatus === "query") return { tone: "red", text: "Sent back by the team lead — see Details" };
+    if (p.reviewStatus === "query") return { tone: "red", text: "Sent back — " + (p.reviewNote || "see Details") };
+    if (p.closedSale) return { tone: "green", text: "✓ Closed sale" };
+    if (isOverdue(p.followUp)) return { tone: "red", text: "Follow-up overdue · " + dateLabel(p.followUp) + (p.nextAction ? " · " + p.nextAction : "") };
+    if (isToday(p.followUp)) return { tone: "amber", text: "Follow up today" + (p.nextAction ? " · " + p.nextAction : "") };
+    if (appt) return { tone: "muted", text: "Site visit " + relDay(appt.date) + " · " + (appt.status || "") };
+    if (p.qualStatus === "pending") return { tone: "amber", text: "Waiting for the team lead to approve" };
+    if (p.followUp) return { tone: "muted", text: "Next: " + (p.nextAction || "follow up") + " · " + dateLabel(p.followUp) };
+    return { tone: "muted", text: p.nextAction ? "Next: " + p.nextAction : "" };
+  }
   function prospectCard(p) {
     var appt = appointmentFor(p.id);
-    var actions = "";
     // A Team lead can't edit other reps' prospects, but can log calls, plan
     // the next follow-up, decide qualification and record deposits.
     var canWork = canReviewProspects() || ownProspect(p);
-    if (p.phone) actions += '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>';
-    if (canWork || isTeamLead()) actions += '<button class="btn btn-sm btn-ghost" data-log-followup="' + p.id + '">Follow-up</button>';
-    if (canWork && /Qualified/i.test(p.stage) && !appt) actions += '<button class="btn btn-sm btn-ghost" data-schedule="' + p.id + '">Schedule</button>';
-    if (canApproveQual() && p.qualStatus === "pending" && !ownProspect(p)) actions += '<button class="btn btn-sm btn-primary" data-approve-qual="' + esc(p.id) + '">Approve qualified</button>';
-    if (canDisqualify(p)) actions += '<button class="btn btn-sm btn-ghost" data-disqualify="' + esc(p.id) + '">Disqualify</button>';
-    if (canApproveQual() && p.qualStatus === "disqualified") actions += '<button class="btn btn-sm btn-ghost" data-reopen-qual="' + esc(p.id) + '">Re-open</button>';
+    var main = "", more = "";
+    var schedule = canWork && /Qualified/i.test(p.stage) && !appt;
+    var approve = canApproveQual() && p.qualStatus === "pending" && !ownProspect(p);
+    if (approve) main = '<button class="btn btn-sm btn-primary" data-approve-qual="' + esc(p.id) + '">Approve</button>';
+    else if (schedule) main = '<button class="btn btn-sm btn-primary" data-schedule="' + p.id + '">Schedule visit</button>';
+    else if (canWork || isTeamLead()) main = '<button class="btn btn-sm btn-ghost" data-log-followup="' + p.id + '">Follow-up</button>';
+    if ((canWork || isTeamLead()) && main.indexOf("data-log-followup") === -1) more += '<button class="btn btn-sm btn-ghost" data-log-followup="' + p.id + '">Follow-up</button>';
+    if (schedule && approve) more += '<button class="btn btn-sm btn-ghost" data-schedule="' + p.id + '">Schedule visit</button>';
+    if (canDisqualify(p)) more += '<button class="btn btn-sm btn-ghost" data-disqualify="' + esc(p.id) + '">Disqualify</button>';
+    if (canApproveQual() && p.qualStatus === "disqualified") more += '<button class="btn btn-sm btn-ghost" data-reopen-qual="' + esc(p.id) + '">Re-open</button>';
     if (canInstalls()) {
       var pq = quoteForProspect(p.id);
-      actions += pq ? '<button class="btn btn-sm btn-ghost" data-edit="job" data-id="' + esc(pq.id) + '">Open quote</button>'
+      more += pq ? '<button class="btn btn-sm btn-ghost" data-edit="job" data-id="' + esc(pq.id) + '">Open quote</button>'
         : '<button class="btn btn-sm btn-cyan" data-make-install="' + esc(p.id) + '">Create quote</button>';
     }
-    if (canRecordDeposit()) actions += '<button class="btn btn-sm btn-ghost" data-record-deposit="' + esc(p.id) + '">Record deposit</button>';
-    if (canWork) actions += '<button class="btn btn-sm btn-ghost" data-edit="prospect" data-id="' + p.id + '">Edit</button>';
+    if (canRecordDeposit()) more += '<button class="btn btn-sm btn-ghost" data-record-deposit="' + esc(p.id) + '">Record deposit</button>';
+    if (canWork) more += '<button class="btn btn-sm btn-ghost" data-edit="prospect" data-id="' + p.id + '">Edit</button>';
     var tone = isOverdue(p.followUp) ? "red" : isToday(p.followUp) ? "amber" : "navy";
-    var reviewChip = prospectReviewChip(p.reviewStatus);
-    return '<article class="item tone-' + tone + '">' +
-      '<div class="item-top"><div><div class="item-title">' + esc(p.business) + '</div>' +
-      '<div class="item-meta">' + esc(p.vertical) + " · " + esc(p.location || "No location") + "</div></div>" +
-      '<span class="chip-stack">' + stageChip(p.stage) + reviewChip + qualChip(p) + closedSaleChip(p) + (p.imported ? chip("Imported" + (p.source ? " · " + p.source : ""), "grey") : "") + "</span></div>" +
-      '<div class="item-lines">' +
-      '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc(p.contact || "Unknown") + "</span></div>" +
-      '<div class="item-line"><span class="k">Phone</span><span class="v">' + (p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") + "</span></div>" +
-      '<div class="item-line"><span class="k">Next action</span><span class="v">' + esc(p.nextAction || "Not set") + "</span></div>" +
-      '<div class="item-line"><span class="k">Follow-up</span><span class="v">' + (isOverdue(p.followUp) ? '<span style="color:var(--red);font-weight:700">' + dateLabel(p.followUp) + " · overdue</span>" : dateLabel(p.followUp)) + plannedByNote(p) + "</span></div>" +
-      quickQuestionsLine(p) + followUpSummaryLine(p) + disqualifiedLine(p) +
-      "</div>" +
-      (p.createdBy ? '<div class="added-by">Added by ' + esc(p.createdBy) + "</div>" : "") +
-      '<div class="item-actions">' + actions + "</div></article>";
+    var extraChips = [prospectReviewChip(p.reviewStatus), qualChip(p), closedSaleChip(p), p.imported ? chip("Imported" + (p.source ? " · " + p.source : ""), "grey") : ""].filter(Boolean).join(" ");
+    var area = areaOf(p.location);
+    return xCard({ key: "p:" + p.id, cls: "tone-" + tone, title: esc(p.business), chip: stageChip(p.stage),
+      meta: esc([p.contact, area].filter(Boolean).join(" · ") || p.vertical || ""),
+      next: prospectNext(p, appt), quick: callBtn(p.phone) + main,
+      lines: (extraChips ? lineHtml("Status", extraChips) : "") +
+        line("Business", esc(p.vertical || "—")) +
+        line("Contact", esc(p.contact || "Unknown")) +
+        lineHtml("Phone", p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") +
+        line("Location", esc(p.location || "Not recorded")) +
+        line("Next action", esc(p.nextAction || "Not set")) +
+        lineHtml("Follow-up", (isOverdue(p.followUp) ? '<span style="color:var(--red);font-weight:700">' + dateLabel(p.followUp) + " · overdue</span>" : dateLabel(p.followUp)) + plannedByNote(p)) +
+        quickQuestionsLine(p) + followUpSummaryLine(p) + disqualifiedLine(p) +
+        (p.createdBy ? line("Added by", esc(p.createdBy)) : ""),
+      more: more });
   }
-
   /* ------------------------------- SITE VISITS ------------------------------- */
   function renderVisits() {
     setHead("Field visits", "Site visits", "Book and confirm site visits, then hand them to Operations.", "Schedule visit", true);
@@ -737,9 +722,26 @@
       emptyState(ICON_PIN, "No site visits yet", "Qualify a prospect, then schedule a site visit.", "Schedule visit", 'data-new="appointment"');
   }
 
-  // Visit card: a short summary (who, when, where, what's next, one main
-  // button). Tap it or "Details" to open the full handoff info and every action.
-  var openVisits = {};
+  // Expandable card used across the app: a short summary (title, one chip,
+  // one meta line, what's next, the main buttons) and "Details" for the rest.
+  // o: { key, cls, title, chip, meta, next:{tone,text}, quick, lines, more }
+  var openCards = {};
+  function xCard(o) {
+    var open = !!openCards[o.key], k = esc(o.key);
+    var hasMore = !!(o.lines || o.more);
+    return '<article class="item xc ' + (o.cls || "") + (open ? " open" : "") + '" data-xc="' + k + '">' +
+      '<button type="button" class="xc-sum"' + (hasMore ? ' data-xc-toggle="' + k + '" aria-expanded="' + open + '"' : ' tabindex="-1"') + ">" +
+      '<span class="item-top"><span class="item-title">' + o.title + "</span>" + (o.chip || "") + "</span>" +
+      (o.meta ? '<span class="item-meta">' + o.meta + "</span>" : "") +
+      (o.next && o.next.text ? '<span class="xc-next ' + (o.next.tone || "muted") + '">' + esc(o.next.text) + "</span>" : "") + "</button>" +
+      (hasMore ? '<div class="xc-details"' + (open ? "" : " hidden") + ">" + (o.lines ? '<div class="xc-lines">' + o.lines + "</div>" : "") +
+        (o.more ? '<div class="item-actions">' + o.more + "</div>" : "") + "</div>" : "") +
+      '<div class="item-actions xc-quick">' + (o.quick || "") +
+      (hasMore ? '<button type="button" class="btn btn-sm btn-ghost xc-more" data-xc-toggle="' + k + '">' + (open ? "Less" : "Details") + "</button>" : "") + "</div></article>";
+  }
+  function callBtn(phone) { return phone ? '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(phone)) + '">Call</a>' : ""; }
+  function areaOf(loc) { return String(loc || "").split(/[,–]| - /)[0].trim(); }
+
   function visitNextStep(a, gaps) {
     if (a.status === "Cancelled") return { tone: "muted", text: "Cancelled" };
     if (a.visitResult === "real") return { tone: "green", text: "✓ Visited — quote assessment done" };
@@ -750,41 +752,29 @@
     if (a.status === "Confirmed") return { tone: "muted", text: "Office to call the client" };
     return { tone: "muted", text: a.status || "" };
   }
-  function handoffCard(a, compact) {
+  function handoffCard(a) {
     var p = prospect(a.prospectId);
-    var isConfirmed = a.status === "Confirmed";
     var gaps = handoffGaps(a);
-    var open = !!openVisits[a.id];
-    var next = visitNextStep(a, gaps);
-    var area = String(p.location || "").split(/[,–-]/)[0].trim();
-
-    // One main button on the summary; the rest live in Details.
+    var area = areaOf(p.location);
     var main = "";
     if (/Proposed|Rescheduled/i.test(a.status)) main = '<button class="btn btn-sm btn-primary" data-confirm="' + a.id + '">Confirm visit</button>';
     else if (canReviewProspects() && a.status !== "Cancelled" && !a.visitResult) main = '<button class="btn btn-sm btn-primary" data-visit-done="' + esc(a.id) + '">Visit done</button>';
-    var call = p.phone ? '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>' : "";
     var more = visitCheckActions(a).replace(/<button class="btn btn-sm btn-primary" data-visit-done="[^"]*">Visit done<\/button>/, main.indexOf("data-visit-done") > -1 ? "" : "$&") +
       '<button class="btn btn-sm btn-ghost" data-edit="appointment" data-id="' + a.id + '">Edit</button>';
-
-    return '<article class="item visit-card ' + (isConfirmed ? "handoff" : "tone-amber") + (open ? " open" : "") + '" data-visit-card="' + esc(a.id) + '">' +
-      '<button type="button" class="visit-sum" data-visit-toggle="' + esc(a.id) + '" aria-expanded="' + open + '">' +
-      '<span class="item-top"><span class="item-title">' + esc(p.business || "Unknown prospect") + "</span>" + apptChip(a.status) + "</span>" +
-      '<span class="item-meta"><strong>' + esc(relDay(a.date)) + "</strong> · " + esc(a.time || "no time") + (area ? " · " + esc(area) : "") + "</span>" +
-      '<span class="visit-next ' + next.tone + '">' + esc(next.text) + "</span></button>" +
-      '<div class="visit-details"' + (open ? "" : " hidden") + '><div class="visit-lines">' +
-      line("When", esc(dateLabel(a.date)) + (a.time ? " at " + esc(a.time) : "")) +
-      line("Purpose", esc(a.purpose || "Site visit")) +
-      line("Contact", esc(p.contact || "Unknown")) +
-      lineHtml("Phone", p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") +
-      line("Location", esc(p.location || "Not recorded")) +
-      (a.directions ? line("Directions", esc(a.directions)) : "") +
-      (p.places ? line("Wants to watch", esc(p.places) + " · about " + window.VeriskoBooking.cameras(p.places) + " cameras") : "") +
-      (p.decides && p.decides !== "Yes, they decide" ? line("Decides", esc(p.decides)) : "") +
-      line("Operations", esc(a.director || "Not set")) +
-      visitCheckLines(a) +
-      '</div><div class="item-actions">' + more + "</div></div>" +
-      '<div class="item-actions visit-quick">' + call + main +
-      '<button type="button" class="btn btn-sm btn-ghost visit-more" data-visit-toggle="' + esc(a.id) + '">' + (open ? "Less" : "Details") + "</button></div></article>";
+    return xCard({ key: "v:" + a.id, cls: a.status === "Confirmed" ? "handoff" : "tone-amber",
+      title: esc(p.business || "Unknown prospect"), chip: apptChip(a.status),
+      meta: "<strong>" + esc(relDay(a.date)) + "</strong> · " + esc(a.time || "no time") + (area ? " · " + esc(area) : ""),
+      next: visitNextStep(a, gaps), quick: callBtn(p.phone) + main,
+      lines: line("When", esc(dateLabel(a.date)) + (a.time ? " at " + esc(a.time) : "")) +
+        line("Purpose", esc(a.purpose || "Site visit")) +
+        line("Contact", esc(p.contact || "Unknown")) +
+        lineHtml("Phone", p.phone ? '<a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "Not recorded") +
+        line("Location", esc(p.location || "Not recorded")) +
+        (a.directions ? line("Directions", esc(a.directions)) : "") +
+        (p.places ? line("Wants to watch", esc(p.places) + " · about " + window.VeriskoBooking.cameras(p.places) + " cameras") : "") +
+        (p.decides && p.decides !== "Yes, they decide" ? line("Decides", esc(p.decides)) : "") +
+        line("Operations", esc(a.director || "Not set")) + visitCheckLines(a),
+      more: more });
   }
   function line(k, v) { return '<div class="item-line"><span class="k">' + k + '</span><span class="v">' + v + "</span></div>"; }
 
@@ -977,28 +967,34 @@
     var pct = target ? Math.min(100, Math.round((mtd / target) * 100)) : 0;
 
     if (scheme4(week)) {
+      // Simple for reps: this week's pay, the Monday float, last week and the
+      // month. Everything else is folded away under "More".
       var fl = floatsFor(email), perV = payOpts().perVisit, minB = payOpts().floatMinBookings;
-      var soFar = fl.next.bookings.length;
+      var soFar = fl.next.bookings.length, nVis = (w.visits || []).length;
       var hero4 = '<section class="card dash-hero">' +
-        '<p class="dash-eyebrow">Pay this week</p>' +
+        '<p class="dash-eyebrow">Your pay this week</p>' +
         '<div class="dash-big">' + money(w.total) + "</div>" +
-        '<div class="dash-sub">Paid ' + C.label(week.payday, true) + " · since " + C.label(week.start, true) + "</div>" +
-        '<div class="pay-summary" style="margin-top:12px">' + commLine((w.visits || []).length, perV, "site visits Operations carried out") + commLine(w.deposits.length, perD, "approved client deposits") + "</div>" +
-        '<div class="dash-note">Confirmed bookings this week: <strong>' + soFar + " of " + minB + "</strong>" + (soFar >= minB ? " — the " + C.label(fl.next.monday) + " float is safe ✓" : " — " + (minB - soFar) + " more for the " + money(fl.next.fullAmount) + " on " + C.label(fl.next.monday)) + ".</div>" +
-        floatLine(fl.now, "Monday float") +
-        '<div class="dash-note">Last week: <strong>' + money(lw.total) + "</strong> (paid " + C.label(last.payday, true) + ").</div>" +
-        '<div class="dash-foot" style="margin-top:12px">Month to date ' + money(mtd) + " of " + money(target) + " target</div>" +
-        '<div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div></section>';
-      var tiles4 = '<div class="metric-grid">' + metricTile(total, "My prospects") + metricTile(soFar, "Confirmed bookings this week") +
-        metricTile(depAll, "Clients with a deposit") + metricTile(conv + "%", "Close rate") + "</div>";
-      var how4 = '<p class="result-note">You earn ' + money(perV) + " for every client Operations visits who lets us look around to prepare a quote — even if they don't buy — and " + money(perD) +
-        " when their first deposit is approved. Paid every Saturday at 12:00 noon. Each Monday: " + money(payOpts().floatAmount) + " for transport and food if the office confirmed at least " + minB +
-        " of your site bookings by phone the week before.</p>";
+        '<div class="dash-sub">Paid ' + C.label(week.payday, false) + " at noon</div>" +
+        '<div class="pay-summary" style="margin-top:12px">' + commLine(nVis, perV, nVis === 1 ? "site visit" : "site visits") + commLine(w.deposits.length, perD, w.deposits.length === 1 ? "deposit" : "deposits") + "</div></section>";
+      var fpct = minB ? Math.min(100, Math.round((soFar / minB) * 100)) : 100;
+      var floatCard = !fl.next.active ? "" : '<section class="card dash-hero">' +
+        '<p class="dash-eyebrow">Monday float · ' + C.label(fl.next.monday) + "</p>" +
+        '<div class="dash-mid">' + (soFar >= minB ? '<span style="color:var(--green)">✓ ' + money(fl.next.fullAmount) + " is safe</span>" : (minB - soFar) + " more confirmed " + (minB - soFar === 1 ? "booking" : "bookings") + " needed") + "</div>" +
+        '<div class="progress"><div class="progress-bar" style="width:' + fpct + '%"></div></div>' +
+        '<div class="dash-sub">' + soFar + " of " + minB + " bookings confirmed by the office this week</div></section>";
+      var tiles4 = '<div class="metric-grid">' + metricTile(money(lw.total), "Last week") + metricTile(money(mtd), "This month · " + pct + "% of target") + "</div>";
       var byStage4 = STAGES.map(function (s) { return { label: s, n: ps.filter(function (p) { return p.stage === s; }).length }; }).filter(function (x) { return x.n > 0; });
       var maxN4 = byStage4.reduce(function (m, x) { return Math.max(m, x.n); }, 1);
-      var bars4 = byStage4.length ? '<section class="card dash-bars"><h2 class="dash-h2">My pipeline by stage</h2>' +
-        byStage4.map(function (x) { return '<div class="bar-row"><span class="bar-label">' + esc(x.label) + '</span><span class="bar-track"><span class="bar-fill" style="width:' + Math.round((x.n / maxN4) * 100) + '%"></span></span><span class="bar-count">' + x.n + "</span></div>"; }).join("") + "</section>" : "";
-      content.innerHTML = hero4 + tiles4 + how4 + bars4;
+      var more4 = '<details class="card dash-more"><summary>My pipeline</summary>' +
+        '<div class="metric-grid" style="margin-top:12px">' + metricTile(total, "My prospects") + metricTile(depAll, "Clients with a deposit") + metricTile(conv + "%", "Close rate") + metricTile(qualAll, "Qualified") + "</div>" +
+        byStage4.map(function (x) { return '<div class="bar-row"><span class="bar-label">' + esc(x.label) + '</span><span class="bar-track"><span class="bar-fill" style="width:' + Math.round((x.n / maxN4) * 100) + '%"></span></span><span class="bar-count">' + x.n + "</span></div>"; }).join("") + "</details>" +
+        '<details class="card dash-more"><summary>How pay works</summary><ul class="how-list">' +
+        "<li><strong>" + money(perV) + "</strong> for every client Operations visits and assesses for a quote — even if they don't buy.</li>" +
+        "<li><strong>" + money(perD) + "</strong> when their first deposit is approved.</li>" +
+        "<li>Paid every <strong>Saturday at 12:00 noon</strong>.</li>" +
+        "<li><strong>" + money(payOpts().floatAmount) + "</strong> every Monday for transport and food when the office confirmed at least " + minB + " of your bookings the week before.</li>" +
+        (fl.now.active ? "<li>Last Monday: " + (fl.now.earned ? "paid ✓" : "not paid — " + esc(fl.now.reason)) + ".</li>" : "") + "</ul></details>";
+      content.innerHTML = hero4 + floatCard + tiles4 + more4;
       return;
     }
     var hero = '<section class="card dash-hero">' +
@@ -1063,33 +1059,29 @@
     if (scheme4(week)) {
       var po = payOpts();
       var nV = e.reps.reduce(function (n, r) { return n + (r.visits || []).length; }, 0);
-      var nB = e.reps.reduce(function (n, r) { return n + (r.bookings || 0); }, 0);
       hero = '<section class="card dash-hero">' + nav +
-        '<p class="dash-eyebrow">' + (isCurrent ? "Pay so far · paid " : "Pay for week paid ") + C.label(week.payday, true) + "</p>" +
+        '<p class="dash-eyebrow">' + (isCurrent ? "Team pay so far · paid " : "Team pay · paid ") + C.label(week.payday, true) + "</p>" +
         '<div class="dash-big">' + money(e.total) + "</div>" +
-        '<div class="dash-sub">' + nV + " site visits done × " + money(po.perVisit) + " · " + nD + " approved deposits × " + money(perD) + "</div>" +
-        '<div class="dash-note">Week from ' + C.label(week.start, true) + " to " + C.label(week.end, true) + " (Kampala time). " + nB + (nB === 1 ? " booking" : " bookings") + " confirmed by phone. Monday floats are listed below.</div></section>";
-      board = e.reps.length ? '<section class="card dash-bars"><h2 class="dash-h2">Pay per rep</h2>' +
-        '<div class="lead-head"><span>Rep</span><span>Visits · Deposits · Booked</span><span>Pay</span></div>' +
-        e.reps.map(function (r) {
-          var detail = (r.visits || []).map(function (d) { return esc(d.business || ""); }).concat(r.deposits.map(function (d) { return "deposit: " + esc(d.business || ""); })).join(", ");
-          return '<div class="lead-row"><span class="lead-name"><strong>' + esc(r.name) + "</strong><small>" + (detail || "Nothing paid this week yet") + "</small></span>" +
-            '<span class="lead-closed">' + (r.visits || []).length + " · " + r.deposits.length + " · " + (r.bookings || 0) + "</span>" +
-            '<span class="lead-comm">' + money(r.total) + "</span></div>";
-        }).join("") + "</section>" : '<p class="result-note">No pay earned in this week yet.</p>';
+        '<div class="dash-sub">' + nV + (nV === 1 ? " site visit" : " site visits") + " · " + nD + (nD === 1 ? " deposit" : " deposits") + "</div></section>";
+      // One row per rep: pay + counts; Details shows what it's for and the float.
       var reps = (state.users || []).filter(function (u) { return u && u.role === "sales"; });
-      var floats = reps.length ? '<section class="card dash-bars"><h2 class="dash-h2">Monday float · ' + money(po.floatAmount) + "</h2>" +
-        '<p class="result-note" style="margin-top:0">Paid each Monday to reps with at least ' + po.floatMinBookings + " bookings the office confirmed by phone in the week before. New reps get it for their first " + Math.round(po.floatGraceDays / 7) + " weeks.</p>" +
-        '<div class="lead-head"><span>Rep</span><span>' + window.VeriskoCommission.label(floatsFor("").now.monday) + '</span><span>' + window.VeriskoCommission.label(floatsFor("").next.monday) + "</span></div>" +
-        reps.map(function (u) {
-          var f = floatsFor(u.email);
-          var cell = function (x) { return !x.active ? "—" : x.earned ? '<span style="color:var(--green)">' + money(x.amount) + "</span>" : '<span style="color:var(--red)">0</span>'; };
-          return '<div class="lead-row"><span class="lead-name"><strong>' + esc(u.name) + "</strong><small>This pay week: " + f.next.bookings.length + " of " + po.floatMinBookings + " confirmed" + (f.next.inGrace ? " · first weeks" : "") + "</small></span>" +
-            '<span class="lead-closed">' + cell(f.now) + '</span><span class="lead-comm">' + (f.next.active ? (f.next.earned ? money(f.next.amount) : f.next.bookings.length + "/" + po.floatMinBookings) : "—") + "</span></div>";
-        }).join("") + "</section>" : "";
-      board += floats;
+      var byEmail = {}; e.reps.forEach(function (r) { byEmail[String(r.email || "").toLowerCase()] = r; });
+      var rows = reps.map(function (u) { return { u: u, r: byEmail[String(u.email || "").toLowerCase()] }; });
+      e.reps.forEach(function (r) { if (!reps.some(function (u) { return String(u.email || "").toLowerCase() === String(r.email || "").toLowerCase(); })) rows.push({ u: { name: r.name, email: r.email }, r: r }); });
+      rows.sort(function (a, b) { return ((b.r && b.r.total) || 0) - ((a.r && a.r.total) || 0); });
+      board = rows.length ? '<h2 class="section-title">Pay per rep</h2><div class="list">' + rows.map(function (x) {
+        var r = x.r || { visits: [], deposits: [], bookings: 0, total: 0 }, f = floatsFor(x.u.email);
+        var floatTxt = !f.next.active ? "" : f.next.earned ? "✓ Monday float " + money(f.next.amount) : "Float: " + f.next.bookings.length + " of " + po.floatMinBookings + " bookings";
+        var list = function (arr) { return arr.length ? arr.map(function (d) { return esc(d.business || ""); }).join(", ") : "—"; };
+        return xCard({ key: "rep:" + (x.u.email || x.u.name), title: esc(x.u.name || x.u.email || "Rep"), chip: '<span class="pay-chip">' + money(r.total) + "</span>",
+          meta: (r.visits || []).length + " visits · " + r.deposits.length + " deposits · " + (r.bookings || 0) + " booked",
+          next: floatTxt ? { tone: f.next.earned ? "green" : "muted", text: floatTxt } : null,
+          lines: line("Visits paid", list(r.visits || [])) + line("Deposits", list(r.deposits)) +
+            (f.now.active ? line("Last Monday", f.now.earned ? money(f.now.amount) + " paid" : "Not paid — " + esc(f.now.reason)) : "") +
+            (f.next.active ? line("Next Monday", f.next.bookings.length + " of " + po.floatMinBookings + " confirmed" + (f.next.inGrace ? " · first weeks" : "")) : "") });
+      }).join("") + "</div>" : '<p class="result-note">No pay earned in this week yet.</p>';
     }
-    var editor = canReviewProspects() ? '<section class="card settings-card"><h2>Commission settings</h2>' +
+    var editor = canReviewProspects() ? '<details class="card settings-card dash-more"><summary>Commission settings</summary>' +
       (scheme4(week)
         ? "<p>Paid every Saturday at 12:00 noon: a client counts once when Operations carries out their site visit, and once when their first deposit is approved. The Monday float goes to reps with enough office-confirmed bookings the week before.</p>"
         : "<p>Paid weekly, every Saturday at 12:00 noon. A qualified prospect counts once the Team lead approves it; a client counts once, as soon as their first deposit is recorded.</p>") +
@@ -1103,7 +1095,7 @@
         : '<div class="field"><label for="commQual">Per qualified prospect (UGX)</label><input id="commQual" name="commQual" type="number" inputmode="numeric" min="0" step="500" value="' + perQ + '"></div>') +
       '<div class="field"><label for="commRate">Per client deposit (UGX)</label><input id="commRate" name="commRate" type="number" inputmode="numeric" min="0" step="1000" value="' + perD + '"></div>' +
       '<div class="field"><label for="commTarget">Monthly target per rep (UGX)</label><input id="commTarget" name="commTarget" type="number" inputmode="numeric" min="0" step="10000" value="' + target + '"></div>' +
-      '<button type="submit" class="btn btn-ghost btn-block">Save commission settings</button></form></section>' : "";
+      '<button type="submit" class="btn btn-ghost btn-block">Save commission settings</button></form></details>' : "";
 
     content.innerHTML = hero + inviteCard() + board + (canReviewProspects() ? rosterCard() : "") + editor;
   }
@@ -1501,12 +1493,9 @@
       '<div class="item-meta">' + esc(j.ref || "") + " · " + esc(camMeta) + "</div></div>" + jobStageChip(j.stage) + "</div>" +
       '<div class="item-lines">' +
       priceLine +
-      (delivery ? '<div class="item-line"><span class="k">Scheduled</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Not set") + "</span></div>" : "") +
-      (delivery ? '<div class="item-line"><span class="k">Technician</span><span class="v">' + (tech ? esc(tech.name) : '<span style="color:var(--amber)">Unassigned</span>') + "</span></div>" : "") +
+      (delivery ? '<div class="item-line"><span class="k">Install</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Date not set") + " · " + (tech ? esc(tech.name) : '<span style="color:var(--amber)">no technician</span>') + "</span></div>" : "") +
       ((delivery && (val > 0 || paidForJob(j.id) > 0)) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (val > 0 ? " · " + money(Math.max(0, val - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
       (j.stage === "Handed over" || (/progress|installed/i.test(j.stage || "") && checklistDone(j) > 0) ? '<div class="item-line"><span class="k">Checklist</span><span class="v">' + checklistDone(j) + " / " + INSTALL_CHECKLIST.length + (checklistComplete(j.checklist) ? " · done" : "") + "</span></div>" : "") +
-      (j.quoteSharedAt ? '<div class="item-line"><span class="k">Quote shared</span><span class="v">' + dateLabel(String(j.quoteSharedAt).slice(0, 10)) + (j.quoteSharedBy ? " · " + esc(j.quoteSharedBy) : "") + "</span></div>" : "") +
-      '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(j.createdBy || "—") + "</span></div>" +
       "</div>" + quoteActionsHtml(j.id) + "</article>";
   }
 
@@ -1686,8 +1675,7 @@
     return '<article class="item tx-item" data-edit="transaction" data-id="' + t.id + '">' +
       '<div class="item-top"><div><div class="item-title"><span class="tx-dir ' + (t.direction === "in" ? "in" : "out") + '">' + (t.direction === "in" ? "In" : "Out") + "</span> " + sign + money(t.amount) + "</div>" +
       '<div class="item-meta">' + txMeta(t) + "</div></div>" + txStatusChip(t.status) + "</div>" +
-      '<div class="item-lines"><div class="item-line"><span class="k">Date</span><span class="v">' + dateLabel(t.date) + "</span></div>" +
-      '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(t.createdBy || "—") + "</span></div>" +
+      '<div class="item-lines"><div class="item-line"><span class="k">Date</span><span class="v">' + dateLabel(t.date) + (t.createdBy ? " · " + esc(t.createdBy) : "") + "</span></div>" +
       (t.status === "query" && t.reviewNote ? '<div class="item-line"><span class="k">Sent back</span><span class="v" style="color:var(--red)">' + esc(t.reviewNote) + "</span></div>" : "") +
       (t.direction === "out" ? '<div class="item-line"><span class="k">Proof</span><span class="v">' + (t.proofId ? "Attached" : (hasQueuedPhoto(t.id) ? '<span style="color:var(--muted)">Photo waiting to upload</span>' : (t.preapproved ? '<span style="color:var(--muted)">Pre-approved — no receipt</span>' : '<span style="color:var(--amber)">No proof yet</span>'))) + "</span></div>" : "") + "</div></article>";
   }
@@ -3182,17 +3170,13 @@
     var photo = p.photoId
       ? '<button type="button" class="rev-proof" data-photo data-proof-id="' + esc(p.photoId) + '" aria-label="View business photo full screen"><span class="rev-proof-load">Loading photo…</span></button>'
       : "";
-    return '<article class="card rev-card" data-id="' + p.id + '">' +
-      '<div class="item-top"><div><div class="item-title">' + esc(p.business) + "</div>" +
-      '<div class="item-meta">' + esc(p.vertical || "—") + " · " + esc(p.location || "No location") + "</div></div>" + stageChip(p.stage) + "</div>" +
-      '<div class="item-lines"><div class="item-line"><span class="k">Contact</span><span class="v">' + esc(p.contact || "Unknown") + (p.phone ? " · " + esc(p.phone) : "") + "</span></div>" +
-      '<div class="item-line"><span class="k">Added by</span><span class="v">' + esc(p.createdBy || "—") + "</span></div>" +
-      '<div class="item-line"><span class="k">Location</span><span class="v">' + (p.geo ? mapLink(p.geo, "View on map") : '<span style="color:var(--muted)">not captured</span>') + "</span></div>" +
-      answerLines(p) +
-      (p.reviewStatus === "query" && p.reviewNote ? '<div class="item-line"><span class="k">Sent back</span><span class="v" style="color:var(--red)">' + esc(p.reviewNote) + "</span></div>" : "") + "</div>" +
-      photo +
-      '<div class="rev-actions"><button type="button" class="btn btn-primary" data-approve-prospect="' + p.id + '">Approve</button>' +
-      '<button type="button" class="btn btn-ghost" data-sendback-prospect="' + p.id + '">Send back</button></div></article>';
+    return xCard({ key: "pr:" + p.id, cls: "", title: esc(p.business), chip: stageChip(p.stage),
+      meta: esc([p.createdBy || "Rep", areaOf(p.location)].filter(Boolean).join(" · ")),
+      next: p.reviewStatus === "query" && p.reviewNote ? { tone: "red", text: "Sent back — " + p.reviewNote } : { tone: "muted", text: p.geo ? "✓ Location captured" : "No location captured" },
+      quick: '<button type="button" class="btn btn-sm btn-primary" data-approve-prospect="' + p.id + '">Approve</button>' +
+        '<button type="button" class="btn btn-sm btn-ghost" data-sendback-prospect="' + p.id + '">Send back</button>',
+      lines: line("Contact", esc(p.contact || "Unknown") + (p.phone ? " · " + esc(p.phone) : "")) + line("Business", esc(p.vertical || "—")) +
+        lineHtml("Location", p.geo ? mapLink(p.geo, "View on map") : '<span style="color:var(--muted)">not captured</span>') + answerLines(p) + (photo ? '<div class="item-line">' + photo + "</div>" : "") });
   }
   function approveProspect(id) {
     if (!canReviewProspects()) return;
@@ -3222,17 +3206,13 @@
   }
   function qualCard(p) {
     var C = window.VeriskoCommission;
-    return '<article class="item tone-amber"><div class="item-top"><div><div class="item-title">' + esc(p.business) + "</div>" +
-      '<div class="item-meta">' + esc(p.createdBy || "Rep") + " · " + esc(p.stage || "") + " · " + esc(p.location || "No location") + "</div></div>" + qualChip(p) + "</div>" +
-      '<div class="item-lines">' +
-      '<div class="item-line"><span class="k">Contact</span><span class="v">' + esc([p.contact, p.phone].filter(Boolean).join(" · ") || "—") + "</span></div>" +
-      answerLines(p) +
-      '<div class="item-line"><span class="k">Asked</span><span class="v">' + esc(p.qualRequestedAt ? C.label(C.eventTime(p.qualRequestedAt), true) : "—") + "</span></div>" +
-      followUpSummaryLine(p) + "</div>" +
-      '<div class="item-actions"><button type="button" class="btn btn-sm btn-primary" data-approve-qual="' + esc(p.id) + '">Approve (' + money(commissionPerQualified()) + ")</button>" +
-      '<button type="button" class="btn btn-sm btn-ghost" data-disqualify="' + esc(p.id) + '">Disqualify</button>' +
-      '<button type="button" class="btn btn-sm btn-ghost" data-log-followup="' + esc(p.id) + '">Follow-up</button>' +
-      (p.phone ? '<a class="btn btn-sm btn-cyan" href="' + esc(telHref(p.phone)) + '">Call</a>' : "") + "</div></article>";
+    return xCard({ key: "q:" + p.id, cls: "tone-amber", title: esc(p.business), chip: qualChip(p),
+      meta: esc([p.createdBy || "Rep", areaOf(p.location)].filter(Boolean).join(" · ")),
+      next: { tone: "muted", text: "Asked " + (p.qualRequestedAt ? C.label(C.eventTime(p.qualRequestedAt), true) : "—") },
+      quick: callBtn(p.phone) + '<button type="button" class="btn btn-sm btn-primary" data-approve-qual="' + esc(p.id) + '">Approve</button>',
+      lines: line("Contact", esc([p.contact, p.phone].filter(Boolean).join(" · ") || "—")) + line("Stage", esc(p.stage || "—")) + answerLines(p) + followUpSummaryLine(p),
+      more: '<button type="button" class="btn btn-sm btn-ghost" data-disqualify="' + esc(p.id) + '">Disqualify</button>' +
+        '<button type="button" class="btn btn-sm btn-ghost" data-log-followup="' + esc(p.id) + '">Follow-up</button>' });
   }
   function approveQualification(id) {
     if (!canApproveQual()) return;
@@ -4618,15 +4598,15 @@
     var qsc = e.target.closest("[data-quote-share]"); if (qsc) { shareQuote(qsc.getAttribute("data-quote-share")); return; }
     var edit = e.target.closest("[data-edit]"); if (edit) { openForm(edit.dataset.edit, edit.dataset.id); return; }
     var sched = e.target.closest("[data-schedule]"); if (sched) { openForm("appointment", null, sched.dataset.schedule); return; }
-    var vt = e.target.closest("[data-visit-toggle]");
-    if (vt) {
-      var vid = vt.getAttribute("data-visit-toggle"), card = vt.closest("[data-visit-card]");
-      openVisits[vid] = !openVisits[vid];
-      if (card) {
-        card.classList.toggle("open", !!openVisits[vid]);
-        card.querySelector(".visit-details").hidden = !openVisits[vid];
-        card.querySelector(".visit-sum").setAttribute("aria-expanded", String(!!openVisits[vid]));
-        card.querySelector(".visit-more").textContent = openVisits[vid] ? "Less" : "Details";
+    var xt = e.target.closest("[data-xc-toggle]");
+    if (xt) {
+      var xk = xt.getAttribute("data-xc-toggle"), xcard = xt.closest("[data-xc]");
+      openCards[xk] = !openCards[xk];
+      if (xcard) {
+        xcard.classList.toggle("open", !!openCards[xk]);
+        var xd = xcard.querySelector(".xc-details"); if (xd) xd.hidden = !openCards[xk];
+        xcard.querySelector(".xc-sum").setAttribute("aria-expanded", String(!!openCards[xk]));
+        var xm = xcard.querySelector(".xc-more"); if (xm) xm.textContent = openCards[xk] ? "Less" : "Details";
       }
       return;
     }
