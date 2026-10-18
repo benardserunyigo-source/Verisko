@@ -106,3 +106,39 @@ test("the National ID is overdue only after its deadline, and only while missing
   assert.equal(idOverdue({ ...me, idStatus: "redo" }, 6000), true);
   assert.equal(idOverdue({ role: "admin", email: "x" }, 6000), false);
 });
+
+import { identify } from "../netlify/functions/pin-auth.mjs";
+
+function fakeAuthStore(entries) {
+  const m = new Map(Object.entries(entries));
+  return { get: async (k) => (m.has(k) ? m.get(k) : null), set: async (k, v) => { m.set(k, v); return { modified: true }; } };
+}
+const reqWith = (token) => ({ headers: { get: (h) => (h.toLowerCase() === "authorization" ? "Bearer " + token : null) } });
+
+test("the Owner (email account) can use a PIN session once PIN sign-in is on", async () => {
+  const now = Date.now(), secret = "s3cret";
+  const owner = { id: "u1", name: "Ben", email: "ben@example.com", role: "admin", pinPhone: "+256 772 123 456" };
+  const rec = newPinRecord("2580", 3);
+  const store = fakeAuthStore({ secret, "pin/u1": rec });
+  const data = { users: [owner] };
+  const ok = await identify(reqWith(signToken(secret, { uid: "u1", v: 3, exp: now + 60000 })), data, { authStore: store, now, supabaseUser: async () => null });
+  assert.equal(ok.email, "ben@example.com");
+  assert.equal(ok.me.role, "admin");
+  // PIN changed or turned off (v bumped) -> old sessions stop working
+  const stale = await identify(reqWith(signToken(secret, { uid: "u1", v: 2, exp: now + 60000 })), data, { authStore: store, now, supabaseUser: async () => null });
+  assert.equal(stale.error, "session_expired");
+  // removed from the team -> no access
+  const gone = await identify(reqWith(signToken(secret, { uid: "u1", v: 3, exp: now + 60000 })), { users: [] }, { authStore: store, now, supabaseUser: async () => null });
+  assert.equal(gone.error, "not_authorized");
+  // no PIN record at all -> no access
+  const none = await identify(reqWith(signToken(secret, { uid: "u1", v: 3, exp: now + 60000 })), data, { authStore: fakeAuthStore({ secret }), now, supabaseUser: async () => null });
+  assert.equal(none.error, "session_expired");
+});
+
+test("a device can't add, change or clear an account's PIN phone", () => {
+  const stored = [{ id: "u1", name: "Ben", email: "ben@example.com", role: "admin", pinPhone: "+256 772 123 456" }, { id: "u2", name: "Grace", email: "g@example.com", role: "sales" }];
+  const incoming = [{ id: "u1", name: "Ben", email: "ben@example.com", role: "admin" }, { id: "u2", name: "Grace", email: "g@example.com", role: "sales", pinPhone: "+256 700 000 000" }];
+  const out = protectPinUsers(stored, incoming);
+  assert.equal(out.find((u) => u.id === "u1").pinPhone, "+256 772 123 456");
+  assert.equal(out.find((u) => u.id === "u2").pinPhone, undefined);
+});

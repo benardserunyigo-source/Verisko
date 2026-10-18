@@ -2376,7 +2376,7 @@
         '<span class="who"><strong>' + esc(u.name) + " · " + esc(roleName(u)) + "</strong><span>" + esc(contactOf(u)) + "</span></span>" +
         (actions ? '<span class="row-actions">' + actions + "</span>" : "") + "</div>";
     }).join("") + "</div>" : '<p class="settings-note">No accounts yet.</p>';
-    content.innerHTML = '<div class="settings-grid">' + signupsCard() +
+    content.innerHTML = '<div class="settings-grid">' + signupsCard() + pinSignInCard() +
       '<section class="card settings-card"><h2>Team members</h2>' +
       "<p><strong>Sales</strong> see only their own prospects and visits. <strong>Team leads</strong> see every rep's prospects, approve qualified ones and record client deposits. <strong>Operations</strong> also get the Cash flow tab. <strong>Technical</strong> can also open this Settings page. Removing someone revokes access immediately.</p>" +
       teamRows +
@@ -4333,6 +4333,60 @@
     nameEl.focus();
   }
 
+  // An email account (the Owner) can also sign in with phone + PIN, so it
+  // doesn't need the email link every time. After the first sign-in on a
+  // phone, only the PIN is asked.
+  function pinSignInCard() {
+    var me = currentUserRecord();
+    if (!me || me.authMethod === "pin") return "";
+    var on = !!me.pinPhone;
+    return '<section class="card settings-card"><h2>Sign in with a PIN</h2>' +
+      (on ? '<p>PIN sign-in is <strong>on</strong> for <strong>' + esc(me.pinPhone) + "</strong>. On this phone you only enter your PIN. You can still use the email link any time.</p>"
+          : "<p>Skip the email link. Set a phone number and a 4-digit PIN — after the first sign-in on a phone, you only enter your PIN.</p>") +
+      '<form id="pinSetupForm" class="add-member">' +
+      '<div class="field"><label for="psPhone">Phone number</label><input id="psPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="0772 123 456" value="' + esc(me.pinPhone || "") + '" required></div>' +
+      '<div class="field"><label for="psPin">' + (on ? "New 4-digit PIN" : "Choose a 4-digit PIN") + '</label><input id="psPin" name="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" placeholder="••••" required></div>' +
+      '<div class="field"><label for="psPin2">Enter the PIN again</label><input id="psPin2" name="pin2" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" placeholder="••••" required></div>' +
+      '<button type="submit" class="btn btn-primary btn-block">' + (on ? "Change PIN" : "Turn on PIN sign-in") + "</button>" +
+      (on ? '<button type="button" class="btn btn-ghost btn-block" data-clear-pin style="margin-top:8px">Turn off PIN sign-in</button>' : "") +
+      "</form></section>";
+  }
+  function currentUserRecord() {
+    var me = settings.user || {};
+    return (state.users || []).find(function (u) { return u.id === me.id; }) || settings.user || null;
+  }
+  async function pinSetupCall(body) {
+    if (settings.auth && settings.auth.refresh_token && settings.auth.expires_at && settings.auth.expires_at * 1000 - Date.now() < 60000) await refreshSession();
+    var r = await authApi(body, true);
+    if (!r.ok) { toast(r.error || "Couldn't save. Try again."); return null; }
+    if (r.user) {
+      state.users = (state.users || []).map(function (u) { return u.id === r.user.id ? r.user : u; });
+      settings.user = r.user;
+    }
+    return r;
+  }
+  async function savePinSetup(form) {
+    var phone = form.querySelector("[name=phone]").value.trim(), pin = form.querySelector("[name=pin]").value.trim(), pin2 = form.querySelector("[name=pin2]").value.trim();
+    if (!/^\d{4}$/.test(pin)) { toast("Your PIN must be exactly 4 digits."); return; }
+    if (pin !== pin2) { toast("The two PINs don't match."); return; }
+    var btn = form.querySelector("[type=submit]"); if (btn) btn.disabled = true;
+    var r = await pinSetupCall({ action: "setPin", phone: phone, pin: pin });
+    if (btn) btn.disabled = false;
+    if (!r) return;
+    settings.lastPhone = phone; settings.lastFirst = String((r.user && r.user.name) || "");
+    saveSettings();
+    toast("PIN sign-in is on. Next time, just enter your PIN.");
+    render();
+  }
+  async function clearPinSetup() {
+    if (!(await confirmSheet("Turn off PIN sign-in?", "You'll sign in with the email link again. Phones signed in with your PIN are signed out.", "Turn off", true))) return;
+    var r = await pinSetupCall({ action: "clearPin" });
+    if (!r) return;
+    settings.lastPhone = ""; settings.lastFirst = ""; saveSettings();
+    toast("PIN sign-in is off");
+    render();
+  }
+
   function pinActions(u) {
     if (!u || u.authMethod !== "pin") return "";
     return '<button type="button" class="account-role" data-' + (u.idStatus === "submitted" ? "check-id" : "view-staff") + '="' + esc(u.id) + '">' + (u.idStatus === "submitted" ? "Check ID" : "View ID") + "</button>" +
@@ -4564,10 +4618,13 @@
     if (e.target.closest("[data-lead-template]")) { downloadLeadTemplate(); return; }
     if (e.target.closest("[data-undo-import]")) { undoLeadImport(); return; }
     if (e.target.closest("[data-sync]")) pullShared();
+    if (e.target.closest("[data-clear-pin]")) { clearPinSetup(); return; }
     var rm = e.target.closest("[data-remove-user]"); if (rm) { removeUser(rm.dataset.removeUser); return; }
     if (e.target.closest("[data-reset]")) { resetDemo(); return; }
   });
   content.addEventListener("submit", function (e) {
+    var pinForm = e.target.closest("#pinSetupForm");
+    if (pinForm) { e.preventDefault(); savePinSetup(pinForm); return; }
     var addForm = e.target.closest("#addMemberForm");
     if (addForm) {
       e.preventDefault();

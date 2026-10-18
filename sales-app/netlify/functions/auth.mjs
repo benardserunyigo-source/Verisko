@@ -8,6 +8,9 @@
 //                      in; the National ID is due within 5 days
 //     login         { phone, pin }               -> { token, user }
 //     resetWithCode { phone, code, pin }         -> new PIN with the 6-digit code
+//   Signed-in email account (the Owner):
+//     setPin        { phone, pin }               -> turn on / change phone + PIN sign-in
+//     clearPin      {}                           -> turn it off
 //   Signed-in staff (PIN):
 //     submitId      { nin, idFront, idBack? }    -> National ID for the check
 //   Team lead / Operations / Owner:
@@ -136,7 +139,7 @@ export default async (request) => {
       rec = { ...rec, failed: 0, lockedUntil: 0 };
       await auth.setJSON("pin/" + uid, rec);
       const data = await loadData();
-      const me = (data.users || []).find((u) => u.id === uid && u.authMethod === "pin");
+      const me = (data.users || []).find((u) => u.id === uid);   // staff, or an email account with PIN sign-in
       if (!me) {
         const s = await staff.get("staff/" + uid, { type: "json" });
         return reply({ ok: false, error: s && s.status === "pending" ? "pending" : "Your account isn't active. Ask your manager." }, 403);
@@ -161,6 +164,37 @@ export default async (request) => {
       const r = (await staff.get("staff/" + me.id, { type: "json" })) || { id: me.id, legalName: me.name, phone: normalizePhone(me.phone) };
       await staff.setJSON("staff/" + me.id, { ...r, nin, idFront: body.idFront, idBack: body.idBack || "", idStatus: "submitted", idSubmittedAt: nowIso, idNote: "" });
       const user = await setUser(me.id, { idStatus: "submitted", idNote: "" });
+      return reply({ ok: true, user });
+    }
+
+    // An email account (the Owner) turns on phone + PIN sign-in for itself,
+    // or changes its PIN. Signs out its other PIN sessions.
+    if (action === "setPin") {
+      if (me.authMethod === "pin") return reply({ ok: false, error: "forbidden" }, 403);
+      const phone = normalizePhone(body.phone);
+      const problem = (!phone && "Enter a valid phone number, e.g. 0772 123 456.") || pinProblem(body.pin);
+      if (problem) return reply({ ok: false, error: problem }, 400);
+      if ((data.users || []).some((u) => u.id !== me.id && String(u.email || "").toLowerCase() === phoneEmail(phone))) return reply({ ok: false, error: "That phone number belongs to someone else on the team." }, 409);
+      const holder = await auth.get("phone/" + phone, { type: "text" });
+      if (holder && holder !== me.id) {
+        const prev = await staff.get("staff/" + holder, { type: "json" });
+        if ((prev && prev.status !== "removed") || (data.users || []).some((u) => u.id === holder)) return reply({ ok: false, error: "That phone number belongs to someone else on the team." }, 409);
+      }
+      const oldPhone = normalizePhone(me.pinPhone);
+      if (oldPhone && oldPhone !== phone && (await auth.get("phone/" + oldPhone, { type: "text" })) === me.id) await auth.delete("phone/" + oldPhone);
+      const old = await auth.get("pin/" + me.id, { type: "json" });
+      await auth.setJSON("pin/" + me.id, newPinRecord(body.pin, ((old && old.v) || 0) + 1));
+      await auth.set("phone/" + phone, me.id);
+      const user = await setUser(me.id, { pinPhone: displayPhone(phone) });
+      return reply({ ok: true, user });
+    }
+    if (action === "clearPin") {
+      if (me.authMethod === "pin") return reply({ ok: false, error: "forbidden" }, 403);
+      const oldPhone = normalizePhone(me.pinPhone);
+      if (oldPhone && (await auth.get("phone/" + oldPhone, { type: "text" })) === me.id) await auth.delete("phone/" + oldPhone);
+      const old = await auth.get("pin/" + me.id, { type: "json" });
+      if (old) await auth.setJSON("pin/" + me.id, { ...old, hash: "", salt: "", reset: null, v: (old.v || 0) + 1 });
+      const user = await setUser(me.id, { pinPhone: "" });
       return reply({ ok: true, user });
     }
 

@@ -167,10 +167,19 @@ export function protectPinUsers(storedUsers, incomingUsers) {
       return { ...s, role };
     });
   stored.forEach((s) => { if (s && s.authMethod === "pin" && !incById.has(s.id)) out.push(s); });
-  return out;
+  // pinPhone (an email account that also signs in with phone + PIN) is set by
+  // the server only — a device can't add, change or clear it.
+  const storedPinPhone = new Map(stored.filter((u) => u && u.id).map((u) => [u.id, u.pinPhone || ""]));
+  return out.map((u) => {
+    if (!u || u.authMethod === "pin") return u;
+    const keep = storedPinPhone.get(u.id) || "";
+    const { pinPhone, ...rest } = u;
+    return keep ? { ...rest, pinPhone: keep } : rest;
+  });
 }
 
-// Who is calling? Either a staff PIN session or a Supabase email session.
+// Who is calling? Either a PIN session (staff, or an email account with PIN
+// sign-in turned on) or a Supabase email session.
 // deps: { authStore, supabaseUser(token) -> email|null, now }
 // Returns { email, me } or { error, status }.
 export async function identify(request, data, deps) {
@@ -182,7 +191,9 @@ export async function identify(request, data, deps) {
     const secret = await getSecret(deps.authStore);
     const p = verifyToken(secret, token, deps.now);
     if (!p) return { error: "session_expired", status: 401 };
-    const me = users.find((u) => u.id === p.uid && u.authMethod === "pin");
+    // Staff PIN accounts, or an email account (the Owner) that turned on
+    // phone + PIN sign-in. Either way the PIN record below must still match.
+    const me = users.find((u) => u.id === p.uid);
     if (!me) return { error: "not_authorized", status: 403 };
     const rec = await deps.authStore.get("pin/" + me.id, { type: "json" });
     if (!rec || rec.v !== p.v) return { error: "session_expired", status: 401 };   // PIN was reset
