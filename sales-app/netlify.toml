@@ -7,12 +7,6 @@
   to = "/.netlify/functions/applications"
   status = 200
 
-[[headers]]
-  for = "/apply*"
-  [headers.values]
-    Permissions-Policy = "camera=(self), microphone=(self), geolocation=()"
-    Cache-Control = "no-cache"
-
 [[redirects]]
   from = "/api/data"
   to = "/.netlify/functions/data"
@@ -40,6 +34,12 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=(self)"
+
+[[headers]]
+  for = "/apply*"
+  [headers.values]
+    Permissions-Policy = "camera=(self), microphone=(self), geolocation=()"
+    Cache-Control = "no-cache"
 
 [[headers]]
   for = "/manifest.webmanifest"
