@@ -1,5 +1,16 @@
 # Verisko Uganda Operations — Handoff for Codex
 
+## Quotation policy updated 18 October 2026 (v81)
+
+New quotes use `pricing.js`: 4/6/8/12 cameras, minimum 26% profit before income
+tax after modeled delivery expenses and financing. The two internal totals are
+Cost of doing business and Net profit before tax, shown on the form and job
+card. Customer PDF structure remains unchanged and excludes internal figures.
+Financing is included, with rounded 40/30/30 payments and no separate 250k fee.
+Existing unversioned jobs keep their prior pricing. New jobs save a versioned
+quote snapshot. Do not reprice existing contracts when changing rate cards.
+See `docs/qa/2026-10-18-quotation-pricing.md` for costs, controls and QA.
+
 ## Recruitment intake added 18 October 2026 (v77)
 
 Current intake UI v80: availability asks about the full three-month contract,

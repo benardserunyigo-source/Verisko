@@ -63,26 +63,26 @@
       if (quote.bundle && quote.bundleDiscount) items.push({ label: "Complete Home Bundle discount", detail: "", qty: 1, unit: -quote.bundleDiscount, amount: -quote.bundleDiscount });
       if (quote.discountAmount > 0) items.push({ label: "Discount " + quote.discountPct + "%", detail: "", qty: 1, unit: -quote.discountAmount, amount: -quote.discountAmount });
       if (override) {
-        var adj = value - (Number(quote.cash) || 0);
+        var adj = value - (quote.pricingVersion ? items.reduce(function (sum, it) { return sum + it.amount; }, 0) : (Number(quote.cash) || 0));
         if (adj) items.push({ label: adj < 0 ? "Price adjustment" : "Additional work", detail: "Agreed with Verisko", qty: 1, unit: adj, amount: adj });
       }
     }
     var total = (custom && !value) ? null : value;
     var plans = [];
     if (total != null && total > 0) {
-      var first = Math.round(total * 0.6);
+      var first = quote.pricingVersion ? Math.round(total * .6 / 10000) * 10000 : Math.round(total * 0.6);
       plans.push({ title: "Pay cash · 60 / 40", rows: [
         { label: "Before installation (60%)", amount: first },
         { label: "On completion (40%)", amount: total - first }
       ], note: "Total " + money(total) });
-      if (!custom && !override && quote.financingAvailable) {
+      if (!custom && (!override || quote.pricingVersion) && quote.financingAvailable) {
         var fin = Number(quote.financed) || (total + FINANCE_FEE);
-        var m1 = Math.round(fin * 0.4), m2 = Math.round(fin * 0.3);
+        var m1 = quote.pricingVersion ? Math.round(fin * .4 / 10000) * 10000 : Math.round(fin * 0.4), m2 = quote.pricingVersion ? Math.round(fin * .3 / 10000) * 10000 : Math.round(fin * 0.3);
         plans.push({ title: "3 monthly payments · 40 / 30 / 30", rows: [
           { label: "Install day (40%)", amount: m1 },
           { label: "Month 2 (30%)", amount: m2 },
           { label: "Month 3 (30%)", amount: fin - m1 - m2 }
-        ], note: "Total " + money(fin) + " (includes " + money(fin - total) + " plan fee)" });
+        ], note: "Total " + money(fin) + (quote.pricingVersion ? " · financing included" : " (includes " + money(fin - total) + " plan fee)") });
       }
     }
     return {
@@ -91,7 +91,7 @@
       preparedBy: clean(opts.preparedBy), stage: clean(job.stage),
       client: { business: clean(client.business), contact: clean(client.contact), phone: clean(client.phone), location: clean(client.location) },
       items: items, total: total, custom: custom, override: override, plans: plans,
-      notes: clean(job.notes), terms: TERMS.slice(), company: COMPANY
+      notes: clean(job.notes), terms: quote.pricingVersion ? TERMS.concat(["Hard drive is included only when listed. Without a compatible hard drive, the system provides live viewing without stored recordings."]) : TERMS.slice(), company: COMPANY
     };
   }
 

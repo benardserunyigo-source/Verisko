@@ -67,6 +67,7 @@
   var QUOTE_ADDONS = [
     { key: "hdd2tb", label: "Hard drive 2TB", price: 500000 },
     { key: "hdd4tb", label: "Hard drive 4TB", price: 700000 },
+    { key: "hdd6tb", label: "Hard drive 6TB", price: 0, currentOnly: true },
     { key: "tv32", label: "32\" LED TV", price: 550000 },
     { key: "tv43", label: "43\" LED TV", price: 850000 },
     { key: "powerpack", label: "Power Pack (UPS + battery)", price: 450000 },
@@ -87,6 +88,8 @@
 
   // Turn a saved quote's inputs into every derived figure. Pure — easy to test.
   function computeQuote(q) {
+    if (q.quoteSnapshot && q.pricingVersion && q.quoteSnapshot.pricingVersion === q.pricingVersion) return q.quoteSnapshot;
+    if (q.pricingVersion && (!window.VeriskoPricing || q.pricingVersion !== window.VeriskoPricing.VERSION)) return { pricingVersion: q.pricingVersion, custom: true, pts: 0, tier: 'Simple', cash: 0, lines: [], errors: ['Pricing is unavailable. Reconnect and refresh before quoting.'] };
     var addons = q.addons || {};
     var pts = QUOTE_RUBRIC.reduce(function (s, r) { return s + (Number(q.rubric && q.rubric[r.key]) || 0); }, 0);
     var tier = quoteTier(pts);
@@ -102,6 +105,9 @@
     if (addons.tv32 || addons.tv43) lines.push({ key: "hdmi", label: "HDMI 5m cable", qty: 1, price: 40000, total: 40000, auto: true });
     var addonsTotal = lines.reduce(function (s, l) { return s + l.total; }, 0);
     var zone = QUOTE_ZONES.filter(function (z) { return z.key === q.zone; })[0] || QUOTE_ZONES[0];
+    if (window.VeriskoPricing && q.pricingVersion === window.VeriskoPricing.VERSION) {
+      return window.VeriskoPricing.compute(q, { pts: pts, tier: tier, lines: lines, zone: zone });
+    }
     var bundle = cameras === 4 && tier === "Standard" && !!addons.hdd2tb && !!addons.tv32 && !!addons.powerpack;
     var bundleDiscount = bundle ? 150000 : 0;
     var subtotal = (base || 0) + addonsTotal + zone.surcharge - bundleDiscount;
@@ -1214,9 +1220,24 @@
     });
     var zoneEl = document.getElementById("f_zone");
     var discEl = document.getElementById("f_discountPct");
-    return { rubric: rubric, cameraCount: camEl ? Number(camEl.value) || 0 : 0, addons: addons, zone: zoneEl ? zoneEl.value : "1", discountPct: discEl ? Math.max(0, Number(discEl.value) || 0) : 0 };
+    var version = document.getElementById("f_pricingVersion");
+    var direct = document.getElementById("f_directCost"), extra = document.getElementById("f_extraCost");
+    var final = document.getElementById("f_finalPrice");
+    var saved = editing && editing.id ? job(editing.id) || {} : {};
+    return { rubric: rubric, cameraCount: camEl ? Number(camEl.value) || 0 : 0, addons: addons, zone: zoneEl ? zoneEl.value : "1", discountPct: discEl ? Math.max(0, Number(discEl.value) || 0) : 0,
+      pricingVersion: version ? version.value : "", directCost: direct ? direct.value : "", extraCost: extra ? extra.value : "",
+      priceOverride: final ? Number(final.value) > 0 : !!saved.priceOverride, finalPrice: final ? Number(final.value) || 0 : Number(saved.finalPrice) || 0 };
   }
   function quoteSummaryHtml(r) {
+    if (r.pricingVersion) {
+      if (r.custom) return '<p class="helper">Choose a supported camera package.</p>';
+      return '<div class="pay-summary"><div class="pay-line pay-grand"><span>Customer total</span><strong>' + money(r.cash) + '</strong></div>' +
+        '<div class="pay-line"><span>Cost of doing business</span><strong>' + money(Math.round(r.costOfDoingBusiness)) + '</strong></div>' +
+        '<div class="pay-line"><span>Net profit before tax</span><strong>' + money(Math.round(r.netProfit)) + ' (' + (r.margin * 100).toFixed(2) + '%)</strong></div></div>' +
+        '<p class="helper">Internal only. Includes equipment, crew, callbacks, overhead, contingency, payment fees and financing. ' + r.cableMetres + 'm cable · ' + r.recorderChannels + 'CH recorder · crew ' + money(r.crew) + '. HDD is an add-on.</p>' +
+        '<div class="quote-fin"><div class="quote-fin-col"><div class="qf-h">3 months · financing included</div>' +
+        r.payments.map(function (amount, i) { return '<div class="qf-row"><span>' + ['Installation day', 'After 30 days', 'After 60 days'][i] + '</span><strong>' + money(amount) + '</strong></div>'; }).join('') + '</div></div>';
+    }
     var rows = (r.custom ? '<div class="pay-line"><span>Base (12+ cameras)</span><strong>Custom — Ben quotes</strong></div>' :
       '<div class="pay-line"><span>Base (' + r.cameras + "-cam " + esc(r.tier) + ")</span><strong>" + money(r.base) + "</strong></div>") +
       r.lines.map(function (l) { return '<div class="pay-line"><span>' + esc(l.label) + (l.qty > 1 ? " ×" + l.qty : "") + (l.auto ? " (auto)" : "") + "</span><strong>" + money(l.total) + "</strong></div>"; }).join("") +
@@ -1241,9 +1262,9 @@
     el.innerHTML = quoteSummaryHtml(r);
     var tc = document.getElementById("quoteTier"); if (tc) tc.innerHTML = quoteTierChip(r.tier) + ' <span class="quote-pts">' + r.pts + " pts</span>";
     var gov = document.getElementById("quoteGov");
-    if (gov) gov.innerHTML = r.needsApproval ? '<div class="rev-noproof">' + (r.custom ? "12+ cameras is a custom quote — " : "This site scored Very Complex — ") + "send it to Ben to approve before quoting." + (isAdmin() ? " (You can approve as admin.)" : "") + "</div>" : "";
+    if (gov) gov.innerHTML = (r.errors || []).map(function (e) { return '<div class="rev-noproof">' + esc(e) + '</div>'; }).join('') + (r.needsApproval ? '<div class="rev-noproof">' + (r.custom ? "Custom camera count — " : "This site scored Very Complex — ") + "send it to Ben to approve before quoting." + (isAdmin() ? " (You can approve as admin.)" : "") + "</div>" : "");
     var save = document.getElementById("saveButton");
-    if (save) save.disabled = (r.needsApproval && !isAdmin()) || (!isAdmin() && r.discountPct > 5);
+    if (save) save.disabled = (r.errors || []).length > 0 || (r.needsApproval && !isAdmin()) || (!isAdmin() && r.discountPct > 5);
     // The Final-price field appears for a custom (12+) job, or whenever an admin
     // has typed an override value.
     var fp = document.getElementById("finalPriceField");
@@ -1277,6 +1298,7 @@
     if (!isLinked && !client.business) { showFormError(editing.id ? "Enter the client / business name." : "Choose the client for this job — pick one from Sales, or add a walk-in with a name."); return; }
     var inputs = readQuoteInputs();
     var r = computeQuote(inputs);
+    if ((r.errors || []).length) { showFormError(r.errors.join(" ")); return; }
     if (!isAdmin() && r.discountPct > 5) { showFormError("A discount above 5% needs the Owner — ask Ben to apply it."); return; }
     if (r.needsApproval && !isAdmin()) { showFormError("This scored Very Complex (or 12+ cameras). Send it to Ben to approve before quoting."); return; }
     var stage = JOB_STAGES.indexOf(data.stage) >= 0 ? data.stage : "Draft";
@@ -1298,6 +1320,7 @@
       technicianId: data.technicianId || "", materials: collectMaterials(), checklist: checklist,
       notes: (data.notes || "").trim()
     }, inputs);
+    if (r.pricingVersion) fields.quoteSnapshot = r;
     var jobId = editing.id || uid();
     var wasNew = !editing.id;
     var prevStage = existing.stage || "";
@@ -1393,6 +1416,8 @@
   // A custom (12+ camera) job needs its final price before it can be quoted.
   function quoteReady(j) {
     if (!j) { toast("That job no longer exists."); return false; }
+    var priced = computeQuote(j);
+    if ((priced.errors || []).length) { toast(priced.errors.join(" ")); return false; }
     if (quoteModelFor(j).total == null) { toast("Set the final price for this custom job before sharing its quotation."); return false; }
     return true;
   }
@@ -1499,12 +1524,13 @@
     var priceLine = (r.custom && !val) ? '<div class="item-line"><span class="k">Value</span><span class="v">Custom — Ben quotes</span></div>' :
       '<div class="item-line"><span class="k">Value</span><span class="v">' + money(val) + "</span></div>";
     var cam = Number(j.cameraCount) || 0;
-    var camMeta = cam >= 12 ? "12+ cam" : (cam >= 2 ? cam + "-cam · " + r.tier : "priced by hand");
+    var camMeta = r.pricingVersion ? cam + "-cam · " + r.tier : cam >= 12 ? "12+ cam" : (cam >= 2 ? cam + "-cam · " + r.tier : "priced by hand");
     return '<article class="item" data-edit="job" data-id="' + j.id + '">' +
       '<div class="item-top"><div><div class="item-title">' + esc(c.business || "Untitled job") + "</div>" +
       '<div class="item-meta">' + esc(j.ref || "") + " · " + esc(camMeta) + "</div></div>" + jobStageChip(j.stage) + "</div>" +
       '<div class="item-lines">' +
       priceLine +
+      (r.pricingVersion && !r.custom ? '<div class="item-line"><span class="k">Cost of doing business</span><span class="v">' + money(Math.round(r.costOfDoingBusiness)) + '</span></div><div class="item-line"><span class="k">Net profit before tax</span><span class="v">' + money(Math.round(r.netProfit)) + ' · ' + (r.margin * 100).toFixed(2) + '%</span></div>' : '') +
       (delivery ? '<div class="item-line"><span class="k">Install</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Date not set") + " · " + (tech ? esc(tech.name) : '<span style="color:var(--amber)">no technician</span>') + "</span></div>" : "") +
       ((delivery && (val > 0 || paidForJob(j.id) > 0)) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (val > 0 ? " · " + money(Math.max(0, val - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
       (j.stage === "Handed over" || (/progress|installed/i.test(j.stage || "") && checklistDone(j) > 0) ? '<div class="item-line"><span class="k">Checklist</span><span class="v">' + checklistDone(j) + " / " + INSTALL_CHECKLIST.length + (checklistComplete(j.checklist) ? " · done" : "") + "</span></div>" : "") +
@@ -2706,27 +2732,31 @@
       // One record for the whole lifecycle. Pricing (the quote) is always shown;
       // delivery fields reveal at "Accepted"; the checklist reveals at handover.
       document.getElementById("dialogTitle").textContent = id ? esc(source.ref || "Job") : "New job";
-      var qInputs = id ? source : {};
+      var qInputs = id ? source : { pricingVersion: window.VeriskoPricing.VERSION, cameraCount: 4 };
+      var currentPricing = qInputs.pricingVersion === window.VeriskoPricing.VERSION;
       var jobStage = source.stage || "Draft";
       var jr = computeQuote(qInputs);
       var showFinal = jr.custom || !!source.priceOverride;
       var techOpts = (state.technicians || []).filter(function (t) { return t.active !== false || t.id === source.technicianId; })
         .map(function (t) { return '<option value="' + esc(t.id) + '"' + (t.id === source.technicianId ? " selected" : "") + ">" + esc(t.name) + (t.active === false ? " (inactive)" : "") + "</option>"; }).join("");
       html += renderClientBlock(id, presetProspect, source) +
+        '<input type="hidden" id="f_pricingVersion" value="' + esc(qInputs.pricingVersion || '') + '">' +
+        (!currentPricing ? '<p class="helper">Existing quotation: original pricing is preserved. Create a new job to quote with the current 26% margin policy.</p>' : '') +
         // ---- Pricing (the quote) ----
         '<div class="field full"><label>Site scoring <span class="optional-tag" id="quoteTier"></span></label>' +
         QUOTE_RUBRIC.map(function (r) {
           return '<div class="field full" style="margin-bottom:10px"><label for="f_' + r.key + '">' + esc(r.q) + "</label><select id=\"f_" + r.key + '" class="quote-input">' +
             r.opts.map(function (o) { return '<option value="' + o[0] + '"' + ((String((qInputs.rubric || {})[r.key] || "0")) === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></div>";
         }).join("") + "</div>" +
-        field("cameraCount", "Cameras", "segmented", String(qInputs.cameraCount || 4), { full: true, options: [{ value: "2", label: "2" }, { value: "4", label: "4" }, { value: "6", label: "6" }, { value: "8", label: "8" }, { value: "12", label: "12+" }] }) +
+        field("cameraCount", "Cameras", "segmented", String(qInputs.cameraCount || 4), { full: true, options: currentPricing ? [{ value: "4", label: "4" }, { value: "6", label: "6" }, { value: "8", label: "8" }, { value: "12", label: "12" }] : [{ value: "2", label: "2" }, { value: "4", label: "4" }, { value: "6", label: "6" }, { value: "8", label: "8" }, { value: "12", label: "12+" }] }) +
+        (currentPricing ? '<div class="field full"><label for="f_directCost">Base direct job cost (UGX) <span class="optional-tag">optional override</span></label><input id="f_directCost" class="quote-input" type="number" min="0" step="1" value="' + esc(qInputs.directCost == null ? '' : qInputs.directCost) + '" placeholder="Use package budget"><p class="helper">Equipment, shipping, Uganda materials, goods pickup and crew for the base package. Leave blank to use the package budget. Storage and extra costs below are added separately.</p></div><div class="field full"><label for="f_extraCost">Extra equipment, travel and site costs (UGX)</label><input id="f_extraCost" class="quote-input" type="number" min="0" step="1" value="' + esc(qInputs.extraCost == null ? '' : qInputs.extraCost) + '" placeholder="Enter actual costs when required"><p class="helper">Enter actual costs for selected extras and difficult cable routes, excluding the base package and selected hard drive. Enter 0 only when confirmed none.</p></div>' : '') +
         '<div class="field full"><label>Add-ons</label><div class="quote-addons">' +
-        QUOTE_ADDONS.map(function (a) {
+        QUOTE_ADDONS.filter(function (a) { return currentPricing ? a.key !== 'camFixed' && a.key !== 'camWide' : !a.currentOnly; }).map(function (a) {
           if (a.qty) {
             return '<div class="qa-row"><span class="qa-label">' + esc(a.label) + " · " + money(a.price) + '</span><input class="quote-input qa-qty" type="number" inputmode="numeric" min="0" step="1" data-addon-qty="' + a.key + '" value="' + esc((qInputs.addons || {})[a.key] || "") + '" placeholder="0" aria-label="' + esc(a.label) + ' quantity"></div>';
           }
-          return '<label class="chk-item"><input type="checkbox" class="quote-input" data-addon="' + a.key + '"' + ((qInputs.addons || {})[a.key] ? " checked" : "") + "><span>" + esc(a.label) + " · " + money(a.price) + "</span></label>";
-        }).join("") + '<p class="helper">Surge protector auto-adds on Complex+ sites; an HDMI cable auto-adds with a TV.</p></div></div>' +
+          return '<label class="chk-item"><input type="checkbox" class="quote-input" data-addon="' + a.key + '"' + ((qInputs.addons || {})[a.key] ? " checked" : "") + "><span>" + esc(a.label) + " · " + (currentPricing && /^hdd/.test(a.key) ? 'calculated with package' : money(currentPricing ? Math.ceil(a.price / 10000) * 10000 : a.price)) + "</span></label>";
+        }).join("") + '<p class="helper">' + (currentPricing ? 'Choose one hard drive. Base budget includes surge protection and commissioning leads. Extra equipment and site costs must be confirmed.' : 'Surge protector auto-adds on Complex+ sites; an HDMI cable auto-adds with a TV.') + '</p></div></div>' +
         '<div class="field full"><label for="f_zone">Zone</label><select id="f_zone" class="quote-input">' +
         QUOTE_ZONES.map(function (z) { return '<option value="' + z.key + '"' + ((qInputs.zone || "1") === z.key ? " selected" : "") + ">" + esc(z.label) + (z.surcharge ? " (+" + money(z.surcharge) + ")" : "") + "</option>"; }).join("") + "</select></div>" +
         (isAdmin() ? '<div class="field full"><label for="f_discountPct">Discount %</label><input id="f_discountPct" class="quote-input" type="number" inputmode="numeric" min="0" max="100" step="1" value="' + esc(qInputs.discountPct || "") + '" placeholder="0"><p class="helper">Owner only. Above 5% is your call.</p></div>' : "") +
