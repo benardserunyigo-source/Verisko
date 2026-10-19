@@ -8,6 +8,7 @@ import {buildTables} from '../netlify/functions/export.mjs';
 import '../quote-pdf.js';
 const now='2026-10-18T21:00:00Z';
 const base=extra=>({id:'audit-only',stage:'Draft',pricingVersion:VERSION,cameraCount:6,installationType:'Simple',
+  servicePolicyVersion:globalThis.VeriskoCare.VERSION,
   addons:{},zone:'1',directCost:'',extraMaterialsCost:'',extraCrewCost:'',extraAccessTravelCost:'',
   costConfirmed:true,costEvidence:'Supplier PI + measured site survey in evidence folder',paymentPlan:'installments',...extra});
 const save=(j,stored=[],admin=false,date=now)=>validateQuotes(stored,[j],admin,admin?'owner@test':'ops@test',date)[0];

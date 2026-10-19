@@ -466,7 +466,7 @@
   function renderPackagePrices() {
     setHead("SALES", "Camera package prices", "Standard installation prices, subject to a site survey. Operations confirms the final quote.", "", false);
     if (!window.VeriskoPricing) { content.innerHTML = '<p class="helper">Reconnect and refresh to load current package prices.</p>'; return; }
-    content.innerHTML = '<section class="card package-intro"><h2>What is included?</h2><p>Simple installation: fixed cameras, recorder, standard cabling, installation and phone viewing setup. Hard drive is an add-on. Without a compatible hard drive, there is no stored recording.</p><p class="helper">Three-month payment plan included. Complex jobs are priced after measuring extra materials, labour and equipment/travel. Outdoor cameras alone do not make a job complex. Prices are before VAT where applicable.</p></section>' +
+    content.innerHTML = '<section class="card package-intro"><h2>What is included?</h2><p>Simple installation: fixed cameras, recorder, standard cabling, installation and phone viewing setup.</p><ul class="help-steps"><li><strong>12 months:</strong> callbacks and camera-status monitoring through an on-site mini PC.</li><li><strong>Privacy:</strong> monitoring checks system health without access to footage.</li><li><strong>2 years:</strong> replacement of faulty cameras and installed cables. Accidents and power-surge damage are excluded.</li></ul><p class="helper">Included in the package price. Hard drive is an add-on; without one, there is no stored recording.</p><p class="helper">Three-month payment plan included. Complex jobs are priced after measuring extra materials, labour and equipment/travel. Outdoor cameras alone do not make a job complex. Prices are before VAT where applicable.</p></section>' +
       '<div class="list">' + window.VeriskoPricing.publicPackages().map(function (p) {
         return '<article class="item"><div class="item-top"><div><div class="item-title">' + p.cameras + ' cameras · ' + esc(p.name) + '</div><div class="item-meta">' + p.recorderChannels + 'CH recorder · hard drive separate</div></div></div>' +
           '<div class="pay-summary"><div class="pay-line pay-grand"><span>Standard installation price</span><strong>' + money(p.price) + '</strong></div></div><div class="item-lines">' +
@@ -1206,14 +1206,23 @@
   }
   function siteCostFieldsHtml(source) {
     var migrated=source.extraMaterialsCost==null && source.extraCost!=null && source.extraCost!=='';
-    return '<div class="field full" id="extraSiteCosts"><label>Extra costs, entered once</label><p class="helper">Outside the base package and all costed add-ons. Enter actual costs in all three fields, using 0 when none. Callbacks and overhead are already included.</p>'+
+    return '<div class="field full" id="extraSiteCosts"><label>Extra costs, entered once</label><p class="helper">Outside the base package and all costed add-ons. Enter actual costs in all three fields, using 0 when none. The on-site monitoring mini PC, 12-month callbacks/monitoring and 2-year camera/cable fault warranty are already covered by the existing callback allowance; do not enter them again here. Overhead is included.</p>'+
       [['extraMaterialsCost','Extra site materials, excluding add-ons (UGX)'],['extraCrewCost','Extra crew above included budget (UGX)'],['extraAccessTravelCost','Equipment hire and travel (UGX)']].map(function(row){var value=source[row[0]];if(migrated)value=row[0]==='extraMaterialsCost'?source.extraCost:0;return '<div class="field full"><label for="f_'+row[0]+'">'+row[1]+'</label><input id="f_'+row[0]+'" class="quote-input" type="number" min="0" step="1" value="'+esc(value==null?'':value)+'" placeholder="Enter cost or 0"></div>';}).join('')+'<p class="helper">Included crew: UGX 350,000 for 4 cameras; UGX 400,000 for 6, 8 or 12. Extra crew needs Owner approval before the customer quote can be shared.</p></div>';
   }
 
   function costReviewFieldsHtml(source) {
-    return '<div class="field full"><label for="f_costEvidence">Cost evidence / supplier quote and survey reference</label><textarea id="f_costEvidence" class="quote-input" placeholder="Paste folder / quote links and record measured routes, freight weight, crew scope and overhead checks">'+esc(source.costEvidence || '')+'</textarea><label class="chk-item"><input id="f_costConfirmed" type="checkbox" class="quote-input"'+(source.costConfirmed?' checked':'')+'><span>Costs and site scope checked. Commission / visit pay are in overhead; add-on costs are entered separately.</span></label><p class="helper">UGX 4,300/USD. 30% planned margin, 26% minimum. Seven-day quote validity. Prices exclude separately applicable VAT; confirm tax treatment before issuing a tax invoice.</p></div>'+
+    return '<div class="field full"><label for="f_costEvidence">Cost evidence / supplier quote and survey reference</label><textarea id="f_costEvidence" class="quote-input" placeholder="Paste folder / quote links and record measured routes, freight weight, crew scope and overhead checks">'+esc(source.costEvidence || '')+'</textarea><label class="chk-item"><input id="f_costConfirmed" type="checkbox" class="quote-input"'+(source.costConfirmed?' checked':'')+'><span>Costs and site scope checked. The mini PC, 12-month callbacks/monitoring and 2-year fault warranty fit within the existing callback allowance. Commission / visit pay are in overhead; add-on costs are separate.</span></label><p class="helper">UGX 4,300/USD. 30% planned margin, 26% minimum. Seven-day quote validity. Prices exclude separately applicable VAT; confirm tax treatment before issuing a tax invoice.</p></div>'+
       '<div class="field full"><label for="f_paymentPlan">Agreed payment plan</label><select id="f_paymentPlan" class="quote-input"><option value="installments"'+(source.paymentPlan!=='cash'?' selected':'')+'>3 months: 40% installation / 30% day 30 / balance day 60</option><option value="cash"'+(source.paymentPlan==='cash'?' selected':'')+'>60% before installation / 40% completion</option></select></div>'+
       (isAdmin()?'<div class="field full"><label class="chk-item"><input id="f_fundingConfirmed" type="checkbox" class="quote-input"'+(source.fundingConfirmed?' checked':'')+'><span>I have reviewed available cash and open installments, and approve funding this job.</span></label></div>':'<p class="helper">The Owner confirms available funding before a financed job is accepted.</p>');
+  }
+
+  function careSetupFieldsHtml(source) {
+    if(source.servicePolicyVersion!==window.VeriskoCare.VERSION)return '';
+    return '<div class="field full"><h3>Included care: activation and handover</h3><p class="helper">Mini PC and care stay inside the existing callback allowance. Monitor health/status only, without access to footage. Record the actual activation test; this form does not turn on monitoring or send alerts.</p>'+field('serviceStartDate','Actual installation / care start date','date',source.serviceStartDate||'')+field('monitoringMiniPcRef','On-site mini PC reference','text',source.monitoringMiniPcRef||'')+field('monitoringTestEvidence','Offline-alert test evidence / reference','textarea',source.monitoringTestEvidence||'',{full:true})+'<label class="chk-item"><input id="f_monitoringCommissioned" type="checkbox"'+(source.monitoringCommissioned?' checked':'')+'><span>Mini PC installed; camera-offline and site-reporting alerts tested; monitoring has no footage access.</span></label></div>';
+  }
+  function careScheduleHtml(j) {
+    var c=window.VeriskoCare.schedule(j);if(!c)return '';
+    return '<section class="card"><h3>Included care and warranty</h3><p>'+esc(window.VeriskoCare.summary)+'</p><p class="helper">Faults only. Accidental damage and power-surge damage are excluded. No footage access through monitoring.</p><div class="item-line"><span class="k">Monitoring</span><span class="v">'+esc(c.monitoringStatus)+'</span></div>'+(c.start?'<div class="item-line"><span class="k">Care start</span><span class="v">'+esc(c.start)+'</span></div><div class="item-line"><span class="k">Callbacks / monitoring end</span><span class="v">'+esc(c.callbackEnd)+'</span></div><div class="item-line"><span class="k">Camera / cable warranty end</span><span class="v">'+esc(c.warrantyEnd)+'</span></div>':'<p class="helper">Record the actual installation date to set coverage dates.</p>')+'</section>';
   }
 
   // Read the live quote inputs off the form.
@@ -1243,6 +1252,10 @@
     inputs.costConfirmed = !!(document.getElementById('f_costConfirmed') || {}).checked;
     inputs.fundingConfirmed = isAdmin() ? !!(document.getElementById('f_fundingConfirmed') || {}).checked : !!saved.fundingConfirmed;
     inputs.costApprovalKey = saved.costApprovalKey || '';
+    inputs.servicePolicyVersion = (document.getElementById('f_servicePolicyVersion') || {}).value || saved.servicePolicyVersion || '';
+    ['serviceStartDate','monitoringMiniPcRef','monitoringTestEvidence'].forEach(function(k){var el=document.getElementById('f_'+k);inputs[k]=el?el.value:(saved[k]||'');});
+    var monitoringTick=document.getElementById('f_monitoringCommissioned');
+    inputs.monitoringCommissioned=monitoringTick?monitoringTick.checked:!!saved.monitoringCommissioned;
     inputs.renewQuote = (document.getElementById('f_renewQuote') || {}).value === 'yes';
     inputs.addonCosts = {};
     document.querySelectorAll('[data-addon-cost]').forEach(function(el){inputs.addonCosts[el.dataset.addonCost]=el.value;});
@@ -1254,20 +1267,21 @@
     }
     if (jobIsDelivery(saved.stage)) {
       inputs.quoteSnapshot=saved.quoteSnapshot; inputs.pricingVerifiedAt=saved.pricingVerifiedAt;
-      ['pricingVersion','cameraCount','installationType','rubric','addons','zone','discountPct','priceOverride','finalPrice','directCost','extraCost','extraMaterialsCost','extraCrewCost','extraAccessTravelCost','addonCosts','costConfirmed','costEvidence','paymentPlan'].forEach(function(k){inputs[k]=saved[k];});
+      ['pricingVersion','cameraCount','installationType','rubric','addons','zone','discountPct','priceOverride','finalPrice','directCost','extraCost','extraMaterialsCost','extraCrewCost','extraAccessTravelCost','addonCosts','costConfirmed','costEvidence','paymentPlan','servicePolicyVersion'].forEach(function(k){inputs[k]=saved[k];});
     }
     return inputs;
   }
   function quoteSummaryHtml(r) {
     if (r.pricingVersion) {
       var cashPlan = r.paymentPlan === 'cash';
+      var careScope = r.servicePolicyVersion ? 'the existing callback allowance (on-site mini PC, 12-month callbacks/status monitoring and 24-month camera/cable fault warranty)' : 'callbacks and aftercare';
       var cashFirst = Math.round(r.cash*.6/10000)*10000;
       var shownPayments = cashPlan ? [cashFirst,r.cash-cashFirst] : r.payments;
       if (r.custom) return '<p class="helper">Choose a supported camera package.</p>';
       return '<div class="pay-summary"><div class="pay-line pay-grand"><span>Customer total</span><strong>' + money(r.cash) + '</strong></div>' +
         '<div class="pay-line"><span>Budgeted cost of doing business</span><strong>' + money(Math.round(r.costOfDoingBusiness)) + '</strong></div>' +
         '<div class="pay-line"><span>Planned profit before tax</span><strong>' + money(Math.round(r.netProfit)) + ' (' + (r.margin * 100).toFixed(2) + '%)</strong></div></div>' +
-        '<p class="helper">Internal budget: UGX 4,300/USD · 30% target, 26% minimum. Commission and visit pay are inside overhead. Includes equipment, crew, callbacks, overhead, contingency, payment fees and financing. ' + r.cableMetres + 'm cable · ' + r.recorderChannels + 'CH recorder · crew ' + money(r.crew) + '. HDD is an add-on. Actual costs and collection delays change realized profit.</p><div class="pay-line"><span>Direct cash needed</span><strong>'+money(Math.round(r.fundingRequired || r.direct))+'</strong></div><div class="pay-line"><span>Funding gap after first payment</span><strong>'+money(Math.round(r.fundingGap || 0))+'</strong></div>' +
+        '<p class="helper">Internal budget: UGX 4,300/USD · 30% target, 26% minimum. Commission and visit pay are inside overhead. Includes equipment, crew, ' + careScope + ', overhead, contingency, payment fees and financing. ' + r.cableMetres + 'm cable · ' + r.recorderChannels + 'CH recorder · crew ' + money(r.crew) + '. HDD is an add-on. Actual costs and collection delays change realized profit.</p><div class="pay-line"><span>'+(r.servicePolicyVersion?'Cash needed, including reserved care':'Direct cash needed')+'</span><strong>'+money(Math.round(r.fundingRequired || r.direct))+'</strong></div><div class="pay-line"><span>Funding gap after first payment'+(r.servicePolicyVersion?' (care reserved)':'')+'</span><strong>'+money(Math.round(r.fundingGap || 0))+'</strong></div>' +
         '<div class="quote-fin"><div class="quote-fin-col"><div class="qf-h">'+(cashPlan?'60% before installation / 40% completion':'3 months · financing included')+'</div>' +
         shownPayments.map(function (amount, i) { return '<div class="qf-row"><span>' + (cashPlan?['Before installation','On completion']:['Installation day', 'After 30 days', 'After 60 days'])[i] + '</span><strong>' + money(amount) + '</strong></div>'; }).join('') + '</div></div>';
     }
@@ -1344,6 +1358,7 @@
     if (r.needsApproval && !isAdmin() && (!r.pricingVersion || data.stage !== 'Draft')) { showFormError("Save a draft and ask the Owner to approve the cost or discount before quoting."); return; }
     var stage = JOB_STAGES.indexOf(data.stage) >= 0 ? data.stage : "Draft";
     var checklist = collectChecklist();
+    if(stage==='Handed over' && window.VeriskoCare.handoverErrors(inputs).length) { showFormError(window.VeriskoCare.handoverErrors(inputs).join(' ')); return; }
     if (stage === "Handed over" && !checklistComplete(checklist)) {
       var missing = INSTALL_CHECKLIST.filter(function (i) { return !checklist[i.key]; }).map(function (i) { return i.label.toLowerCase(); });
       showFormError("Not ready to hand over — first tick: " + listAnd(missing) + ".");
@@ -1459,6 +1474,7 @@
     if (!j) { toast("That job no longer exists."); return false; }
     var priced = computeQuote(j);
     if(priced.pricingVersion && priced.needsApproval) { toast('The Owner must approve this cost or discount before sharing a quotation.'); return false; }
+    if (!jobIsDelivery(j.stage) && j.servicePolicyVersion !== window.VeriskoCare.VERSION) { toast('Open and save this quote to include the current callback, monitoring and warranty terms.'); return false; }
     if (priced.pricingVersion === window.VeriskoPricing.VERSION && !jobIsDelivery(j.stage)) {
       if (!j.pricingVerifiedAt) { toast('Connect and save this quote before sharing.'); return false; }
       if (j.validUntil && today > j.validUntil) { toast('Quote expired. Open it, refresh pricing and reconfirm costs.'); return false; }
@@ -2796,10 +2812,11 @@
       // delivery fields reveal at "Accepted"; the checklist reveals at handover.
       document.getElementById("dialogTitle").textContent = id ? esc(source.ref || "Job") : "New job";
       var lockedPricing = jobIsDelivery(source.stage);
-      var repricing = !!id && !lockedPricing && (source.pricingVersion !== window.VeriskoPricing.VERSION || (source.validUntil && source.validUntil < today));
+      var repricing = !!id && !lockedPricing && (source.pricingVersion !== window.VeriskoPricing.VERSION || (source.validUntil && source.validUntil < today) || source.servicePolicyVersion !== window.VeriskoCare.VERSION);
       var qInputs = id ? Object.assign({},source) : { pricingVersion: window.VeriskoPricing.VERSION, cameraCount: 4, paymentPlan:'installments' };
       if (repricing) { qInputs.pricingVersion=window.VeriskoPricing.VERSION; qInputs.quoteSnapshot=null; qInputs.costConfirmed=false; qInputs.costApprovalKey=''; qInputs.crewApprovalKey=''; qInputs.fundingConfirmed=false; qInputs.quotedAt=''; qInputs.validUntil=''; }
       if(!lockedPricing && !window.VeriskoPricing.policy.fx) { toast('Reconnect to load the approved Operations cost model.'); return; }
+      if(!lockedPricing) qInputs.servicePolicyVersion=window.VeriskoCare.VERSION;
       var currentPricing = qInputs.pricingVersion === window.VeriskoPricing.VERSION;
       var jobStage = source.stage || "Draft";
       var jr = computeQuote(qInputs);
@@ -2808,6 +2825,7 @@
         .map(function (t) { return '<option value="' + esc(t.id) + '"' + (t.id === source.technicianId ? " selected" : "") + ">" + esc(t.name) + (t.active === false ? " (inactive)" : "") + "</option>"; }).join("");
       html += renderClientBlock(id, presetProspect, source) +
         '<input type="hidden" id="f_pricingVersion" value="' + esc(qInputs.pricingVersion || '') + '">' +
+        '<input type="hidden" id="f_servicePolicyVersion" value="'+esc(qInputs.servicePolicyVersion || '')+'">' +
         '<input type="hidden" id="f_renewQuote" value="'+(repricing?'yes':'no')+'">' +
         (lockedPricing ? '<p class="helper">Accepted pricing is locked. Delivery details can be updated. Create a revised quote for scope changes.</p>' : repricing ? '<p class="helper">This unaccepted quote is being refreshed with current prices. Confirm the costs before reissuing.</p>' : '') + '<fieldset style="border:0;padding:0;margin:0;min-width:0;display:contents"'+(lockedPricing?' disabled':'')+'>' +
         // ---- Pricing (the quote) ----
@@ -2817,7 +2835,7 @@
             r.opts.map(function (o) { return '<option value="' + o[0] + '"' + ((String((qInputs.rubric || {})[r.key] || "0")) === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></div>";
         }).join("") + "</div>") +
         field("cameraCount", "Cameras", "segmented", String(qInputs.cameraCount || 4), { full: true, options: currentPricing ? [{ value: "4", label: "4" }, { value: "6", label: "6" }, { value: "8", label: "8" }, { value: "12", label: "12" }] : [{ value: "2", label: "2" }, { value: "4", label: "4" }, { value: "6", label: "6" }, { value: "8", label: "8" }, { value: "12", label: "12+" }] }) +
-        (currentPricing ? '<div class="field full"><label for="f_directCost">Base direct job cost (UGX) <span class="optional-tag">optional override</span></label><input id="f_directCost" class="quote-input" type="number" min="0" step="1" value="' + esc(qInputs.directCost == null ? '' : qInputs.directCost) + '" placeholder="Use package budget"><p class="helper">Equipment, shipping, Uganda materials, goods pickup and included crew for the base package. Leave blank to use the package budget. Hard drive and the three extra costs are added separately.</p></div>'+siteCostFieldsHtml(qInputs)+costReviewFieldsHtml(qInputs) : '') +
+        (currentPricing ? '<div class="field full"><label for="f_directCost">Base direct job cost (UGX) <span class="optional-tag">optional override</span></label><input id="f_directCost" class="quote-input" type="number" min="0" step="1" value="' + esc(qInputs.directCost == null ? '' : qInputs.directCost) + '" placeholder="Use package budget"><p class="helper">Equipment, shipping, Uganda materials, goods pickup and included crew for the base package. Leave blank to use the package budget. The mini PC and included care stay in the callback allowance, not this base cost. Hard drive and extra site costs are added separately.</p></div>'+siteCostFieldsHtml(qInputs)+costReviewFieldsHtml(qInputs) : '') +
         '<div class="field full"><label>Add-ons</label><div class="quote-addons">' +
         QUOTE_ADDONS.filter(function (a) { return currentPricing ? a.key !== 'camFixed' && a.key !== 'camWide' : !a.currentOnly; }).map(function (a) {
           if (a.qty) {
@@ -2846,6 +2864,7 @@
         '<div id="deliveryFields"' + (jobIsDelivery(jobStage) ? "" : " hidden") + ">" +
         field("scheduledDate", "Install date", "date", source.scheduledDate || "") +
         field("scheduledTime", "Time", "time", source.scheduledTime || "") +
+        careSetupFieldsHtml(qInputs) +
         '<div class="field full"><label for="f_technicianId">Technician</label><select id="f_technicianId" name="technicianId"><option value="">— unassigned —</option>' + techOpts + "</select>" +
         (techOpts ? "" : '<p class="helper">Add technicians in the Technicians card to assign one.</p>') + "</div>" +
         '<div class="field full"><label>Materials <span class="optional-tag">bill of materials</span></label>' +
@@ -2859,7 +2878,7 @@
         '<div class="chk-list" id="chkList">' + INSTALL_CHECKLIST.map(function (i) {
           return '<label class="chk-item"><input type="checkbox" data-check="' + esc(i.key) + '"' + ((source.checklist && source.checklist[i.key]) ? " checked" : "") + "><span>" + esc(i.label) + "</span></label>";
         }).join("") + "</div></div>" +
-        ((id && jobIsDelivery(jobStage)) ? installmentScheduleHtml(source)+jobPaymentsSection(source) : "") +
+        ((id && jobIsDelivery(jobStage)) ? installmentScheduleHtml(source)+careScheduleHtml(source)+jobPaymentsSection(source) : "") +
         field("notes", "Notes", "textarea", source.notes, { full: true, optional: true, placeholder: "Anything the customer or Ben should know." });
     }
     // Delete is offered for prospects, site visits and jobs (not cash entries),
@@ -3908,7 +3927,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v85";
+  var APP_VERSION = "v86";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;

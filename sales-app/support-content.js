@@ -123,8 +123,8 @@
         why: "Cameras work with the guard, not against him." }
     ],
     v9: [
-      { q: "What comes with every Verisko installation?", a: "A 12-month written warranty and a free check-in after 30 days", wrong: ["A lifetime guarantee", "Nothing in writing"],
-        why: "If equipment fails in the warranty window it's repaired or replaced free, on documented terms." },
+      { q: "What comes with every Verisko installation?", a: "12 months of callbacks and status monitoring, plus a 2-year camera and installed-cable fault warranty", wrong: ["A lifetime guarantee", "Nothing in writing"],
+        why: "An on-site mini PC monitors system health without footage access, within the callback allowance. Faulty cameras and installed cables are replaced for two years. Accidental damage and power-surge damage are excluded." },
       { q: "Why does Verisko's physical office matter to customers?", a: "It shows we won't disappear like some contractors — they can find us", wrong: ["Customers must pay there", "It doesn't matter"],
         why: "Build trust with facts the customer can check." },
       { q: "The customer already has cameras. What do you do?", a: "Find the real gaps in coverage, and check whether they can view footage on their phone when away", wrong: ["Tell them to replace everything", "Leave — they're not a customer"],

@@ -129,3 +129,17 @@ keep their agreed prices. A financed job needs an installation date and Owner
 funding confirmation before acceptance. Downloads/sharing require a successful
 server save. Existing records can be viewed offline; new pricing needs a
 connection to load private cost inputs.
+
+Release 86 includes 12 months of callbacks and health/status monitoring via an
+on-site mini PC, without footage access, plus 24 months of replacement for
+faulty cameras and installed cables. The Owner confirmed faults-only coverage;
+accidents and power-surge damage are excluded. The mini PC and this care remain
+inside the existing callback allowance: no new charge, reserve or package price
+increase. Cash review reserves the existing allowance; P&L costs are unchanged.
+Actual costs still need reconciliation against that allowance.
+
+`care-policy.js` versions the terms. New quotes carry its version. Accepted older
+contracts are not silently rewritten. Operations records the actual care start,
+mini PC reference and offline-alert test evidence; handover requires these.
+Care dates are 12 and 24 calendar months from installation. An activation-test
+record is not an automatic monitoring deployment or proof of delivered alerts.

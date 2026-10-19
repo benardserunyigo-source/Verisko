@@ -46,6 +46,7 @@
     job = job || {}; client = client || {}; quote = quote || {}; opts = opts || {};
     var date = job.quotedAt || opts.date || new Date().toISOString().slice(0, 10);
     var current = quote.pricingVersion === '2026-10-18-cfo4300';
+    var care = root.VeriskoCare && quote.servicePolicyVersion === root.VeriskoCare.VERSION ? root.VeriskoCare : null;
     var validDays = current ? 7 : VALID_DAYS;
     var custom = !!quote.custom;
     var override = !custom && !!job.priceOverride && Number(job.finalPrice) > 0;
@@ -57,7 +58,7 @@
         detail: "Priced by Verisko for this site", qty: 1, unit: value || null, amount: value || null });
     } else {
       items.push({ label: (quote.packageTier || "Camera") + " package · " + (quote.cameras || 0) + " cameras",
-        detail: (quote.tier || "Standard") + " installation · recorder, cabling and setup included", qty: 1, unit: quote.base, amount: quote.base });
+        detail: (quote.tier || "Standard") + " installation · recorder, cabling and setup included" + (care ? ' · 12-month care and 2-year camera/cable fault warranty' : ''), qty: 1, unit: quote.base, amount: quote.base });
       (quote.lines || []).forEach(function (l) {
         items.push({ label: l.label, detail: l.auto ? "Included for this installation" : "", qty: l.qty, unit: l.price, amount: l.total });
       });
@@ -96,13 +97,14 @@
       terms.push('Prices exclude separately applicable VAT. Any VAT treatment must be confirmed before a tax invoice is issued.');
     }
     if(quote.pricingVersion) terms.push('Hard drive is included only when listed. Without a compatible hard drive, the system provides live viewing without stored recordings.');
+    if(care) terms = terms.concat(care.terms);
     return {
       ref: clean(job.ref) || "Quotation",
       date: date, validUntil: job.validUntil || addDays(date, validDays),
       preparedBy: clean(opts.preparedBy), stage: clean(job.stage),
       client: { business: clean(client.business), contact: clean(client.contact), phone: clean(client.phone), location: clean(client.location) },
       items: items, total: total, custom: custom, override: override, plans: plans,
-      notes: clean(job.notes), terms: terms, company: COMPANY
+      notes: clean(job.notes), terms: terms, coverageSummary: care ? care.summary : '', company: COMPANY
     };
   }
 
@@ -121,6 +123,7 @@
     });
     lines.push("");
     lines.push("*Total (cash): " + (m.total == null ? "to be confirmed" : money(m.total)) + "*");
+    if(m.coverageSummary) { lines.push('Included: '+m.coverageSummary); lines.push('Health monitoring only, without access to your footage. Fault warranty excludes accidents and power-surge damage.'); }
     m.plans.forEach(function (p) {
       lines.push(p.title + ": " + p.rows.map(function (r) { return money(r.amount); }).join(" + "));
     });
