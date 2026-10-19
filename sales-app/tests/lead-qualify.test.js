@@ -27,9 +27,9 @@ test("stoppers: someone else decides, can't pay now, just looking", () => {
 });
 
 test("places suggest a camera count and package", () => {
-  assert.equal(Q.cameraEstimate({ places: "Gate" }).packageLabel, "2-camera");
+  assert.equal(Q.cameraEstimate({ places: "Gate" }).packageLabel, "4-camera");
   assert.deepEqual(Q.cameraEstimate(good), { places: 3, cameras: 3, packageLabel: "4-camera" });
-  assert.equal(Q.cameraEstimate({ places: "Gate, Front door, Inside, Back, Parking, Counter or till, Store room" }).packageLabel, "custom (more than 6)");
+  assert.equal(Q.cameraEstimate({ places: "Gate, Front door, Inside, Back, Parking, Counter or till, Store room" }).packageLabel, "8-camera");
   assert.equal(Q.cameraEstimate({}), null);
 });
 

@@ -1,19 +1,16 @@
-/* Verisko internal costing policy, approved 18 October 2026.
- * Source: Verisko Equipment Cost Map, Package Plans and Job Quote.
+/* Verisko pricing calculation engine. Private inputs are authenticated.
+ * Public assets contain no equipment costs or overhead amounts.
  * Planning costs, not supplier purchase commitments. Existing unversioned jobs
  * retain their original calculator. Never pass this internal object to a PDF.
  */
 (function (root) {
   "use strict";
-  var VERSION = "2026-10-18-margin26";
-  var PACKAGES = {
-    4: { name: "Essential", direct: 2683557.7688834295, crew: 350000, fee: 1200000 },
-    6: { name: "Standard", direct: 3543285.6856179903, crew: 400000, fee: 1700000 },
-    8: { name: "Premium", direct: 4385013.602352551, crew: 400000, fee: 2200000 },
-    12: { name: "Commercial", direct: 6405950.833740699, crew: 400000, fee: 2200000 }
-  };
-  var POLICY = { margin: .26, increment: 10000, processing: .03, monthly: .02, risk: .03, contingency: .05, callbacks: 170000, acquisition: 60000, overhead: 210000 };
-  var STORAGE = { hdd2tb: 327600, hdd4tb: 537600, hdd6tb: 967400 };
+  function create(config) {
+  config = config || {};
+  var VERSION = config.version || "2026-10-18-cfo4300";
+  var PACKAGES = config.packages || {};
+  var POLICY = config.policy || {};
+  var STORAGE = config.storage || {};
   var number = function (v) { return Math.max(0, Number(v) || 0); };
   var filled = function (v) { return v !== "" && v != null && Number.isFinite(Number(v)) && Number(v) >= 0; };
   var up = function (v) { return Math.ceil(v / POLICY.increment) * POLICY.increment; };
@@ -25,11 +22,12 @@
     var cost = beforeFees + price * POLICY.processing + financing;
     return { cost: cost, profit: price - cost, margin: price > 0 ? (price - cost) / price : 0, financing: financing, payments: p };
   }
-  function minimum(direct, fee) {
+  function minimum(direct, fee, margin) {
+    margin = margin == null ? POLICY.target : margin;
     var beforeFees = direct * (1 + POLICY.contingency) + POLICY.callbacks + POLICY.acquisition + POLICY.overhead;
     var financeShare = .9 * POLICY.monthly + .6 * POLICY.risk;
     var roundingSafeguard = POLICY.increment / 2 * (3 * POLICY.monthly + POLICY.risk);
-    return up(Math.max((beforeFees + fee) / (1 - POLICY.processing), (beforeFees + direct * POLICY.monthly + roundingSafeguard) / (1 - POLICY.processing - financeShare - POLICY.margin)));
+    return up(Math.max((beforeFees + fee) / (1 - POLICY.processing), (beforeFees + direct * POLICY.monthly + roundingSafeguard) / (1 - POLICY.processing - financeShare - margin)));
   }
   function compute(q, context) {
     q = q || {}; context = context || {};
@@ -50,16 +48,22 @@
     } else if (needsExtra && !filled(q.extraCost)) errors.push("Enter the actual extra equipment, travel and complex-site costs (0 if confirmed none).");
     if (q.directCost !== "" && q.directCost != null && !filled(q.directCost)) errors.push("Enter a valid direct job cost.");
     var baseDirect = filled(q.directCost) ? number(q.directCost) : pack.direct;
-    var extra = hasBreakdown ? fields.reduce(function (s,k) { return s + number(q[k]); },0) : number(q.extraCost);
+    if (!(baseDirect > 0)) errors.push("Direct cost must be greater than zero.");
+    var addonCost = 0;
+    otherLines.forEach(function(l){
+      if (!filled((q.addonCosts || {})[l.key])) errors.push("Enter the purchase and fitting cost for " + l.label + ".");
+      addonCost += number((q.addonCosts || {})[l.key]);
+    });
+    var extra = (hasBreakdown ? fields.reduce(function (s,k) { return s + number(q[k]); },0) : number(q.extraCost)) + addonCost;
     var extraCrew = hasBreakdown ? number(q.extraCrewCost) : 0;
     var crewApprovalKey = extraCrew > 0 ? count + ':' + extraCrew : '';
     var direct = baseDirect + storage + extra;
-    var base = minimum(baseDirect, pack.fee), priceFloor = minimum(direct, pack.fee);
+    var base = minimum(baseDirect, pack.fee), targetPrice = minimum(direct, pack.fee), priceFloor = minimum(direct, 0, POLICY.margin);
     var lines = [], running = baseDirect, prior = base;
     storageKeys.forEach(function (k) { running += STORAGE[k]; var total = minimum(running, pack.fee), amount = total - prior; lines.push({ key: k, label: k === "hdd2tb" ? "Hard drive 2TB" : k === "hdd4tb" ? "Hard drive 4TB" : "Hard drive 6TB", qty: 1, price: amount, total: amount }); prior = total; });
     otherLines.forEach(function (l) { var total = up(number(l.total)); lines.push(Object.assign({}, l, { price: total / l.qty, total: total })); });
     var quoted = base + lines.reduce(function (s, l) { return s + l.total; }, 0) + number(zone.surcharge);
-    var uplift = Math.max(0, priceFloor - up(quoted));
+    var uplift = Math.max(0, targetPrice - up(quoted));
     // Keep the existing customer package/add-on structure; price the site work
     // into the package rather than exposing our internal cost/profit uplift.
     base += uplift; quoted = up(quoted + uplift);
@@ -70,11 +74,25 @@
     if (price % POLICY.increment !== 0) errors.push("Customer prices must be in UGX 10,000 increments.");
     var result = costsAt(price, direct);
     if (result.margin < POLICY.margin) errors.push("Price is below the 26% profit margin. Reduce the discount or increase the price.");
+    var reasons = [];
+    if (extraCrew > 0 && q.crewApprovalKey !== crewApprovalKey) reasons.push("extra crew");
+    if (baseDirect < pack.direct) reasons.push("lower direct cost");
+    if (otherLines.some(function(l){return l.key !== 'hdmi' && number((q.addonCosts||{})[l.key]) === 0;})) reasons.push("zero-cost add-on");
+    if (result.margin < POLICY.target) reasons.push("discount below the 30% target");
+    if (q.priceOverride || discountPct > 0) reasons.push("selling price adjustment");
+    var approvalKey = reasons.length ? JSON.stringify([VERSION,count,baseDirect,storage,extra,price,q.costEvidence || '',q.paymentPlan || 'installments',q.scheduledDate || '',q.addons || {},q.addonCosts || {},zone.key || '',installationType]) : '';
+    var approved = !!approvalKey && q.costApprovalKey === approvalKey;
+    var releaseErrors = [];
+    if (!q.costConfirmed || !String(q.costEvidence || '').trim()) releaseErrors.push("Confirm supplier prices, chargeable freight, cable routes, crew scope and overhead; add the evidence link or reference.");
+    if (!['installments','cash'].includes(q.paymentPlan)) releaseErrors.push("Choose the customer's payment plan.");
     return {
+      approvalKeyRequired: approvalKey, approvalReasons: reasons, releaseErrors: releaseErrors,
+      exchangeRate: POLICY.fx, targetMargin: POLICY.target, fundingRequired: direct,
+      fundingGap: Math.max(0,direct - (q.paymentPlan === 'cash' ? round(price*.6) : result.payments[0]) * (1-POLICY.processing)),
       pricingVersion: VERSION, pts: context.pts || 0, tier: installationType, cameras: count, packageTier: pack.name,
       base: base, custom: false, lines: lines, addonsTotal: lines.reduce(function (s, l) { return s + l.total; }, 0), zone: zone,
       bundle: false, bundleDiscount: 0, subtotal: quoted, discountPct: discountPct, discountAmount: discountAmount,
-      cash: price, financed: price, financingAvailable: true, needsApproval: extraCrew > 0 && q.crewApprovalKey !== crewApprovalKey,
+      cash: price, financed: price, financingAvailable: true, needsApproval: reasons.length > 0 && !approved,
       errors: errors, minimumPrice: priceFloor, direct: direct, costOfDoingBusiness: result.cost, netProfit: result.profit,
       margin: result.margin, financing: result.financing, payments: result.payments, cableMetres: count * 50,
       recorderChannels: count <= 8 ? 8 : 16, crew: pack.crew + extraCrew, extraCost: extra, requiresExtraCosts: needsExtra, crewApprovalKeyRequired: crewApprovalKey
@@ -82,10 +100,14 @@
   }
   // Deliberate allow-list: Sales price cards never receive the costing model.
   function publicPackages() {
+    if (!Object.keys(PACKAGES).length) return config.catalogue || [];
     return [4,6,8,12].map(function (count) {
       var r = compute({ cameraCount: count });
       return { cameras: count, name: r.packageTier, price: r.cash, payments: r.payments.slice(), recorderChannels: r.recorderChannels };
     });
   }
-  root.VeriskoPricing = { VERSION: VERSION, packages: PACKAGES, policy: POLICY, compute: compute, costsAt: costsAt, payments: payments, publicPackages: publicPackages };
+  return { VERSION: VERSION, packages: PACKAGES, policy: POLICY, compute: compute, costsAt: costsAt, payments: payments, publicPackages: publicPackages };
+  }
+  root.createVeriskoPricing = create;
+  root.VeriskoPricing = create(root.VeriskoPriceCatalogue);
 })(typeof window !== "undefined" ? window : globalThis);

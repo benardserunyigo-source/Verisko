@@ -10,7 +10,7 @@
 //     same file are dropped.
 //   • /api/* and other websites (Supabase, Loom…): never cached.
 // Bump CACHE only when this file's own logic changes.
-const CACHE = "verisko-shell-v2";
+const CACHE = "verisko-shell-v3";
 const SHELL = "/";
 const NAV_TIMEOUT_MS = 4000;
 const EXTRA = ["/logo.svg", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png"];

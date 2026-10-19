@@ -54,7 +54,7 @@
     var n = list((p || {}).places).length;
     if (!n) return null;
     var cams = Math.max(2, n);
-    var pack = cams <= 2 ? "2-camera" : cams <= 4 ? "4-camera" : cams <= 6 ? "6-camera" : "custom (more than 6)";
+    var pack = cams <= 4 ? "4-camera" : cams <= 6 ? "6-camera" : cams <= 8 ? "8-camera" : cams <= 12 ? "12-camera" : "custom (more than 12)";
     return { places: n, cameras: cams, packageLabel: pack };
   }
 

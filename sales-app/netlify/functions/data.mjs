@@ -7,7 +7,8 @@
 // an empty workspace bootstraps the owner. Non-admins cannot alter the team
 // list. Both Supabase values below are public (publishable) and safe to ship.
 import { getStore } from "@netlify/blobs";
-import { guardCrewApprovals } from "./crew-approval.mjs";
+import { inputs as pricingInputs, pricing } from "./lib/pricing-policy.mjs";
+import { validateQuotes } from "./lib/quote-guard.mjs";
 import { AUTH_STORE, STAFF_STORE, identify, protectPinUsers, displayPhone, idOverdue } from "./pin-auth.mjs";
 import { supabaseUser } from "./auth.mjs";
 import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, ownsProspect, keepFollowUps, keepNewerPlan, keepImported, mergeTraining, guardVisitChecks } from "./scope.mjs";
@@ -47,8 +48,8 @@ export default async (request) => {
 
     if (request.method === "GET") {
       // A salesperson only ever receives their own records (scope.mjs).
-      if (isSales) return json({ ok: true, data: { ...EMPTY, ...scopeForSales(data, email) } }, 200, headers);
-      if (isTeamLead) return json({ ok: true, data: { ...EMPTY, ...scopeForTeamLead(data, email) } }, 200, headers);
+      if (isSales) return json({ ok: true, catalogue: pricing.publicPackages(), data: { ...EMPTY, ...scopeForSales(data, email) } }, 200, headers);
+      if (isTeamLead) return json({ ok: true, catalogue: pricing.publicPackages(), data: { ...EMPTY, ...scopeForTeamLead(data, email) } }, 200, headers);
       const out = { ...EMPTY, ...data };
       // Owner/Operations: staff sign-ups waiting for approval (no ID photos —
       // those are fetched one at a time from /api/auth).
@@ -59,7 +60,7 @@ export default async (request) => {
         const { exportKey, ...rest } = out.config;
         out.config = rest;
       }
-      return json({ ok: true, data: out }, 200, headers);
+      return json({ ok: true, pricing: pricingInputs, catalogue: pricing.publicPackages(), data: out }, 200, headers);
     }
 
     if (request.method === "POST") {
@@ -177,7 +178,10 @@ export default async (request) => {
         if (JSON.stringify(clean.technicians) !== JSON.stringify(storedTechs)) clean.technicians = storedTechs;
       }
 
-      clean.jobs = guardCrewApprovals(storedJobs, clean.jobs, isAdmin, email);
+      if (canReview) {
+        try { clean.jobs = validateQuotes(storedJobs, clean.jobs, isAdmin, email); }
+        catch(error) { return json({ok:false,error:error.message},400,headers); }
+      }
 
       // Cash flow: Sales cannot touch transactions; only admins may approve.
       // (A Team lead's new deposits were already vetted by mergeTeamLeadWrite.)
@@ -200,7 +204,7 @@ export default async (request) => {
       }
 
       await store.setJSON(KEY, clean);
-      return json({ ok: true }, 200, headers);
+      return json({ ok: true, ...(canReview ? { jobs: clean.jobs } : {}) }, 200, headers);
     }
 
     return json({ ok: false, error: "method_not_allowed" }, 405, headers);

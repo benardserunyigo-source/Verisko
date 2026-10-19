@@ -98,7 +98,7 @@ export const TABLE_COLUMNS = {
   prospects: ["id", "business", "type", "contact", "phone", "location", "source", "spoke_to_decision_maker", "existing_cameras", "budget", "stage", "next_action", "follow_up_date", "security_concern", "areas_to_cover", "notes", "created", "created_by", "created_by_email", "review_status", "reviewed_by", "reviewed_at", "review_note", "closed_sale", "closed_by", "closed_at", "first_payment_at", "commission_qualified", "gps_lat", "gps_lng", "gps_accuracy_m", "gps_captured_at", "gps_map_link", "photo_link", "follow_ups_count", "last_follow_up_at", "last_follow_up_note"],
   visits: ["id", "prospect_id", "business", "contact", "phone", "location", "date", "time", "operations_owner", "status", "purpose", "directions"],
   followups: ["prospect_id", "business", "n", "at", "by", "by_email", "note", "gps_lat", "gps_lng", "gps_accuracy_m", "gps_captured_at", "gps_map_link"],
-  jobs: ["id", "ref", "stage", "prospect_id", "business", "created_at", "created_by", "created_by_email", "final_price", "materials_count", "materials_total", "materials"],
+  jobs: ["id", "ref", "stage", "prospect_id", "business", "created_at", "created_by", "created_by_email", "final_price", "quoted_total", "budgeted_cost", "planned_profit_before_tax", "planned_margin", "payment_plan", "payment_schedule", "approved_receipts", "outstanding", "materials_count", "materials_total", "materials"],
   transactions: ["id", "date", "direction", "amount", "category", "method", "prospect_id", "business", "job_id", "note", "preapproved", "status", "created_by", "created_by_email", "created_at", "reviewed_by", "reviewed_at", "review_note", "receipt_link"],
   users: ["id", "name", "email", "role", "created"],
   technicians: ["id", "name", "phone", "skills", "active", "created_at"]
@@ -176,7 +176,15 @@ export function buildTables(data, photoBase) {
     return withExtras({
       id: j.id, ref: j.ref, stage: j.stage, prospect_id: j.prospectId, business: p.business || j.client || j.business || "",
       created_at: j.createdAt, created_by: j.createdBy, created_by_email: j.createdByEmail,
-      final_price: j.finalPrice, materials_count: mats.length,
+      final_price: Number(j.quotedTotal || j.quoteSnapshot?.cash || j.finalPrice) || 0,
+      quoted_total: Number(j.quotedTotal || j.quoteSnapshot?.cash || j.finalPrice) || 0,
+      budgeted_cost: j.quoteSnapshot?.costOfDoingBusiness ?? '',
+      planned_profit_before_tax: j.quoteSnapshot?.netProfit ?? '',
+      planned_margin: j.quoteSnapshot?.margin ?? '',
+      payment_plan: j.paymentPlan || '', payment_schedule: j.paymentSchedule || [],
+      approved_receipts: transactions.filter(t=>t.installId===j.id && t.direction==='in' && t.status==='approved').reduce((s,t)=>s+(Number(t.amount)||0),0),
+      outstanding: Math.max(0,(Number(j.quotedTotal || j.quoteSnapshot?.cash || j.finalPrice)||0)-transactions.filter(t=>t.installId===j.id && t.direction==='in' && t.status==='approved').reduce((s,t)=>s+(Number(t.amount)||0),0)),
+      materials_count: mats.length,
       materials_total: mats.reduce((s, m) => s + (Number(m.qty) || 0) * (Number(m.unitCost) || 0), 0),
       materials: mats.map((m) => `${m.name || ""} x${m.qty || 0} @ ${m.unitCost || 0}`).join("; ")
     }, j, ["id", "ref", "stage", "prospectId", "createdAt", "createdBy", "createdByEmail", "finalPrice", "materials"]);
@@ -205,7 +213,8 @@ function withExtras(row, record, mapped) {
   const skip = new Set(mapped);
   for (const k of Object.keys(record || {})) {
     if (skip.has(k)) continue;
-    out[k.replace(/[A-Z]/g, (c) => "_" + c.toLowerCase())] = str(record[k]);
+    const column = k.replace(/[A-Z]/g, (c) => "_" + c.toLowerCase());
+    if (!Object.prototype.hasOwnProperty.call(out,column)) out[column] = str(record[k]);
   }
   return out;
 }

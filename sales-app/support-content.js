@@ -99,10 +99,10 @@
         why: "Person and vehicle detection, zone watching and photo alerts — explained in plain words." }
     ],
     v6: [
-      { q: "What is the full-payment price for a 4-camera package?", a: "UGX 2,200,000", wrong: ["UGX 1,650,000", "UGX 2,700,000"],
-        why: "2 cameras UGX 1,650,000 · 4 cameras UGX 2,200,000 · 6 cameras UGX 2,700,000. Above 6, the office prices it." },
-      { q: "How does the payment plan work?", a: "40% on installation day, 30% after 30 days, 30% after 60 days", wrong: ["50% now and 50% next month", "Nothing to pay for 90 days"],
-        why: "The plan has a UGX 250,000 administration fee, and there's no penalty for paying early." },
+      { q: "Where do you find today's approved camera prices?", a: "Open Camera package prices in this app", wrong: ["Use an old flyer", "Guess from the customer's budget"],
+        why: "Use the current 4, 6, 8 and 12-camera price cards. Operations confirms the final scope after the survey. HDD is an add-on; without one there is no stored recording." },
+      { q: "How does the payment plan work?", a: "40% on installation day, 30% after 30 days, balance after 60 days", wrong: ["50% now and 50% next month", "Nothing to pay for 90 days"],
+        why: "Financing is already in the new package price. Do not add a separate administration fee. Save the agreed plan and installation date." },
       { q: "The customer's budget is tight. What do you do?", a: "Offer a smaller system — cover the priority areas first and add more later", wrong: ["Invent a discount to close the sale", "Tell them to come back next year"],
         why: "Change the size of the system, never the approved price." }
     ],

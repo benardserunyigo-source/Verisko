@@ -45,7 +45,7 @@ test("quizzes shuffle options but score by the answer text; all 3 right to pass"
   assert.deepEqual(S.scoreQuiz("v6", right), { ...S.scoreQuiz("v6", right), score: 3, total: 3, passed: true });
   const twoOfThree = S.scoreQuiz("v6", [right[0], "UGX 1,650,000", right[2]]);
   assert.equal(twoOfThree.score, 2); assert.equal(twoOfThree.passed, false);
-  assert.equal(twoOfThree.results[1].correct, false); assert.equal(twoOfThree.results[1].answer, "40% on installation day, 30% after 30 days, 30% after 60 days");
+  assert.equal(twoOfThree.results[1].correct, false); assert.equal(twoOfThree.results[1].answer, "40% on installation day, 30% after 30 days, balance after 60 days");
   assert.equal(S.quizValue(3, 3, "2026-10-01T08:00:00.000Z").length <= 40, true, "fits the server's 40-character limit");
   assert.deepEqual(S.quizResult({ "q-v6": "3/3 2026-10-01T08:00:00.000Z" }, "v6"), { score: 3, total: 3, at: "2026-10-01T08:00:00.000Z", passed: true });
   assert.equal(S.quizResult({}, "v6"), null);

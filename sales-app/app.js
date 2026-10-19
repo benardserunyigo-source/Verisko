@@ -64,31 +64,13 @@
     return m[tier];
   }
   // Add-on rate card. qty: true = count field; surge/hdmi are auto-added in compute.
-  var QUOTE_ADDONS = [
-    { key: "hdd2tb", label: "Hard drive 2TB", price: 500000 },
-    { key: "hdd4tb", label: "Hard drive 4TB", price: 700000 },
-    { key: "hdd6tb", label: "Hard drive 6TB", price: 0, currentOnly: true },
-    { key: "tv32", label: "32\" LED TV", price: 550000 },
-    { key: "tv43", label: "43\" LED TV", price: 850000 },
-    { key: "powerpack", label: "Power Pack (UPS + battery)", price: 450000 },
-    { key: "lights", label: "Perimeter Light Pack", price: 380000 },
-    { key: "router4g", label: "4G Router", price: 250000 },
-    { key: "camFixed", label: "Extra camera (outdoor/ceiling)", price: 400000, qty: true },
-    { key: "camWide", label: "Extra camera (moving/wide)", price: 500000, qty: true },
-    { key: "pole", label: "Metal pole (mounting)", price: 130000, qty: true },
-    { key: "welder", label: "Welder site visit", price: 35000 },
-    { key: "structural", label: "Structural work bundle", price: 160000 }
-  ];
-  var QUOTE_ZONES = [
-    { key: "1", label: "Zone 1 — Kampala Central", surcharge: 0 },
-    { key: "2", label: "Zone 2 — Greater Kampala / Wakiso", surcharge: 0 },
-    { key: "3", label: "Zone 3 — Entebbe / Mukono / Matugga", surcharge: 50000 },
-    { key: "beyond", label: "Beyond Zone 3 — regional", surcharge: 300000 }
-  ];
+  var QUOTE_ADDONS = window.VeriskoOffer.addons;
+  var QUOTE_ZONES = window.VeriskoOffer.zones;
 
   // Turn a saved quote's inputs into every derived figure. Pure — easy to test.
   function computeQuote(q) {
-    if (q.quoteSnapshot && q.pricingVersion && q.quoteSnapshot.pricingVersion === q.pricingVersion) return q.quoteSnapshot;
+    if (q.quoteSnapshot && q.pricingVersion && q.pricingVersion !== window.VeriskoPricing.VERSION && q.quoteSnapshot.pricingVersion === q.pricingVersion) return q.quoteSnapshot;
+    if (jobIsDelivery(q.stage) && q.pricingVerifiedAt && q.quoteSnapshot) return q.quoteSnapshot;
     if (q.pricingVersion && (!window.VeriskoPricing || q.pricingVersion !== window.VeriskoPricing.VERSION)) return { pricingVersion: q.pricingVersion, custom: true, pts: 0, tier: 'Simple', cash: 0, lines: [], errors: ['Pricing is unavailable. Reconnect and refresh before quoting.'] };
     var addons = q.addons || {};
     var pts = QUOTE_RUBRIC.reduce(function (s, r) { return s + (Number(q.rubric && q.rubric[r.key]) || 0); }, 0);
@@ -279,8 +261,8 @@
   function saveData(message) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     if (message) toast(message);
-    if (settings.auth) pushShared();
-    else setSync("local", "Saved on this device");
+    if (settings.auth) return pushShared();
+    else { setSync("local", "Saved on this device"); return Promise.resolve(false); }
   }
   function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
 
@@ -1027,6 +1009,7 @@
       return;
     }
     var hero = '<section class="card dash-hero">' +
+      '<p class="helper">For current offers, use Package prices in this app. Older training videos may mention retired prices or a separate plan fee. New packages include financing; HDDs are add-ons.</p>' +
       '<p class="dash-eyebrow">Commission this week</p>' +
       '<div class="dash-big">' + money(w.total) + "</div>" +
       '<div class="dash-sub">Paid ' + C.label(week.payday, true) + " · since " + C.label(week.start, true) + "</div>" +
@@ -1224,8 +1207,14 @@
   }
   function siteCostFieldsHtml(source) {
     var migrated=source.extraMaterialsCost==null && source.extraCost!=null && source.extraCost!=='';
-    return '<div class="field full" id="extraSiteCosts"><label>Extra costs, entered once</label><p class="helper">Outside the base package and selected hard drive. Enter actual costs in all three fields, using 0 when none. Callbacks and overhead are already included.</p>'+
-      [['extraMaterialsCost','Extra materials and equipment (UGX)'],['extraCrewCost','Extra crew above included budget (UGX)'],['extraAccessTravelCost','Equipment hire and travel (UGX)']].map(function(row){var value=source[row[0]];if(migrated)value=row[0]==='extraMaterialsCost'?source.extraCost:0;return '<div class="field full"><label for="f_'+row[0]+'">'+row[1]+'</label><input id="f_'+row[0]+'" class="quote-input" type="number" min="0" step="1" value="'+esc(value==null?'':value)+'" placeholder="Enter cost or 0"></div>';}).join('')+'<p class="helper">Included crew: UGX 350,000 for 4 cameras; UGX 400,000 for 6, 8 or 12. Extra crew needs Owner approval before the customer quote can be shared.</p></div>';
+    return '<div class="field full" id="extraSiteCosts"><label>Extra costs, entered once</label><p class="helper">Outside the base package and all costed add-ons. Enter actual costs in all three fields, using 0 when none. Callbacks and overhead are already included.</p>'+
+      [['extraMaterialsCost','Extra site materials, excluding add-ons (UGX)'],['extraCrewCost','Extra crew above included budget (UGX)'],['extraAccessTravelCost','Equipment hire and travel (UGX)']].map(function(row){var value=source[row[0]];if(migrated)value=row[0]==='extraMaterialsCost'?source.extraCost:0;return '<div class="field full"><label for="f_'+row[0]+'">'+row[1]+'</label><input id="f_'+row[0]+'" class="quote-input" type="number" min="0" step="1" value="'+esc(value==null?'':value)+'" placeholder="Enter cost or 0"></div>';}).join('')+'<p class="helper">Included crew: UGX 350,000 for 4 cameras; UGX 400,000 for 6, 8 or 12. Extra crew needs Owner approval before the customer quote can be shared.</p></div>';
+  }
+
+  function costReviewFieldsHtml(source) {
+    return '<div class="field full"><label for="f_costEvidence">Cost evidence / supplier quote and survey reference</label><textarea id="f_costEvidence" class="quote-input" placeholder="Paste folder / quote links and record measured routes, freight weight, crew scope and overhead checks">'+esc(source.costEvidence || '')+'</textarea><label class="chk-item"><input id="f_costConfirmed" type="checkbox" class="quote-input"'+(source.costConfirmed?' checked':'')+'><span>Costs and site scope checked. Commission / visit pay are in overhead; add-on costs are entered separately.</span></label><p class="helper">UGX 4,300/USD. 30% planned margin, 26% minimum. Seven-day quote validity. Prices exclude separately applicable VAT; confirm tax treatment before issuing a tax invoice.</p></div>'+
+      '<div class="field full"><label for="f_paymentPlan">Agreed payment plan</label><select id="f_paymentPlan" class="quote-input"><option value="installments"'+(source.paymentPlan!=='cash'?' selected':'')+'>3 months: 40% installation / 30% day 30 / balance day 60</option><option value="cash"'+(source.paymentPlan==='cash'?' selected':'')+'>60% before installation / 40% completion</option></select></div>'+
+      (isAdmin()?'<div class="field full"><label class="chk-item"><input id="f_fundingConfirmed" type="checkbox" class="quote-input"'+(source.fundingConfirmed?' checked':'')+'><span>I have reviewed available cash and open installments, and approve funding this job.</span></label></div>':'<p class="helper">The Owner confirms available funding before a financed job is accepted.</p>');
   }
 
   // Read the live quote inputs off the form.
@@ -1248,10 +1237,25 @@
       pricingVersion: version ? version.value : "", directCost: direct ? direct.value : "", extraCost: extra ? extra.value : "",
       priceOverride: final ? Number(final.value) > 0 : !!saved.priceOverride, finalPrice: final ? Number(final.value) || 0 : Number(saved.finalPrice) || 0 };
     var siteType = document.getElementById('f_installationType');
+    inputs.stage = (document.getElementById('f_stage') || {}).value || 'Draft';
+    inputs.scheduledDate = (document.getElementById('f_scheduledDate') || {}).value || '';
+    inputs.paymentPlan = (document.getElementById('f_paymentPlan') || {}).value || saved.paymentPlan || 'installments';
+    inputs.costEvidence = (document.getElementById('f_costEvidence') || {}).value || '';
+    inputs.costConfirmed = !!(document.getElementById('f_costConfirmed') || {}).checked;
+    inputs.fundingConfirmed = isAdmin() ? !!(document.getElementById('f_fundingConfirmed') || {}).checked : !!saved.fundingConfirmed;
+    inputs.costApprovalKey = saved.costApprovalKey || '';
+    inputs.renewQuote = (document.getElementById('f_renewQuote') || {}).value === 'yes';
+    inputs.addonCosts = {};
+    document.querySelectorAll('[data-addon-cost]').forEach(function(el){inputs.addonCosts[el.dataset.addonCost]=el.value;});
+    if (addons.tv32 || addons.tv43) inputs.addonCosts.hdmi = 0;
     if (siteType) {
       inputs.installationType = siteType.value;
       ['extraMaterialsCost','extraCrewCost','extraAccessTravelCost'].forEach(function(k){var el=document.getElementById('f_'+k);inputs[k]=el?el.value:'';});
       inputs.crewApprovalKey = saved.crewApprovalKey || '';
+    }
+    if (jobIsDelivery(saved.stage)) {
+      inputs.quoteSnapshot=saved.quoteSnapshot; inputs.pricingVerifiedAt=saved.pricingVerifiedAt;
+      ['pricingVersion','cameraCount','installationType','rubric','addons','zone','discountPct','priceOverride','finalPrice','directCost','extraCost','extraMaterialsCost','extraCrewCost','extraAccessTravelCost','addonCosts','costConfirmed','costEvidence','paymentPlan'].forEach(function(k){inputs[k]=saved[k];});
     }
     return inputs;
   }
@@ -1259,9 +1263,9 @@
     if (r.pricingVersion) {
       if (r.custom) return '<p class="helper">Choose a supported camera package.</p>';
       return '<div class="pay-summary"><div class="pay-line pay-grand"><span>Customer total</span><strong>' + money(r.cash) + '</strong></div>' +
-        '<div class="pay-line"><span>Cost of doing business</span><strong>' + money(Math.round(r.costOfDoingBusiness)) + '</strong></div>' +
-        '<div class="pay-line"><span>Net profit before tax</span><strong>' + money(Math.round(r.netProfit)) + ' (' + (r.margin * 100).toFixed(2) + '%)</strong></div></div>' +
-        '<p class="helper">Internal only. Includes equipment, crew, callbacks, overhead, contingency, payment fees and financing. ' + r.cableMetres + 'm cable · ' + r.recorderChannels + 'CH recorder · crew ' + money(r.crew) + '. HDD is an add-on.</p>' +
+        '<div class="pay-line"><span>Budgeted cost of doing business</span><strong>' + money(Math.round(r.costOfDoingBusiness)) + '</strong></div>' +
+        '<div class="pay-line"><span>Planned profit before tax</span><strong>' + money(Math.round(r.netProfit)) + ' (' + (r.margin * 100).toFixed(2) + '%)</strong></div></div>' +
+        '<p class="helper">Internal budget: UGX 4,300/USD · 30% target, 26% minimum. Commission and visit pay are inside overhead. Includes equipment, crew, callbacks, overhead, contingency, payment fees and financing. ' + r.cableMetres + 'm cable · ' + r.recorderChannels + 'CH recorder · crew ' + money(r.crew) + '. HDD is an add-on. Actual costs and collection delays change realized profit.</p><div class="pay-line"><span>Direct cash needed</span><strong>'+money(Math.round(r.fundingRequired || r.direct))+'</strong></div><div class="pay-line"><span>Funding gap after first payment</span><strong>'+money(Math.round(r.fundingGap || 0))+'</strong></div>' +
         '<div class="quote-fin"><div class="quote-fin-col"><div class="qf-h">3 months · financing included</div>' +
         r.payments.map(function (amount, i) { return '<div class="qf-row"><span>' + ['Installation day', 'After 30 days', 'After 60 days'][i] + '</span><strong>' + money(amount) + '</strong></div>'; }).join('') + '</div></div>';
     }
@@ -1285,12 +1289,14 @@
   }
   function recalcQuoteForm() {
     var el = document.getElementById("quoteSummary"); if (!el) return;
-    var r = computeQuote(readQuoteInputs());
+    var formInputs=readQuoteInputs(), r = computeQuote(formInputs);
+    if (formInputs.stage !== 'Draft') r.errors=(r.errors || []).concat(r.releaseErrors || []);
     el.innerHTML = quoteSummaryHtml(r);
     var tc = document.getElementById("quoteTier"); if (tc) tc.innerHTML = quoteTierChip(r.tier) + (r.pricingVersion ? '' : ' <span class="quote-pts">' + r.pts + " pts</span>");
     var extraFields = document.getElementById('extraSiteCosts'); if(extraFields) extraFields.hidden = !r.requiresExtraCosts && !(r.extraCost > 0);
+    document.querySelectorAll('[data-addon-cost-row]').forEach(function(el){el.hidden=!formInputs.addons[el.dataset.addonCostRow];});
     var gov = document.getElementById("quoteGov");
-    if (gov) gov.innerHTML = (r.errors || []).filter(function(e,i,a){return a.indexOf(e)===i;}).map(function (e) { return '<div class="rev-noproof">' + esc(e) + '</div>'; }).join('') + (r.needsApproval ? '<div class="rev-noproof">' + (r.pricingVersion ? 'Extra crew exceeds the included budget. Save a draft for the Owner to approve.' : 'Send this custom or Very Complex job to Ben to approve before quoting.') + (isAdmin() ? ' Saving approves this crew allowance.' : '') + '</div>' : '');
+    if (gov) gov.innerHTML = (r.errors || []).filter(function(e,i,a){return a.indexOf(e)===i;}).map(function (e) { return '<div class="rev-noproof">' + esc(e) + '</div>'; }).join('') + (r.needsApproval ? '<div class="rev-noproof">' + (r.pricingVersion ? 'Owner approval required: ' + (r.approvalReasons || []).join(', ') + '. Save a draft for review.' : 'Send this custom or Very Complex job to Ben to approve before quoting.') + (isAdmin() ? ' Saving records your approval of these costs and any discount.' : '') + '</div>' : '');
     var save = document.getElementById("saveButton");
     var stageEl=document.getElementById('f_stage');
     if (save) save.disabled = (r.errors || []).length > 0 || (r.needsApproval && !isAdmin() && (!r.pricingVersion || !stageEl || stageEl.value !== 'Draft')) || (!isAdmin() && r.discountPct > 5);
@@ -1327,10 +1333,13 @@
     if (!isLinked && !client.business) { showFormError(editing.id ? "Enter the client / business name." : "Choose the client for this job — pick one from Sales, or add a walk-in with a name."); return; }
     var inputs = readQuoteInputs();
     var r = computeQuote(inputs);
-    if(r.pricingVersion && r.needsApproval && isAdmin()) { inputs.crewApprovalKey=r.crewApprovalKeyRequired; r=computeQuote(inputs); }
+    if(r.pricingVersion && r.needsApproval && isAdmin()) { inputs.crewApprovalKey=r.crewApprovalKeyRequired; inputs.costApprovalKey=r.approvalKeyRequired; r=computeQuote(inputs); }
     if ((r.errors || []).length) { showFormError(r.errors.join(" ")); return; }
+    if (r.pricingVersion === window.VeriskoPricing.VERSION && data.stage !== 'Draft' && (r.releaseErrors || []).length) { showFormError(r.releaseErrors.join(' ')); return; }
+    if (jobIsDelivery(data.stage) && inputs.pricingVersion === window.VeriskoPricing.VERSION && !inputs.scheduledDate) { showFormError('Set the installation date to create the agreed payment schedule.'); return; }
+    if (jobIsDelivery(data.stage) && inputs.paymentPlan === 'installments' && !inputs.fundingConfirmed) { showFormError('The Owner must confirm funding before accepting a financed job. Save a draft for review.'); return; }
     if (!isAdmin() && r.discountPct > 5) { showFormError("A discount above 5% needs the Owner — ask Ben to apply it."); return; }
-    if (r.needsApproval && !isAdmin() && (!r.pricingVersion || data.stage !== 'Draft')) { showFormError("Save a draft and ask the Owner to approve the extra crew before quoting."); return; }
+    if (r.needsApproval && !isAdmin() && (!r.pricingVersion || data.stage !== 'Draft')) { showFormError("Save a draft and ask the Owner to approve the cost or discount before quoting."); return; }
     var stage = JOB_STAGES.indexOf(data.stage) >= 0 ? data.stage : "Draft";
     var checklist = collectChecklist();
     if (stage === "Handed over" && !checklistComplete(checklist)) {
@@ -1361,10 +1370,10 @@
       state.jobs.push(Object.assign({ id: jobId, ref: newJobRef(), createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "", createdAt: today }, fields));
     }
     hideFormError(); dialog.close();
-    saveData(wasNew ? "Job created" : "Job updated"); syncClosedSales(); render();
+    var serverSaved = await saveData(wasNew ? "Job created" : "Job updated"); syncClosedSales(); render();
     // A quotation is "done" when a job is created in Draft/Sent, or moved to Sent.
     var quoteStage = stage === "Draft" || stage === "Sent";
-    if (quoteStage && !r.needsApproval && (wasNew || (stage === "Sent" && prevStage !== "Sent")) && jobValue(job(jobId)) > 0) offerQuoteShare(jobId);
+    if (serverSaved && quoteStage && !(r.releaseErrors || []).length && !r.needsApproval && (wasNew || (stage === "Sent" && prevStage !== "Sent")) && jobValue(job(jobId)) > 0) offerQuoteShare(jobId);
   }
 
   function job(id) { return (state.jobs || []).find(function (x) { return x.id === id; }) || null; }
@@ -1441,13 +1450,18 @@
     return jsPdfLoading;
   }
   function quoteModelFor(j) {
-    return window.VeriskoQuote.buildQuoteModel(j, jobClient(j), computeQuote(j), { value: jobValue(j), preparedBy: settings.user && settings.user.name, date: today });
+    return window.VeriskoQuote.buildQuoteModel(j, jobClient(j), computeQuote(j), { value: jobValue(j), preparedBy: settings.user && settings.user.name, date: j.quotedAt || (jobIsDelivery(j.stage) ? j.createdAt : today) });
   }
   // A custom (12+ camera) job needs its final price before it can be quoted.
   function quoteReady(j) {
     if (!j) { toast("That job no longer exists."); return false; }
     var priced = computeQuote(j);
-    if(priced.pricingVersion && priced.crewApprovalKeyRequired && priced.needsApproval) { toast('The Owner must approve this job before sharing a quotation.'); return false; }
+    if(priced.pricingVersion && priced.needsApproval) { toast('The Owner must approve this cost or discount before sharing a quotation.'); return false; }
+    if (priced.pricingVersion === window.VeriskoPricing.VERSION && !jobIsDelivery(j.stage)) {
+      if (!j.pricingVerifiedAt) { toast('Connect and save this quote before sharing.'); return false; }
+      if (j.validUntil && today > j.validUntil) { toast('Quote expired. Open it, refresh pricing and reconfirm costs.'); return false; }
+      if ((priced.releaseErrors || []).length) { toast(priced.releaseErrors.join(' ')); return false; }
+    } else if (!jobIsDelivery(j.stage) && j.pricingVersion !== window.VeriskoPricing.VERSION) { toast('Open and save this unaccepted quote with current pricing before sharing.'); return false; }
     if ((priced.errors || []).length) { toast(priced.errors.join(" ")); return false; }
     if (quoteModelFor(j).total == null) { toast("Set the final price for this custom job before sharing its quotation."); return false; }
     return true;
@@ -1458,6 +1472,7 @@
     return { doc: window.VeriskoQuote.renderQuotePdf(JsPDF, model), model: model, name: window.VeriskoQuote.quoteFileName(model) };
   }
   async function downloadQuotePdf(id) {
+    if (!await pushShared()) { toast("Connect and save successfully before sharing a quote."); return; }
     var j = job(id); if (!quoteReady(j)) return;
     try { var q = await quotePdfFor(j); q.doc.save(q.name); toast("Quotation PDF saved to your phone"); }
     catch (e) { toast(e.message || "Couldn't build the PDF."); }
@@ -1465,6 +1480,7 @@
   // Phone share sheet (WhatsApp, email…) with the PDF attached. Where files
   // can't be shared, save the PDF and open WhatsApp with the summary text.
   async function shareQuote(id) {
+    if (!await pushShared()) { toast("Connect and save successfully before sharing a quote."); return; }
     var j = job(id); if (!quoteReady(j)) return;
     try {
       var q = await quotePdfFor(j);
@@ -1538,12 +1554,24 @@
       "<small>" + open.length + " open · " + money(wonValue) + " won/in progress · " + jobs.length + " total</small></div></section>";
     var filterBar = '<div class="toolbar"><div class="field-inline" style="flex:1"><label for="jobFilter">Show</label><select id="jobFilter">' +
       [["all", "All jobs"]].concat(JOB_STAGES.map(function (s) { return [s, s]; })).map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === jobFilter ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></div></div>";
+    summary += fundingOverviewHtml(jobs);
     var order = JOB_STAGES;
     var rows = jobs.filter(function (j) { return jobFilter === "all" || j.stage === jobFilter; })
       .sort(function (a, b) { return order.indexOf(a.stage) - order.indexOf(b.stage) || (b.createdAt || "").localeCompare(a.createdAt || ""); });
     var list = rows.length ? '<div class="list">' + rows.map(jobCard).join("") + "</div>" :
       emptyState(ICON_INSTALL, "No jobs yet", "Tap New job to price a site, or start one from a closed sale in Prospects.", "New job", 'data-new="job"');
     content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " job" : " jobs") + "</p>" + list + technicianRosterCard();
+  }
+
+  function fundingOverviewHtml(jobs) {
+    var tracked=jobs.filter(function(j){return jobIsWon(j) && j.paymentSchedule && j.paymentSchedule.length;}), outstanding=0, overdue=0;
+    tracked.forEach(function(j){var r=window.VeriskoJobFinance.review(j,state.transactions,today);outstanding+=r.outstanding;overdue+=r.overdue;});
+    return '<section class="card"><h2>Installments and funding</h2><div class="pay-line"><span>Outstanding on scheduled jobs</span><strong>'+money(outstanding)+'</strong></div><div class="pay-line"><span>Overdue</span><strong>'+money(overdue)+'</strong></div><p class="helper">'+tracked.length+' jobs with an agreed schedule. Approved receipts only. Older jobs without schedules are excluded. Review available cash and procurement commitments before approving the next financed job.</p></section>';
+  }
+  function installmentScheduleHtml(j) {
+    if(!j.paymentSchedule || !j.paymentSchedule.length)return '';
+    var r=window.VeriskoJobFinance.review(j,state.transactions,today);
+    return '<section class="card"><h3>Agreed payment schedule</h3>'+r.rows.map(function(x){return '<div class="item-line"><span class="k">'+esc(x.label)+' · '+esc(x.due)+'</span><span class="v">'+money(x.balance)+' remaining'+(x.overdue?' · overdue':'')+'</span></div>';}).join('')+'<p class="helper">Approved receipts: '+money(r.paid)+'. Scheduled dates remain tied to the accepted agreement.</p></section>';
   }
 
   function jobCard(j) {
@@ -1562,7 +1590,7 @@
       '<div class="item-lines">' +
       priceLine +
       (r.pricingVersion && r.crewApprovalKeyRequired && r.needsApproval ? '<div class="item-line"><span class="k">Extra crew</span><span class="v">Owner approval required</span></div>' : '') +
-      (r.pricingVersion && !r.custom ? '<div class="item-line"><span class="k">Cost of doing business</span><span class="v">' + money(Math.round(r.costOfDoingBusiness)) + '</span></div><div class="item-line"><span class="k">Net profit before tax</span><span class="v">' + money(Math.round(r.netProfit)) + ' · ' + (r.margin * 100).toFixed(2) + '%</span></div>' : '') +
+      (r.pricingVersion && !r.custom ? '<div class="item-line"><span class="k">Budgeted cost of doing business</span><span class="v">' + money(Math.round(r.costOfDoingBusiness)) + '</span></div><div class="item-line"><span class="k">Planned profit before tax</span><span class="v">' + money(Math.round(r.netProfit)) + ' · ' + (r.margin * 100).toFixed(2) + '%</span></div>' : '') +
       (delivery ? '<div class="item-line"><span class="k">Install</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Date not set") + " · " + (tech ? esc(tech.name) : '<span style="color:var(--amber)">no technician</span>') + "</span></div>" : "") +
       ((delivery && (val > 0 || paidForJob(j.id) > 0)) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (val > 0 ? " · " + money(Math.max(0, val - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
       (j.stage === "Handed over" || (/progress|installed/i.test(j.stage || "") && checklistDone(j) > 0) ? '<div class="item-line"><span class="k">Checklist</span><span class="v">' + checklistDone(j) + " / " + INSTALL_CHECKLIST.length + (checklistComplete(j.checklist) ? " · done" : "") + "</span></div>" : "") +
@@ -2764,7 +2792,11 @@
       // One record for the whole lifecycle. Pricing (the quote) is always shown;
       // delivery fields reveal at "Accepted"; the checklist reveals at handover.
       document.getElementById("dialogTitle").textContent = id ? esc(source.ref || "Job") : "New job";
-      var qInputs = id ? source : { pricingVersion: window.VeriskoPricing.VERSION, cameraCount: 4 };
+      var lockedPricing = jobIsDelivery(source.stage);
+      var repricing = !!id && !lockedPricing && (source.pricingVersion !== window.VeriskoPricing.VERSION || (source.validUntil && source.validUntil < today));
+      var qInputs = id ? Object.assign({},source) : { pricingVersion: window.VeriskoPricing.VERSION, cameraCount: 4, paymentPlan:'installments' };
+      if (repricing) { qInputs.pricingVersion=window.VeriskoPricing.VERSION; qInputs.quoteSnapshot=null; qInputs.costConfirmed=false; qInputs.costApprovalKey=''; qInputs.crewApprovalKey=''; qInputs.fundingConfirmed=false; qInputs.quotedAt=''; qInputs.validUntil=''; }
+      if(!lockedPricing && !window.VeriskoPricing.policy.fx) { toast('Reconnect to load the approved Operations cost model.'); return; }
       var currentPricing = qInputs.pricingVersion === window.VeriskoPricing.VERSION;
       var jobStage = source.stage || "Draft";
       var jr = computeQuote(qInputs);
@@ -2773,7 +2805,8 @@
         .map(function (t) { return '<option value="' + esc(t.id) + '"' + (t.id === source.technicianId ? " selected" : "") + ">" + esc(t.name) + (t.active === false ? " (inactive)" : "") + "</option>"; }).join("");
       html += renderClientBlock(id, presetProspect, source) +
         '<input type="hidden" id="f_pricingVersion" value="' + esc(qInputs.pricingVersion || '') + '">' +
-        (!currentPricing ? '<p class="helper">Existing quotation: original pricing is preserved. Create a new job to quote with the current 26% margin policy.</p>' : '') +
+        '<input type="hidden" id="f_renewQuote" value="'+(repricing?'yes':'no')+'">' +
+        (lockedPricing ? '<p class="helper">Accepted pricing is locked. Delivery details can be updated. Create a revised quote for scope changes.</p>' : repricing ? '<p class="helper">This unaccepted quote is being refreshed with current prices. Confirm the costs before reissuing.</p>' : '') + '<fieldset style="border:0;padding:0;margin:0;min-width:0;display:contents"'+(lockedPricing?' disabled':'')+'>' +
         // ---- Pricing (the quote) ----
         (currentPricing ? installationFieldsHtml(qInputs,jr) : '<div class="field full"><label>Site scoring <span class="optional-tag" id="quoteTier"></span></label>' +
         QUOTE_RUBRIC.map(function (r) {
@@ -2781,26 +2814,29 @@
             r.opts.map(function (o) { return '<option value="' + o[0] + '"' + ((String((qInputs.rubric || {})[r.key] || "0")) === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></div>";
         }).join("") + "</div>") +
         field("cameraCount", "Cameras", "segmented", String(qInputs.cameraCount || 4), { full: true, options: currentPricing ? [{ value: "4", label: "4" }, { value: "6", label: "6" }, { value: "8", label: "8" }, { value: "12", label: "12" }] : [{ value: "2", label: "2" }, { value: "4", label: "4" }, { value: "6", label: "6" }, { value: "8", label: "8" }, { value: "12", label: "12+" }] }) +
-        (currentPricing ? '<div class="field full"><label for="f_directCost">Base direct job cost (UGX) <span class="optional-tag">optional override</span></label><input id="f_directCost" class="quote-input" type="number" min="0" step="1" value="' + esc(qInputs.directCost == null ? '' : qInputs.directCost) + '" placeholder="Use package budget"><p class="helper">Equipment, shipping, Uganda materials, goods pickup and included crew for the base package. Leave blank to use the package budget. Hard drive and the three extra costs are added separately.</p></div>'+siteCostFieldsHtml(qInputs) : '') +
+        (currentPricing ? '<div class="field full"><label for="f_directCost">Base direct job cost (UGX) <span class="optional-tag">optional override</span></label><input id="f_directCost" class="quote-input" type="number" min="0" step="1" value="' + esc(qInputs.directCost == null ? '' : qInputs.directCost) + '" placeholder="Use package budget"><p class="helper">Equipment, shipping, Uganda materials, goods pickup and included crew for the base package. Leave blank to use the package budget. Hard drive and the three extra costs are added separately.</p></div>'+siteCostFieldsHtml(qInputs)+costReviewFieldsHtml(qInputs) : '') +
         '<div class="field full"><label>Add-ons</label><div class="quote-addons">' +
         QUOTE_ADDONS.filter(function (a) { return currentPricing ? a.key !== 'camFixed' && a.key !== 'camWide' : !a.currentOnly; }).map(function (a) {
           if (a.qty) {
-            return '<div class="qa-row"><span class="qa-label">' + esc(a.label) + " · " + money(a.price) + '</span><input class="quote-input qa-qty" type="number" inputmode="numeric" min="0" step="1" data-addon-qty="' + a.key + '" value="' + esc((qInputs.addons || {})[a.key] || "") + '" placeholder="0" aria-label="' + esc(a.label) + ' quantity"></div>';
+            return '<div class="qa-row"><span class="qa-label">' + esc(a.label) + " · " + money(a.price) + '</span><input class="quote-input qa-qty" type="number" inputmode="numeric" min="0" step="1" data-addon-qty="' + a.key + '" value="' + esc((qInputs.addons || {})[a.key] || "") + '" placeholder="0" aria-label="' + esc(a.label) + ' quantity"></div>' + (currentPricing ? '<div class="field" data-addon-cost-row="'+a.key+'"><label>Total purchase and fitting cost (UGX)</label><input class="quote-input" data-addon-cost="'+a.key+'" type="number" min="0" step="1" value="'+esc((qInputs.addonCosts||{})[a.key] == null ? '' : qInputs.addonCosts[a.key])+'" placeholder="Required when selected"></div>' : '');
           }
-          return '<label class="chk-item"><input type="checkbox" class="quote-input" data-addon="' + a.key + '"' + ((qInputs.addons || {})[a.key] ? " checked" : "") + "><span>" + esc(a.label) + " · " + (currentPricing && /^hdd/.test(a.key) ? 'calculated with package' : money(currentPricing ? Math.ceil(a.price / 10000) * 10000 : a.price)) + "</span></label>";
+          var costControl = currentPricing && !/^hdd/.test(a.key) ? '<div class="field" data-addon-cost-row="'+a.key+'"><label>Purchase, freight and fitting cost for '+esc(a.label)+(a.key==='tv32'||a.key==='tv43'?' including HDMI cable':'')+' (UGX)</label><input class="quote-input" data-addon-cost="'+a.key+'" type="number" min="0" step="1" value="'+esc((qInputs.addonCosts || {})[a.key] == null ? '' : qInputs.addonCosts[a.key])+'" placeholder="Required when selected"></div>' : '';
+          return '<label class="chk-item"><input type="checkbox" class="quote-input" data-addon="' + a.key + '"' + ((qInputs.addons || {})[a.key] ? " checked" : "") + "><span>" + esc(a.label) + " · " + (currentPricing && /^hdd/.test(a.key) ? 'calculated with package' : money(currentPricing ? Math.ceil(a.price / 10000) * 10000 : a.price)) + "</span></label>" + costControl;
         }).join("") + '<p class="helper">' + (currentPricing ? 'Choose one hard drive. Base budget includes surge protection and commissioning leads. Extra equipment and site costs must be confirmed.' : 'Surge protector auto-adds on Complex+ sites; an HDMI cable auto-adds with a TV.') + '</p></div></div>' +
         '<div class="field full"><label for="f_zone">Zone</label><select id="f_zone" class="quote-input">' +
         QUOTE_ZONES.map(function (z) { return '<option value="' + z.key + '"' + ((qInputs.zone || "1") === z.key ? " selected" : "") + ">" + esc(z.label) + (z.surcharge ? " (+" + money(z.surcharge) + ")" : "") + "</option>"; }).join("") + "</select></div>" +
-        (isAdmin() ? '<div class="field full"><label for="f_discountPct">Discount %</label><input id="f_discountPct" class="quote-input" type="number" inputmode="numeric" min="0" max="100" step="1" value="' + esc(qInputs.discountPct || "") + '" placeholder="0"><p class="helper">Owner only. Above 5% is your call.</p></div>' : "") +
+        (isAdmin() ? '<div class="field full"><label for="f_discountPct">Discount %</label><input id="f_discountPct" class="quote-input" type="number" inputmode="numeric" min="0" max="100" step="1" value="' + esc(qInputs.discountPct || "") + '" placeholder="0"><p class="helper">Owner approval is required below the 30% target; 26% remains the hard minimum.</p></div>' : "") +
         '<div class="field full" id="quoteGov"></div>' +
         '<div class="field full"><label>Quote</label><div id="quoteSummary"></div></div>' +
-        (id ? '<div class="field full"><label>Quotation for the client</label>' + quoteActionsHtml(id) +
+        (id && !lockedPricing ? '<div class="field full"><label>Quotation for the client</label>' + quoteActionsHtml(id) +
           '<p class="helper">A branded PDF with the client\'s details, the prices above and the payment options. Share opens WhatsApp with it attached.</p></div>' : "") +
         // Final price — only for a custom (12+) job or an admin override. Admin-only.
         (isAdmin()
           ? '<div class="field full" id="finalPriceField"' + (showFinal ? "" : " hidden") + '><label for="f_finalPrice">Final price (UGX) <span class="optional-tag">custom / override</span></label>' +
-            '<input id="f_finalPrice" class="quote-input" type="number" inputmode="numeric" min="0" step="1000" value="' + esc(source.finalPrice || "") + '" placeholder="0"><p class="helper">Set this for a 12+ camera custom job, or to override the rubric price.</p></div>'
+            '<input id="f_finalPrice" class="quote-input" type="number" inputmode="numeric" min="0" step="10000" value="' + esc(source.finalPrice || "") + '" placeholder="0"><p class="helper">Set this for a 12+ camera custom job, or to override the calculated price while preserving at least 26%.</p></div>'
           : '<div id="finalPriceField" hidden></div>') +
+        '</fieldset>' +
+        (id && lockedPricing ? '<div class="field full"><label>Agreed quotation</label>'+quoteActionsHtml(id)+'</div>' : '') +
         // ---- Stage ----
         field("stage", "Stage", "select", jobStage, { options: JOB_STAGES, full: true }) +
         // ---- Delivery (revealed once Accepted) ----
@@ -2820,7 +2856,7 @@
         '<div class="chk-list" id="chkList">' + INSTALL_CHECKLIST.map(function (i) {
           return '<label class="chk-item"><input type="checkbox" data-check="' + esc(i.key) + '"' + ((source.checklist && source.checklist[i.key]) ? " checked" : "") + "><span>" + esc(i.label) + "</span></label>";
         }).join("") + "</div></div>" +
-        ((id && jobIsDelivery(jobStage)) ? jobPaymentsSection(source) : "") +
+        ((id && jobIsDelivery(jobStage)) ? installmentScheduleHtml(source)+jobPaymentsSection(source) : "") +
         field("notes", "Notes", "textarea", source.notes, { full: true, optional: true, placeholder: "Anything the customer or Ben should know." });
     }
     // Delete is offered for prospects, site visits and jobs (not cash entries),
@@ -3480,6 +3516,8 @@
       if (res.status >= 500) return "offline";   // a server hiccup isn't "you were removed" — keep working on the device
       var result = await res.json();
       if (!result.ok) return "unauth";
+      if (result.pricing) window.VeriskoPricing = window.createVeriskoPricing(result.pricing);
+      else window.VeriskoPricing = window.createVeriskoPricing({version:window.VeriskoPriceCatalogue.version,catalogue:result.catalogue || window.VeriskoPriceCatalogue.catalogue});
       if (result.data && result.data.prospects) {
         state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], jobs: result.data.jobs, installations: result.data.installations || [], quotes: result.data.quotes || [], technicians: result.data.technicians || [], config: normalizeConfig(result.data.config), training: result.data.training || {}, signups: result.data.signups || [] };
         migrateToJobs(state);              // fold any legacy quotes/installations the server still holds
@@ -3501,14 +3539,22 @@
     else { setSync("error", "Offline — using this device"); toast("Couldn't reach the workspace. Your device copy is safe."); }
   }
 
-  async function pushShared() {
+  var sharedPushQueue = Promise.resolve();
+  function pushShared() {
+    sharedPushQueue = sharedPushQueue.then(pushSharedNow, pushSharedNow);
+    return sharedPushQueue;
+  }
+  async function pushSharedNow() {
     try {
       setSync("syncing", "Saving…");
+      var jobsBefore = JSON.stringify(state.jobs);
       var res = await apiData("POST", { data: state });
       var result = await res.json().catch(function () { return {}; });
-      if (!res.ok || !result.ok) throw new Error();
+      if (!res.ok || !result.ok) throw new Error(result.error || 'Sync failed.');
+      if(result.jobs && JSON.stringify(state.jobs) === jobsBefore) { state.jobs=result.jobs; localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); }
       setSync("connected", pendingUploadCount() ? pendingUploadCount() + " photo" + (pendingUploadCount() > 1 ? "s" : "") + " waiting to upload" : "Synced");
-    } catch (e) { setSync("error", "Saved on device — sync pending"); }
+      return true;
+    } catch (e) { setSync("error", "Saved on device - needs review"); toast(e.message || 'Sync pending'); return false; }
   }
 
   /* -------- Offline photo queue (IndexedDB — photos until back online) ------- */
@@ -3667,7 +3713,7 @@
     renderLogin("denied");
     lockScreen.hidden = false;
   }
-  function signOutLocal() { settings.auth = null; settings.user = null; saveSettings(); }
+  function signOutLocal() { window.VeriskoPricing=window.createVeriskoPricing(window.VeriskoPriceCatalogue); settings.auth = null; settings.user = null; saveSettings(); }
 
   /* -------- Email magic-link login -------- */
   function renderLogin(step, message) {
@@ -3859,7 +3905,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v80";
+  var APP_VERSION = "v84";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;

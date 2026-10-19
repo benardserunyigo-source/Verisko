@@ -44,7 +44,9 @@
   // opts:   { value: jobValue(job), preparedBy, date (YYYY-MM-DD) }
   function buildQuoteModel(job, client, quote, opts) {
     job = job || {}; client = client || {}; quote = quote || {}; opts = opts || {};
-    var date = opts.date || new Date().toISOString().slice(0, 10);
+    var date = job.quotedAt || opts.date || new Date().toISOString().slice(0, 10);
+    var current = quote.pricingVersion === '2026-10-18-cfo4300';
+    var validDays = current ? 7 : VALID_DAYS;
     var custom = !!quote.custom;
     var override = !custom && !!job.priceOverride && Number(job.finalPrice) > 0;
     var value = Number(opts.value);
@@ -85,13 +87,22 @@
         ], note: "Total " + money(fin) + (quote.pricingVersion ? " · financing included" : " (includes " + money(fin - total) + " plan fee)") });
       }
     }
+    if(current && job.paymentPlan) plans = plans.filter(function(p){return job.paymentPlan === 'cash' ? p.title.indexOf('Pay cash')===0 : p.title.indexOf('3 monthly')===0;});
+    if(current && job.paymentSchedule && job.paymentSchedule.length && plans.length===1) plans[0].rows=job.paymentSchedule.map(function(r){return {label:r.label+' ('+r.due+')',amount:r.amount};});
+    var terms = TERMS.slice();
+    if(current) {
+      terms[1]='This quotation is valid for 7 days. Confirm any scope changes with Verisko before additional work.';
+      if(job.paymentPlan) terms[2]=job.paymentPlan === 'cash' ? 'Payment: 60% before installation and 40% on completion.' : 'Payment: 40% on installation day, 30% after 30 days and the remaining balance after 60 days. Financing is included in the total.';
+      terms.push('Prices exclude separately applicable VAT. Any VAT treatment must be confirmed before a tax invoice is issued.');
+    }
+    if(quote.pricingVersion) terms.push('Hard drive is included only when listed. Without a compatible hard drive, the system provides live viewing without stored recordings.');
     return {
       ref: clean(job.ref) || "Quotation",
-      date: date, validUntil: addDays(date, VALID_DAYS),
+      date: date, validUntil: job.validUntil || addDays(date, validDays),
       preparedBy: clean(opts.preparedBy), stage: clean(job.stage),
       client: { business: clean(client.business), contact: clean(client.contact), phone: clean(client.phone), location: clean(client.location) },
       items: items, total: total, custom: custom, override: override, plans: plans,
-      notes: clean(job.notes), terms: quote.pricingVersion ? TERMS.concat(["Hard drive is included only when listed. Without a compatible hard drive, the system provides live viewing without stored recordings."]) : TERMS.slice(), company: COMPANY
+      notes: clean(job.notes), terms: terms, company: COMPANY
     };
   }
 

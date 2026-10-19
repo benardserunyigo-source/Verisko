@@ -99,3 +99,33 @@ the Microsoft Graph env vars; swap `netlify/functions/data.mjs` for
 The browser keeps a local copy as a fallback and works offline once signed in.
 Access is controlled per-email through Supabase and the owner's team allow-list.
 Download a JSON backup before resetting or importing data.
+
+## Pricing, release 84
+
+The active budget is private server configuration in `VERISKO_PRICING_BUDGET`,
+scoped to production functions in Netlify. Do not commit its value, copy it into
+public browser scripts or include it in customer PDFs. The JSON contains a
+version, policy, package cost basis and USD storage costs. Owner/Operations get
+the approved inputs after authentication; Sales receive the public price cards.
+Older repository history contains earlier budgets; this change does not erase
+previously published history.
+
+New quotes use UGX 4,300/USD, a 30% planning target and a 26% minimum.
+Commission and visit pay remain inside the overhead allocation. Purchase costs,
+freight weights, crew scope, actual overhead coverage, finance charges and VAT
+status still require human confirmation. The budget is not an actual job P&L.
+
+Set the private environment variable in a trusted development shell before
+running `npm test` or `node scripts/build-price-catalogue.mjs`. Regenerate and
+commit `price-catalogue.js` whenever the approved budget/version changes; it
+contains only customer prices, package scope and installment amounts. Publish
+the matching function configuration and app release together.
+
+Server validation recalculates current quotes, records approval of cost
+reductions/price adjustments, requires cost evidence before issue, and protects
+accepted prices and payment schedules. New quotes expire after seven days;
+unaccepted expired/older offers refresh when edited. Accepted legacy contracts
+keep their agreed prices. A financed job needs an installation date and Owner
+funding confirmation before acceptance. Downloads/sharing require a successful
+server save. Existing records can be viewed offline; new pricing needs a
+connection to load private cost inputs.
