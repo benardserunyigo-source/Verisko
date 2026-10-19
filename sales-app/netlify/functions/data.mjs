@@ -7,6 +7,7 @@
 // an empty workspace bootstraps the owner. Non-admins cannot alter the team
 // list. Both Supabase values below are public (publishable) and safe to ship.
 import { getStore } from "@netlify/blobs";
+import { guardCrewApprovals } from "./crew-approval.mjs";
 import { AUTH_STORE, STAFF_STORE, identify, protectPinUsers, displayPhone, idOverdue } from "./pin-auth.mjs";
 import { supabaseUser } from "./auth.mjs";
 import { scopeForSales, mergeSalesWrite, scopeForTeamLead, mergeTeamLeadWrite, guardRepQual, ownsProspect, keepFollowUps, keepNewerPlan, keepImported, mergeTraining, guardVisitChecks } from "./scope.mjs";
@@ -175,6 +176,8 @@ export default async (request) => {
         if (JSON.stringify(clean.jobs) !== JSON.stringify(storedJobs)) clean.jobs = storedJobs;
         if (JSON.stringify(clean.technicians) !== JSON.stringify(storedTechs)) clean.technicians = storedTechs;
       }
+
+      clean.jobs = guardCrewApprovals(storedJobs, clean.jobs, isAdmin, email);
 
       // Cash flow: Sales cannot touch transactions; only admins may approve.
       // (A Team lead's new deposits were already vetted by mergeTeamLeadWrite.)

@@ -482,12 +482,12 @@
     else if (view === "applications") renderApplications();
   }
   function renderPackagePrices() {
-    setHead("SALES", "Camera package prices", "Use these prices when speaking with clients. Operations confirms the final quote after the site visit.", "", false);
+    setHead("SALES", "Camera package prices", "Standard installation prices, subject to a site survey. Operations confirms the final quote.", "", false);
     if (!window.VeriskoPricing) { content.innerHTML = '<p class="helper">Reconnect and refresh to load current package prices.</p>'; return; }
-    content.innerHTML = '<section class="card package-intro"><h2>What is included?</h2><p>Fixed cameras, recorder, standard cabling, installation and phone viewing setup. Hard drive is an add-on. Without a compatible hard drive, there is no stored recording.</p><p class="helper">Three-month payment plan included. Extra equipment, difficult cable routes and travel may change the final quote. Prices are before VAT where applicable.</p></section>' +
+    content.innerHTML = '<section class="card package-intro"><h2>What is included?</h2><p>Simple installation: fixed cameras, recorder, standard cabling, installation and phone viewing setup. Hard drive is an add-on. Without a compatible hard drive, there is no stored recording.</p><p class="helper">Three-month payment plan included. Complex jobs are priced after measuring extra materials, labour and equipment/travel. Outdoor cameras alone do not make a job complex. Prices are before VAT where applicable.</p></section>' +
       '<div class="list">' + window.VeriskoPricing.publicPackages().map(function (p) {
         return '<article class="item"><div class="item-top"><div><div class="item-title">' + p.cameras + ' cameras · ' + esc(p.name) + '</div><div class="item-meta">' + p.recorderChannels + 'CH recorder · hard drive separate</div></div></div>' +
-          '<div class="pay-summary"><div class="pay-line pay-grand"><span>Package price</span><strong>' + money(p.price) + '</strong></div></div><div class="item-lines">' +
+          '<div class="pay-summary"><div class="pay-line pay-grand"><span>Standard installation price</span><strong>' + money(p.price) + '</strong></div></div><div class="item-lines">' +
           p.payments.map(function (amount, i) { return '<div class="item-line"><span class="k">' + ['Installation day (about 40%)', 'After 30 days (about 30%)', 'After 60 days (balance)'][i] + '</span><span class="v">' + money(amount) + '</span></div>'; }).join('') + '</div></article>';
       }).join('') + '</div>';
   }
@@ -1218,6 +1218,15 @@
   /* ------------------------------ QUOTE ENGINE ------------------------------ */
   // Shared pricing UI used by the job form (the "quote" step of a job).
   function quoteTierChip(t) { return t === "Very Complex" ? chip(t, "red", "!") : t === "Complex" ? chip(t, "amber", "◔") : t === "Standard" ? chip(t, "cyan", "★") : chip(t || "Simple", "grey", "•"); }
+  function installationFieldsHtml(source, priced) {
+    var type=source.installationType || (/Complex/.test(priced.tier)?'Complex':'Simple');
+    return '<div class="field full"><label for="f_installationType">Installation type <span class="optional-tag" id="quoteTier"></span></label><select id="f_installationType" class="quote-input"><option value="Simple"'+(type==='Simple'?' selected':'')+'>Simple</option><option value="Complex"'+(type==='Complex'?' selected':'')+'>Complex</option></select><p class="helper"><strong>Simple:</strong> accessible mounting, normal cable routes, within 50m cable per camera and the included crew budget. <strong>Complex:</strong> extra cable/containment, difficult drilling, trenching, welding, access equipment or extra crew. Outdoor cameras alone do not make it complex.</p></div>';
+  }
+  function siteCostFieldsHtml(source) {
+    var migrated=source.extraMaterialsCost==null && source.extraCost!=null && source.extraCost!=='';
+    return '<div class="field full" id="extraSiteCosts"><label>Extra costs, entered once</label><p class="helper">Outside the base package and selected hard drive. Enter actual costs in all three fields, using 0 when none. Callbacks and overhead are already included.</p>'+
+      [['extraMaterialsCost','Extra materials and equipment (UGX)'],['extraCrewCost','Extra crew above included budget (UGX)'],['extraAccessTravelCost','Equipment hire and travel (UGX)']].map(function(row){var value=source[row[0]];if(migrated)value=row[0]==='extraMaterialsCost'?source.extraCost:0;return '<div class="field full"><label for="f_'+row[0]+'">'+row[1]+'</label><input id="f_'+row[0]+'" class="quote-input" type="number" min="0" step="1" value="'+esc(value==null?'':value)+'" placeholder="Enter cost or 0"></div>';}).join('')+'<p class="helper">Included crew: UGX 350,000 for 4 cameras; UGX 400,000 for 6, 8 or 12. Extra crew needs Owner approval before the customer quote can be shared.</p></div>';
+  }
 
   // Read the live quote inputs off the form.
   function readQuoteInputs() {
@@ -1235,9 +1244,16 @@
     var direct = document.getElementById("f_directCost"), extra = document.getElementById("f_extraCost");
     var final = document.getElementById("f_finalPrice");
     var saved = editing && editing.id ? job(editing.id) || {} : {};
-    return { rubric: rubric, cameraCount: camEl ? Number(camEl.value) || 0 : 0, addons: addons, zone: zoneEl ? zoneEl.value : "1", discountPct: discEl ? Math.max(0, Number(discEl.value) || 0) : 0,
+    var inputs = { rubric: rubric, cameraCount: camEl ? Number(camEl.value) || 0 : 0, addons: addons, zone: zoneEl ? zoneEl.value : "1", discountPct: discEl ? Math.max(0, Number(discEl.value) || 0) : 0,
       pricingVersion: version ? version.value : "", directCost: direct ? direct.value : "", extraCost: extra ? extra.value : "",
       priceOverride: final ? Number(final.value) > 0 : !!saved.priceOverride, finalPrice: final ? Number(final.value) || 0 : Number(saved.finalPrice) || 0 };
+    var siteType = document.getElementById('f_installationType');
+    if (siteType) {
+      inputs.installationType = siteType.value;
+      ['extraMaterialsCost','extraCrewCost','extraAccessTravelCost'].forEach(function(k){var el=document.getElementById('f_'+k);inputs[k]=el?el.value:'';});
+      inputs.crewApprovalKey = saved.crewApprovalKey || '';
+    }
+    return inputs;
   }
   function quoteSummaryHtml(r) {
     if (r.pricingVersion) {
@@ -1271,11 +1287,13 @@
     var el = document.getElementById("quoteSummary"); if (!el) return;
     var r = computeQuote(readQuoteInputs());
     el.innerHTML = quoteSummaryHtml(r);
-    var tc = document.getElementById("quoteTier"); if (tc) tc.innerHTML = quoteTierChip(r.tier) + ' <span class="quote-pts">' + r.pts + " pts</span>";
+    var tc = document.getElementById("quoteTier"); if (tc) tc.innerHTML = quoteTierChip(r.tier) + (r.pricingVersion ? '' : ' <span class="quote-pts">' + r.pts + " pts</span>");
+    var extraFields = document.getElementById('extraSiteCosts'); if(extraFields) extraFields.hidden = !r.requiresExtraCosts && !(r.extraCost > 0);
     var gov = document.getElementById("quoteGov");
-    if (gov) gov.innerHTML = (r.errors || []).map(function (e) { return '<div class="rev-noproof">' + esc(e) + '</div>'; }).join('') + (r.needsApproval ? '<div class="rev-noproof">' + (r.custom ? "Custom camera count — " : "This site scored Very Complex — ") + "send it to Ben to approve before quoting." + (isAdmin() ? " (You can approve as admin.)" : "") + "</div>" : "");
+    if (gov) gov.innerHTML = (r.errors || []).filter(function(e,i,a){return a.indexOf(e)===i;}).map(function (e) { return '<div class="rev-noproof">' + esc(e) + '</div>'; }).join('') + (r.needsApproval ? '<div class="rev-noproof">' + (r.pricingVersion ? 'Extra crew exceeds the included budget. Save a draft for the Owner to approve.' : 'Send this custom or Very Complex job to Ben to approve before quoting.') + (isAdmin() ? ' Saving approves this crew allowance.' : '') + '</div>' : '');
     var save = document.getElementById("saveButton");
-    if (save) save.disabled = (r.errors || []).length > 0 || (r.needsApproval && !isAdmin()) || (!isAdmin() && r.discountPct > 5);
+    var stageEl=document.getElementById('f_stage');
+    if (save) save.disabled = (r.errors || []).length > 0 || (r.needsApproval && !isAdmin() && (!r.pricingVersion || !stageEl || stageEl.value !== 'Draft')) || (!isAdmin() && r.discountPct > 5);
     // The Final-price field appears for a custom (12+) job, or whenever an admin
     // has typed an override value.
     var fp = document.getElementById("finalPriceField");
@@ -1309,9 +1327,10 @@
     if (!isLinked && !client.business) { showFormError(editing.id ? "Enter the client / business name." : "Choose the client for this job — pick one from Sales, or add a walk-in with a name."); return; }
     var inputs = readQuoteInputs();
     var r = computeQuote(inputs);
+    if(r.pricingVersion && r.needsApproval && isAdmin()) { inputs.crewApprovalKey=r.crewApprovalKeyRequired; r=computeQuote(inputs); }
     if ((r.errors || []).length) { showFormError(r.errors.join(" ")); return; }
     if (!isAdmin() && r.discountPct > 5) { showFormError("A discount above 5% needs the Owner — ask Ben to apply it."); return; }
-    if (r.needsApproval && !isAdmin()) { showFormError("This scored Very Complex (or 12+ cameras). Send it to Ben to approve before quoting."); return; }
+    if (r.needsApproval && !isAdmin() && (!r.pricingVersion || data.stage !== 'Draft')) { showFormError("Save a draft and ask the Owner to approve the extra crew before quoting."); return; }
     var stage = JOB_STAGES.indexOf(data.stage) >= 0 ? data.stage : "Draft";
     var checklist = collectChecklist();
     if (stage === "Handed over" && !checklistComplete(checklist)) {
@@ -1345,7 +1364,7 @@
     saveData(wasNew ? "Job created" : "Job updated"); syncClosedSales(); render();
     // A quotation is "done" when a job is created in Draft/Sent, or moved to Sent.
     var quoteStage = stage === "Draft" || stage === "Sent";
-    if (quoteStage && (wasNew || (stage === "Sent" && prevStage !== "Sent")) && jobValue(job(jobId)) > 0) offerQuoteShare(jobId);
+    if (quoteStage && !r.needsApproval && (wasNew || (stage === "Sent" && prevStage !== "Sent")) && jobValue(job(jobId)) > 0) offerQuoteShare(jobId);
   }
 
   function job(id) { return (state.jobs || []).find(function (x) { return x.id === id; }) || null; }
@@ -1428,6 +1447,7 @@
   function quoteReady(j) {
     if (!j) { toast("That job no longer exists."); return false; }
     var priced = computeQuote(j);
+    if(priced.pricingVersion && priced.crewApprovalKeyRequired && priced.needsApproval) { toast('The Owner must approve this job before sharing a quotation.'); return false; }
     if ((priced.errors || []).length) { toast(priced.errors.join(" ")); return false; }
     if (quoteModelFor(j).total == null) { toast("Set the final price for this custom job before sharing its quotation."); return false; }
     return true;
@@ -1541,6 +1561,7 @@
       '<div class="item-meta">' + esc(j.ref || "") + " · " + esc(camMeta) + "</div></div>" + jobStageChip(j.stage) + "</div>" +
       '<div class="item-lines">' +
       priceLine +
+      (r.pricingVersion && r.crewApprovalKeyRequired && r.needsApproval ? '<div class="item-line"><span class="k">Extra crew</span><span class="v">Owner approval required</span></div>' : '') +
       (r.pricingVersion && !r.custom ? '<div class="item-line"><span class="k">Cost of doing business</span><span class="v">' + money(Math.round(r.costOfDoingBusiness)) + '</span></div><div class="item-line"><span class="k">Net profit before tax</span><span class="v">' + money(Math.round(r.netProfit)) + ' · ' + (r.margin * 100).toFixed(2) + '%</span></div>' : '') +
       (delivery ? '<div class="item-line"><span class="k">Install</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Date not set") + " · " + (tech ? esc(tech.name) : '<span style="color:var(--amber)">no technician</span>') + "</span></div>" : "") +
       ((delivery && (val > 0 || paidForJob(j.id) > 0)) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (val > 0 ? " · " + money(Math.max(0, val - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
@@ -2754,13 +2775,13 @@
         '<input type="hidden" id="f_pricingVersion" value="' + esc(qInputs.pricingVersion || '') + '">' +
         (!currentPricing ? '<p class="helper">Existing quotation: original pricing is preserved. Create a new job to quote with the current 26% margin policy.</p>' : '') +
         // ---- Pricing (the quote) ----
-        '<div class="field full"><label>Site scoring <span class="optional-tag" id="quoteTier"></span></label>' +
+        (currentPricing ? installationFieldsHtml(qInputs,jr) : '<div class="field full"><label>Site scoring <span class="optional-tag" id="quoteTier"></span></label>' +
         QUOTE_RUBRIC.map(function (r) {
           return '<div class="field full" style="margin-bottom:10px"><label for="f_' + r.key + '">' + esc(r.q) + "</label><select id=\"f_" + r.key + '" class="quote-input">' +
             r.opts.map(function (o) { return '<option value="' + o[0] + '"' + ((String((qInputs.rubric || {})[r.key] || "0")) === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></div>";
-        }).join("") + "</div>" +
+        }).join("") + "</div>") +
         field("cameraCount", "Cameras", "segmented", String(qInputs.cameraCount || 4), { full: true, options: currentPricing ? [{ value: "4", label: "4" }, { value: "6", label: "6" }, { value: "8", label: "8" }, { value: "12", label: "12" }] : [{ value: "2", label: "2" }, { value: "4", label: "4" }, { value: "6", label: "6" }, { value: "8", label: "8" }, { value: "12", label: "12+" }] }) +
-        (currentPricing ? '<div class="field full"><label for="f_directCost">Base direct job cost (UGX) <span class="optional-tag">optional override</span></label><input id="f_directCost" class="quote-input" type="number" min="0" step="1" value="' + esc(qInputs.directCost == null ? '' : qInputs.directCost) + '" placeholder="Use package budget"><p class="helper">Equipment, shipping, Uganda materials, goods pickup and crew for the base package. Leave blank to use the package budget. Storage and extra costs below are added separately.</p></div><div class="field full"><label for="f_extraCost">Extra equipment, travel and site costs (UGX)</label><input id="f_extraCost" class="quote-input" type="number" min="0" step="1" value="' + esc(qInputs.extraCost == null ? '' : qInputs.extraCost) + '" placeholder="Enter actual costs when required"><p class="helper">Enter actual costs for selected extras and difficult cable routes, excluding the base package and selected hard drive. Enter 0 only when confirmed none.</p></div>' : '') +
+        (currentPricing ? '<div class="field full"><label for="f_directCost">Base direct job cost (UGX) <span class="optional-tag">optional override</span></label><input id="f_directCost" class="quote-input" type="number" min="0" step="1" value="' + esc(qInputs.directCost == null ? '' : qInputs.directCost) + '" placeholder="Use package budget"><p class="helper">Equipment, shipping, Uganda materials, goods pickup and included crew for the base package. Leave blank to use the package budget. Hard drive and the three extra costs are added separately.</p></div>'+siteCostFieldsHtml(qInputs) : '') +
         '<div class="field full"><label>Add-ons</label><div class="quote-addons">' +
         QUOTE_ADDONS.filter(function (a) { return currentPricing ? a.key !== 'camFixed' && a.key !== 'camWide' : !a.currentOnly; }).map(function (a) {
           if (a.qty) {
@@ -2881,6 +2902,7 @@
     if (editing && editing.type === "job" && e.target.classList.contains("quote-input")) recalcQuoteForm();
     // Jobs: delivery fields appear once won; the checklist appears at handover.
     if (e.target.id === "f_stage" && editing && editing.type === "job") {
+      recalcQuoteForm();
       var df = document.getElementById("deliveryFields");
       if (df) df.hidden = !jobIsDelivery(e.target.value);
       var cf = document.getElementById("chkField");

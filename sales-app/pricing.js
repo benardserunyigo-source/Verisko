@@ -40,11 +40,20 @@
     var storage = storageKeys.reduce(function (s, k) { return s + STORAGE[k]; }, 0);
     var otherLines = (context.lines || []).filter(function (l) { return !STORAGE[l.key] && l.key !== "camFixed" && l.key !== "camWide" && l.key !== "surge"; });
     var zone = context.zone || { key: "1", label: "Zone 1", surcharge: 0 };
-    var needsExtra = otherLines.length > 0 || zone.surcharge > 0 || context.tier === "Complex" || context.tier === "Very Complex";
-    if (needsExtra && !filled(q.extraCost)) errors.push("Enter the actual extra equipment, travel and complex-site costs (0 if confirmed none).");
+    var installationType = q.installationType || (context.tier === "Complex" || context.tier === "Very Complex" ? "Complex" : "Simple");
+    if (installationType !== "Simple" && installationType !== "Complex") errors.push("Choose Simple or Complex installation.");
+    var fields = ['extraMaterialsCost','extraCrewCost','extraAccessTravelCost'];
+    var hasBreakdown = fields.some(function (k) { return q[k] != null; });
+    var needsExtra = otherLines.length > 0 || zone.surcharge > 0 || installationType === "Complex";
+    if (hasBreakdown) {
+      fields.forEach(function (k) { if ((needsExtra || (q[k] !== '' && q[k] != null)) && !filled(q[k])) errors.push("Enter all three extra costs. Use 0 when confirmed none."); });
+    } else if (needsExtra && !filled(q.extraCost)) errors.push("Enter the actual extra equipment, travel and complex-site costs (0 if confirmed none).");
     if (q.directCost !== "" && q.directCost != null && !filled(q.directCost)) errors.push("Enter a valid direct job cost.");
     var baseDirect = filled(q.directCost) ? number(q.directCost) : pack.direct;
-    var extra = number(q.extraCost), direct = baseDirect + storage + extra;
+    var extra = hasBreakdown ? fields.reduce(function (s,k) { return s + number(q[k]); },0) : number(q.extraCost);
+    var extraCrew = hasBreakdown ? number(q.extraCrewCost) : 0;
+    var crewApprovalKey = extraCrew > 0 ? count + ':' + extraCrew : '';
+    var direct = baseDirect + storage + extra;
     var base = minimum(baseDirect, pack.fee), priceFloor = minimum(direct, pack.fee);
     var lines = [], running = baseDirect, prior = base;
     storageKeys.forEach(function (k) { running += STORAGE[k]; var total = minimum(running, pack.fee), amount = total - prior; lines.push({ key: k, label: k === "hdd2tb" ? "Hard drive 2TB" : k === "hdd4tb" ? "Hard drive 4TB" : "Hard drive 6TB", qty: 1, price: amount, total: amount }); prior = total; });
@@ -62,13 +71,13 @@
     var result = costsAt(price, direct);
     if (result.margin < POLICY.margin) errors.push("Price is below the 26% profit margin. Reduce the discount or increase the price.");
     return {
-      pricingVersion: VERSION, pts: context.pts || 0, tier: context.tier || "Simple", cameras: count, packageTier: pack.name,
+      pricingVersion: VERSION, pts: context.pts || 0, tier: installationType, cameras: count, packageTier: pack.name,
       base: base, custom: false, lines: lines, addonsTotal: lines.reduce(function (s, l) { return s + l.total; }, 0), zone: zone,
       bundle: false, bundleDiscount: 0, subtotal: quoted, discountPct: discountPct, discountAmount: discountAmount,
-      cash: price, financed: price, financingAvailable: true, needsApproval: context.tier === "Very Complex",
+      cash: price, financed: price, financingAvailable: true, needsApproval: extraCrew > 0 && q.crewApprovalKey !== crewApprovalKey,
       errors: errors, minimumPrice: priceFloor, direct: direct, costOfDoingBusiness: result.cost, netProfit: result.profit,
       margin: result.margin, financing: result.financing, payments: result.payments, cableMetres: count * 50,
-      recorderChannels: count <= 8 ? 8 : 16, crew: pack.crew
+      recorderChannels: count <= 8 ? 8 : 16, crew: pack.crew + extraCrew, extraCost: extra, requiresExtraCosts: needsExtra, crewApprovalKeyRequired: crewApprovalKey
     };
   }
   // Deliberate allow-list: Sales price cards never receive the costing model.

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import '../pricing.js';
 import '../quote-pdf.js';
+import { guardCrewApprovals } from '../netlify/functions/crew-approval.mjs';
 const P = globalThis.VeriskoPricing, PDF = globalThis.VeriskoQuote;
 const q = (cameraCount, extras = {}, context = {}) => P.compute({ cameraCount, ...extras }, context);
 
@@ -37,6 +38,35 @@ test('four approved packages reconcile to the cost workbook and exceed 26%', () 
     assert.equal(r.cableMetres, count * 50); assert.equal(r.crew, count >= 6 ? 400000 : 350000);
     assert.deepEqual(r.errors, []);
   }
+});
+
+test('two installation types use measured costs once, not an arbitrary complex surcharge', () => {
+  const empty={extraMaterialsCost:'',extraCrewCost:'',extraAccessTravelCost:''};
+  assert.deepEqual(q(6,{installationType:'Simple',...empty}).errors,[]);
+  assert.ok(q(6,{installationType:'Complex',...empty}).errors.length);
+  const r=q(6,{installationType:'Complex',extraCost:999999,extraMaterialsCost:200000,extraCrewCost:0,extraAccessTravelCost:100000});
+  assert.equal(r.tier,'Complex');assert.equal(r.extraCost,300000);
+  assert.equal(r.cash,6760000);assert.ok(r.margin>=.26);assert.deepEqual(r.errors,[]);
+  assert.equal(r.needsApproval,false);
+  assert.equal(q(6,{installationType:'Complex',extraMaterialsCost:0,extraCrewCost:0,extraAccessTravelCost:0}).cash,6280000);
+  assert.equal(q(6,{}, {tier:'Standard'}).tier,'Simple');
+  assert.equal(q(6,{}, {tier:'Very Complex'}).tier,'Complex');
+});
+
+test('extra crew needs Owner approval tied to the package and amount', () => {
+  const input={installationType:'Complex',extraMaterialsCost:0,extraCrewCost:100000,extraAccessTravelCost:0};
+  const r=q(6,input);assert.equal(r.crew,500000);assert.equal(r.needsApproval,true);
+  assert.equal(q(6,{...input,crewApprovalKey:r.crewApprovalKeyRequired}).needsApproval,false);
+  assert.equal(q(8,{...input,crewApprovalKey:r.crewApprovalKeyRequired}).needsApproval,true);
+  const job={id:'test',pricingVersion:P.VERSION,cameraCount:6,extraCrewCost:100000,stage:'Draft',crewApprovalKey:'6:100000',quoteSnapshot:{needsApproval:false}};
+  const ops=guardCrewApprovals([], [job],false,'ops@test')[0];
+  assert.equal(ops.crewApprovalKey,'');assert.equal(ops.quoteSnapshot.needsApproval,true);
+  assert.throws(()=>guardCrewApprovals([], [{...job,stage:'Sent'}],false,'ops@test'),/Owner approval/);
+  const owner=guardCrewApprovals([], [job],true,'owner@test','2026-10-18T20:00:00Z')[0];
+  assert.equal(owner.crewApprovedBy,'owner@test');assert.equal(owner.quoteSnapshot.needsApproval,false);
+  const reused=guardCrewApprovals([owner],[{...owner,stage:'Sent',crewApprovedBy:'fake@test'}],false,'ops@test')[0];
+  assert.equal(reused.crewApprovedBy,'owner@test');
+  assert.throws(()=>guardCrewApprovals([owner],[{...owner,stage:'Sent',extraCrewCost:200000}],false,'ops@test'),/Owner approval/);
 });
 
 test('all storage options, higher site costs and travel preserve the job margin', () => {

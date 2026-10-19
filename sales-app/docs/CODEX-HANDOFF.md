@@ -1,5 +1,31 @@
 # Verisko Uganda Operations — Handoff for Codex
 
+## Simple / Complex installations, 18 October 2026 (v83)
+
+Current quote forms use two installation types, with practical definitions.
+The old scoring rubric remains only for historical unversioned quotes. Complex
+jobs require three actual-cost entries: extra materials/equipment, crew above
+the package budget, and equipment hire/travel. Explicit zeros are accepted.
+These replace the previous aggregate extra cost, never add to it; editing an
+older current-policy job carries its aggregate cost into materials once.
+Simple packages retain their approved prices. Complex totals recalculate with
+the 26% floor, financing and UGX 10,000 billing increments. Sales catalogue says
+standard installation prices, subject to a survey. Customer PDF layout and
+internal cost/profit separation remain unchanged.
+
+Extra crew requires Owner approval tied to camera count and extra amount.
+Operations can save a Draft, but cannot send/accept/share it while pending.
+Owner saving the proposal approves it. `crew-approval.mjs` enforces this on
+the server, stamps Owner identity/time, rejects forged approval and invalidates
+approval if the package or crew amount changes. The default crew budget is
+still UGX 350k for four and UGX 400k for six or more.
+
+243 Node tests pass. Local Operations UI checked: Simple hides extra inputs;
+Complex requires three costs; six cameras with 200k materials + 100k hire/travel
+quotes UGX 6.76m at 26.05%. Saved/reopened entries persist. Adding 100k extra
+crew saves a Draft and blocks PDF generation pending Owner approval. No
+production customer/test records or messages were created.
+
 ## Sales package catalogue added 18 October 2026 (v82)
 
 Every signed-in role can open **Prices**. Sales and Team lead see the four
