@@ -7,6 +7,23 @@ import '../quote-pdf.js';
 const P = globalThis.VeriskoPricing, PDF = globalThis.VeriskoQuote;
 const q = (cameraCount, extras = {}, context = {}) => P.compute({ cameraCount, ...extras }, context);
 
+test('Sales catalogue exposes only package prices, scope and installments', () => {
+  const list = P.publicPackages();
+  assert.deepEqual(list.map(p=>p.cameras),[4,6,8,12]);
+  assert.deepEqual(list.map(p=>p.price),[4920000,6280000,7620000,10830000]);
+  for(const row of list) {
+    assert.deepEqual(Object.keys(row).sort(),['cameras','name','payments','price','recorderChannels'].sort());
+    assert.equal(row.payments.reduce((s,n)=>s+n,0),row.price);
+  }
+  assert.doesNotMatch(JSON.stringify(list),/cost|profit|margin|fee|direct|overhead/i);
+  const app=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
+  const start=app.indexOf('  function renderPackagePrices()'),end=app.indexOf('  async function renderApplications()',start);
+  const ctx=vm.createContext({window:{VeriskoPricing:P},content:{innerHTML:''},setHead(){},esc:s=>s,money:n=>'UGX '+n.toLocaleString('en-US')});
+  vm.runInContext(app.slice(start,end),ctx);ctx.renderPackagePrices();
+  assert.match(ctx.content.innerHTML,/6,280,000/);assert.match(ctx.content.innerHTML,/10,830,000/);
+  assert.doesNotMatch(ctx.content.innerHTML,/Cost of doing business|net profit|26%|margin/i);
+});
+
 test('four approved packages reconcile to the cost workbook and exceed 26%', () => {
   const controls = [[4,4920000,1284093.1872947305],[6,6280000,1633984.3163887504],[8,7620000,1985335.44548277],[12,10830000,2820732.607897452]];
   for (const [count, price, profit] of controls) {

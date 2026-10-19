@@ -71,5 +71,12 @@
       recorderChannels: count <= 8 ? 8 : 16, crew: pack.crew
     };
   }
-  root.VeriskoPricing = { VERSION: VERSION, packages: PACKAGES, policy: POLICY, compute: compute, costsAt: costsAt, payments: payments };
+  // Deliberate allow-list: Sales price cards never receive the costing model.
+  function publicPackages() {
+    return [4,6,8,12].map(function (count) {
+      var r = compute({ cameraCount: count });
+      return { cameras: count, name: r.packageTier, price: r.cash, payments: r.payments.slice(), recorderChannels: r.recorderChannels };
+    });
+  }
+  root.VeriskoPricing = { VERSION: VERSION, packages: PACKAGES, policy: POLICY, compute: compute, costsAt: costsAt, payments: payments, publicPackages: publicPackages };
 })(typeof window !== "undefined" ? window : globalThis);

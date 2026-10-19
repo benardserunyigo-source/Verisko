@@ -478,7 +478,18 @@
     else if (view === "cashflow") renderCashflow();
     else if (view === "settings") renderSettings();
     else if (view === "support") renderSupport();
+    else if (view === "prices") renderPackagePrices();
     else if (view === "applications") renderApplications();
+  }
+  function renderPackagePrices() {
+    setHead("SALES", "Camera package prices", "Use these prices when speaking with clients. Operations confirms the final quote after the site visit.", "", false);
+    if (!window.VeriskoPricing) { content.innerHTML = '<p class="helper">Reconnect and refresh to load current package prices.</p>'; return; }
+    content.innerHTML = '<section class="card package-intro"><h2>What is included?</h2><p>Fixed cameras, recorder, standard cabling, installation and phone viewing setup. Hard drive is an add-on. Without a compatible hard drive, there is no stored recording.</p><p class="helper">Three-month payment plan included. Extra equipment, difficult cable routes and travel may change the final quote. Prices are before VAT where applicable.</p></section>' +
+      '<div class="list">' + window.VeriskoPricing.publicPackages().map(function (p) {
+        return '<article class="item"><div class="item-top"><div><div class="item-title">' + p.cameras + ' cameras · ' + esc(p.name) + '</div><div class="item-meta">' + p.recorderChannels + 'CH recorder · hard drive separate</div></div></div>' +
+          '<div class="pay-summary"><div class="pay-line pay-grand"><span>Package price</span><strong>' + money(p.price) + '</strong></div></div><div class="item-lines">' +
+          p.payments.map(function (amount, i) { return '<div class="item-line"><span class="k">' + ['Installation day (about 40%)', 'After 30 days (about 30%)', 'After 60 days (balance)'][i] + '</span><span class="v">' + money(amount) + '</span></div>'; }).join('') + '</div></article>';
+      }).join('') + '</div>';
   }
   async function renderApplications() {
     setHead("GROW THE TEAM", "Applications", "Read applications, watch introductions and keep review notes.", "", false);

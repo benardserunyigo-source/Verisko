@@ -1,5 +1,14 @@
 # Verisko Uganda Operations — Handoff for Codex
 
+## Sales package catalogue added 18 October 2026 (v82)
+
+Every signed-in role can open **Prices**. Sales and Team lead see the four
+4/6/8/12-camera packages and 40/30/30 amounts through an explicit public-field
+allow-list in `VeriskoPricing.publicPackages()`. No internal cost/profit fields
+enter the catalogue. Prices use the same engine as Operations; no second rate
+card. Final quotations and Jobs remain Operations/admin only. The catalogue
+states HDD is separate and survey/site extras can change the final quote.
+
 ## Quotation policy updated 18 October 2026 (v81)
 
 New quotes use `pricing.js`: 4/6/8/12 cameras, minimum 26% profit before income
