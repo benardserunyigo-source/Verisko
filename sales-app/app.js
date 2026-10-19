@@ -1009,7 +1009,6 @@
       return;
     }
     var hero = '<section class="card dash-hero">' +
-      '<p class="helper">For current offers, use Package prices in this app. Older training videos may mention retired prices or a separate plan fee. New packages include financing; HDDs are add-ons.</p>' +
       '<p class="dash-eyebrow">Commission this week</p>' +
       '<div class="dash-big">' + money(w.total) + "</div>" +
       '<div class="dash-sub">Paid ' + C.label(week.payday, true) + " · since " + C.label(week.start, true) + "</div>" +
@@ -1261,13 +1260,16 @@
   }
   function quoteSummaryHtml(r) {
     if (r.pricingVersion) {
+      var cashPlan = r.paymentPlan === 'cash';
+      var cashFirst = Math.round(r.cash*.6/10000)*10000;
+      var shownPayments = cashPlan ? [cashFirst,r.cash-cashFirst] : r.payments;
       if (r.custom) return '<p class="helper">Choose a supported camera package.</p>';
       return '<div class="pay-summary"><div class="pay-line pay-grand"><span>Customer total</span><strong>' + money(r.cash) + '</strong></div>' +
         '<div class="pay-line"><span>Budgeted cost of doing business</span><strong>' + money(Math.round(r.costOfDoingBusiness)) + '</strong></div>' +
         '<div class="pay-line"><span>Planned profit before tax</span><strong>' + money(Math.round(r.netProfit)) + ' (' + (r.margin * 100).toFixed(2) + '%)</strong></div></div>' +
         '<p class="helper">Internal budget: UGX 4,300/USD · 30% target, 26% minimum. Commission and visit pay are inside overhead. Includes equipment, crew, callbacks, overhead, contingency, payment fees and financing. ' + r.cableMetres + 'm cable · ' + r.recorderChannels + 'CH recorder · crew ' + money(r.crew) + '. HDD is an add-on. Actual costs and collection delays change realized profit.</p><div class="pay-line"><span>Direct cash needed</span><strong>'+money(Math.round(r.fundingRequired || r.direct))+'</strong></div><div class="pay-line"><span>Funding gap after first payment</span><strong>'+money(Math.round(r.fundingGap || 0))+'</strong></div>' +
-        '<div class="quote-fin"><div class="quote-fin-col"><div class="qf-h">3 months · financing included</div>' +
-        r.payments.map(function (amount, i) { return '<div class="qf-row"><span>' + ['Installation day', 'After 30 days', 'After 60 days'][i] + '</span><strong>' + money(amount) + '</strong></div>'; }).join('') + '</div></div>';
+        '<div class="quote-fin"><div class="quote-fin-col"><div class="qf-h">'+(cashPlan?'60% before installation / 40% completion':'3 months · financing included')+'</div>' +
+        shownPayments.map(function (amount, i) { return '<div class="qf-row"><span>' + (cashPlan?['Before installation','On completion']:['Installation day', 'After 30 days', 'After 60 days'])[i] + '</span><strong>' + money(amount) + '</strong></div>'; }).join('') + '</div></div>';
     }
     var rows = (r.custom ? '<div class="pay-line"><span>Base (12+ cameras)</span><strong>Custom — Ben quotes</strong></div>' :
       '<div class="pay-line"><span>Base (' + r.cameras + "-cam " + esc(r.tier) + ")</span><strong>" + money(r.base) + "</strong></div>") +
@@ -2317,6 +2319,7 @@
     var mine = myTraining(), p = S.progress(mine);
     var pct = Math.round((p.done / p.total) * 100);
     var hero = '<section class="card dash-hero">' +
+      '<p class="helper">For current offers, use Package prices in this app. Older training videos may mention retired prices or a separate plan fee. New packages include financing; HDDs are add-ons.</p>' +
       '<p class="dash-eyebrow">Your training</p>' +
       '<div class="dash-big">' + p.done + " of " + p.total + " complete</div>" +
       '<div class="dash-sub">Watch each video, then pass its 3-question quiz · ' + p.watched + " watched · about " + S.TOTAL_MINUTES + " minutes of video</div>" +
@@ -3905,7 +3908,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v84";
+  var APP_VERSION = "v85";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;

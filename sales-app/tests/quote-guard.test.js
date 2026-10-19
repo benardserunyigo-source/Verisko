@@ -103,3 +103,13 @@ test('a draft without an installation date still shows its installment amounts',
   const m=globalThis.VeriskoQuote.buildQuoteModel(j,{},j.quoteSnapshot,{});
   assert.deepEqual(m.plans[0].rows.map(r=>r.amount),[2700000,2020000,2020000]);
 });
+test('Operations summary follows the selected cash plan',()=>{
+  const app=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8');
+  const start=app.indexOf('  function quoteSummaryHtml('),end=app.indexOf('  function recalcQuoteForm()',start);
+  const ctx=vm.createContext({money:n=>String(n),esc:s=>s});
+  vm.runInContext(app.slice(start,end),ctx);
+  const r=pricing.compute(base({paymentPlan:'cash'}));
+  const html=ctx.quoteSummaryHtml(r);
+  assert.match(html,/Before installation/);assert.match(html,/4040000/);assert.match(html,/On completion/);
+  assert.doesNotMatch(html,/After 30 days/);
+});

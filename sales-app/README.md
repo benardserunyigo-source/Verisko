@@ -100,7 +100,7 @@ The browser keeps a local copy as a fallback and works offline once signed in.
 Access is controlled per-email through Supabase and the owner's team allow-list.
 Download a JSON backup before resetting or importing data.
 
-## Pricing, release 84
+## Pricing, release 85
 
 The active budget is private server configuration in `VERISKO_PRICING_BUDGET`,
 scoped to production functions in Netlify. Do not commit its value, copy it into

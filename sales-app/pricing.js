@@ -87,7 +87,7 @@
     if (!['installments','cash'].includes(q.paymentPlan)) releaseErrors.push("Choose the customer's payment plan.");
     return {
       approvalKeyRequired: approvalKey, approvalReasons: reasons, releaseErrors: releaseErrors,
-      exchangeRate: POLICY.fx, targetMargin: POLICY.target, fundingRequired: direct,
+      paymentPlan: q.paymentPlan, exchangeRate: POLICY.fx, targetMargin: POLICY.target, fundingRequired: direct,
       fundingGap: Math.max(0,direct - (q.paymentPlan === 'cash' ? round(price*.6) : result.payments[0]) * (1-POLICY.processing)),
       pricingVersion: VERSION, pts: context.pts || 0, tier: installationType, cameras: count, packageTier: pack.name,
       base: base, custom: false, lines: lines, addonsTotal: lines.reduce(function (s, l) { return s + l.total; }, 0), zone: zone,

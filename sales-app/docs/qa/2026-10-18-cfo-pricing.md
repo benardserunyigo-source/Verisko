@@ -1,4 +1,4 @@
-# CFO pricing revision, release 84
+# CFO pricing revision, release 85
 
 User approved the audit recommendations and UGX 4,300 per USD.
 Starting package targets are 30% planned pretax margin; 26% is the hard minimum.
@@ -39,7 +39,7 @@ again. USD costs alone change with FX; local costs are not multiplied by FX.
 
 ## Verification
 
-255 Node tests passed with the approved private budget loaded locally. Includes
+256 Node tests passed with the approved private budget loaded locally. Includes
 tampered snapshots, version bypasses, zero costs, approvals bound to evidence,
 accepted-record preservation, expiry/renewal, costed add-ons, exports, aging,
 public-asset allow-list and customer PDF exclusion.
