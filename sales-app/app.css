@@ -788,3 +788,37 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .pay-chip{font-weight:650;font-size:15px;color:var(--ink);flex:none}
 .intake-tools{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}.intake-layout{display:grid;grid-template-columns:minmax(230px,1fr) minmax(0,2fr);gap:28px}.applicant-card{display:block;text-align:left;background:#fff;border:1px solid var(--line,#dce4ef);border-radius:12px;padding:16px;margin:12px 0;width:100%;color:#152544}.applicant-card span,.applicant-card small{display:block;margin-top:6px}.applicant-card small{color:#596b84}#application-record{min-width:0}#application-record video{width:100%;max-height:400px;background:#152544;border-radius:12px;margin:16px 0}.applicant-answers dt{font-weight:650;margin-top:20px}.applicant-answers dd{margin:6px 0;color:#495a74;white-space:pre-wrap;overflow-wrap:anywhere}#application-review{display:grid;gap:16px;margin:24px 0}#application-review label{display:grid;gap:8px}#application-review textarea{min-height:100px}#application-error{color:#a52336}@media(max-width:760px){.intake-layout{grid-template-columns:1fr}.intake-tools .btn{flex:1}#application-record{border-top:1px solid #dce4ef;padding-top:18px}}
 #application-review select,#application-review textarea{font:inherit;font-size:16px;border:1px solid #a9b8cc;border-radius:8px;padding:12px;width:100%;background:#fff;color:#152544}#application-record .btn{margin:4px 0}
+
+/* Staff-controlled field shifts. Elapsed time is not proof of work. */
+.field-shift-banner { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; margin-bottom:18px; border:1px solid #b9d8cf; border-radius:12px; background:#eef8f3; color:#155b40; font-size:13px; font-weight:600; }
+.field-shift-banner[hidden] { display:none; }
+.field-shifts .card { padding:24px; }
+.shift-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; }
+.shift-heading h2 { margin-top:0; }
+.shift-notice { padding:14px 16px; background:#edf4fc; border-radius:10px; font-size:14px; line-height:1.65; }
+.shift-warning { color:#7c4511; background:#fff3d9; border-radius:10px; padding:12px; font-size:14px; }
+.shift-status { font-weight:700; margin:18px 0; color:#526074; }
+.shift-status[data-tone=active] { color:#176845; }
+.shift-status[data-tone=warning] { color:#85541a; }
+.shift-consent { margin:18px 0; max-width:650px; }
+.shift-consent > label { display:block; font-weight:600; font-size:14px; margin-bottom:8px; }
+.shift-consent > input { width:100%; margin-bottom:18px; min-height:44px; border:1px solid #ccd4df; border-radius:10px; padding:10px 12px; font:inherit; background:#fff; }
+.field-shifts .helper { font-size:13px; line-height:1.65; color:#657286; margin:10px 0; }
+.field-shifts h2 { margin:0 0 12px; }
+.shift-consent .shift-checkbox { display:flex; gap:10px; align-items:flex-start; line-height:1.6; font-weight:400; }
+.shift-checkbox input { width:18px; height:18px; margin-top:3px; flex-shrink:0; }
+.shift-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+.shift-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; margin:20px 0; }
+.shift-facts span { font-size:19px; font-weight:600; }
+.shift-facts strong { display:block; font-size:12px; color:#68778b; margin-bottom:6px; font-weight:500; }
+.shift-route { display:block; width:100%; max-height:280px; border:1px solid #e1e6ee; border-radius:12px; background:#f7f9fc; }
+.shift-timeline { padding-left:20px; font-size:14px; line-height:2; }
+.field-shifts a { color:#0865a4; text-decoration:underline; text-underline-offset:3px; }
+@media(max-width:600px) {
+ .field-shifts .card { padding:18px; }
+ .shift-facts { grid-template-columns:1fr; gap:12px; }
+ .shift-facts span { font-size:17px; }
+ .shift-heading { flex-wrap:wrap; }
+ .field-shift-banner { align-items:flex-start; font-size:12px; }
+ .field-shifts .btn { white-space:normal; }
+}

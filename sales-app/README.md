@@ -143,3 +143,40 @@ contracts are not silently rewritten. Operations records the actual care start,
 mini PC reference and offline-alert test evidence; handover requires these.
 Care dates are 12 and 24 calendar months from installation. An activation-test
 record is not an automatic monitoring deployment or proof of delivered alerts.
+
+## Field shifts (v87)
+
+**Today → Check in** or **More → Field shifts** opens the field shift screen.
+Sales and Team leads start only their own shift, agree to location sharing and
+allow their phone's location permission. Pause stops GPS immediately; Resume
+requires fresh location and agreement. Check out stops GPS and closes the shift.
+A pending offline pause/check-out is saved without coordinates and retried on
+reconnection. Opening/reloading the app never automatically starts GPS.
+
+Operations and Owner/Technical accounts see staff check-in state, the latest
+reported location with its time/accuracy, a location trail and event timeline.
+Sales and Team leads see only their own location records. Existing prospect,
+visit, quote and commission records are unchanged. The shift service is separate
+from `/api/data`, spreadsheet feeds and local business-data backups.
+
+This is **foreground browser tracking**, not a native background tracking app.
+The app must remain visible with location permission and a connection. Locking
+the screen, switching apps, GPS failure or loss of signal can interrupt updates.
+The manager view flags a location older than five minutes as **Update missing**.
+It must not be used as proof of attendance, a client visit, fraud or pay eligibility.
+Stationary time requires discussion: a rep may be meeting a client. GPS can be
+inaccurate or spoofed. Times display in Africa/Kampala.
+
+Locations are requested approximately once per minute during active sharing.
+A new browser tab/device needs an explicit Continue sharing action and invalidates
+the old location-sharing lease. Open shifts expire after 12 hours. Records are
+available for 30 days and the daily `field-shifts-cleanup` scheduled function
+physically removes older records. Location trails do not join pauses, poor GPS
+points, implausible jumps or reporting gaps over five minutes. No map-provider
+request is made until a person opens the explicit Maps link.
+
+Storage: dedicated strong-consistency Netlify Blobs store `verisko-field-shifts`.
+Each staff member has an independently keyed current shift with conditional
+ETag writes. Completed shifts are immutable archive records. Concurrent staff
+updates cannot overwrite the workspace or one another. No additional service
+credentials or database migration are required.

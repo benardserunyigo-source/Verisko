@@ -37,7 +37,7 @@
     { key: "credentials", label: "Login & warranty handed over" }
   ];
   // Operations/admin extras live behind the bottom-nav "More" sheet.
-  var MORE_VIEWS = ["jobs", "cashflow", "applications", "settings"];
+  var MORE_VIEWS = ["jobs", "cashflow", "applications", "field", "settings"];
 
   /* ---------------------------- Quote calculator ---------------------------- */
   // Site-scoring rubric (answer points drive the site tier).
@@ -462,7 +462,62 @@
     else if (view === "support") renderSupport();
     else if (view === "prices") renderPackagePrices();
     else if (view === "applications") renderApplications();
+    else if (view === "field") renderFieldShifts();
+    if (view !== 'field' && fieldTracker && fieldUI) updateFieldUI();
   }
+
+  /* Field shifts use a separate authenticated service. GPS never enters the
+     shared app-data backup or export, and managers never start a rep's GPS. */
+  var fieldTracker = null, fieldUI = null, fieldPersonId = "", fieldLoading = null;
+  async function fieldApi(method, body, query) {
+    if (settings.auth && settings.auth.expires_at && settings.auth.expires_at * 1000 - Date.now() < 60000) await refreshSession();
+    var request = async function () {
+      var controller = new AbortController(), timer = setTimeout(function () { controller.abort(); }, 15000);
+      try { return await fetch('/api/field-shifts' + (query || ''), { method: method, signal:controller.signal, headers: Object.assign({'Content-Type':'application/json'}, settings.auth ? {Authorization:'Bearer '+settings.auth.access_token} : {}), body: body ? JSON.stringify(body) : undefined }); }
+      finally { clearTimeout(timer); }
+    };
+    var res = await request();
+    if (res.status === 401 && await refreshSession()) res = await request();
+    var data = await res.json().catch(function () { return {}; });
+    if (!res.ok || !data.ok) { var err = new Error(data.error || 'Could not connect to field shifts. Reconnect and try again.'); err.status = res.status; throw err; }
+    return data;
+  }
+  function updateFieldUI() {
+    if (!fieldTracker || !fieldUI || !settings.user || document.body.classList.contains('locked')) return;
+    fieldUI.renderShiftBanner(document.getElementById('fieldShiftBanner'), fieldTracker, function () { view = 'field'; render(); document.getElementById('main').focus(); }, {person:settings.user,today:view==='today'});
+    if (view === 'field') fieldUI.renderShiftPage(content, {tracker:fieldTracker,api:fieldApi,person:settings.user,esc:esc});
+  }
+  async function ensureFieldShifts() {
+    if (!settings.user || !settings.auth) return;
+    var personId = settings.user.id;
+    if (fieldTracker && fieldPersonId === personId) { updateFieldUI(); return; }
+    if (fieldLoading) return fieldLoading;
+    fieldLoading = (async function () {
+      try {
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=87'), import('./field-shifts-ui.mjs?v=87')]);
+        if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
+        if (fieldTracker) fieldTracker.destroy();
+        fieldPersonId = personId; fieldUI = modules[1];
+        fieldTracker = modules[0].createShiftTracker({api:fieldApi,geolocation:navigator.geolocation,storage:localStorage,personId:personId,onChange:updateFieldUI});
+        await fieldTracker.init();
+      } catch (e) { if (view === 'field') content.innerHTML = '<p class="helper" role="alert">'+esc(e.message || 'Reconnect to load field shifts.')+'</p>'; }
+      finally { fieldLoading = null; }
+    })();
+    return fieldLoading;
+  }
+  function renderFieldShifts() {
+    setHead('FIELD WORK', canReviewProspects() ? 'Field team shifts' : 'My field shift', 'Check-in, pauses, location updates and check-out. All times are Uganda time.', '', false);
+    if (fieldTracker && fieldUI) updateFieldUI();
+    else { content.innerHTML = '<p class="helper" role="status">Loading field shifts…</p>'; ensureFieldShifts(); }
+  }
+  function stopFieldTracking() {
+    if (fieldTracker) fieldTracker.destroy();
+    fieldTracker = null; fieldPersonId = '';
+    var banner = document.getElementById('fieldShiftBanner'); if (banner) { banner.hidden = true; banner.textContent = ''; }
+  }
+  document.addEventListener('visibilitychange', function () { if (fieldTracker) fieldTracker.visibility(document.hidden); });
+  window.addEventListener('online', function () { if (fieldTracker) fieldTracker.refresh(); });
+  window.addEventListener('pagehide', function () { if (fieldTracker) fieldTracker.visibility(true); });
   function renderPackagePrices() {
     setHead("SALES", "Camera package prices", "Standard installation prices, subject to a site survey. Operations confirms the final quote.", "", false);
     if (!window.VeriskoPricing) { content.innerHTML = '<p class="helper">Reconnect and refresh to load current package prices.</p>'; return; }
@@ -485,7 +540,7 @@
   }
   // Highlight the current tab — or the More button when the view lives there.
   function updateNavActive() {
-    var inMore = (MORE_VIEWS.indexOf(view) !== -1 || (view === "support" && supportInMore())) && !!document.querySelector('[data-more]:not([hidden])');
+    var inMore = (MORE_VIEWS.indexOf(view) !== -1 || (view === "support" && supportNavInMore())) && !!document.querySelector('[data-more]:not([hidden])');
     document.querySelectorAll(".mainnav .nav-item").forEach(function (b) {
       var on = b.dataset.view === view || (b.hasAttribute("data-more") && inMore);
       b.classList.toggle("is-active", on);
@@ -2223,6 +2278,7 @@
   // change only their own entry, and only the Team lead / Operations / admin
   // receive everyone's (Team training).
   function supportInMore() { return canInstalls(); }
+  function supportNavInMore() { return supportInMore() || !isWideLayout(); }
   function myTraining() {
     var id = (settings.user || {}).id;
     return (id && state.training && state.training[id]) || {};
@@ -3718,8 +3774,10 @@
     applyRole();
     renderUserChip();
     render();
+    ensureFieldShifts();
   }
   function showLogin(message) {
+    stopFieldTracking();
     userChip.hidden = true; closeUserMenu();
     document.body.classList.add("locked");
     renderLogin("pin", message);
@@ -3728,6 +3786,7 @@
   var deniedRemoved = false;
   // Friendly "you're not on the team" (or "access removed") screen.
   function showDenied(email, removed) {
+    stopFieldTracking();
     loginEmail = email || loginEmail;
     deniedRemoved = !!removed;
     userChip.hidden = true; closeUserMenu();
@@ -3735,7 +3794,7 @@
     renderLogin("denied");
     lockScreen.hidden = false;
   }
-  function signOutLocal() { window.VeriskoPricing=window.createVeriskoPricing(window.VeriskoPriceCatalogue); settings.auth = null; settings.user = null; saveSettings(); }
+  function signOutLocal() { stopFieldTracking(); window.VeriskoPricing=window.createVeriskoPricing(window.VeriskoPriceCatalogue); settings.auth = null; settings.user = null; saveSettings(); }
 
   /* -------- Email magic-link login -------- */
   function renderLogin(step, message) {
@@ -3927,7 +3986,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v86";
+  var APP_VERSION = "v87";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4114,6 +4173,7 @@
   });
 
   async function logout() {
+    if (fieldTracker && fieldTracker.snapshot().shift && fieldTracker.snapshot().shift.status === 'active') await fieldTracker.stop('pause');
     try { if (settings.auth) await sbFetch("/auth/v1/logout", { method: "POST", headers: { Authorization: "Bearer " + settings.auth.access_token } }); } catch (e) {}
     signOutLocal();
     closeUserMenu();
@@ -4131,9 +4191,9 @@
     if (wideMq.addEventListener) wideMq.addEventListener("change", onWideChange); else if (wideMq.addListener) wideMq.addListener(onWideChange);
   }
   function moreViewsForRole() {
-    var v = [];
+    var v = ["field"];
     if (canInstalls()) { v.push("jobs"); v.push("cashflow"); v.push("applications"); }
-    if (supportInMore()) v.push("support");
+    if (supportNavInMore()) v.push("support");
     if (isAdmin()) v.push("settings");
     return v;
   }
@@ -4147,7 +4207,7 @@
     // Support centre: its own tab for Sales and the Team lead; in More for
     // Operations/admin, whose bar is already full.
     var supBtn = document.querySelector('.mainnav .nav-item[data-view="support"]');
-    if (supBtn) supBtn.hidden = supportInMore();
+    if (supBtn) supBtn.hidden = supportNavInMore();
     var moreBtn = document.querySelector(".mainnav [data-more]");
     if (moreBtn) moreBtn.hidden = moreViewsForRole().length === 0;
     // On a computer or tablet (sidebar layout) there's room for everything:

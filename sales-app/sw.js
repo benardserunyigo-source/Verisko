@@ -10,7 +10,7 @@
 //     same file are dropped.
 //   • /api/* and other websites (Supabase, Loom…): never cached.
 // Bump CACHE only when this file's own logic changes.
-const CACHE = "verisko-shell-v3";
+const CACHE = "verisko-shell-v4";
 const SHELL = "/";
 const NAV_TIMEOUT_MS = 4000;
 const EXTRA = ["/logo.svg", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png"];
@@ -36,7 +36,7 @@ async function precache() {
     const html = await res.clone().text();
     await cache.put(SHELL, res);
     const urls = new Set(EXTRA);
-    for (const m of html.matchAll(/(?:src|href)="([^"#]+\.(?:js|css|svg|png|webmanifest)(?:\?[^"]*)?)"/g)) {
+    for (const m of html.matchAll(/(?:src|href)="([^"#]+\.(?:mjs|js|css|svg|png|webmanifest)(?:\?[^"]*)?)"/g)) {
       const u = new URL(m[1], self.location.origin);
       if (u.origin === self.location.origin) urls.add(u.pathname + u.search);
     }
