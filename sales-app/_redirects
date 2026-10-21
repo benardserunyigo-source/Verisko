@@ -3,6 +3,7 @@
 /api/export /.netlify/functions/export 200
 /api/auth /.netlify/functions/auth 200
 /api/applications /.netlify/functions/applications 200
+/api/field-shifts /.netlify/functions/field-shifts 200
 /apply /apply.html 200
 /monitoring/* /index.html 200!
 /docs/* /index.html 200!

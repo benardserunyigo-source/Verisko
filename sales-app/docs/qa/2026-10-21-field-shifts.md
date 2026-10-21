@@ -28,6 +28,10 @@ browser GPS only; screen-off/background tracking is not supported.
   Today → Check in / View field team, or More → Field shifts.
 - Existing finance suite is run with its existing private test budget supplied
   only as an environment variable. No private budget was added to Git.
+- All 279 tests pass, including 17 field-shift service/controller tests. Live
+  checks verify the v87 assets and that both function and friendly API paths
+  reject unauthenticated access. The route is declared in `_redirects` before
+  its existing SPA catch-all, as well as in `netlify.toml`.
 
 ## Remaining field validation
 
