@@ -451,7 +451,7 @@
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
     try{installerModule=await import('./installer-ui.mjs?v=98');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
-      await installerModule.mountInstaller({user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&settings.user.id===installerUser.id&&!document.body.classList.contains('locked');},token:async function(){if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
+      await installerModule.mountInstaller({user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&settings.user.id===installerUser.id&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
   }
   var installationAlerts={pendingIds:[],corrections:0,submitted:0},installationAlertUser='',installationAlertAt=0,installationAlertBusy=false,installationAlertKnown=false;
