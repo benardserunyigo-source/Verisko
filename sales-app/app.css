@@ -862,3 +862,20 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .role-preview-active button:disabled{cursor:not-allowed}
 @media(max-width:600px){.role-preview-bar{padding:12px;gap:10px;flex-wrap:wrap}.role-preview-bar>div{width:100%}.role-preview-bar label{margin-left:0;flex:1}.role-preview-bar .btn{font-size:13px}}
 .shift-start-checklist{display:grid;gap:12px;margin:18px 0}.shift-start-checklist .shift-checkbox{align-items:flex-start;font-size:16px;line-height:1.5}.shift-start-checklist input{width:20px;height:20px;flex-shrink:0;margin-top:3px}
+
+/* Four clear sections. Secondary pages stay inside their section. */
+.mainnav{background:#fff;backdrop-filter:none;-webkit-backdrop-filter:none}
+.nav-item{min-height:64px;font-size:12px;gap:5px;color:var(--muted)}
+.nav-item.is-active{color:var(--accent)}
+.section-nav{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0 20px;padding-bottom:14px;border-bottom:1px solid #eaeaea}
+.section-tab{display:inline-flex;align-items:center;gap:7px;min-height:42px;padding:9px 13px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:14px;font-weight:550;cursor:pointer}
+.section-tab:hover{background:var(--fill-2);color:var(--ink)}
+.section-tab.is-active{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.section-count{min-width:20px;padding:1px 5px;border-radius:5px;background:var(--accent);color:white;font-size:12px;text-align:center}
+.nav-tool-grid{display:grid;gap:12px}
+.nav-tool{position:relative;display:grid;gap:7px;text-align:left;padding:24px 44px 24px 24px;background:white;border:1px solid #eaeaea;border-radius:12px;color:var(--ink);font:inherit;cursor:pointer}
+.nav-tool strong{font-size:17px;font-weight:650}.nav-tool>span{font-size:14px;color:var(--muted);line-height:1.5}.nav-tool .nav-tool-arrow{position:absolute;right:22px;top:25px;color:var(--accent);font-size:20px}
+.nav-tool:hover{border-color:var(--muted)}
+@media(min-width:860px){.mainnav{gap:8px;padding-top:26px}.nav-item{min-height:50px;font-size:16px}.section-nav{margin-top:14px}.nav-tool-grid{grid-template-columns:1fr 1fr}.nav-note{background:transparent;padding-left:14px}}
+@media(max-width:400px){.section-tab{padding:8px 10px;font-size:13px}}
+@media(max-width:859px){.lead-toolbar .search,.lead-filter-row{flex:0 1 auto;width:100%}}

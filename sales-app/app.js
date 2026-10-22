@@ -38,8 +38,7 @@
     { key: "trained", label: "Client trained on the system" },
     { key: "credentials", label: "Login & warranty handed over" }
   ];
-  // Operations/admin extras live behind the bottom-nav "More" sheet.
-  var MORE_VIEWS = ["leads", "jobs", "cashflow", "applications", "field", "installwork", "settings"];
+  var navigation=window.VeriskoNavigation;
 
   /* ---------------------------- Quote calculator ---------------------------- */
   // Site-scoring rubric (answer points drive the site tier).
@@ -454,10 +453,10 @@
   function canInstallWork(){return settings.user&&['admin','operations','teamlead','installer'].includes(settings.user.role);}
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=112');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=113');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=112');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=113');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
   }
@@ -475,8 +474,7 @@
   }
   setInterval(refreshInstallationAlerts,30000);
   function render() {
-    if(installationRole())view='installwork';
-    if(view==='installwork'&&!canInstallWork())view='today';
+    if(!navigation.allowed((settings.user||{}).role,view))view=navigation.first((settings.user||{}).role,'home')||'today';
     if (view === "settings" && !isAdmin()) view = "today";      // Settings is admin-only
     if (view === "cashflow" && !canCashflow()) view = "today";  // Cash flow is Operations + admin
     if (view === "jobs" && !canInstalls()) view = "today";      // Jobs is Operations + admin
@@ -484,7 +482,10 @@
     updateNavActive();
     updateCashBadge();
     updateProspectBadge();
-    if (view === "installwork") renderInstallerWork();
+    if (view === "more") renderMoreHome();
+    else if (view === "installerhome") renderInstallerHome();
+    else if (view === "installerhelp") renderInstallerHelp();
+    else if (view === "installwork") renderInstallerWork();
     else if (view === "today") renderToday();
     else if (view === "dashboard") renderDashboard();
     else if (view === "leads") renderLeads();
@@ -530,7 +531,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=112'), import('./field-shifts-ui.mjs?v=112'), import('./field-shifts-android.mjs?v=112')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=113'), import('./field-shifts-ui.mjs?v=113'), import('./field-shifts-android.mjs?v=113')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -577,14 +578,32 @@
       await module.mountApplications({ host: host, token: function () { return settings.auth ? settings.auth.access_token : ""; }, esc: esc, confirm: openSheet, role: settings.user.role });
     } catch (error) { if (view === "applications") host.textContent = "Could not open applications. Refresh and try again."; }
   }
-  // Highlight the current tab — or the More button when the view lives there.
+  // Primary sections stay the same on a phone and a computer.
   function updateNavActive() {
-    var inMore = (MORE_VIEWS.indexOf(view) !== -1 || (view === "support" && supportNavInMore())) && !!document.querySelector('[data-more]:not([hidden])');
-    document.querySelectorAll(".mainnav .nav-item").forEach(function (b) {
-      var on = b.dataset.view === view || (b.hasAttribute("data-more") && inMore);
-      b.classList.toggle("is-active", on);
-      if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    var role=(settings.user||{}).role,section=navigation.group(role,view),visible=navigation.sections(role);
+    document.querySelectorAll('.mainnav [data-section]').forEach(function(b){
+      b.hidden=!visible.some(function(s){return s.id===b.dataset.section;});
+      var active=b.dataset.section===section;b.classList.toggle('is-active',active);
+      if(active)b.setAttribute('aria-current','true');else b.removeAttribute('aria-current');
     });
+    var sub=document.getElementById('sectionNav');sub.setAttribute('aria-label',(visible.find(function(s){return s.id===section;})||{label:'Work'}).label+' pages');
+    sub.innerHTML=navigation.views(role,section).map(function(p){return '<button type="button" class="section-tab'+(view===p.id?' is-active':'')+'" data-nav-view="'+p.id+'"'+(view===p.id?' aria-current="page"':'')+'>'+esc(p.label)+(p.badge?'<span class="section-count" id="'+p.badge+'" hidden></span>':'')+'</button>';}).join('');
+    var ib=document.getElementById('installerBadge'),count=installationAlerts.pendingIds.length+installationAlerts.submitted;
+    if(ib){ib.hidden=!count;ib.textContent=count;}
+  }
+  function renderMoreHome(){
+    setHead('More','Tools & help','Choose what you need.','',false);
+    var pages=navigation.views((settings.user||{}).role,'more').filter(function(p){return p.id!=='more';});
+    var notes={support:'Watch training videos and find quick answers.',cashflow:'Review money in, money out and balances.',applications:'Review people who want to join the team.',settings:'Manage team access and app settings.',installerhelp:'Get help with your assigned installation.'};
+    content.innerHTML='<div class="nav-tool-grid">'+pages.map(function(p){return '<button type="button" class="nav-tool" data-nav-view="'+p.id+'"><strong>'+esc(p.label)+'</strong><span>'+esc(notes[p.id]||'')+'</span><span class="nav-tool-arrow" aria-hidden="true">→</span></button>';}).join('')+'</div>';
+  }
+  function renderInstallerHome(){
+    setHead('Home','Your work today','Open your job to see the plan, agreed pay and site contact.','',false);
+    content.innerHTML='<section class="card"><h2>Ready for your next job?</h2><p>Check the plan and materials before you start. Check in at the site, add your checks and photos, then send the job for approval.</p><button type="button" class="btn btn-primary" data-nav-view="installwork">Open my jobs</button></section>';
+  }
+  function renderInstallerHelp(){
+    setHead('Help','Need a hand?','Your site contact is listed inside each job.','',false);
+    content.innerHTML='<section class="card"><h2>Ask before you change the plan</h2><p>Open your job and contact the Verisko staff member on site. Ask Operations about your agreed pay, payments or missing materials.</p><button type="button" class="btn btn-primary" data-nav-view="installwork">Open my jobs</button></section>';
   }
 
   /* --------------------------------- TODAY ---------------------------------- */
@@ -654,7 +673,7 @@
     var manager = canReviewProspects();
     var viewer=(settings.user||{}).email;if(viewer!==leadViewer){leadViewer=viewer;leadListMode=manager?'all':'mine';leadOwnerFilter='';leadDueFilter='';leadQuery='';}
     if (!leadListMode) leadListMode = manager ? 'all' : 'mine';
-    setHead('Sales contacts', manager ? 'Prospecting contacts' : 'My leads', 'Operations can see saved contacts while Sales follows up. Send to Operations when ready for the next step. No visit is booked automatically.', 'Save a lead', true);
+    setHead('Sales contacts', manager ? 'Prospecting contacts' : 'My leads', 'Save contacts and follow up. Send them to Operations when they are ready.', 'Save a lead', true);
     var ownerOptions={};
     if(manager)leadTools().salespersonSummary(state.prospects,state.users).forEach(function(r){ownerOptions[r.key]=r.name;});
     if(leadOwnerFilter&&!ownerOptions[leadOwnerFilter])leadOwnerFilter='';
@@ -2414,8 +2433,6 @@
   // state.training[userId][videoId] = ISO time; the server lets each person
   // change only their own entry, and only the Team lead / Operations / admin
   // receive everyone's (Team training).
-  function supportInMore() { return canInstalls(); }
-  function supportNavInMore() { return supportInMore() || !isWideLayout(); }
   function myTraining() {
     var id = (settings.user || {}).id;
     return (id && state.training && state.training[id]) || {};
@@ -2507,7 +2524,7 @@
 
   // A one-line reminder on Today until a rep (or Team lead) finishes training.
   function trainingNudge() {
-    if (supportInMore()) return "";
+    if (canInstalls() || installationRole()) return "";
     var p = window.VeriskoSupport.progress(myTraining());
     if (p.complete) return "";
     return '<section class="card training-nudge"><div><strong>Training: ' + p.done + " of " + p.total + " videos complete</strong>" +
@@ -2693,7 +2710,7 @@
     }).join("") + "</div>" : '<p class="settings-note">No accounts yet.</p>';
     content.innerHTML = '<div class="settings-grid"><section class="card settings-card"><h2>Preview a team role</h2><p>See the Sales, Team Lead, Operations and Installer screens with sample records. Your Admin account stays signed in.</p><button type="button" class="btn btn-primary" data-role-preview>Preview a team role</button></section>' + signupsCard() + pinSignInCard() +
       '<section class="card settings-card"><h2>Team members</h2>' +
-      "<p><strong>Sales</strong> see only their own prospects and visits. <strong>Team leads</strong> see every rep's prospects, approve qualified ones and record client deposits. <strong>Operations</strong> also get the Cash flow tab. <strong>Technical</strong> can also open this Settings page. Removing someone revokes access immediately.</p>" +
+      "<p><strong>Sales</strong> see only their own prospects and visits. <strong>Team leads</strong> see every rep's prospects, approve qualified ones and record client deposits. <strong>Operations</strong> also manage Payments under More. <strong>Admin</strong> can also open this Settings page. Removing someone revokes access immediately.</p>" +
       teamRows +
       phoneMemberForm() +
       (isAdmin()?'<details class="email-member-option"><summary>Add by email instead</summary><form id="addMemberForm" class="add-member">' +
@@ -4158,7 +4175,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v112";
+  var APP_VERSION = "v113";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4344,7 +4361,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=112");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=113");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }
@@ -4368,73 +4385,9 @@
     showLogin();
   }
 
-  // Which "More" destinations apply to the current role.
-  // Sidebar layout (matches the 860px breakpoint in app.css).
-  var wideMq = window.matchMedia ? window.matchMedia("(min-width: 860px)") : null;
-  function isWideLayout() { return !!(wideMq && wideMq.matches); }
-  if (wideMq) {
-    var onWideChange = function () { if (settings.user) { applyRole(); updateNavActive(); } };
-    if (wideMq.addEventListener) wideMq.addEventListener("change", onWideChange); else if (wideMq.addListener) wideMq.addListener(onWideChange);
-  }
-  function moreViewsForRole() {
-    if(installationRole())return ["installwork"];
-    var v = ["leads", "field"];
-    if(canInstallWork())v.push("installwork");
-    if (canInstalls()) { v.push("jobs"); v.push("cashflow"); v.push("applications"); }
-    if (supportNavInMore()) v.push("support");
-    if (isAdmin()) v.push("settings");
-    return v;
-  }
   function applyRole() {
-    var ib=document.getElementById("installerBadge");if(ib&&!canInstalls())ib.hidden=true;refreshInstallationAlerts();
-    ['today','dashboard','prospects','visits','prices'].forEach(function(v){var b=document.querySelector('.mainnav [data-view="'+v+'"]');if(b)b.hidden=false;});
-    // Operations/admin extras (cash flow, installs, settings) live in "More",
-    // so they're always hidden from the bar itself; the More button reveals them.
-    MORE_VIEWS.forEach(function (v) {
-      var btn = document.querySelector('.mainnav .nav-item[data-view="' + v + '"]');
-      if (btn) btn.hidden = true;
-    });
-    // Support centre: its own tab for Sales and the Team lead; in More for
-    // Operations/admin, whose bar is already full.
-    var supBtn = document.querySelector('.mainnav .nav-item[data-view="support"]');
-    if (supBtn) supBtn.hidden = supportNavInMore();
-    var moreBtn = document.querySelector(".mainnav [data-more]");
-    if (moreBtn) moreBtn.hidden = moreViewsForRole().length === 0;
-    // On a computer or tablet (sidebar layout) there's room for everything:
-    // list every screen this role can open and drop "More".
-    if (isWideLayout()) {
-      moreViewsForRole().forEach(function (v) {
-        var b = document.querySelector('.mainnav .nav-item[data-view="' + v + '"]');
-        if (b) b.hidden = false;
-      });
-      if (moreBtn) moreBtn.hidden = true;
-    }
-    document.querySelectorAll('.mainnav .nav-item[data-view]').forEach(function(btn){if(installationRole())btn.hidden=btn.dataset.view!=='installwork';});
-    if(installationRole()){view='installwork';if(moreBtn)moreBtn.hidden=true;}
-    if (view === "settings" && !isAdmin()) view = "today";
-    if ((view === "cashflow" || view === "jobs") && !canInstalls()) view = "today";
-    updateNavActive();
-  }
-  function openMoreMenu() {
-    var views = moreViewsForRole();
-    if (!views.length) return;
-    var dlg = document.getElementById("askDialog");
-    dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">More</h2></div><div class="more-list">' +
-      views.map(function (v) {
-        var btn = document.querySelector('.mainnav .nav-item[data-view="' + v + '"]');
-        var icon = btn && btn.querySelector(".nav-icon") ? btn.querySelector(".nav-icon").outerHTML : "";
-        var label = btn && btn.querySelector(".nav-label") ? btn.querySelector(".nav-label").textContent : v;
-        return '<button type="button" class="more-item" data-goview="' + v + '">' + icon + "<span>" + esc(label) + "</span></button>";
-      }).join("") + "</div><div class=\"ask-actions\"><button type=\"button\" class=\"btn btn-ghost btn-block\" id=\"askCancel\">Close</button></div>";
-    var onCancel = function (e) { if (e) e.preventDefault(); finish(); };
-    function finish() { dlg.removeEventListener("cancel", onCancel); dlg.close(); }
-    dlg.querySelector("#askCancel").addEventListener("click", finish);
-    dlg.querySelectorAll("[data-goview]").forEach(function (b) {
-      b.addEventListener("click", function () { view = b.getAttribute("data-goview"); finish(); render(); document.getElementById("main").focus(); });
-    });
-    dlg.addEventListener("cancel", onCancel);
-    dlg.showModal();
-    var first = dlg.querySelector(".more-item"); if (first) first.focus();
+    if(!navigation.allowed((settings.user||{}).role,view))view=navigation.first((settings.user||{}).role,'home')||'today';
+    refreshInstallationAlerts();updateNavActive();
   }
 
   // The first member on the workspace is the owner (protected).
@@ -4970,11 +4923,13 @@
     b.addEventListener("click", function () { hideFormError(); dialog.close(); });
   });
 
-  document.querySelector(".mainnav").addEventListener("click", function (e) {
-    if (e.target.closest("[data-more]")) { openMoreMenu(); return; }
-    var b = e.target.closest("[data-view]");
-    if (b) { view = b.dataset.view; render(); document.getElementById("main").focus(); }
-  });
+  function navigatePage(next){
+    if(!navigation.allowed((settings.user||{}).role,next))return;
+    view=next;render();document.getElementById('main').focus();
+  }
+  document.querySelector('.brand').addEventListener('click',function(e){e.preventDefault();navigatePage(navigation.first((settings.user||{}).role,'home'));});
+  document.querySelector('.mainnav').addEventListener('click',function(e){var b=e.target.closest('[data-section]');if(b)navigatePage(navigation.first((settings.user||{}).role,b.dataset.section));});
+  document.getElementById('main').addEventListener('click',function(e){var b=e.target.closest('[data-nav-view]');if(b)navigatePage(b.dataset.navView);});
 
   document.getElementById("primaryAction").addEventListener("click", function () {
     if (view === "leads") openForm("prospect",null,"__lead__");

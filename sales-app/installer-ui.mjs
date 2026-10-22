@@ -1,5 +1,5 @@
-import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=112';
-import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady,installerPaymentSummary,PAYMENT_METHODS} from './installer-model.mjs?v=112';
+import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=113';
+import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady,installerPaymentSummary,PAYMENT_METHODS} from './installer-model.mjs?v=113';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>'UGX '+Number(v).toLocaleString('en-UG');
 const time=v=>new Date(v).toLocaleString('en-GB',{timeZone:'Africa/Kampala'});
@@ -20,7 +20,7 @@ export async function mountInstaller(ctx){
 async function showDemo(role='operations'){
  if(!realContext||!manager(realContext.user))return;
  if(active?.client.queue.length){realContext.toast('Send saved work before changing views.');return;}
- if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=112');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
+ if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=113');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
  if(active)active.stop();const actor=demoController.transport.actors[role==='installer'?1:0];
  active=new InstallerView({...realContext,user:actor,demo:true,demoRole:role,initialJobId:'demo-installation',fetcher:demoController.transport.fetcher(role),token:async()=>''});await active.start();
 }

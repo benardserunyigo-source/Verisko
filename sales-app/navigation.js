@@ -1,0 +1,28 @@
+/* Navigation is a display allowlist. Server permissions still protect every record. */
+(function(root){
+ 'use strict';
+ var staff=['admin','operations','teamlead','sales'],office=['admin','operations'];
+ var pages=[
+  {id:'today',section:'home',label:'Today',roles:staff},
+  {id:'dashboard',section:'home',label:'Dashboard',roles:staff},
+  {id:'field',section:'home',label:'Field shifts',roles:staff},
+  {id:'installerhome',section:'home',label:'Today',roles:['installer']},
+  {id:'leads',section:'contacts',label:'Saved leads',roles:staff},
+  {id:'prospects',section:'contacts',label:'Ready customers',roles:staff,badge:'prospectBadge'},
+  {id:'prices',section:'contacts',label:'Package prices',roles:staff},
+  {id:'visits',section:'work',label:'Site visits',roles:staff},
+  {id:'installwork',section:'work',label:'Installations',roles:['admin','operations','teamlead','installer'],badge:'installerBadge'},
+  {id:'jobs',section:'work',label:'Job records',roles:office},
+  {id:'more',section:'more',label:'Tools & help',roles:staff.concat('installer')},
+  {id:'support',section:'more',label:'Support videos',roles:staff},
+  {id:'cashflow',section:'more',label:'Payments',roles:office,badge:'cashBadge'},
+  {id:'applications',section:'more',label:'Applications',roles:office},
+  {id:'settings',section:'more',label:'Team & settings',roles:['admin']},
+  {id:'installerhelp',section:'more',label:'Help',roles:['installer']}
+ ];
+ var sections=[{id:'home',label:'Home'},{id:'contacts',label:'Contacts'},{id:'work',label:'Jobs'},{id:'more',label:'More'}];
+ function views(role,section){return pages.filter(function(p){return p.roles.includes(role)&&(!section||p.section===section);});}
+ function allowed(role,view){return views(role).some(function(p){return p.id===view;});}
+ function group(role,view){var p=views(role).find(function(p){return p.id===view;});return p?p.section:null;}
+ root.VeriskoNavigation={views:views,allowed:allowed,group:group,sections:function(role){return sections.filter(function(s){return views(role,s.id).length;});},first:function(role,section){return views(role,section)[0]?.id||null;}};
+})(typeof window==='object'?window:globalThis);
