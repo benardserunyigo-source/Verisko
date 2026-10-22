@@ -1,5 +1,5 @@
-import {InstallerClient,cameraPhoto,requestId} from './installer-client.mjs?v=98';
-import {manager,TESTS,PARTS,reasons,readiness} from './installer-model.mjs?v=98';
+import {InstallerClient,cameraPhoto,requestId} from './installer-client.mjs?v=99';
+import {manager,TESTS,PARTS,reasons,readiness} from './installer-model.mjs?v=99';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels={live:'Live image',recording:'Recording',playback:'Playback of a newly recorded clip',coverage:'Coverage of agreed area',remote:'Customer remote access'};
 const checked=v=>v?' checked':'';
