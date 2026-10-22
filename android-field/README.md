@@ -65,3 +65,11 @@ run the same Gradle tasks from this directory.
 - Sampling targets one point per minute, subject to Android and GPS availability;
   this is not a guaranteed interval. Mock-provider fixes are rejected, but this
   is not comprehensive anti-spoofing or evidence of working time.
+
+## Check-out location update · 0.2.0 pilot
+
+The app stops the continuous location watch first. An explicit check-out then requests one precise finish fix for up to eight seconds, including check-out from the notification. That point is saved with the end event, separate from the active route. It can be queued in encrypted Android storage. When GPS is unavailable, check-out still saves with a clear missing-location note. Checking out from a pause does not add break time to the shift.
+
+The website supplies the check-in reminder checklist and Support link, and thanks staff after check-out. It says hours are recorded only when the server confirms the end; offline work is labelled waiting to sync. Install the 0.2.0 pilot APK to get the native finish-location capture. Older APKs can still stop shifts but do not capture that separate finish point.
+
+Repeat the real-phone trial above for both in-app and notification check-out, including a paused shift, location disabled, and no data. A successful CI build is not evidence of locked-screen behaviour on a staff phone.

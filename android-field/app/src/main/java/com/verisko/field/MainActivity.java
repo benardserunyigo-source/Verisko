@@ -36,6 +36,14 @@ public final class MainActivity extends Activity {
     }
     if("pause".equals(action)||"end".equals(action)||"local-stop".equals(action)){
      JSONObject nativeStatus=store.status(request.optString("userId"));if(!nativeStatus.optBoolean("sameUser"))throw new Exception("Sign in as the staff member who owns this shift.");
+     if("end".equals(action)){
+      long requestedAt=System.currentTimeMillis();store.update(s->{s.put("tracking",false);s.put("starting",false);});
+      if(TrackingService.running)startService(new Intent(this,TrackingService.class).setAction("local-stop"));
+      FinishLocation.capture(this,requestedAt,(position,unavailable)->{
+       try{SyncEngine.queueControl(this,"end",position,requestedAt,unavailable);}catch(Exception e){reply(reply,request,null,"Tracking stopped, but check-out could not be saved. Reopen the app and retry.");return;}
+       SyncEngine.WORKER.execute(()->{SyncEngine.flush(this);handler.post(()->{try{reply(reply,request,store.status(request.optString("userId")),null);}catch(Exception e){reply(reply,request,null,"Check-out was queued. Open the app and refresh.");}});});
+      });return;
+     }
      // Stop GPS on the main thread before attempting any network operation.
      Intent stop=new Intent(this,TrackingService.class).setAction(action);
      if(TrackingService.running)startService(stop);else if("local-stop".equals(action)){store.update(s->{s.put("tracking",false);s.put("starting",false);});}else {SyncEngine.queueControl(this,action);SyncEngine.WORKER.execute(()->SyncEngine.flush(this));}

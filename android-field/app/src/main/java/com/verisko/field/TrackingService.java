@@ -28,7 +28,15 @@ public final class TrackingService extends Service implements LocationListener {
   if(intent==null){stopSelf();return START_NOT_STICKY;}
   String action=intent.getAction();
   if("local-stop".equals(action)){stopCollection();try{store.update(s->{s.put("tracking",false);s.put("starting",false);s.put("error","Shift sharing ended or moved to another device.");});}catch(Exception ignored){}SyncJob.schedule(this);stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();return START_NOT_STICKY;}
-  if("pause".equals(action)||"end".equals(action)){
+  if("end".equals(action)){
+   long requestedAt=System.currentTimeMillis();stopCollection();try{store.update(s->{s.put("tracking",false);s.put("starting",false);});}catch(Exception ignored){}
+   notifyStatus("Checking out · saving your finish location");
+   FinishLocation.capture(this,requestedAt,(position,unavailable)->{
+    try{SyncEngine.queueControl(this,"end",position,requestedAt,unavailable);}catch(Exception ignored){}
+    SyncEngine.WORKER.execute(()->SyncEngine.flush(this));stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();
+   });return START_NOT_STICKY;
+  }
+  if("pause".equals(action)){
    stopCollection();try{SyncEngine.queueControl(this,action);}catch(Exception ignored){}SyncEngine.WORKER.execute(()->SyncEngine.flush(this));stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();return START_NOT_STICKY;
   }
   if(!"begin".equals(action)){stopSelf();return START_NOT_STICKY;}
@@ -83,7 +91,7 @@ public final class TrackingService extends Service implements LocationListener {
   return b.build();
  }
  private void notifyStatus(String text){if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return;getSystemService(NotificationManager.class).notify(NOTIFICATION,notification(text));}
- private void stopCollection(){collecting=false;handler.removeCallbacks(tick);if(locations!=null)locations.removeUpdates(this);}
+ private void stopCollection(){collecting=false;handler.removeCallbacks(tick);if(locations!=null)try{locations.removeUpdates(this);}catch(SecurityException ignored){}}
  @Override public void onDestroy(){stopCollection();running=false;super.onDestroy();}
  @Override public IBinder onBind(Intent intent){return null;}
  @Override public void onProviderEnabled(String provider){}

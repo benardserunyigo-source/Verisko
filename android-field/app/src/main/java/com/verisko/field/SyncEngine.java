@@ -18,13 +18,15 @@ public final class SyncEngine {
    if(code<200||code>=300||!result.optBoolean("ok"))throw new ApiError(code,result.optString("error","Shift update failed."));return result;
   }finally{c.disconnect();}
  }
- public static void queueControl(Context ctx,String action) throws Exception {
+ public static void queueControl(Context ctx,String action) throws Exception {queueControl(ctx,action,null,System.currentTimeMillis(),"No fresh finish location was captured.");}
+ public static void queueControl(Context ctx,String action,JSONObject position,long requestedAt,String unavailable) throws Exception {
   SecureState store=new SecureState(ctx);store.update(s->{
    s.put("tracking",false);s.put("starting",false);s.put("status","end".equals(action)?"ended":"paused");
    if(s.optString("shiftId").isEmpty())return;
    JSONArray q=s.optJSONArray("queue");if(q==null)q=new JSONArray();
    // Preserve an earlier offline pause, so checkout cannot count the break as work.
-   JSONObject body=new JSONObject().put("action",action).put("shiftId",s.optString("shiftId")).put("requestedAt",java.time.Instant.now().toString()).put("requestId",UUID.randomUUID().toString());
+   JSONObject body=new JSONObject().put("action",action).put("shiftId",s.optString("shiftId")).put("requestedAt",java.time.Instant.ofEpochMilli(requestedAt).toString()).put("requestId",UUID.randomUUID().toString());
+   if("end".equals(action)){if(position!=null)body.put("position",position);else body.put("locationUnavailable",unavailable);}
    q.put(new JSONObject().put("id",body.getString("requestId")).put("kind","control").put("body",body));
    s.put("queue",q);s.put("pendingAction",action);s.put("error","Sharing stopped. Waiting to sync.");
   });SyncJob.schedule(ctx);
