@@ -10,12 +10,12 @@ const archiveKey=(id,s)=>'history/'+ownerKey(id)+'/'+s.startedAt.slice(0,10)+'/'
 const manager=u=>['admin','operations'].includes(u?.role);
 const field=u=>['sales','teamlead'].includes(u?.role);
 
-export function cleanPosition(input,now){
+export function cleanPosition(input,now,maxAge=120000){
  if(!input||typeof input!=='object')throw fail('A fresh device location is required.');
  const {lat,lng,accuracy,at}=input;
  if(![lat,lng,accuracy].every(n=>typeof n==='number'&&Number.isFinite(n))||Math.abs(lat)>90||Math.abs(lng)>180||accuracy<0||accuracy>5000)throw fail('Invalid device location.');
  const time=Date.parse(at);
- if(!Number.isFinite(time)||time<now-120000||time>now+15000)throw fail('Location is too old. Get a fresh location and try again.');
+ if(!Number.isFinite(time)||time<now-maxAge||time>now+15000)throw fail('Location is too old. Get a fresh location and try again.');
  return {lat:+lat.toFixed(6),lng:+lng.toFixed(6),accuracy:Math.round(accuracy),at:new Date(time).toISOString(),receivedAt:new Date(now).toISOString()};
 }
 export function expireShift(s,now){
@@ -29,6 +29,25 @@ export function transition(previous,body,person,now,uuid=randomUUID){
  if(previous?.requests?.includes(body.requestId))return previous;
  const old=expireShift(previous,now);
  let s=old?structuredClone(old):null;
+ if(action==='batch'){
+  if(!s||body.shiftId!==s.id)throw fail('This shift is no longer current.',409);
+  const segment=s.segments.find(x=>x.id===body.segmentId);
+  if(!segment)throw fail('Unknown sharing segment.',409);
+  if(!Array.isArray(body.points)||!body.points.length||body.points.length>25)throw fail('Send between 1 and 25 locations.');
+  const end=Math.min(now,Date.parse(segment.endedAt||new Date(now).toISOString()),Date.parse(s.startedAt)+MAX_SHIFT_MS);
+  for(const point of body.points){
+   const geo=cleanPosition(point,now,MAX_SHIFT_MS+86400000),captured=Date.parse(geo.at);
+   if(captured<Date.parse(segment.startedAt)||captured>end)throw fail('Location is outside the active sharing interval.');
+   if(s.points.some(p=>p.segmentId===segment.id&&p.at===geo.at))continue;
+   if(s.points.some(p=>p.segmentId===segment.id&&Math.abs(Date.parse(p.at)-captured)<30000))throw fail('Locations must be at least 30 seconds apart.');
+   if(s.points.length>=1500)throw fail('Shift location limit reached.',409);
+   s.points.push({...geo,segmentId:segment.id,source:'android',delayed:now-captured>120000});
+  }
+  s.points.sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));
+  // An old offline batch must never make a stale device appear live.
+  if(now-Date.parse(s.points.at(-1).at)<STALE_MS)s.issue='';
+  s.requests=[...(s.requests||[]),body.requestId].slice(-80);return s;
+ }
  if(action==='start'){
   if(s&&s.status!=='ended')throw fail('You already have an open shift. Continue sharing, pause or check out.',409);
   if(body.consent!==true)throw fail('Confirm shift location sharing before checking in.');
@@ -38,7 +57,8 @@ export function transition(previous,body,person,now,uuid=randomUUID){
   s={id:uuid(),userId:person.id,name:person.name||'Sales',area:typeof body.area==='string'?body.area.trim().slice(0,120):'',startedAt:at,status:'active',endedAt:'',consentAt:at,policy:'field-shifts-v1',segments:[{id:segmentId,startedAt:at,endedAt:''}],points:[{...geo,segmentId}],events:[{type:'check-in',at}],issue:'',requests:[]};
  }else{
   if(!s||body.shiftId!==s.id)throw fail('This shift is no longer current. Refresh and try again.',409);
-  if(s.status==='ended')throw fail('This shift has ended. Check in to start another.',409);
+  const lateStop=s.status==='ended'&&!!s.endReason&&(action==='pause'||action==='end')&&Date.parse(body.requestedAt)>=Date.parse(s.segments.at(-1).startedAt)&&Date.parse(body.requestedAt)<=Date.parse(s.endedAt);
+  if(s.status==='ended'&&!lateStop)throw fail('This shift has ended. Check in to start another.',409);
   if(action==='point'){
    const segment=s.segments.at(-1);
    if(s.status!=='active'||body.segmentId!==segment.id)throw fail('Location sharing stopped or moved to another tab. Refresh your shift.',409);
@@ -51,12 +71,12 @@ export function transition(previous,body,person,now,uuid=randomUUID){
    // A queued offline stop records both phone time and server receipt. The phone
    // time cannot move before the latest stored location or beyond receipt time.
    const requested=Date.parse(body.requestedAt),last=s.points.at(-1);
-   const stop=Number.isFinite(requested)?Math.max(Date.parse(last.receivedAt),Math.min(now,requested)):now;
+   const stop=Number.isFinite(requested)?Math.max(Date.parse(last.at),Date.parse(s.segments.at(-1).startedAt),Math.min(now,requested)):now;
    const stoppedAt=new Date(stop).toISOString();
    if(action==='pause'&&s.status==='paused')return {...s,requests:[...(s.requests||[]),body.requestId].slice(-80)};
-   s.segments=s.segments.map(x=>x.endedAt?x:{...x,endedAt:stoppedAt});
-   s.status=action==='end'?'ended':'paused';s.issue='';
-   if(action==='end')s.endedAt=stoppedAt;
+   s.segments=s.segments.map((x,i)=>!x.endedAt||(lateStop&&i===s.segments.length-1)?{...x,endedAt:stoppedAt}:x);
+   s.status=action==='end'||lateStop?'ended':'paused';s.issue='';
+   if(action==='end'){s.endedAt=stoppedAt;s.endReason='';s.events=s.events.filter(e=>e.type!=='auto-end');}
    s.events.push({type:action==='end'?'check-out':'pause',at:stoppedAt,receivedAt:at});
   }else if(action==='resume'||action==='reconnect'){
    if(action==='resume'&&s.status!=='paused')throw fail('The shift is not paused. Refresh first.',409);
@@ -73,12 +93,13 @@ export function transition(previous,body,person,now,uuid=randomUUID){
    s.issueAt=at;
   }else throw fail('Unknown shift action.');
  }
+ s.events.sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));
  s.requests=[...(s.requests||[]),body.requestId].slice(-80);return s;
 }
 export function summary(s,now){
  if(!s)return null;
  s=expireShift(s,now);
- const last=s.points.at(-1),fresh=now-Date.parse(last.receivedAt)<=STALE_MS;
+ const last=s.points.at(-1),fresh=now-Date.parse(last.at)<=STALE_MS;
  const activeMs=s.segments.reduce((n,x)=>n+Math.max(0,Date.parse(x.endedAt||new Date(now).toISOString())-Date.parse(x.startedAt)),0);
  return {id:s.id,userId:s.userId,name:s.name,area:s.area||'',status:s.status,startedAt:s.startedAt,endedAt:s.endedAt,endReason:s.endReason||'',activeMs,pointCount:s.points.length,lastPosition:last,issue:s.issue||'',signal:s.status==='ended'?'Checked out':s.status==='paused'?'Paused':!fresh?'Update missing':s.issue?'Sharing interrupted':last.accuracy>150?'Low accuracy':'Location updated'};
 }
@@ -86,8 +107,14 @@ const publicShift=s=>{if(!s)return null;const {requests,...out}=s;return out;};
 
 export function createFieldShiftsHandler({store,authorize,now=Date.now,uuid=randomUUID}){
  async function saveArchive(s){if(s?.status==='ended'){
-  const key=archiveKey(s.userId,s);await store.setJSON(key,s,{onlyIfNew:true});
-  if((await store.get(key,{type:'json'}))?.id!==s.id)throw new Error('Archive write was not confirmed.');
+  const key=archiveKey(s.userId,s);
+  for(let i=0;i<5;i++){
+   const old=await store.getWithMetadata(key,{type:'json'});
+   if(old&&(old.data.revision||0)>=(s.revision||0))return;
+   const result=await store.setJSON(key,s,old?{onlyIfMatch:old.etag}:{onlyIfNew:true});
+   if(result.modified&&(await store.get(key,{type:'json'}))?.id===s.id)return;
+  }
+  throw new Error('Archive write was not confirmed.');
  }}
  async function load(id){return store.getWithMetadata(keyFor(id),{type:'json'});}
  return async request=>{
@@ -97,6 +124,10 @@ export function createFieldShiftsHandler({store,authorize,now=Date.now,uuid=rand
    const me=auth.me,users=auth.users||[],clock=now(),url=new URL(request.url);
    if(!manager(me)&&!field(me))throw fail('Field shifts are not available for this role.',403);
    if(request.method==='GET'){
+    if(url.searchParams.has('status')){
+     const s=expireShift((await load(me.id))?.data,clock);
+     return json({ok:true,current:s?{id:s.id,status:s.status,segmentId:s.segments.at(-1).id,segments:s.segments,deadline:Date.parse(s.startedAt)+MAX_SHIFT_MS}:null});
+    }
     const userId=url.searchParams.get('userId')||me.id;
     if(userId!==me.id&&!manager(me))throw fail('You can only view your own shifts.',403);
     if(url.searchParams.has('userId')&&!url.searchParams.has('history')&&!url.searchParams.has('shiftId')){
@@ -142,11 +173,13 @@ export function createFieldShiftsHandler({store,authorize,now=Date.now,uuid=rand
     if(record&&!record.etag)throw new Error('Conditional write token unavailable.');
     if(body.action==='start')await saveArchive(expireShift(previous,clock));
     const next=transition(previous,body,me,clock,uuid);
+    if(next!==previous)next.revision=(previous?.id===next.id?(previous.revision||0):0)+1;
     const result=await store.setJSON(keyFor(me.id),next,record?{onlyIfMatch:record.etag}:{onlyIfNew:true});
     if(!result.modified)continue;
     const saved=await load(me.id);
     if(saved?.data?.id!==next.id||!saved.data.requests?.includes(body.requestId))continue;
     await saveArchive(next);
+    if(body.action==='batch')return json({ok:true,shiftId:saved.data.id,pointCount:saved.data.points.length});
     return json({ok:true,shift:publicShift(saved.data),summary:summary(saved.data,clock)});
    }
    throw fail('Shift changed on another device. Refresh and try again.',409);

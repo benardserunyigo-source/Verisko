@@ -20,7 +20,7 @@ public final class SyncEngine {
  }
  public static void queueControl(Context ctx,String action) throws Exception {
   SecureState store=new SecureState(ctx);store.update(s->{
-   s.put("tracking",false);s.put("starting",false);
+   s.put("tracking",false);s.put("starting",false);s.put("status","end".equals(action)?"ended":"paused");
    if(s.optString("shiftId").isEmpty())return;
    JSONArray q=s.optJSONArray("queue");if(q==null)q=new JSONArray();
    // Preserve an earlier offline pause, so checkout cannot count the break as work.
@@ -30,8 +30,14 @@ public final class SyncEngine {
   });SyncJob.schedule(ctx);
  }
  public static boolean flush(Context ctx){
+  android.os.PowerManager.WakeLock lock=((android.os.PowerManager)ctx.getSystemService(Context.POWER_SERVICE)).newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK,"Verisko:shift-upload");
+  lock.acquire(120000);
+  try{return flushHeld(ctx);}finally{if(lock.isHeld())lock.release();}
+ }
+ private static boolean flushHeld(Context ctx){
   SecureState store=new SecureState(ctx);
   try{
+   store.pruneExpired();
    for(int cycle=0;cycle<80;cycle++){
     JSONObject state=store.read();JSONArray queue=state.optJSONArray("queue");
     if(queue==null||queue.length()==0)return true;

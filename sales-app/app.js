@@ -494,11 +494,13 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=87'), import('./field-shifts-ui.mjs?v=87')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=88'), import('./field-shifts-ui.mjs?v=88'), import('./field-shifts-android.mjs?v=88')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
-        fieldTracker = modules[0].createShiftTracker({api:fieldApi,geolocation:navigator.geolocation,storage:localStorage,personId:personId,onChange:updateFieldUI});
+        fieldTracker = window.VeriskoNative && typeof window.VeriskoNative.postMessage === 'function' && ['sales','teamlead'].indexOf(settings.user.role)>=0
+          ? modules[2].createAndroidShiftTracker({api:fieldApi,bridge:window.VeriskoNative,credentials:function(){return settings.auth||{};},personId:personId,onChange:updateFieldUI})
+          : modules[0].createShiftTracker({api:fieldApi,geolocation:navigator.geolocation,storage:localStorage,personId:personId,onChange:updateFieldUI});
         await fieldTracker.init();
       } catch (e) { if (view === 'field') content.innerHTML = '<p class="helper" role="alert">'+esc(e.message || 'Reconnect to load field shifts.')+'</p>'; }
       finally { fieldLoading = null; }
@@ -3986,7 +3988,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v87";
+  var APP_VERSION = "v88";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;

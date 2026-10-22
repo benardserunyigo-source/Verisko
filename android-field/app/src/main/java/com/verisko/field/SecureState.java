@@ -4,6 +4,7 @@ import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.AtomicFile;
 import org.json.JSONObject;
+import org.json.JSONArray;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -29,9 +30,19 @@ public final class SecureState {
  public JSONObject read() throws Exception {synchronized(LOCK){return readUnsafe();}}
  public interface Change {void apply(JSONObject state) throws Exception;}
  public void update(Change change) throws Exception {synchronized(LOCK){JSONObject state=readUnsafe();change.apply(state);Cipher c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.ENCRYPT_MODE,key());byte[] enc=c.doFinal(state.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));FileOutputStream out=null;try{out=file.startWrite();out.write(c.getIV());out.write(enc);file.finishWrite(out);}catch(Exception e){file.failWrite(out);throw e;}}}
+ /** Remove expired queued items on the next app/service/job run, without starting location. */
+ public void pruneExpired() throws Exception {
+  synchronized(LOCK){JSONObject state=readUnsafe();JSONArray queue=state.optJSONArray("queue");if(queue==null)return;
+   long cutoff=System.currentTimeMillis()-Rules.QUEUE_TTL;boolean expired=false;
+   for(int i=0;i<queue.length();i++){JSONObject row=queue.getJSONObject(i);String at="point".equals(row.optString("kind"))?row.getJSONObject("position").getString("at"):row.getJSONObject("body").getString("requestedAt");if(java.time.Instant.parse(at).toEpochMilli()<cutoff){expired=true;break;}}
+   if(!expired)return;
+   update(s->{JSONArray kept=new JSONArray(),old=s.getJSONArray("queue");String pending="";for(int i=0;i<old.length();i++){JSONObject row=old.getJSONObject(i);String at="point".equals(row.optString("kind"))?row.getJSONObject("position").getString("at"):row.getJSONObject("body").getString("requestedAt");if(java.time.Instant.parse(at).toEpochMilli()>=cutoff){kept.put(row);if("control".equals(row.optString("kind")))pending=row.getJSONObject("body").optString("action");}}s.put("queue",kept);s.put("pendingAction",pending);if(kept.length()==0&&!s.optBoolean("tracking")&&!s.optBoolean("starting"))s.remove("token");});
+  }
+ }
  public JSONObject status(String person) throws Exception {
+  pruneExpired();
   JSONObject s=read(),out=new JSONObject();boolean same=s.optString("userId").equals(person);
-  out.put("native",true);out.put("userId",s.optString("userId"));out.put("sameUser",same||s.optString("userId").isEmpty());
+  out.put("native",true);out.put("status",same?s.optString("status"):"");out.put("startedAt",same?s.optString("startedAt"):"");out.put("userId",s.optString("userId"));out.put("sameUser",same||s.optString("userId").isEmpty());
   out.put("tracking",same&&s.optBoolean("tracking"));out.put("starting",same&&s.optBoolean("starting"));out.put("shiftId",same?s.optString("shiftId"):"");out.put("segmentId",same?s.optString("segmentId"):"");
   out.put("pending",same?s.optJSONArray("queue")==null?0:s.optJSONArray("queue").length():0);out.put("pendingAction",same?s.optString("pendingAction"):"");out.put("error",same?s.optString("error"):"");
   out.put("serviceRunning",TrackingService.running);return out;

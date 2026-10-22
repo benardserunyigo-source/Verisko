@@ -34,11 +34,11 @@ public final class MainActivity extends Activity {
      if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)permissions.add(Manifest.permission.POST_NOTIFICATIONS);
      if(!permissions.isEmpty())requestPermissions(permissions.toArray(new String[0]),42);else launchBegin();return;
     }
-    if("pause".equals(action)||"end".equals(action)){
+    if("pause".equals(action)||"end".equals(action)||"local-stop".equals(action)){
      JSONObject nativeStatus=store.status(request.optString("userId"));if(!nativeStatus.optBoolean("sameUser"))throw new Exception("Sign in as the staff member who owns this shift.");
      // Stop GPS on the main thread before attempting any network operation.
      Intent stop=new Intent(this,TrackingService.class).setAction(action);
-     if(TrackingService.running)startService(stop);else {SyncEngine.queueControl(this,action);SyncEngine.WORKER.execute(()->SyncEngine.flush(this));}
+     if(TrackingService.running)startService(stop);else if("local-stop".equals(action)){store.update(s->{s.put("tracking",false);s.put("starting",false);});}else {SyncEngine.queueControl(this,action);SyncEngine.WORKER.execute(()->SyncEngine.flush(this));}
      handler.postDelayed(()->{try{reply(reply,request,store.status(request.optString("userId")),null);}catch(Exception e){reply(reply,request,null,"Could not read shift status.");}},100);return;
     }
     if("sync".equals(action)){
@@ -61,6 +61,8 @@ public final class MainActivity extends Activity {
  private void launchBegin(){
   JSONObject request=pendingBegin;JavaScriptReplyProxy reply=pendingReply;if(request==null)return;
   if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED||(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)){reply(reply,request,null,"Allow precise location and notifications to start a visible field shift.");pendingBegin=null;pendingReply=null;return;}
+  NotificationManager nm=getSystemService(NotificationManager.class);
+  if(!nm.areNotificationsEnabled()||(nm.getNotificationChannel("field-shift")!=null&&nm.getNotificationChannel("field-shift").getImportance()==NotificationManager.IMPORTANCE_NONE)){reply(reply,request,null,"Enable Verisko Field notifications in Android Settings before starting a shift.");pendingBegin=null;pendingReply=null;return;}
   try{
    JSONObject command=new JSONObject(request.toString());command.put("action",request.getString("shiftAction"));
    store.update(s->{s.put("commandId",request.getString("id"));s.put("commandDone",false);s.put("commandError","");});

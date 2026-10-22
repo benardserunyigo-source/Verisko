@@ -144,7 +144,7 @@ mini PC reference and offline-alert test evidence; handover requires these.
 Care dates are 12 and 24 calendar months from installation. An activation-test
 record is not an automatic monitoring deployment or proof of delivered alerts.
 
-## Field shifts (v87)
+## Field shifts (v88)
 
 **Today → Check in** or **More → Field shifts** opens the field shift screen.
 Sales and Team leads start only their own shift, agree to location sharing and
@@ -159,7 +159,7 @@ Sales and Team leads see only their own location records. Existing prospect,
 visit, quote and commission records are unchanged. The shift service is separate
 from `/api/data`, spreadsheet feeds and local business-data backups.
 
-This is **foreground browser tracking**, not a native background tracking app.
+In a normal browser this is **foreground browser tracking**.
 The app must remain visible with location permission and a connection. Locking
 the screen, switching apps, GPS failure or loss of signal can interrupt updates.
 The manager view flags a location older than five minutes as **Update missing**.
@@ -177,6 +177,25 @@ request is made until a person opens the explicit Maps link.
 
 Storage: dedicated strong-consistency Netlify Blobs store `verisko-field-shifts`.
 Each staff member has an independently keyed current shift with conditional
-ETag writes. Completed shifts are immutable archive records. Concurrent staff
+ETag writes. Completed shifts have revision-checked archive records, allowing valid late Android uploads. Concurrent staff
 updates cannot overwrite the workspace or one another. No additional service
 credentials or database migration are required.
+
+### Android field app
+
+`android-field/` contains the Android 8+ pilot APK source and installation/field
+trial instructions. Phone/PIN staff can check in from its WebView, then keep a
+native location foreground service running while locked or using another app.
+The ongoing notification has Pause and Check out. The web screen uses a strictly
+origin-scoped native message bridge; it does not use browser GPS for shift routes
+in Android. Opening/reloading the screen never starts tracking.
+
+Offline native points are encrypted on-device and uploaded in bounded batches
+with original capture timestamps. The API accepts only the owning staff member's
+valid active intervals, deduplicates points and rejects post-pause locations.
+Offline stops are timestamped and stop native GPS before network delivery.
+Authoritative status checks stop a superseded local service without pausing a
+new device's shift. A killed service needs explicit Continue sharing.
+
+Build/JUnit/lint checks do not prove phone battery behaviour. Pilot on one actual
+team phone before rollout, following `android-field/README.md`.

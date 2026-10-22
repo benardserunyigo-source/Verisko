@@ -20,12 +20,14 @@ public final class TrackingService extends Service implements LocationListener {
   if(starting&&System.currentTimeMillis()-startedRequest>30000){finishCommand("Could not obtain a precise location. Move outdoors, check location permission and try again.");return;}
   if(!starting&&!Rules.mayCollect(s.optBoolean("tracking"),s.optLong("deadline"),s.optLong("expiresAt"),System.currentTimeMillis())){if(s.optBoolean("tracking"))SyncEngine.queueControl(TrackingService.this,"end");stopCollection();stopSelf();return;}
   if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){SyncEngine.queueControl(TrackingService.this,"pause");stopCollection();stopSelf();return;}
+  NotificationManager notifications=getSystemService(NotificationManager.class);if(!notifications.areNotificationsEnabled()||notifications.getNotificationChannel("field-shift").getImportance()==NotificationManager.IMPORTANCE_NONE){SyncEngine.queueControl(TrackingService.this,"pause");stopCollection();stopSelf();return;}
   if(!starting&&!uploading){uploading=true;SyncEngine.WORKER.execute(()->{SyncEngine.flush(TrackingService.this);handler.post(()->{uploading=false;try{JSONObject latest=store.read();if(!starting&&!latest.optBoolean("tracking")){stopCollection();stopSelf();}else notifyStatus(latest.optString("error").isEmpty()?"Shift tracking is on":"Tracking on · updates waiting to sync");}catch(Exception e){stopCollection();stopSelf();}});});}
  }catch(Exception e){stopCollection();stopSelf();}handler.postDelayed(this,30000);}};
  @Override public void onCreate(){super.onCreate();store=new SecureState(this);locations=(LocationManager)getSystemService(LOCATION_SERVICE);NotificationManager nm=getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel("field-shift","Field shift tracking",NotificationManager.IMPORTANCE_LOW));}
  @Override public int onStartCommand(Intent intent,int flags,int startId){
   if(intent==null){stopSelf();return START_NOT_STICKY;}
   String action=intent.getAction();
+  if("local-stop".equals(action)){stopCollection();try{store.update(s->{s.put("tracking",false);s.put("starting",false);s.put("error","Shift sharing ended or moved to another device.");});}catch(Exception ignored){}SyncJob.schedule(this);stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();return START_NOT_STICKY;}
   if("pause".equals(action)||"end".equals(action)){
    stopCollection();try{SyncEngine.queueControl(this,action);}catch(Exception ignored){}SyncEngine.WORKER.execute(()->SyncEngine.flush(this));stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();return START_NOT_STICKY;
   }
@@ -33,7 +35,7 @@ public final class TrackingService extends Service implements LocationListener {
   try{
    if(running||beginInFlight){JSONObject refused=new JSONObject(intent.getStringExtra("command"));store.update(s->{s.put("commandId",refused.getString("id"));s.put("commandDone",true);s.put("commandError","A shift is already starting or tracking. Refresh before trying again.");});if(!running)stopSelf();return START_NOT_STICKY;}
    command=new JSONObject(intent.getStringExtra("command"));
-   JSONObject old=store.read();String person=command.getString("userId");
+   store.pruneExpired();JSONObject old=store.read();String person=command.getString("userId");
    if(!old.optString("userId").isEmpty()&&!person.equals(old.optString("userId"))&&(old.optBoolean("tracking")||old.optJSONArray("queue")!=null&&old.optJSONArray("queue").length()>0)){finishCommand("Finish and sync the previous staff member’s shift first.");return START_NOT_STICKY;}
    store.update(s->{s.put("userId",person);s.put("token",command.getString("token"));s.put("expiresAt",command.getLong("expiresAt"));s.put("starting",true);s.put("tracking",false);s.put("commandId",command.getString("id"));s.put("commandDone",false);s.put("commandError","");s.put("error","");});
    Notification n=notification("Starting shift · getting your location");
@@ -57,9 +59,9 @@ public final class TrackingService extends Service implements LocationListener {
    SyncEngine.WORKER.execute(()->{
     try{
      if(!SyncEngine.flush(this))throw new Exception("Reconnect to sync your previous pause or check-out before starting.");
-     JSONObject response=SyncEngine.api(capturedCommand.getString("token"),"POST",body,null),shift=response.getJSONObject("shift"),segments=shift.getJSONArray("segments");
+     JSONObject response=SyncEngine.api(capturedCommand.getString("token"),"POST",body,null),shift=response.getJSONObject("shift");JSONArray segments=shift.getJSONArray("segments");
      final boolean[] cancelled={false};
-     store.update(s->{cancelled[0]=!s.optBoolean("starting")||!s.optString("commandId").equals(capturedCommand.getString("id"));s.put("shiftId",shift.getString("id"));s.put("segmentId",segments.getJSONObject(segments.length()-1).getString("id"));s.put("deadline",java.time.Instant.parse(shift.getString("startedAt")).toEpochMilli()+Rules.SHIFT_LIMIT);s.put("tracking",!cancelled[0]);s.put("starting",false);s.put("pendingAction","");s.put("commandDone",true);s.put("commandError","");});
+     store.update(s->{cancelled[0]=!s.optBoolean("starting")||!s.optString("commandId").equals(capturedCommand.getString("id"));s.put("shiftId",shift.getString("id"));s.put("startedAt",shift.getString("startedAt"));s.put("status",cancelled[0]?"ended":"active");s.put("segmentId",segments.getJSONObject(segments.length()-1).getString("id"));s.put("deadline",java.time.Instant.parse(shift.getString("startedAt")).toEpochMilli()+Rules.SHIFT_LIMIT);s.put("tracking",!cancelled[0]);s.put("starting",false);s.put("pendingAction","");s.put("commandDone",true);s.put("commandError","");});
      if(cancelled[0]){SyncEngine.queueControl(this,"end");SyncEngine.flush(this);handler.post(()->finishCommand("Check-in was cancelled; tracking is off."));}
      else handler.post(()->{starting=false;uploading=false;lastSample=at;notifyStatus("Shift tracking is on");});
     }catch(Exception e){handler.post(()->finishCommand(e.getMessage()==null?"Check-in failed. Reconnect and try again.":e.getMessage()));}finally{beginInFlight=false;}
@@ -80,7 +82,7 @@ public final class TrackingService extends Service implements LocationListener {
   for(String action:new String[]{"pause","end"}){PendingIntent stop=PendingIntent.getService(this,action.equals("pause")?2:3,new Intent(this,TrackingService.class).setAction(action),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);b.addAction(new Notification.Action.Builder(null,action.equals("pause")?"Pause shift":"Check out",stop).build());}
   return b.build();
  }
- private void notifyStatus(String text){getSystemService(NotificationManager.class).notify(NOTIFICATION,notification(text));}
+ private void notifyStatus(String text){if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return;getSystemService(NotificationManager.class).notify(NOTIFICATION,notification(text));}
  private void stopCollection(){collecting=false;handler.removeCallbacks(tick);if(locations!=null)locations.removeUpdates(this);}
  @Override public void onDestroy(){stopCollection();running=false;super.onDestroy();}
  @Override public IBinder onBind(Intent intent){return null;}
