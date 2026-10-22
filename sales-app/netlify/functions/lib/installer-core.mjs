@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import {allowed,manager,canRead,createJob,applyCommand,installerJobView} from '../../../installer-model.mjs';
+import {allowed,manager,canSuperviseSite,canRead,createJob,applyCommand,installerJobView} from '../../../installer-model.mjs';
 const headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
 const json=(v,status=200)=>new Response(JSON.stringify(v),{status,headers});
 const valid=v=>typeof v==='string'&&/^[a-zA-Z0-9-]{1,100}$/.test(v);
@@ -20,13 +20,13 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
     const photo=url.searchParams.get('photo');if(photo){if(!valid(photo)||!j.evidence.some(e=>e.id===photo))throw fail('Evidence not found.',404);const p=await store.get('photos/'+id+'/'+photo,{type:'json'});if(!p)throw fail('Photo unavailable.',404);return new Response(Buffer.from(p.base64,'base64'),{headers:{'Content-Type':p.type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});}
     return json({ok:true,job:installerJobView(j,me)});
    }
-   const jobs=[];for await(const page of store.list({prefix:'jobs/',paginate:true})){for(const b of page.blobs){const j=await store.get(b.key,{type:'json'});if(j&&canRead(j,me))jobs.push(j);}}
+   const jobs=[],availableJobs=[];for await(const page of store.list({prefix:'jobs/',paginate:true})){for(const b of page.blobs){const j=await store.get(b.key,{type:'json'});if(j&&canRead(j,me))jobs.push(j);else if(j&&me.role==='teamlead'&&j.status!=='Completed')availableJobs.push({id:j.id,business:j.business,scheduledDate:j.scheduledDate,status:j.status,planVersion:j.versions?.plan||0});}}
    if(url.searchParams.get('summary')==='1'){
     if(!manager(me))throw fail('Supervisor access required.',403);
     return json({ok:true,pendingIds:jobs.flatMap(j=>j.exceptions.filter(e=>e.status==='pending').map(e=>e.id)),corrections:jobs.reduce((n,j)=>n+j.exceptions.filter(e=>e.status==='correction').length+j.cameras.reduce((n,c)=>n+Object.values(c.corrections||{}).filter(v=>v.status==='open').length,0),0),submitted:jobs.filter(j=>j.status==='Submitted').length});
    }
    const staff=(auth.users||[]).filter(u=>u.role==='installer').map(u=>({id:u.id,name:u.name}));
-   return json({ok:true,jobs:jobs.map(j=>installerJobView(j,me)),staff:ops?staff:[],reviewers:ops?(auth.users||[]).filter(u=>u.role==='supervisor').map(u=>({id:u.id,name:u.name})):[],people:(auth.users||[]).filter(u=>ops||u.id===me.id||jobs.some(j=>j.assignees.includes(u.id)||(j.supervisorIds||[]).includes(u.id)||j.history.some(h=>h.by===u.id))).map(u=>({id:u.id,name:u.name})),sourceJobs:ops?(auth.sourceJobs||[]):[]});
+   return json({ok:true,availableJobs,jobs:jobs.map(j=>installerJobView(j,me)),staff:ops?staff:[],reviewers:ops?(auth.users||[]).filter(canSuperviseSite).map(u=>({id:u.id,name:u.name,role:u.role})):[],people:(auth.users||[]).filter(u=>ops||u.id===me.id||jobs.some(j=>j.assignees.includes(u.id)||(j.supervisorIds||[]).includes(u.id)||j.history.some(h=>h.by===u.id))).map(u=>({id:u.id,name:u.name})),sourceJobs:ops?(auth.sourceJobs||[]):[]});
   }
   if(request.method!=='POST')return json({ok:false,error:'Method not allowed.'},405);
   if(Number(request.headers.get('content-length'))>1800000)throw fail('Request too large.',413);
@@ -42,8 +42,8 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
     if(cmd.data?.sourceId&&!(auth.sourceJobs||[]).some(x=>x.id===cmd.data.sourceId))throw fail('Source job not found.');
     j=createJob({...cmd.data,id:body.jobId},me,now(),auth.users);j.requests.push(cmd.requestId);j.history.push({id:cmd.requestId,action:'create',by:me.id,name:me.name,at:now()});
    }else{
-    if(!old||!canRead(old.data,me))throw fail('Job not found or no longer assigned.',404);
-    if(cmd.action==='plan'&&cmd.data?.supervisorIds!==undefined&&(!Array.isArray(cmd.data.supervisorIds)||cmd.data.supervisorIds.some(id=>!auth.users.some(u=>u.id===id&&u.role==='supervisor'))))throw fail('Choose Supervisor accounts only.');
+    if(!old||!canRead(old.data,me)&&!(cmd.action==='superviseSelf'&&['admin','operations','teamlead'].includes(me.role)))throw fail('Job not found or no longer assigned.',404);
+    if(cmd.action==='plan'&&cmd.data?.supervisorIds!==undefined&&(!Array.isArray(cmd.data.supervisorIds)||cmd.data.supervisorIds.some(id=>!auth.users.some(u=>u.id===id&&canSuperviseSite(u)))))throw fail('Choose Operations, a Team Lead, Admin or a Supervisor for this site.');
     if(cmd.action==='plan'&&(!Array.isArray(cmd.data?.assignees)||cmd.data.assignees.some(id=>!auth.users.some(u=>u.id===id&&u.role==='installer'))))throw fail('Assign Installer accounts only.');
     if(cmd.action==='evidence'){
      if(!valid(cmd.data?.id))throw fail('Invalid evidence ID.');const image=imageData(cmd.data.image);

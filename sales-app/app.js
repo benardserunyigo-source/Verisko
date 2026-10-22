@@ -451,20 +451,20 @@
 
   var installerModule=null;
   function installationRole(){return settings.user&&['installer','supervisor'].includes(settings.user.role);}
-  function canInstallWork(){return settings.user&&['admin','operations','supervisor','installer'].includes(settings.user.role);}
+  function canInstallWork(){return settings.user&&['admin','operations','teamlead','supervisor','installer'].includes(settings.user.role);}
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=109');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=110');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=109');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=110');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
   }
   var installationAlerts={pendingIds:[],corrections:0,submitted:0},installationAlertUser='',installationAlertAt=0,installationAlertBusy=false,installationAlertKnown=false;
   function installationAlertHtml(){return '<section class="card iw-card" id="installationAlerts"><h2>Installer reviews</h2><p>'+installationAlerts.pendingIds.length+' need a decision · '+installationAlerts.corrections+' need correction · '+installationAlerts.submitted+' ready for review</p><button type="button" class="btn btn-ghost" data-installation-work>Open installer work</button></section>';}
   async function refreshInstallationAlerts(){
-    var user=settings.user;if(!user||!settings.auth||!['admin','operations','supervisor'].includes(user.role)||document.hidden||installationAlertBusy)return;
+    var user=settings.user;if(!user||!settings.auth||!['admin','operations','teamlead','supervisor'].includes(user.role)||document.hidden||installationAlertBusy)return;
     if(installationAlertUser!==user.id){installationAlertUser=user.id;installationAlertAt=0;installationAlertKnown=false;installationAlerts={pendingIds:[],corrections:0,submitted:0};}
     if(Date.now()-installationAlertAt<25000)return;installationAlertAt=Date.now();installationAlertBusy=true;
     try{var request=function(){return fetch('/api/installer?summary=1',{headers:{Authorization:'Bearer '+settings.auth.access_token}});};var res=await request();if(res.status===401&&await refreshSession())res=await request();if(!res.ok)return;var next=await res.json();if(!settings.user||settings.user.id!==user.id)return;
@@ -530,7 +530,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=109'), import('./field-shifts-ui.mjs?v=109'), import('./field-shifts-android.mjs?v=109')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=110'), import('./field-shifts-ui.mjs?v=110'), import('./field-shifts-android.mjs?v=110')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -4158,7 +4158,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v109";
+  var APP_VERSION = "v110";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4344,7 +4344,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=109");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=110");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }

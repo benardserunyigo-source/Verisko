@@ -3,9 +3,11 @@ export {materialBalance,materialProblems,stockManager,UNITS,initialMaterials} fr
 // Shared installation workflow. Server applies commands, never client snapshots.
 export const TESTS=['live','recording','playback','coverage','remote'];
 export const PARTS=['cable','mount','tests'];
-export const manager=u=>['admin','operations','supervisor'].includes(u?.role);
+export const manager=u=>['admin','operations','teamlead','supervisor'].includes(u?.role);
 export const allowed=u=>manager(u)||u?.role==='installer';
-export const canRead=(j,u)=>['admin','operations'].includes(u?.role)||(u?.role==='supervisor'&&(j.supervisorIds||[]).includes(u.id))||(u?.role==='installer'&&j.assignees.includes(u.id));
+// Site supervision is a job duty. Operations, Team Leads and Admin keep their normal role.
+export const canSuperviseSite=u=>['admin','operations','teamlead','supervisor'].includes(u?.role);
+export const canRead=(j,u)=>['admin','operations'].includes(u?.role)||(['teamlead','supervisor'].includes(u?.role)&&(j.supervisorIds||[]).includes(u.id))||(u?.role==='installer'&&j.assignees.includes(u.id));
 export const reasons=['Obstruction','Damaged cable','Insufficient cable length','Changed route','Other'];
 export const JOB_NEEDS=['Outside view','Inside view','Gate view','Parking view','Video recording','Phone viewing'];
 export const MATERIALS=['4K bullet camera','4K dome camera','PTZ camera','NVR','Hard drive','Cat6 cable (metres)','RJ45 plug','Cable trunking (metres)','Junction box','Wall plugs and screws','UPS'];
@@ -62,25 +64,29 @@ export function createJob(input,user,now,staff=[]){
  if(locations.some(x=>/^Camera \d+ · name location$/.test(x)))throw fail('Replace each placeholder with the actual camera location.');
  if(!locations.length||locations.length>64)throw fail('Name between 1 and 64 camera locations.');
  const supervisorIds=Array.isArray(input.supervisorIds)?[...new Set(input.supervisorIds)]:[];
- if(supervisorIds.some(id=>!staff.some(u=>u.id===id&&u.role==='supervisor')))throw fail('Choose Supervisor accounts only.');
+ if(supervisorIds.some(id=>!staff.some(u=>u.id===id&&canSuperviseSite(u))))throw fail('Choose Operations, a Team Lead, Admin or a Supervisor for this site.');
  const assignees=Array.isArray(input.assignees)?[...new Set(input.assignees)]:[];
  if(!assignees.length||assignees.some(id=>!staff.some(u=>u.id===id&&u.role==='installer')))throw fail('Assign at least one Installer account.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(input.scheduledDate||''))throw fail('Choose a scheduled date.');
  return {id:input.id,sourceId:text(input.sourceId,100),business:requireText(input.business,'Customer'),siteStaff:{name:requireText(input.siteStaff?.name,'Verisko staff name'),phone:requireText(input.siteStaff?.phone,'Verisko staff phone')},workLogRequired:true,workLog:[],payRequired:true,installerPay:{},payHistory:[],installerPayments:[],installerPaymentVoids:[],address:requireText(input.address,'Site address'),scope:requireText(input.scope,'Scope'),equipment:requireText(input.equipment,'Equipment list'),materials:initialMaterials(input.equipment),instructions:text(input.instructions),remoteIncluded:input.remoteIncluded===true,assignees,supervisorIds,scheduledDate:input.scheduledDate,status:'In progress',createdAt:now,createdBy:user.id,updatedAt:now,pilot:{approvalCover:'Operations'},cameras:[...new Set(locations)].map((name,i)=>({id:'camera-'+(i+1),name,versions:{},corrections:{}})),exceptions:[],evidence:[],handover:{},versions:{},history:[],requests:[],metrics:[]};
 }
 export function applyCommand(previous,cmd,user,now){
- if(!canRead(previous,user))throw fail('This installation is not assigned to you.',403);
+ const selfAssign=cmd.action==='superviseSelf'&&['admin','operations','teamlead'].includes(user?.role);
+ if(!canRead(previous,user)&&!selfAssign)throw fail('This installation is not assigned to you.',403);
  if(!/^[a-zA-Z0-9-]{8,100}$/.test(cmd.requestId||''))throw fail('A unique request ID is required.');
- if(previous.requests.includes(cmd.requestId))return previous;
+ if(previous.requests.includes(cmd.requestId)){if(selfAssign&&(!(previous.supervisorIds||[]).includes(user.id)||!previous.history.some(h=>h.id===cmd.requestId&&h.by===user.id&&h.action==='superviseSelf')))throw fail('This request ID is already in use. Refresh and try again.',409);return previous;}
  const j=structuredClone(previous),supervisor=manager(user),c=j.cameras.find(x=>x.id===cmd.cameraId),data=cmd.data||{};
  if(['plan','pilot'].includes(cmd.action)&&!['admin','operations'].includes(user.role))throw fail('Supervisor access does not include job setup. Only Operations can change it.',403);
  if(['cable','mount','tests','exception','revise','resolve','handover','submit'].includes(cmd.action)&&user.role!=='installer')throw fail('Only an assigned installer can save work checks.',403);
  const supervisorActions=['plan','pilot','decision','return','complete','metric'];
  if(supervisorActions.includes(cmd.action)&&!supervisor)throw fail('Supervisor access required.',403);
  if(j.status==='Completed'&&!['metric','workFinish','installerPayment','installerPaymentVoid'].includes(cmd.action))throw fail('Completed installation records are read-only.',409);
- if(j.status==='Submitted'&&!['return','complete','metric','decision','workFinish','materialReceive','materialReturn','installerPay','installerPayment','installerPaymentVoid'].includes(cmd.action))throw fail('Supervisor review is pending. Return an item before editing.',409);
+ if(j.status==='Submitted'&&!['superviseSelf','return','complete','metric','decision','workFinish','materialReceive','materialReturn','installerPay','installerPayment','installerPaymentVoid'].includes(cmd.action))throw fail('Supervisor review is pending. Return an item before editing.',409);
  const checkVersion=(obj,key)=>{if(cmd.baseVersion!==(obj.versions?.[key]||0))throw fail('This item changed on another device. Review the latest record before retrying.',409);obj.versions[key]=(obj.versions[key]||0)+1;};
- if(cmd.action==='installerPayment'||cmd.action==='installerPaymentVoid'){
+ if(cmd.action==='superviseSelf'){
+  if(!selfAssign)throw fail('Only Operations, Admin or a Team Lead can assign themselves as site supervisor.',403);
+  checkVersion(j,'plan');j.supervisorIds=[...new Set([...(j.supervisorIds||[]),user.id])];
+ }else if(cmd.action==='installerPayment'||cmd.action==='installerPaymentVoid'){
   if(!['admin','operations'].includes(user.role))throw fail('Only Operations can record installer payments.',403);
   checkVersion(j,'installerPay');j.installerPayments||=[];j.installerPaymentVoids||=[];
   if(cmd.action==='installerPayment'){

@@ -1,6 +1,6 @@
 // Interactive training data stays on this browser. This transport never calls fetch.
-import {createJob,applyCommand,canRead,manager,installerJobView} from './installer-model.mjs?v=109';
-import {openOfflineStore,records} from './installer-client.mjs?v=109';
+import {createJob,applyCommand,canRead,manager,installerJobView} from './installer-model.mjs?v=110';
+import {openOfflineStore,records} from './installer-client.mjs?v=110';
 export const DEMO_JOB_ID='demo-installation';
 export function demoActors(ownerId){return [{id:'demo-ops-'+ownerId,name:'DEMO Operations',role:'operations'},{id:'demo-installer-'+ownerId,name:'DEMO Installer',role:'installer'}];}
 export function sampleDemoImage(kind='reference'){
@@ -37,7 +37,7 @@ export function createDemoTransport({ownerId,load,save,image,lock=fn=>fn(),now=(
    if(url.pathname!=='/api/installer')return response({error:'Demo requests stay in the demo.'},400);
    if(!options.body){
     if(url.searchParams.has('photo')){const id=url.searchParams.get('photo');if(!canRead(s.job,actor)||!s.job.evidence.some(e=>e.id===id))return response({error:'Not assigned.'},403);const value=s.photos[id];if(!value)return response({error:'Sample photo unavailable.'},404);const bytes=Uint8Array.from(atob(value.split(',')[1]),x=>x.charCodeAt(0));return new Response(bytes,{headers:{'Content-Type':'image/jpeg'}});}
-    return response({ok:true,jobs:canRead(s.job,actor)?[installerJobView(s.job,actor)]:[],staff:manager(actor)?[actors[1]]:[],people:actors.map(({id,name})=>({id,name})),sourceJobs:[]});
+    return response({ok:true,jobs:canRead(s.job,actor)?[installerJobView(s.job,actor)]:[],staff:manager(actor)?[actors[1]]:[],reviewers:manager(actor)?[{id:actors[0].id,name:actors[0].name,role:'operations'}]:[],people:actors.map(({id,name})=>({id,name})),sourceJobs:[]});
    }
    const body=JSON.parse(options.body),command=body.command;
    if(body.jobId!==DEMO_JOB_ID||command.action==='create')return response({error:'Use the supplied demo installation.'},400);

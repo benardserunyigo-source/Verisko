@@ -1,4 +1,4 @@
-import {applyCommand} from './installer-model.mjs?v=109';
+import {applyCommand} from './installer-model.mjs?v=110';
 export const requestId=()=>crypto.randomUUID();
 // One durable store. Every key is partitioned by the signed-in account.
 export function openOfflineStore(factory=indexedDB){
@@ -8,15 +8,15 @@ export async function records(db,key,value){
  return new Promise((resolve,reject)=>{const tx=db.transaction('records',value===undefined?'readonly':'readwrite'),store=tx.objectStore('records');let out;const r=value===undefined?store.get(key):store.put(value,key);r.onsuccess=()=>{out=r.result;};tx.oncomplete=()=>resolve(out);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Offline save failed.'));});
 }
 export class InstallerClient {
- constructor({user,token,onChange=()=>{},fetcher=(...args)=>fetch(...args),dbFactory=indexedDB}){Object.assign(this,{user,token,onChange,fetcher,dbFactory});this.jobs=[];this.queue=[];this.staff=[];this.reviewers=[];this.people=[];this.sourceJobs=[];this.busy=false;this.message='';}
- async init(){this.db=await openOfflineStore(this.dbFactory);this.key='account/'+this.user.id;const saved=await records(this.db,this.key)||{};Object.assign(this,{jobs:saved.jobs||[],queue:saved.queue||[],reviewers:saved.reviewers||[],staff:saved.staff||[],people:saved.people||[],sourceJobs:saved.sourceJobs||[]});}
- async persist(){await records(this.db,this.key,{jobs:this.jobs,queue:this.queue,reviewers:this.reviewers,staff:this.staff,people:this.people,sourceJobs:this.sourceJobs});}
+ constructor({user,token,onChange=()=>{},fetcher=(...args)=>fetch(...args),dbFactory=indexedDB}){Object.assign(this,{user,token,onChange,fetcher,dbFactory});this.jobs=[];this.availableJobs=[];this.queue=[];this.staff=[];this.reviewers=[];this.people=[];this.sourceJobs=[];this.busy=false;this.message='';}
+ async init(){this.db=await openOfflineStore(this.dbFactory);this.key='account/'+this.user.id;const saved=await records(this.db,this.key)||{};Object.assign(this,{jobs:saved.jobs||[],availableJobs:saved.availableJobs||[],queue:saved.queue||[],reviewers:saved.reviewers||[],staff:saved.staff||[],people:saved.people||[],sourceJobs:saved.sourceJobs||[]});}
+ async persist(){await records(this.db,this.key,{jobs:this.jobs,availableJobs:this.availableJobs,queue:this.queue,reviewers:this.reviewers,staff:this.staff,people:this.people,sourceJobs:this.sourceJobs});}
  async api(body,query=''){
   const token=await this.token(),r=await this.fetcher('/api/installer'+query,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
   const result=await r.json();if(!r.ok){const e=new Error(result.error||'Sync failed.');e.status=r.status;throw e;}return result;
  }
  local(jobId){const original=this.jobs.find(j=>j.id===jobId);if(!original)return null;let out=original;for(const item of this.queue.filter(q=>q.jobId===jobId)){try{const command=item.command.action==='evidence'?{...item.command,data:{...item.command.data,hash:'pending'}}:item.command;out=applyCommand(out,command,this.user,item.at);}catch{/* conflict stays queued; never invent approval */}}return out;}
- async reloadSaved(){const saved=await records(this.db,this.key);if(saved)Object.assign(this,{jobs:saved.jobs,queue:saved.queue,reviewers:saved.reviewers||[],staff:saved.staff,people:saved.people,sourceJobs:saved.sourceJobs});}
+ async reloadSaved(){const saved=await records(this.db,this.key);if(saved)Object.assign(this,{jobs:saved.jobs,availableJobs:saved.availableJobs||[],queue:saved.queue,reviewers:saved.reviewers||[],staff:saved.staff,people:saved.people,sourceJobs:saved.sourceJobs});}
  async lock(fn){
   if(!navigator.locks)throw new Error('Use a current Chrome browser or the Android app for reliable offline saving.');
   return navigator.locks.request(this.key,{ifAvailable:true},async lock=>{if(!lock)throw new Error('Another tab is saving installation work. Use one tab and try again.');await this.reloadSaved();return fn();});
@@ -38,6 +38,7 @@ export class InstallerClient {
   if(this.busy)throw new Error('Please wait while we send your work.');
   const result=await this.api({jobId,command:{...command,requestId:requestId()}});
   const index=this.jobs.findIndex(j=>j.id===result.job.id);if(index<0)this.jobs.push(result.job);else this.jobs[index]=result.job;
+  this.availableJobs=this.availableJobs.filter(j=>j.id!==result.job.id);
   await this.persist();this.message='All work sent';this.onChange();return result.job;
  }
  async syncLocked(){
@@ -47,11 +48,11 @@ export class InstallerClient {
     const item=this.queue[0];const result=await this.api({jobId:item.jobId,command:item.command});
     this.jobs=this.jobs.map(j=>j.id===result.job.id?result.job:j);if(item.command.action==='evidence')await records(this.db,this.key+'/photo/'+item.jobId+'/'+item.command.data.id,item.command.data.image);this.queue.shift();await this.persist();
    }
-   const result=await this.api();this.jobs=result.jobs;this.staff=result.staff;this.reviewers=result.reviewers||[];this.people=result.people;this.sourceJobs=result.sourceJobs;await this.persist();this.message='All work sent · '+new Date().toLocaleTimeString();
+   const result=await this.api();this.jobs=result.jobs;this.availableJobs=result.availableJobs||[];this.staff=result.staff;this.reviewers=result.reviewers||[];this.people=result.people;this.sourceJobs=result.sourceJobs;await this.persist();this.message='All work sent · '+new Date().toLocaleTimeString();
   }catch(e){this.message=(e.status===409?'Sync conflict: ':e.status===403||e.status===404?'Access changed: ':'Not synchronized: ')+e.message;
-   if(e.status===403){this.jobs=[];this.staff=[];this.reviewers=[];this.people=[];this.sourceJobs=[];await this.persist();}
+   if(e.status===403){this.jobs=[];this.availableJobs=[];this.staff=[];this.reviewers=[];this.people=[];this.sourceJobs=[];await this.persist();}
    // On a conflict, fetch the latest assigned records but retain the exact queued command.
-   if(e.status===409||e.status===403||e.status===404)try{const fresh=await this.api();this.jobs=fresh.jobs;await this.persist();}catch{}
+   if(e.status===409||e.status===403||e.status===404)try{const fresh=await this.api();this.jobs=fresh.jobs;this.availableJobs=fresh.availableJobs||[];await this.persist();}catch{}
   }finally{this.busy=false;this.onChange();}
  }
  async discardFirst(){if(this.busy)return;await this.lock(async()=>{this.queue.shift();await this.persist();});await this.sync();}

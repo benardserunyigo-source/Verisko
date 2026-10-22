@@ -68,3 +68,40 @@ test('Operations cannot remove an installer who has not finished their visit',()
  const j=apply(make(),'workStart',{capturedAt:now,location:{lat:0,lng:0,accuracy:10}});
  assert.throws(()=>apply(j,'plan',{assignees:[other.id],scheduledDate:'2026-10-23'},{baseVersion:0},ops),/finish work/);
 });
+
+test('Operations and Team Lead can be named as site supervisors without changing their roles',()=>{
+ const lead={id:'lead',role:'teamlead',name:'TEST Team Lead'},admin={id:'admin',role:'admin',name:'TEST Admin'};
+ const j=createJob({id:'site',business:'TEST',siteStaff:{name:'Staff',phone:'000'},address:'TEST',scope:'TEST',equipment:'Camera',locations:['Gate'],assignees:[rep.id],supervisorIds:[ops.id,lead.id,admin.id],scheduledDate:'2026-10-23'},ops,now,[...staff,lead,admin]);
+ assert.deepEqual(j.supervisorIds,[ops.id,lead.id,admin.id]);assert.equal(canRead(j,lead),true);assert.equal(lead.role,'teamlead');assert.equal(ops.role,'operations');
+ assert.throws(()=>createJob({...j,locations:['Gate'],supervisorIds:[rep.id]},ops,now,staff),/Choose Operations/);
+});
+test('self-assignment adds only the current manager and keeps existing supervisors and job setup',()=>{
+ const lead={id:'lead',role:'teamlead',name:'TEST Team Lead'},j=make();j.supervisorIds=[ops.id];
+ assert.equal(canRead(j,lead),false);assert.throws(()=>applyCommand(j,{action:'superviseSelf',requestId:'fixture-pay-agreement',baseVersion:0,data:{}},lead,now),e=>e.status===409);const cmd=command('superviseSelf',{supervisorIds:[rep.id],assignees:[other.id]},{baseVersion:0});
+ const assigned=applyCommand(j,cmd,lead,now);assert.equal(canRead(assigned,lead),true);assert.deepEqual(assigned.supervisorIds,[ops.id,lead.id]);assert.deepEqual(assigned.assignees,j.assignees);assert.deepEqual(assigned.installerPay,j.installerPay);assert.equal(assigned.history.at(-1).by,lead.id);assert.equal(assigned.versions.plan,1);assert.deepEqual(applyCommand(assigned,cmd,lead,now),assigned);
+ for(const actor of [rep,{id:'sales',role:'sales'},{id:'reviewer',role:'supervisor'}])assert.throws(()=>applyCommand(j,command('superviseSelf',{}, {baseVersion:0}),actor,now));
+ assert.throws(()=>applyCommand({...j,status:'Completed'},command('superviseSelf',{}, {baseVersion:0}),lead,now),/read-only/);
+ assert.equal(applyCommand({...j,status:'Submitted'},command('superviseSelf',{}, {baseVersion:0}),lead,now).supervisorIds.includes(lead.id),true);
+ assert.throws(()=>applyCommand(assigned,command('superviseSelf',{}, {baseVersion:0}),ops,now),e=>e.status===409);
+});
+test('Team Lead API exposes only site choices before self-assignment and never crew money',async()=>{
+ const lead={id:'lead',role:'teamlead',name:'TEST Team Lead'},f=fixture(lead),j=make();await f.store.setJSON('jobs/'+j.id,j);
+ let b=await(await f.handler(new Request('https://test/api/installer'))).json();assert.equal(b.jobs.length,0);assert.deepEqual(Object.keys(b.availableJobs[0]).sort(),['business','id','planVersion','scheduledDate','status']);assert.deepEqual(b.staff,[]);assert.deepEqual(b.sourceJobs,[]);assert.deepEqual(b.reviewers,[]);
+ assert.equal((await f.handler(new Request('https://test/api/installer?jobId='+j.id))).status,404);
+ const r=await post(f.handler,j.id,command('superviseSelf',{supervisorIds:[rep.id]},{baseVersion:0}));assert.equal(r.status,200);b=await r.json();assert.deepEqual(b.job.supervisorIds,[lead.id]);assert.deepEqual(b.job.installerPay,{});assert.deepEqual(b.job.installerPayments,[]);
+ assert.equal((await post(f.handler,j.id,command('installerPay',{payments:[{installerId:rep.id,amount:1}]},{baseVersion:1}))).status,403);
+ assert.equal((await post(f.handler,j.id,command('plan',{assignees:[other.id],scheduledDate:'2026-10-23'},{baseVersion:1}))).status,403);
+ assert.equal((await post(f.handler,j.id,command('tests',{}, {cameraId:'camera-1',baseVersion:0}))).status,403);
+ b=await(await f.handler(new Request('https://test/api/installer'))).json();assert.equal(b.availableJobs.length,0);assert.equal(b.jobs.length,1);
+});
+test('Operations API can assign Operations and a Team Lead as site supervisors',async()=>{
+ const lead={id:'lead',role:'teamlead',name:'TEST Team Lead'},f=fixture(ops),handler=createInstallerHandler({store:f.store,authorize:async()=>({me:ops,users:[...staff,lead],sourceJobs:[]}),now:()=>now});await f.store.setJSON('jobs/installation-one',make());
+ const b=await(await handler(new Request('https://test/api/installer'))).json();assert.ok(b.reviewers.some(u=>u.id===ops.id));assert.ok(b.reviewers.some(u=>u.id===lead.id));assert.ok(!b.reviewers.some(u=>u.id===rep.id));
+ const r=await post(handler,'installation-one',command('plan',{assignees:[rep.id],supervisorIds:[ops.id,lead.id],scheduledDate:'2026-10-23'},{baseVersion:0}));assert.equal(r.status,200);assert.deepEqual((await r.json()).job.supervisorIds,[ops.id,lead.id]);
+});
+test('an assigned Team Lead can review and approve completed installer checks without crew controls',()=>{
+ const lead={id:'lead',name:'TEST Team Lead',role:'teamlead'};let j=ready();
+ assert.throws(()=>apply(j,'complete',{comment:'Reviewed'},{},lead),/not assigned/);
+ j=apply(j,'superviseSelf',{}, {baseVersion:0},lead);j=apply(j,'submit');j=apply(j,'complete',{comment:'Checked all photos, recording and coverage.'},{},lead);
+ assert.equal(j.status,'Completed');assert.equal(j.approval.by,lead.id);assert.equal(lead.role,'teamlead');
+});

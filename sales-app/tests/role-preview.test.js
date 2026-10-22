@@ -44,3 +44,8 @@ test('Supervisor preview uses assigned review access and hides installer pay and
  const saved=globalThis.document;globalThis.document={createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>{}}),toDataURL:()=> 'data:image/jpeg;base64,AA=='})};
  try{const a=api(),context=a.create('supervisor'),client=previewInstallerClient(context);assert.equal(context.data.prospects.length,0);assert.equal(context.data.appointments.length,0);assert.equal(context.data.transactions.length,0);assert.equal(client.user.role,'supervisor');assert.ok(client.jobs[0].supervisorIds.includes(client.user.id));assert.equal(Object.keys(client.jobs[0].installerPay).length,0);assert.equal(client.jobs[0].installerPayments.length,0);assert.equal(client.jobs[0].payHistory.length,0);assert.equal(client.staff.length,0);assert.equal(client.sourceJobs.length,0);await assert.rejects(client.command(),/Preview only/);}finally{globalThis.document=saved;}
 });
+
+test('Team Lead installation preview keeps its role and receives review access without crew pay',()=>{
+ const saved=globalThis.document;globalThis.document={createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>{}}),toDataURL:()=> 'data:image/jpeg;base64,AA=='})};
+ try{const client=previewInstallerClient(api().create('teamlead'));assert.equal(client.user.role,'teamlead');assert.ok(client.jobs[0].supervisorIds.includes(client.user.id));assert.equal(Object.keys(client.jobs[0].installerPay).length,0);assert.equal(client.jobs[0].installerPayments.length,0);assert.equal(client.staff.length,0);assert.equal(client.reviewers.length,0);}finally{globalThis.document=saved;}
+});

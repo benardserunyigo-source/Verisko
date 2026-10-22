@@ -6,12 +6,12 @@ Current policy: v106, October 22, 2026. These rules are enforced by the server a
 | --- | --- | --- |
 | Admin | Full workspace, company rules, costs, profit, cash approval, team access and export settings. | Remove or change the protected first owner through a normal roster save; approve their own ID. |
 | Operations | All contacts and follow-ups, quotes and costs, job assignments, installer fees and payments, materials, field shifts, applications and daily cash entries. Manage Sales, Team lead and Installer accounts. | Grant Admin, Operations or Supervisor access; manage those accounts or their ID records; change company pay rules; approve cash or alter approved cash; see the export key. |
-| Team lead | Shared sales prospects, visits, qualification work, limited job/deposit summaries, own saved leads and training, public package prices. Invite Sales staff and submit pending deposits. | See another person's private saved lead, internal job costing, expenses, installer jobs/pay, staff ID records or company settings. |
+| Team lead | Shared sales prospects, visits, qualification work, limited job/deposit summaries, own saved leads and training, public package prices. Invite Sales staff and submit pending deposits. Pick an active installation to supervise and review assigned installation evidence. | See another person's private saved lead, internal job costing, expenses, installer pay, staff ID records or company settings; change job setup or payments. |
 | Sales | Own contacts, visits, follow-ups, earnings, training and field shifts; public package prices. | See other people's contacts or earnings, internal costs/profit, expenses, staff IDs, installation work or access settings. |
 | Installer | Assigned jobs, site staff contact, checks, evidence, material use/returns, own agreed fee and payments. Record start and finish with location. | See another installer's pay or unrelated jobs; set assignments, approve work, record payments or receive stock into the warehouse. |
 | Supervisor | Only installation jobs explicitly assigned for review, their technical evidence and review/return/approval actions. | Create or assign jobs, complete installer checks, see crew fees/payments, change materials or browse the sales workspace. |
 
-Operations and Admin automatically review all installation jobs. In a job's setup, Operations can select named Supervisors who may also review that job. Installers complete the checks; reviewers check the evidence and return or approve the work.
+Operations and Admin automatically review all installation jobs. Site supervisor is a job assignment. In job setup, Operations can choose Operations, a Team Lead, Admin or an existing Supervisor account. Operations and Team Leads can use **Assign me as site supervisor** without changing account roles. Team Leads see a short active-site list (site name, date and status); full checks and evidence appear only after assignment. Existing Supervisor accounts still see only assigned jobs. Installers complete the checks; reviewers check the evidence and return or approve the work.
 
 ## Controls checked
 
@@ -44,3 +44,9 @@ The preview opens the real app screens in a separate frame with fictional record
 The launch button appears only for Admin. A direct preview URL can display only public fictional sample data; it grants no access to real records. Server permissions remain unchanged. Automated preview tests cover launcher eligibility, isolated storage, blocked network writes and the installer sample projection.
 
 Team Lead samples show shared sales prospects and their own saved contact, with no expenses or job costing. Supervisor samples show a job assigned for review and use the real supervisor projection, with crew pay and payments removed. Both previews keep the same blocked writes and isolated device storage.
+
+## Site supervisor assignment (v110)
+
+Use **Installer work** to choose a site. Operations and Admin can open any job and select **Assign me as site supervisor**. A Team Lead sees **Choose a site to supervise**, then selects the same button. The job shows the named site supervisors. Operations can also choose them under **Edit job setup** or when creating a job. The setup form has an **Assign me** shortcut; press **Save** to keep that selection.
+
+Self-assignment is an online, audited command. It adds only the signed-in person, preserves current supervisors, and does not change their account role. Team Leads gain review access to that job, not crew payment, stock, job setup or pricing rights. Installers and Sales cannot self-assign as supervisors. Completed jobs cannot be claimed or reassigned. Version checks protect against stale setup saves.
