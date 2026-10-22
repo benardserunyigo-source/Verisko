@@ -200,7 +200,7 @@ new device's shift. A killed service needs explicit Continue sharing.
 Build/JUnit/lint checks do not prove phone battery behaviour. Pilot on one actual
 team phone before rollout, following `android-field/README.md`.
 
-## Prospecting contacts and Operations readiness (v92)
+## Prospecting contacts and Operations readiness (v93)
 
 Today → Save a lead, or More → My leads on a phone, saves contacts, notes,
 status and next follow-up without booking a visit. No GPS or qualification
@@ -208,6 +208,9 @@ questionnaire is required. Book site check remains available for ready customers
 
 Operations automatically sees all saved contacts in All prospecting contacts,
 with a Today notice. No acceptance, conversion or handover is needed to see them.
+The visible Operations Today/contact views refresh about every 30 seconds when
+synced and idle, and on return to the app. Open forms, active typing and unsynced
+local changes block refresh so work is not overwritten.
 Sales sees its own contacts; Team leads see their own saved contacts, and Owner
 accounts retain administrative oversight. Send to Operations is the only handover
 option, flagging readiness in the Ready for Operations filter. Old Team lead

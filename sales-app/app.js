@@ -495,7 +495,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=92'), import('./field-shifts-ui.mjs?v=92'), import('./field-shifts-android.mjs?v=92')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=93'), import('./field-shifts-ui.mjs?v=93'), import('./field-shifts-android.mjs?v=93')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -3659,7 +3659,7 @@
   }
 
   // Returns "ok", "signin" (session invalid), "unauth" (not on team), "offline".
-  async function loadShared() {
+  async function loadShared(guardApply) {
     try {
       var res = await apiData("GET");
       if (res.status === 401) return "signin";
@@ -3670,6 +3670,7 @@
       if (res.status >= 500) return "offline";   // a server hiccup isn't "you were removed" — keep working on the device
       var result = await res.json();
       if (!result.ok) return "unauth";
+      if (guardApply && !guardApply()) return "unchanged";
       if (result.pricing) window.VeriskoPricing = window.createVeriskoPricing(result.pricing);
       else window.VeriskoPricing = window.createVeriskoPricing({version:window.VeriskoPriceCatalogue.version,catalogue:result.catalogue || window.VeriskoPriceCatalogue.catalogue});
       if (result.data && result.data.prospects) {
@@ -3681,6 +3682,24 @@
       return "ok";
     } catch (e) { return "offline"; }
   }
+
+  // Refresh Operations' contact view without overwriting local work or open forms.
+  var refreshingContacts=false;
+  function canRefreshContacts(){
+    var active=document.activeElement;
+    return !!settings.auth&&canReviewProspects()&&!document.hidden&&!document.body.classList.contains('locked')&&
+      (view==='leads'||view==='today')&&connection.state==='connected'&&!dialog.open&&!document.getElementById('askDialog').open&&
+      !(active&&active.matches('input,textarea,select,[contenteditable="true"]'));
+  }
+  async function refreshOperationsContacts(){
+    if(refreshingContacts||!canRefreshContacts())return;
+    refreshingContacts=true;var before=JSON.stringify(state),email=(settings.user||{}).email;
+    try{var result=await loadShared(function(){return canRefreshContacts()&&(settings.user||{}).email===email&&JSON.stringify(state)===before;});
+      if(result==='ok'){resolveUser();render();}
+    }finally{refreshingContacts=false;}
+  }
+  setInterval(refreshOperationsContacts,30000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)refreshOperationsContacts();});
 
   async function pullShared() {
     if (!settings.auth) return;
@@ -4062,7 +4081,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v92";
+  var APP_VERSION = "v93";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
