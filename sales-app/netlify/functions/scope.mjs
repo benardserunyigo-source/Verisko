@@ -1,3 +1,4 @@
+import '../../lead-pipeline.js';
 // Verisko Uganda Operations — what a Sales account may see and change.
 //
 // Roles: "admin" (Owner/Technical) and "operations" see everything.
@@ -84,13 +85,13 @@ export function scopeForSales(data, email) {
 // deposits, names (no emails except their own), commission settings.
 export function scopeForTeamLead(data, email) {
   const jobs = arr(data.jobs).map(jobStub);
-  const linkable = new Set(arr(data.prospects).map((p) => p.id));
+  const linkable = new Set(arr(data.prospects).filter(p=>globalThis.VeriskoLeadPipeline.canSee(p,userFor(data,email))).map((p) => p.id));
   const jobIds = new Set(jobs.map((j) => j.id));
   const transactions = arr(data.transactions)
     .filter((t) => isClientDeposit(t) && (linkable.has(t.prospectId) || (t.installId && jobIds.has(t.installId))))
     .map(depositStub);
   const users = arr(data.users).map((u) => (lc(u.email) === lc(email) ? u : { id: u.id, name: u.name, role: u.role }));
-  return { prospects: arr(data.prospects), appointments: arr(data.appointments), users, transactions, jobs, technicians: [], quotes: [], installations: [], config: commissionConfig(data), training: obj(data.training) };
+  return { prospects: arr(data.prospects).filter(p=>globalThis.VeriskoLeadPipeline.canSee(p,userFor(data,email))), appointments: arr(data.appointments), users, transactions, jobs, technicians: [], quotes: [], installations: [], config: commissionConfig(data), training: obj(data.training) };
 }
 
 // A rep (or a Team lead on their own prospect) may only ask for qualification
@@ -163,6 +164,7 @@ export function mergeTeamLeadWrite(stored, incoming, email) {
     const inc = incById.get(p.id);
     if (!inc) return p;
     const out = { ...p };
+    if (globalThis.VeriskoLeadPipeline.canManage(p,userFor(stored,email))) ["handoffTo","handoffAt","handoffNote","leadOnly","leadConvertedAt","leadStatus"].forEach(k=>{if(inc[k]!==undefined)out[k]=inc[k];});
     LEAD_QUAL_FIELDS.forEach((k) => { if (inc[k] !== undefined) out[k] = inc[k]; });
     if (!QUAL_STATUSES.includes(out.qualStatus || "")) out.qualStatus = p.qualStatus || "";
     // Disqualifying moves the lead to Lost; re-opening puts it back in play.

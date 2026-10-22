@@ -37,7 +37,7 @@
     { key: "credentials", label: "Login & warranty handed over" }
   ];
   // Operations/admin extras live behind the bottom-nav "More" sheet.
-  var MORE_VIEWS = ["jobs", "cashflow", "applications", "field", "settings"];
+  var MORE_VIEWS = ["leads", "jobs", "cashflow", "applications", "field", "settings"];
 
   /* ---------------------------- Quote calculator ---------------------------- */
   // Site-scoring rubric (answer points drive the site tier).
@@ -277,7 +277,7 @@
     var me = ((settings.user || {}).email || "").toLowerCase();
     return !!(p && me && (p.createdByEmail || "").toLowerCase() === me);
   }
-  function visibleProspects() { return (state.prospects || []).filter(isMineProspect); }
+  function visibleProspects() { return (state.prospects || []).filter(function(p){return isMineProspect(p) && !window.VeriskoLeadPipeline.isLead(p);}); }
   function ownProspect(p) { var me = ((settings.user || {}).email || "").toLowerCase(); return !!(p && me && (p.createdByEmail || "").toLowerCase() === me); }
   function visibleAppointments() {
     if (canReviewProspects() || isTeamLead()) return state.appointments || [];
@@ -454,6 +454,7 @@
     updateProspectBadge();
     if (view === "today") renderToday();
     else if (view === "dashboard") renderDashboard();
+    else if (view === "leads") renderLeads();
     else if (view === "prospects") renderProspects();
     else if (view === "visits") renderVisits();
     else if (view === "jobs") renderJobs();
@@ -494,7 +495,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=89'), import('./field-shifts-ui.mjs?v=89'), import('./field-shifts-android.mjs?v=89')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=91'), import('./field-shifts-ui.mjs?v=91'), import('./field-shifts-android.mjs?v=91')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -570,8 +571,11 @@
     var confirmed = visibleAppointments().filter(function (a) { return a.status === "Confirmed" && (!a.date || a.date >= today); })
       .sort(function (a, b) { return (a.date || "").localeCompare(b.date || ""); });
 
-    var sections = "";
+    var leadDue=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&ownProspect(p)&&(isToday(p.followUp)||isOverdue(p.followUp));});
+    var sections = '<section class="card"><h2>Keep contacts for later</h2><p class="helper">Not ready for a site visit? Save their details and follow up first.</p><button class="btn btn-ghost" data-save-lead>Save a lead</button>'+(leadDue.length?'<p class="helper">'+leadDue.length+' saved-contact follow-ups due.</p>'+leadDue.map(function(p){return '<p><strong>'+esc(p.business)+'</strong> · '+dateLabel(p.followUp)+' <button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button></p>';}).join(''):'')+'</section>';
 
+    var receivedLeads=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&leadTools().routed(p,settings.user);});
+    if(receivedLeads.length)sections+='<section class="card"><h2>'+receivedLeads.length+' lead handover'+(receivedLeads.length===1?'':'s')+' waiting</h2><p class="helper">Sales has sent contacts to your team for the next step. No visits are booked yet.</p><button class="btn btn-primary" data-open-leads>Review handovers</button></section>';
     sections += section("Overdue follow-ups", overdue.length, "alert",
       overdue.sort(function (a, b) { return (a.followUp || "").localeCompare(b.followUp || ""); })
         .map(function (p) { return prospectAction(p, "red"); }).join(""),
@@ -590,8 +594,8 @@
       confirmed.map(function (a) { return handoffCard(a, true); }).join(""));
 
     var anything = overdue.length + dueToday.length + toSchedule.length + awaiting.length + confirmed.length;
-    if (!anything) {
-      sections = emptyState(ICON_CALENDAR, "You're all caught up", "No overdue follow-ups, nothing due today, and no visits waiting. Add a prospect to keep the pipeline moving.", "Add prospect", 'data-new="prospect"');
+    if (!anything && !leadDue.length && !receivedLeads.length) {
+      sections += emptyState(ICON_CALENDAR, "You're all caught up", "No overdue follow-ups, nothing due today, and no visits waiting. Add a prospect to keep the pipeline moving.", "Add prospect", 'data-new="prospect"');
     }
 
     content.innerHTML = idNotice() + idCheckNotice() + signupNotice() + certNotice() + trainingNudge() + '<div class="stack">' + sections + "</div>";
@@ -607,6 +611,70 @@
   // A proposed appointment row on Today with a Confirm action.
   function visitAction(a) { return handoffCard(a); }
   /* ------------------------------- PROSPECTS --------------------------------- */
+  /* Saved contacts stay separate from visit-ready prospects, without re-entry. */
+  var leadListMode = '', leadViewer = '';
+  function leadTools() { return window.VeriskoLeadPipeline; }
+  function renderLeads() {
+    var manager = canReviewProspects() || isTeamLead();
+    var viewer=(settings.user||{}).email;if(viewer!==leadViewer){leadViewer=viewer;leadListMode=manager?'inbox':'mine';}
+    if (!leadListMode) leadListMode = manager ? 'inbox' : 'mine';
+    setHead('Sales contacts', manager ? 'Leads & handovers' : 'My leads', 'Save contacts, plan follow-ups, then hand over when they are ready. Saving a lead does not book a visit.', 'Save a lead', true);
+    content.innerHTML = '<section class="card"><div class="toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Search leads"></div><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="mine">My saved leads</option><option value="sent">My sent handovers</option>'+(manager?'<option value="inbox">Received handovers</option>':'')+'</select></div></div><p class="helper">Saved leads stay with the salesperson. Team lead and Operations receive only contacts explicitly sent to them. No visit or visit pay is created here.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
+    document.getElementById('leadMode').value = leadListMode;
+    updateLeadGrid();
+  }
+  function updateLeadGrid() {
+    var L=leadTools(), me=settings.user||{}, search=(document.getElementById('leadSearch').value||'').toLowerCase();
+    var rows=(state.prospects||[]).filter(function(p){
+      if(!L.isLead(p))return false;
+      var inList=leadListMode==='inbox'?L.routed(p,me):L.own(p,me)&&(leadListMode==='sent'?!!p.handoffAt:!p.handoffAt);
+      return inList&&[p.business,p.contact,p.phone,p.location,p.notes,p.nextAction].join(' ').toLowerCase().indexOf(search)!==-1;
+    }).sort(function(a,b){return (a.followUp||'9999').localeCompare(b.followUp||'9999');});
+    document.getElementById('leadCount').textContent=rows.length+' '+(rows.length===1?'contact':'contacts');
+    document.getElementById('leadGrid').innerHTML=rows.length?rows.map(function(p){
+      var mine=L.own(p,me), receive=L.canManage(p,me), target=p.handoffTo==='manager'?'Team lead':'Operations';
+      return xCard({key:'l:'+p.id,cls:isOverdue(p.followUp)?'tone-amber':'tone-navy',title:esc(p.business),chip:chip(p.handoffAt?'Sent to '+target:(p.leadStatus||'New contact'),p.handoffAt?'cyan':'grey'),meta:esc([p.contact,p.location].filter(Boolean).join(' · ')),
+       next:{tone:isOverdue(p.followUp)?'amber':'muted',text:(p.followUp?'Follow up '+dateLabel(p.followUp)+' · ':'')+(p.nextAction||'Plan your next conversation')},
+       quick:callBtn(p.phone)+'<button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button>',
+       lines:line('Phone',esc(p.phone))+line('Notes',esc(p.notes||'No notes yet'))+(p.handoffAt?line('Handover',esc((p.handoffBy||p.createdBy||'Sales')+' · '+dateLabel(p.handoffAt.slice(0,10))))+line('Request',esc(p.handoffNote||'Contact is ready for the team to follow up')):'')+followUpSummaryLine(p),
+       more:(mine?'<button class="btn btn-sm btn-ghost" data-edit-lead="'+esc(p.id)+'">Edit contact</button>':'')+
+        ((mine||receive)?'<button class="btn btn-sm btn-ghost" data-lead-send="manager" data-lead-id="'+esc(p.id)+'">Send to Team lead</button><button class="btn btn-sm btn-primary" data-lead-send="operations" data-lead-id="'+esc(p.id)+'">Send to Operations</button>':'')+
+        (receive?'<button class="btn btn-sm btn-ghost" data-lead-convert="'+esc(p.id)+'">Move to Prospects</button>':'')});
+    }).join(''):'<p class="helper">'+(leadListMode==='inbox'?'No handovers waiting for this team.':'No contacts here yet. Tap Save a lead to keep someone for follow-up.')+'</p>';
+  }
+  function leadFormHtml(p) {
+    return '<p class="helper full">Keep this contact for follow-up. No site visit, GPS pin or qualification answers are required.</p>'+
+      field('business','Business or contact name','text',p.business,{required:true,full:true})+
+      field('contact','Person you spoke with','text',p.contact,{full:true})+
+      field('phone','Phone number','tel',p.phone,{required:true,full:true,placeholder:'0772 123 456'})+
+      field('location','Area or landmark','text',p.location,{full:true})+
+      field('leadStatus','Contact status','select',p.leadStatus||'New contact',{full:true,options:leadTools().STATUSES})+
+      field('followUp','Next follow-up','date',p.followUp,{full:true})+
+      field('nextAction','Next action','text',p.nextAction,{full:true,placeholder:'Call on Friday to discuss cameras'})+
+      field('notes','Conversation notes','textarea',p.notes,{full:true});
+  }
+  function saveLead(data) {
+    var L=leadTools(),prev=editing.id?prospect(editing.id):null;
+    var error=L.check(data,state.prospects||[],editing.id);if(error){showFormError(error);return;}
+    if(prev&&!ownProspect(prev)){showFormError('Only the salesperson who saved this contact can edit its details.');return;}
+    var me=settings.user||{},p=Object.assign({},prev||{},data,{id:editing.id||uid(),leadOnly:true,phone:window.VeriskoLeadImport.normalizePhone(data.phone),stage:'New prospect',reviewStatus:'draft',qualStatus:'',created:prev?prev.created:today,createdBy:prev?prev.createdBy:me.name,createdByEmail:prev?prev.createdByEmail:me.email,followUps:prev?prev.followUps:[]});
+    stampPlan(p);
+    if(prev)state.prospects[state.prospects.findIndex(function(x){return x.id===p.id;})]=p;else state.prospects.push(p);
+    dialog.close();saveData('Lead saved for follow-up. No visit booked.');view='leads';render();
+  }
+  async function sendLead(id,target) {
+    var p=prospect(id),L=leadTools();if(!L.isLead(p)||(!ownProspect(p)&&!L.canManage(p,settings.user)))return;
+    var answer=await openSheet({title:'Send to '+(target==='manager'?'Team lead':'Operations'),body:'What should the team help with? Sending does not book a visit.',input:{placeholder:'Client is ready for a call about a site visit',value:p.handoffNote||''},requireValue:true,confirmLabel:'Send handover'});
+    if(answer===null)return;var note=answer.text;
+    p.handoffTo=target;p.handoffAt=nowIso();p.handoffBy=(settings.user||{}).name||'';p.handoffByEmail=(settings.user||{}).email||'';p.handoffNote=note;
+    var saved=await saveData();toast(saved?'Handover sent. No visit booked yet.':'Handover saved on this phone; it will send when sync succeeds.');render();
+  }
+  async function convertLead(id) {
+    var p=prospect(id);if(!leadTools().canManage(p,settings.user))return;
+    p.leadOnly=false;p.leadConvertedAt=nowIso();p.reviewStatus='pending';p.stage='New prospect';
+    await saveData('Moved to Prospects. Review the details, then book a visit when agreed.');view='prospects';render();
+  }
+
   function renderProspects() {
     setHead("Your pipeline", "Prospects", "Search and manage your pipeline.", canReviewProspects() ? "Add prospect" : "Book site check", true);
     // Reviewers get a queue of prospects awaiting audit, pinned at the top.
@@ -646,6 +714,7 @@
     }
     content.innerHTML =
       review +
+      '<div class="button-row"><button class="btn btn-ghost" data-save-lead>Not ready for a visit? Save a lead</button></div>' +
       '<div class="toolbar">' +
         '<div class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>' +
         '<input id="search" type="search" placeholder="Search business, contact, phone or location" aria-label="Search prospects"></div>' +
@@ -684,7 +753,7 @@
 
   function readyForOperations(p) {
     var qualified = p.qualStatus === "approved" || (p.imported && window.VeriskoCommission.isQualStage(p.stage));
-    return qualified && !p.closedSale && !isClosed(p.stage) && !quoteForProspect(p.id);
+    return !leadTools().isLead(p) && qualified && !p.closedSale && !isClosed(p.stage) && !quoteForProspect(p.id);
   }
   function readyCard(p) {
     var C = window.VeriskoCommission;
@@ -2660,7 +2729,7 @@
       var g = await captureGeo(); if (g.geo) pendingGeo = g.geo;
       saveBtn.disabled = false; saveBtn.textContent = "Book site check";
     }
-    var r = B.check(data, { today: today, geo: pendingGeo, prospects: visibleProspects() });
+    var r = B.check(data, { today: today, geo: pendingGeo, prospects: (state.prospects||[]).filter(isMineProspect) });
     if (!r.ok) { showFormError(r.errors.slice(0, 3).join(" ") + (r.errors.length > 3 ? " (" + (r.errors.length - 3) + " more)" : "")); return; }
     var ops = (state.users || []).filter(function (u) { return u.role === "operations"; })[0] || (state.users || []).filter(function (u) { return u.role === "admin"; })[0];
     var b = B.build(data, { today: today, slot: r.slot, phone: r.phone, director: (ops && ops.name) || "Operations", nowIso: nowIso() });
@@ -2720,6 +2789,7 @@
     editing = { type: type, id: id || null };
     hideFormError();
     var collection = state[type + "s"];
+    if(type === "prospect" && id && leadTools().isLead(prospect(id))) editing.lead = true;
     var source = id ? (collection.find(function (x) { return x.id === id; }) || {}) : {};
     document.getElementById("dialogEyebrow").textContent = id ? "Update record" : "New record";
 
@@ -2729,7 +2799,9 @@
       document.getElementById("dialogTitle").textContent = id ? "Edit prospect" : "Add prospect";
       // Sales and Team leads add a lead by booking its site check: one screen,
       // under a minute (booking.js). Operations/admin keep the full form.
-      if (!id && !canReviewProspects()) {
+      if (presetProspect === "__lead__" || editing.lead) {
+        editing.lead = true; document.getElementById("dialogTitle").textContent = id ? "Edit saved lead" : "Save a lead"; html += leadFormHtml(source);
+      } else if (!id && !canReviewProspects()) {
         editing.quick = true;
         document.getElementById("dialogTitle").textContent = "Book a site check";
         html += quickBookingHtml();
@@ -2964,6 +3036,7 @@
     }
     if (type === "job") { recalcQuoteForm(); updateMatTotal(); }
     document.getElementById("saveButton").textContent = id ? "Save changes" : "Save";
+    if (editing.lead) document.getElementById("saveButton").textContent = "Save lead";
     if (editing.quick) { document.getElementById("saveButton").textContent = "Book site check"; autoCaptureGeo(); }
     if (!dialog.open) dialog.showModal();
     var first = formContent.querySelector('input:not([type=hidden]),select,textarea');
@@ -3096,7 +3169,7 @@
     var data = Object.fromEntries(new FormData(form).entries());
     var type = editing.type;
     if (type === "transaction") { saveTransaction(data); return; }
-    if (type === "prospect") { if (editing.quick) { saveQuickBooking(data); return; } saveProspect(data); return; }
+    if (type === "prospect") { if (editing.lead) { saveLead(data); return; } if (editing.quick) { saveQuickBooking(data); return; } saveProspect(data); return; }
     if (type === "job") { saveJob(data); return; }
     var collection = state[type + "s"];
 
@@ -3204,7 +3277,7 @@
   // Sales may only delete prospects still in the review process (their own,
   // not yet approved). Once approved, only Operations/admins can delete — this
   // protects the audit trail. Legacy prospects (no reviewStatus) are locked too.
-  function salesCanDeleteProspect(p) { return p.reviewStatus === "pending" || p.reviewStatus === "query"; }
+  function salesCanDeleteProspect(p) { return (leadTools().isLead(p) && !p.handoffAt) || p.reviewStatus === "pending" || p.reviewStatus === "query"; }
   function canDeleteRecord(type, rec) {
     if (canReviewProspects()) return true;        // Operations/admins can delete
     if (type === "prospect") return salesCanDeleteProspect(rec || {});
@@ -3254,7 +3327,7 @@
     if (s === "pending") return chip("Pending review", "amber", "◔");
     return ""; // approved / legacy → no chip
   }
-  function needsReview(p) { return p.reviewStatus === "pending"; }
+  function needsReview(p) { return !leadTools().isLead(p) && p.reviewStatus === "pending"; }
 
   // Badge count: reviewers see prospects awaiting review; Sales see their own
   // sent-back prospects that need fixing.
@@ -3333,7 +3406,7 @@
       dlg.close();
       var logged = !!(selected || text);
       var geo = null;
-      var wantGeo = logged && (selected === "Visited" || (ownProspect(p) && !canReviewProspects() && !isTeamLead()));
+      var wantGeo = !leadTools().isLead(p) && logged && (selected === "Visited" || (ownProspect(p) && !canReviewProspects() && !isTeamLead()));
       if (wantGeo) { toast("Getting your location…"); geo = (await captureGeo()).geo; }
       if (logged) addFollowUpEntry(p, { outcome: selected, note: combineNote({ choice: selected, text: text }), geo: geo, next: date });
       if (date !== (p.followUp || "") || action !== (p.nextAction || "")) { p.followUp = date; p.nextAction = action; stampPlan(p); }
@@ -3387,7 +3460,7 @@
   }
 
   /* ---------------- Qualified prospects (UGX 2,500, Team lead) --------------- */
-  function needsQualApproval(p) { return p.qualStatus === "pending" && !p.imported; }
+  function needsQualApproval(p) { return !leadTools().isLead(p) && p.qualStatus === "pending" && !p.imported; }
   function qualChip(p) {
     if (p.qualStatus === "approved") return chip("Qualified · " + money(commissionPerQualified()), "green", "✓");
     if (p.qualStatus === "pending") return chip("Awaiting team lead", "amber", "◔");
@@ -3988,7 +4061,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v89";
+  var APP_VERSION = "v91";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4193,7 +4266,7 @@
     if (wideMq.addEventListener) wideMq.addEventListener("change", onWideChange); else if (wideMq.addListener) wideMq.addListener(onWideChange);
   }
   function moreViewsForRole() {
-    var v = ["field"];
+    var v = ["leads", "field"];
     if (canInstalls()) { v.push("jobs"); v.push("cashflow"); v.push("applications"); }
     if (supportNavInMore()) v.push("support");
     if (isAdmin()) v.push("settings");
@@ -4753,16 +4826,19 @@
   });
 
   document.getElementById("primaryAction").addEventListener("click", function () {
-    if (view === "cashflow") openForm("transaction");
+    if (view === "leads") openForm("prospect",null,"__lead__");
+    else if (view === "cashflow") openForm("transaction");
     else if (view === "jobs") openForm("job");
     else if (view === "visits") openForm("appointment");
     else openForm("prospect");
   });
 
   content.addEventListener("input", function (e) {
+    if (e.target.id === "leadSearch") updateLeadGrid();
     if (e.target.id === "search") updateProspectGrid();
   });
   content.addEventListener("change", function (e) {
+    if (e.target.id === "leadMode") { leadListMode=e.target.value; updateLeadGrid(); }
     if (e.target.id === "stageFilter") updateProspectGrid();
     if (e.target.id === "visitFilter") updateVisitList();
     if (e.target.id === "cashFilter") { cashFilter = e.target.value; renderCashflow(); }
@@ -4771,6 +4847,12 @@
   });
 
   content.addEventListener("click", function (e) {
+    if(e.target.closest('[data-open-leads]')){view='leads';leadListMode='inbox';leadViewer=(settings.user||{}).email;render();return;}
+    var leadEdit=e.target.closest('[data-edit-lead]');if(leadEdit){openForm('prospect',leadEdit.dataset.editLead);return;}
+    var leadSave=e.target.closest('[data-save-lead]');if(leadSave){openForm('prospect',null,'__lead__');return;}
+    var leadSend=e.target.closest('[data-lead-send]');if(leadSend){sendLead(leadSend.dataset.leadId,leadSend.dataset.leadSend);return;}
+    var leadConvert=e.target.closest('[data-lead-convert]');if(leadConvert){convertLead(leadConvert.dataset.leadConvert);return;}
+
     var photo = e.target.closest("[data-photo]"); if (photo) { openPhoto(photo.getAttribute("data-img")); return; }
     var appr = e.target.closest("[data-approve-id]"); if (appr) { approveTx(appr.getAttribute("data-approve-id")); return; }
     var back = e.target.closest("[data-sendback-id]"); if (back) { sendBackTx(back.getAttribute("data-sendback-id")); return; }

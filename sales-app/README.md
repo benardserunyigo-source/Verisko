@@ -199,3 +199,27 @@ new device's shift. A killed service needs explicit Continue sharing.
 
 Build/JUnit/lint checks do not prove phone battery behaviour. Pilot on one actual
 team phone before rollout, following `android-field/README.md`.
+
+## Saved leads and explicit handovers (v91)
+
+Today → Save a lead, or More → My leads on a phone, keeps a contact without
+booking a visit. Save the contact name, phone, area, notes, contact status and
+next follow-up. GPS and the qualification questionnaire are not required for
+this path. Existing Book site check still creates a visit-ready prospect and
+proposed visit using its existing checks.
+
+Saved contacts use the same prospect ID throughout, with `leadOnly: true`.
+They stay out of the Prospects list, qualification/review queues and visit pay.
+Sales sees its own drafts. Other Sales accounts cannot access them. Team leads
+and Operations receive drafts only after an explicit handover to their team;
+Owner/Technical accounts retain existing administrative oversight. The receiving
+team sees a Today notice and a Received handovers inbox under My leads. A Team
+lead can forward the same record to Operations. Move to Prospects is an explicit
+receiving-team action; it does not itself create or confirm a visit.
+
+The server enforces visibility, preserves hidden drafts when a scoped or older
+client saves, blocks visits/quotes while a record is still a saved lead, rejects
+duplicate contact phone numbers on new leads, and prevents stale draft copies
+from undoing a handover/conversion. Existing call notes and follow-up plans retain
+their append-only/newer-plan protections. An offline handover remains pending on
+the phone until workspace sync succeeds; saving locally is not delivery proof.

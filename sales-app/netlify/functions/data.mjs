@@ -1,3 +1,4 @@
+import '../../lead-pipeline.js';
 // Verisko Sales Visit Planner — shared data API backed by Netlify Blobs.
 //
 // Every request must carry a session (Authorization: Bearer <token>): either a
@@ -50,7 +51,7 @@ export default async (request) => {
       // A salesperson only ever receives their own records (scope.mjs).
       if (isSales) return json({ ok: true, catalogue: pricing.publicPackages(), data: { ...EMPTY, ...scopeForSales(data, email) } }, 200, headers);
       if (isTeamLead) return json({ ok: true, catalogue: pricing.publicPackages(), data: { ...EMPTY, ...scopeForTeamLead(data, email) } }, 200, headers);
-      const out = { ...EMPTY, ...data };
+      const out = { ...EMPTY, ...data, prospects: (data.prospects||[]).filter(p=>globalThis.VeriskoLeadPipeline.canSee(p,me)) };
       // Owner/Operations: staff sign-ups waiting for approval (no ID photos —
       // those are fetched one at a time from /api/auth).
       if (isAdmin || (me && me.role === "operations")) out.signups = await pendingSignups();
@@ -100,6 +101,13 @@ export default async (request) => {
         clean.quotes = Array.isArray(data.quotes) ? data.quotes : [];
         clean.installations = Array.isArray(data.installations) ? data.installations : [];
       }
+
+      try { clean.prospects = globalThis.VeriskoLeadPipeline.guard(storedProspects,clean.prospects,{...me,email},clean.appointments,canReview?clean.jobs:storedJobs); }
+      catch(error) { return json({ok:false,error:error.message},400,headers); }
+
+      const savedLeadIds = new Set(clean.prospects.filter(p=>globalThis.VeriskoLeadPipeline.isLead(p)).map(p=>p.id));
+      const knownPayments = new Set(storedTx.map(t=>t.id));
+      if(clean.transactions.some(t=>!knownPayments.has(t.id)&&savedLeadIds.has(t.prospectId)))return json({ok:false,error:'Move the saved lead to Prospects before recording a payment.'},400,headers);
 
       // Every role: call notes are never lost (append-only) and a phone with
       // an older copy can't overwrite a newer follow-up plan.
