@@ -195,7 +195,7 @@ test("training progress: each person changes only their own entry; a rep receive
   assert.deepEqual(mergeTraining(stored, { b: {} }, null), stored, "unknown caller changes nothing");
   const data2 = { ...data, users: [{ id: "ua", email: "ab@test", name: "Ab", role: "sales" }, { id: "ub", email: "bea@test", name: "Bea", role: "sales" }], training: { ua: { v1: "T" }, ub: { v2: "T" } } };
   assert.deepEqual(scopeForSales(data2, "ab@test").training, { ua: { v1: "T" } });
-  assert.deepEqual(Object.keys(scopeForTeamLead(data2, "lead@test").training), ["ua", "ub"]);
+  assert.deepEqual(scopeForTeamLead(data2, "lead@test").training, {});
 });
 
 test("Sales and Team lead devices can't mark bookings confirmed or visits real (scheme 4 pay)", async () => {

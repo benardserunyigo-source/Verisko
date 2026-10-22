@@ -1,3 +1,4 @@
+import {canManageMember} from './access.mjs';
 // Verisko Uganda Operations — invite-only staff sign-up and phone + PIN sign-in.
 //
 // POST /api/auth { action, … }
@@ -28,7 +29,7 @@ import { getStore } from "@netlify/blobs";
 import {
   AUTH_STORE, STAFF_STORE, SESSION_MS, INVITE_MS, ID_DUE_MS, ID_REDO_MS, normalizePhone, displayPhone, phoneEmail,
   pinProblem, ninProblem, cleanNin, legalNameProblem, newPinRecord, pinMatches, recordFailure, isLocked, startReset,
-  resetCodeMatches, signToken, getSecret, identify, newInviteCode, cleanInviteCode, canInviteRole, inviteProblem
+  resetCodeMatches, signToken, getSecret, identify, newInviteCode, cleanInviteCode, canInviteRole, inviteProblem, idOverdue
 } from "./pin-auth.mjs";
 
 const SUPABASE_URL = "https://cepernltrzrmupgegcib.supabase.co";
@@ -40,15 +41,15 @@ const WRONG = "That phone number and PIN don't match.";
 const ROLE_LABEL = { sales: "Sales", teamlead: "Team lead", operations: "Operations", installer: "Installer", supervisor: "Supervisor" };
 const isImage = (v) => /^data:image\/(jpeg|png|webp);base64,/.test(String(v || ""));
 
-export default async (request) => {
+export function createAuthHandler({storeFor=getStore,identifyRequest=identify,clock=Date.now}={}){return async (request) => {
   const headers = { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
   const reply = (body, status) => new Response(JSON.stringify(body), { status: status || 200, headers });
   if (request.method !== "POST") return reply({ ok: false, error: "method_not_allowed" }, 405);
   try {
     const body = await request.json().catch(() => ({}));
     const action = String((body && body.action) || "");
-    const auth = getStore(AUTH_STORE), staff = getStore(STAFF_STORE), dataStore = getStore(DATA_STORE);
-    const now = Date.now(), nowIso = new Date(now).toISOString();
+    const auth = storeFor({name:AUTH_STORE,consistency:'strong'}), staff = storeFor(STAFF_STORE), dataStore = storeFor({name:DATA_STORE,consistency:'strong'});
+    const now = clock(), nowIso = new Date(now).toISOString();
     const loadData = async () => (await dataStore.get(DATA_KEY, { type: "json" })) || { users: [] };
     const setUser = async (id, patch) => {
       const fresh = await loadData();
@@ -68,13 +69,14 @@ export default async (request) => {
       const t = (v, n) => String(v == null ? "" : v).slice(0, n);
       const rec = { at: nowIso, where: t(body.where, 60), message: t(body.message, 300), stack: t(body.stack, 1200), ua: t(request.headers.get("user-agent"), 300),
         email: t(body.email, 120), app: t(body.app, 20), view: t(body.view, 40), online: !!body.online };
-      await getStore("verisko-diag").setJSON("err/" + nowIso + "-" + Math.random().toString(36).slice(2, 7), rec);
+      await storeFor("verisko-diag").setJSON("err/" + nowIso + "-" + Math.random().toString(36).slice(2, 7), rec);
       return reply({ ok: true });
     }
 
     if (action === "inviteInfo") {
       const inv = await auth.get("invite/" + cleanInviteCode(body.code), { type: "json" });
-      const problem = inviteProblem(inv, now);
+      const issuerData=await loadData(),issuer=(issuerData.users||[]).find(u=>u.id===inv?.invitedById);
+      const problem = inviteProblem(inv, now)||(!issuer||idOverdue(issuer,now)||!canInviteRole(issuer.role,inv.role)?"Ask your manager for a new invite.":"");
       if (problem) return reply({ ok: false, error: problem }, 404);
       return reply({ ok: true, name: inv.name || "", role: inv.role, roleLabel: ROLE_LABEL[inv.role] || "Sales", invitedBy: inv.invitedBy || "", phoneEnd: inv.phone.slice(-3) });
     }
@@ -92,6 +94,8 @@ export default async (request) => {
         (body.consent !== true && "Please agree to Verisko keeping your details.");
       if (problem) return reply({ ok: false, error: problem }, 400);
       const data = await loadData();
+      const issuer=(data.users||[]).find(u=>u.id===inv.invitedById);
+      if(!issuer||idOverdue(issuer,now)||!canInviteRole(issuer.role,inv.role))return reply({ok:false,error:"Ask your manager for a new invite."},403);
       if ((data.users || []).some((u) => String(u.email || "").toLowerCase() === phoneEmail(phone))) return reply({ ok: false, error: "This phone number already has an account. Sign in with your PIN." }, 409);
       // The invite works once (claim it atomically).
       const used = await auth.set("used/" + code, "1", { onlyIfNew: true });
@@ -149,7 +153,7 @@ export default async (request) => {
 
     // ---- Signed-in actions ----
     const data = await loadData();
-    const who = await identify(request, data, { authStore: auth, now, supabaseUser });
+    const who = await identifyRequest(request, data, { authStore: auth, now, supabaseUser });
     if (who.error) return reply({ ok: false, error: who.error }, who.status);
     const me = who.me;
     if (!me) return reply({ ok: false, error: "forbidden" }, 403);
@@ -166,6 +170,8 @@ export default async (request) => {
       const user = await setUser(me.id, { idStatus: "submitted", idNote: "" });
       return reply({ ok: true, user });
     }
+
+    if(idOverdue(me,now))return reply({ok:false,error:"id_overdue"},403);
 
     // An email account (the Owner) turns on phone + PIN sign-in for itself,
     // or changes its PIN. Signs out its other PIN sessions.
@@ -201,7 +207,8 @@ export default async (request) => {
     if (action === "invite") {
       if (!["admin", "operations", "teamlead"].includes(me.role)) return reply({ ok: false, error: "forbidden" }, 403);
       const phone = normalizePhone(body.phone);
-      const role = ["sales", "teamlead", "operations", "installer", "supervisor"].includes(body.role) ? body.role : "sales";
+      const role = body.role || "sales";
+      if(!["sales","teamlead","operations","installer","supervisor"].includes(role))return reply({ok:false,error:"This role cannot be granted through staff invites."},403);
       if (!phone) return reply({ ok: false, error: "Enter their WhatsApp number, e.g. 0772 123 456." }, 400);
       if (!canInviteRole(me.role, role)) return reply({ ok: false, error: me.role === "teamlead" ? "Team leads can invite Sales only." : "Only the Owner can invite someone as Operations." }, 403);
       if ((data.users || []).some((u) => String(u.email || "").toLowerCase() === phoneEmail(phone))) return reply({ ok: false, error: "That phone number is already on the team." }, 409);
@@ -216,11 +223,12 @@ export default async (request) => {
     // ---- Operations / Owner only ----
     const canManage = me.role === "admin" || me.role === "operations";
     if (!canManage) return reply({ ok: false, error: "forbidden" }, 403);
-    const isOwner = me.role === "admin";
 
     if (action === "record") {
       const r = await staff.get("staff/" + String(body.id || ""), { type: "json" });
       if (!r) return reply({ ok: false, error: "not_found" }, 404);
+      const target=(data.users||[]).find(u=>u.id===r.id)||{id:r.id,role:r.role||"sales"};
+      if(target.id!==me.id&&!canManageMember(me,target,data.users?.[0]?.id))return reply({ok:false,error:"Only Admin can view this staff record."},403);
       return reply({ ok: true, record: {
         id: r.id, status: r.status, legalName: r.legalName, phone: displayPhone(r.phone), nin: r.nin || "", selfie: r.selfie || "",
         idFront: r.idFront || "", idBack: r.idBack || "", idStatus: r.idStatus || (r.nin ? "submitted" : "needed"), idDueAt: r.idDueAt || "",
@@ -231,6 +239,8 @@ export default async (request) => {
     if (action === "checkId") {
       const id = String(body.userId || "");
       const r = await staff.get("staff/" + id, { type: "json" });
+      const target=(data.users||[]).find(u=>u.id===id)||{id,role:r?.role||"sales"};
+      if(!canManageMember(me,target,data.users?.[0]?.id))return reply({ok:false,error:"You cannot check this staff ID."},403);
       if (!r || r.idStatus !== "submitted") return reply({ ok: false, error: "There's no new ID to check for this person." }, 409);
       const ok = body.ok === true;
       const reason = String(body.reason || "").slice(0, 200);
@@ -244,8 +254,9 @@ export default async (request) => {
       const id = String(body.id || "");
       const r = await staff.get("staff/" + id, { type: "json" });
       if (!r || r.status !== "pending") return reply({ ok: false, error: "This sign-up was already handled." }, 409);
-      const role = ["sales", "teamlead", "operations", "installer", "supervisor"].includes(body.role) ? body.role : "sales";
-      if (role === "operations" && !isOwner) return reply({ ok: false, error: "Only the Owner can approve someone as Operations." }, 403);
+      const role = body.role || "sales";
+      if(!["sales","teamlead","operations","installer","supervisor"].includes(role))return reply({ok:false,error:"This role cannot be granted through staff invites."},403);
+      if (!canInviteRole(me.role,role)) return reply({ ok: false, error: "Only Admin can approve that role." }, 403);
       const fresh = await loadData();
       const users = Array.isArray(fresh.users) ? fresh.users : [];
       if (!users.some((u) => u.id === id)) {
@@ -259,6 +270,7 @@ export default async (request) => {
       const id = String(body.id || "");
       const r = await staff.get("staff/" + id, { type: "json" });
       if (!r || r.status !== "pending") return reply({ ok: false, error: "This sign-up was already handled." }, 409);
+      if(!canManageMember(me,{id:r.id,role:r.role||"sales"},data.users?.[0]?.id))return reply({ok:false,error:"Only Admin can manage this sign-up."},403);
       await staff.delete("staff/" + id);
       await auth.delete("pin/" + id);
       const owner = await auth.get("phone/" + r.phone, { type: "text" });
@@ -269,7 +281,7 @@ export default async (request) => {
       const id = String(body.userId || "");
       const target = (data.users || []).find((u) => u.id === id && u.authMethod === "pin");
       if (!target) return reply({ ok: false, error: "not_found" }, 404);
-      if (target.role === "operations" && !isOwner) return reply({ ok: false, error: "Only the Owner can reset an Operations PIN." }, 403);
+      if (!canManageMember(me,target,data.users?.[0]?.id)) return reply({ ok: false, error: "Only Admin can reset this PIN." }, 403);
       const rec = await auth.get("pin/" + id, { type: "json" });
       const { code, rec: next } = startReset(rec, now);
       await auth.setJSON("pin/" + id, next);
@@ -280,7 +292,7 @@ export default async (request) => {
       const fresh = await loadData();
       const target = (fresh.users || []).find((u) => u.id === id && u.authMethod === "pin");
       if (!target) return reply({ ok: false, error: "not_found" }, 404);
-      if (target.role === "operations" && !isOwner) return reply({ ok: false, error: "Only the Owner can remove an Operations account." }, 403);
+      if (!canManageMember(me,target,data.users?.[0]?.id)) return reply({ ok: false, error: "Only Admin can remove this account." }, 403);
       await dataStore.setJSON(DATA_KEY, { ...fresh, users: fresh.users.filter((u) => u.id !== id) });
       const rec = await auth.get("pin/" + id, { type: "json" });
       if (rec) await auth.setJSON("pin/" + id, { ...rec, hash: "", v: (rec.v || 0) + 1, reset: null });
@@ -293,7 +305,8 @@ export default async (request) => {
     console.error(e);
     return reply({ ok: false, error: "Something went wrong. Please try again." }, 500);
   }
-};
+};}
+export default createAuthHandler();
 
 export async function supabaseUser(token) {
   const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}` } });

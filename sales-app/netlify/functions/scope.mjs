@@ -1,3 +1,4 @@
+import {safeUser} from './access.mjs';
 import '../../lead-pipeline.js';
 // Verisko Uganda Operations — what a Sales account may see and change.
 //
@@ -75,7 +76,7 @@ export function scopeForSales(data, email) {
   // Themselves in full; Operations/admin by name only (visit owner list).
   const users = arr(data.users)
     .filter((u) => lc(u.email) === lc(email) || u.role === "operations" || u.role === "admin")
-    .map((u) => (lc(u.email) === lc(email) ? u : { id: u.id, name: u.name, role: u.role }));
+    .map((u) => (lc(u.email) === lc(email) ? safeUser(u) : { id: u.id, name: u.name, role: u.role }));
   const me = userFor(data, email);
   const training = me && obj(data.training)[me.id] ? { [me.id]: obj(data.training)[me.id] } : {};
   return { prospects, appointments, users, transactions, jobs, technicians: [], quotes: [], installations: [], config: commissionConfig(data), training };
@@ -84,14 +85,14 @@ export function scopeForSales(data, email) {
 // GET payload for a Team lead: every prospect and visit, job stubs, client
 // deposits, names (no emails except their own), commission settings.
 export function scopeForTeamLead(data, email) {
-  const jobs = arr(data.jobs).map(jobStub);
   const linkable = new Set(arr(data.prospects).filter(p=>globalThis.VeriskoLeadPipeline.canSee(p,userFor(data,email))).map((p) => p.id));
+  const jobs = arr(data.jobs).filter(j=>linkable.has(j.prospectId)).map(jobStub);
   const jobIds = new Set(jobs.map((j) => j.id));
   const transactions = arr(data.transactions)
     .filter((t) => isClientDeposit(t) && (linkable.has(t.prospectId) || (t.installId && jobIds.has(t.installId))))
     .map(depositStub);
-  const users = arr(data.users).map((u) => (lc(u.email) === lc(email) ? u : { id: u.id, name: u.name, role: u.role }));
-  return { prospects: arr(data.prospects).filter(p=>globalThis.VeriskoLeadPipeline.canSee(p,userFor(data,email))), appointments: arr(data.appointments), users, transactions, jobs, technicians: [], quotes: [], installations: [], config: commissionConfig(data), training: obj(data.training) };
+  const users = arr(data.users).map((u) => (lc(u.email) === lc(email) ? safeUser(u) : { id: u.id, name: u.name, role: u.role }));
+  return { prospects: arr(data.prospects).filter(p=>globalThis.VeriskoLeadPipeline.canSee(p,userFor(data,email))), appointments: arr(data.appointments).filter(a=>linkable.has(a.prospectId)), users, transactions, jobs, technicians: [], quotes: [], installations: [], config: commissionConfig(data), training: userFor(data,email)&&obj(data.training)[userFor(data,email).id]?{[userFor(data,email).id]:obj(data.training)[userFor(data,email).id]}:{} };
 }
 
 // A rep (or a Team lead on their own prospect) may only ask for qualification
@@ -161,6 +162,7 @@ export function mergeTeamLeadWrite(stored, incoming, email) {
   const incById = new Map(arr(incoming.prospects).filter((p) => p && p.id).map((p) => [p.id, p]));
   const prospects = base.prospects.map((p) => {
     if (ownsProspect(p, email)) return p;
+    if(!globalThis.VeriskoLeadPipeline.canSee(p,userFor(stored,email)))return p;
     const inc = incById.get(p.id);
     if (!inc) return p;
     const out = { ...p };
@@ -183,8 +185,8 @@ export function mergeTeamLeadWrite(stored, incoming, email) {
   });
   const storedTx = arr(stored.transactions);
   const seen = new Set(storedTx.map((t) => t.id));
-  const pids = new Set(prospects.map((p) => p.id));
-  const jobIds = new Set(arr(stored.jobs).map((j) => j.id));
+  const pids = new Set(prospects.filter(p=>globalThis.VeriskoLeadPipeline.canSee(p,userFor(stored,email))).map((p) => p.id));
+  const jobIds = new Set(arr(stored.jobs).filter(j=>pids.has(j.prospectId)).map((j) => j.id));
   const added = arr(incoming.transactions)
     .filter((t) => t && t.id && !seen.has(t.id) && t.direction === "in" && Number(t.amount) > 0 && (pids.has(t.prospectId) || jobIds.has(t.installId)))
     .map((t) => ({
@@ -210,7 +212,10 @@ export function mergeSalesWrite(stored, incoming, email) {
     if (!p || !p.id) return;
     const prev = storedById.get(p.id);
     if (prev && !ownsProspect(prev, email)) return;              // someone else's — ignore
-    incomingMine.push(prev ? p : { ...p, createdByEmail: lc(email) }); // new ⇒ theirs
+    const actor=userFor(stored,email),known=new Set(arr(prev?.followUps).map(followKey));
+    const record=prev ? {...p,createdByEmail:prev.createdByEmail,createdBy:prev.createdBy,created:prev.created} : { ...p, createdByEmail: lc(email),createdBy:actor?.name||p.createdBy||'' };
+    record.followUps=arr(p.followUps).filter(f=>known.has(followKey(f))||!f.byEmail||lc(f.byEmail)===lc(email)).map(f=>known.has(followKey(f))?f:{...f,byEmail:lc(email),by:actor?.name||'',role:actor?.role||'sales'});
+    incomingMine.push(record); // new ⇒ theirs
   });
   const prospects = storedProspects.filter((p) => !ownsProspect(p, email)).concat(incomingMine);
 

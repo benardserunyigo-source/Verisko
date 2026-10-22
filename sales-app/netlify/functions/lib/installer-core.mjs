@@ -12,7 +12,7 @@ export function imageData(value){
 }
 export function createInstallerHandler({store,authorize,now=()=>new Date().toISOString()}){
  return async request=>{try{
-  const auth=await authorize(request),me=auth.me;if(!me||!allowed(me))return json({ok:false,error:'Installation access required.'},auth.status||403);
+  const auth=await authorize(request),me=auth.me,ops=['admin','operations'].includes(me?.role);if(!me||!allowed(me))return json({ok:false,error:'Installation access required.'},auth.status||403);
   const url=new URL(request.url),id=url.searchParams.get('jobId');
   if(request.method==='GET'){
    if(id){
@@ -26,7 +26,7 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
     return json({ok:true,pendingIds:jobs.flatMap(j=>j.exceptions.filter(e=>e.status==='pending').map(e=>e.id)),corrections:jobs.reduce((n,j)=>n+j.exceptions.filter(e=>e.status==='correction').length+j.cameras.reduce((n,c)=>n+Object.values(c.corrections||{}).filter(v=>v.status==='open').length,0),0),submitted:jobs.filter(j=>j.status==='Submitted').length});
    }
    const staff=(auth.users||[]).filter(u=>u.role==='installer').map(u=>({id:u.id,name:u.name}));
-   return json({ok:true,jobs:jobs.map(j=>installerJobView(j,me)),staff:manager(me)?staff:[],people:(auth.users||[]).filter(u=>manager(me)||u.id===me.id||jobs.some(j=>j.assignees.includes(u.id)||j.history.some(h=>h.by===u.id))).map(u=>({id:u.id,name:u.name})),sourceJobs:manager(me)?(auth.sourceJobs||[]):[]});
+   return json({ok:true,jobs:jobs.map(j=>installerJobView(j,me)),staff:ops?staff:[],reviewers:ops?(auth.users||[]).filter(u=>u.role==='supervisor').map(u=>({id:u.id,name:u.name})):[],people:(auth.users||[]).filter(u=>ops||u.id===me.id||jobs.some(j=>j.assignees.includes(u.id)||(j.supervisorIds||[]).includes(u.id)||j.history.some(h=>h.by===u.id))).map(u=>({id:u.id,name:u.name})),sourceJobs:ops?(auth.sourceJobs||[]):[]});
   }
   if(request.method!=='POST')return json({ok:false,error:'Method not allowed.'},405);
   if(Number(request.headers.get('content-length'))>1800000)throw fail('Request too large.',413);
@@ -35,7 +35,7 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
   for(let attempt=0;attempt<4;attempt++){
    const old=await store.getWithMetadata(key,{type:'json'});let j;
    if(cmd.action==='create'){
-    if(!manager(me))throw fail('Supervisor access required.',403);
+    if(!ops)throw fail('Only Operations can create an installation.',403);
     if(old){if(old.data.requests.includes(cmd.requestId))return json({ok:true,job:installerJobView(old.data,me)});throw fail('This job already has an installer record. Open it instead.',409);}
     if(!/^[a-zA-Z0-9-]{8,100}$/.test(cmd.requestId||''))throw fail('Request ID required.');
     if(cmd.data?.sourceId&&body.jobId!=='source-'+cmd.data.sourceId)throw fail('Use the existing job installation record.');
@@ -43,6 +43,7 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
     j=createJob({...cmd.data,id:body.jobId},me,now(),auth.users);j.requests.push(cmd.requestId);j.history.push({id:cmd.requestId,action:'create',by:me.id,name:me.name,at:now()});
    }else{
     if(!old||!canRead(old.data,me))throw fail('Job not found or no longer assigned.',404);
+    if(cmd.action==='plan'&&cmd.data?.supervisorIds!==undefined&&(!Array.isArray(cmd.data.supervisorIds)||cmd.data.supervisorIds.some(id=>!auth.users.some(u=>u.id===id&&u.role==='supervisor'))))throw fail('Choose Supervisor accounts only.');
     if(cmd.action==='plan'&&(!Array.isArray(cmd.data?.assignees)||cmd.data.assignees.some(id=>!auth.users.some(u=>u.id===id&&u.role==='installer'))))throw fail('Assign Installer accounts only.');
     if(cmd.action==='evidence'){
      if(!valid(cmd.data?.id))throw fail('Invalid evidence ID.');const image=imageData(cmd.data.image);

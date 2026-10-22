@@ -5,7 +5,7 @@ export const TESTS=['live','recording','playback','coverage','remote'];
 export const PARTS=['cable','mount','tests'];
 export const manager=u=>['admin','operations','supervisor'].includes(u?.role);
 export const allowed=u=>manager(u)||u?.role==='installer';
-export const canRead=(j,u)=>manager(u)||(u?.role==='installer'&&j.assignees.includes(u.id));
+export const canRead=(j,u)=>['admin','operations'].includes(u?.role)||(u?.role==='supervisor'&&(j.supervisorIds||[]).includes(u.id))||(u?.role==='installer'&&j.assignees.includes(u.id));
 export const reasons=['Obstruction','Damaged cable','Insufficient cable length','Changed route','Other'];
 export const JOB_NEEDS=['Outside view','Inside view','Gate view','Parking view','Video recording','Phone viewing'];
 export const MATERIALS=['4K bullet camera','4K dome camera','PTZ camera','NVR','Hard drive','Cat6 cable (metres)','RJ45 plug','Cable trunking (metres)','Junction box','Wall plugs and screws','UPS'];
@@ -57,20 +57,24 @@ export function readiness(j){
  return missing;
 }
 export function createJob(input,user,now,staff=[]){
- if(!manager(user))throw fail('Supervisor access required.',403);
+ if(!['admin','operations'].includes(user?.role))throw fail('Only Operations can create a job.',403);
  const locations=Array.isArray(input.locations)?input.locations.map(x=>text(x,100)).filter(Boolean):[];
  if(locations.some(x=>/^Camera \d+ · name location$/.test(x)))throw fail('Replace each placeholder with the actual camera location.');
  if(!locations.length||locations.length>64)throw fail('Name between 1 and 64 camera locations.');
+ const supervisorIds=Array.isArray(input.supervisorIds)?[...new Set(input.supervisorIds)]:[];
+ if(supervisorIds.some(id=>!staff.some(u=>u.id===id&&u.role==='supervisor')))throw fail('Choose Supervisor accounts only.');
  const assignees=Array.isArray(input.assignees)?[...new Set(input.assignees)]:[];
  if(!assignees.length||assignees.some(id=>!staff.some(u=>u.id===id&&u.role==='installer')))throw fail('Assign at least one Installer account.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(input.scheduledDate||''))throw fail('Choose a scheduled date.');
- return {id:input.id,sourceId:text(input.sourceId,100),business:requireText(input.business,'Customer'),siteStaff:{name:requireText(input.siteStaff?.name,'Verisko staff name'),phone:requireText(input.siteStaff?.phone,'Verisko staff phone')},workLogRequired:true,workLog:[],payRequired:true,installerPay:{},payHistory:[],installerPayments:[],installerPaymentVoids:[],address:requireText(input.address,'Site address'),scope:requireText(input.scope,'Scope'),equipment:requireText(input.equipment,'Equipment list'),materials:initialMaterials(input.equipment),instructions:text(input.instructions),remoteIncluded:input.remoteIncluded===true,assignees,scheduledDate:input.scheduledDate,status:'In progress',createdAt:now,createdBy:user.id,updatedAt:now,pilot:{approvalCover:'Operations'},cameras:[...new Set(locations)].map((name,i)=>({id:'camera-'+(i+1),name,versions:{},corrections:{}})),exceptions:[],evidence:[],handover:{},versions:{},history:[],requests:[],metrics:[]};
+ return {id:input.id,sourceId:text(input.sourceId,100),business:requireText(input.business,'Customer'),siteStaff:{name:requireText(input.siteStaff?.name,'Verisko staff name'),phone:requireText(input.siteStaff?.phone,'Verisko staff phone')},workLogRequired:true,workLog:[],payRequired:true,installerPay:{},payHistory:[],installerPayments:[],installerPaymentVoids:[],address:requireText(input.address,'Site address'),scope:requireText(input.scope,'Scope'),equipment:requireText(input.equipment,'Equipment list'),materials:initialMaterials(input.equipment),instructions:text(input.instructions),remoteIncluded:input.remoteIncluded===true,assignees,supervisorIds,scheduledDate:input.scheduledDate,status:'In progress',createdAt:now,createdBy:user.id,updatedAt:now,pilot:{approvalCover:'Operations'},cameras:[...new Set(locations)].map((name,i)=>({id:'camera-'+(i+1),name,versions:{},corrections:{}})),exceptions:[],evidence:[],handover:{},versions:{},history:[],requests:[],metrics:[]};
 }
 export function applyCommand(previous,cmd,user,now){
  if(!canRead(previous,user))throw fail('This installation is not assigned to you.',403);
  if(!/^[a-zA-Z0-9-]{8,100}$/.test(cmd.requestId||''))throw fail('A unique request ID is required.');
  if(previous.requests.includes(cmd.requestId))return previous;
  const j=structuredClone(previous),supervisor=manager(user),c=j.cameras.find(x=>x.id===cmd.cameraId),data=cmd.data||{};
+ if(['plan','pilot'].includes(cmd.action)&&!['admin','operations'].includes(user.role))throw fail('Supervisor access does not include job setup. Only Operations can change it.',403);
+ if(['cable','mount','tests','exception','revise','resolve','handover','submit'].includes(cmd.action)&&user.role!=='installer')throw fail('Only an assigned installer can save work checks.',403);
  const supervisorActions=['plan','pilot','decision','return','complete','metric'];
  if(supervisorActions.includes(cmd.action)&&!supervisor)throw fail('Supervisor access required.',403);
  if(j.status==='Completed'&&!['metric','workFinish','installerPayment','installerPaymentVoid'].includes(cmd.action))throw fail('Completed installation records are read-only.',409);
@@ -120,7 +124,7 @@ export function applyCommand(previous,cmd,user,now){
  }else if(cmd.action==='pilot'){
   checkVersion(j,'pilot');j.pilot={cableMethods:requireText(data.cableMethods,'Acceptable cable methods'),weather:requireText(data.weather,'Weather protection'),mounting:requireText(data.mounting,'Mounting guidance'),approvalCover:requireText(data.approvalCover,'Approval cover'),backup:requireText(data.backup,'Backup approval cover'),confirmed:data.confirmed===true,by:user.id,at:now};
  }else if(cmd.action==='plan'){
-  checkVersion(j,'plan');if(!Array.isArray(data.assignees)||!data.assignees.length)throw fail('Assign installers.');if(!/^\d{4}-\d{2}-\d{2}$/.test(data.scheduledDate||''))throw fail('Choose a scheduled date.');if((j.workLog||[]).some(x=>!x.finish&&!data.assignees.includes(x.by)))throw fail('Let the installer finish work before removing them from this job.',409);j.assignees=[...new Set(data.assignees)];j.scheduledDate=requireText(data.scheduledDate,'Scheduled date');j.instructions=text(data.instructions);if(data.siteStaff)j.siteStaff={name:requireText(data.siteStaff.name,'Verisko staff name'),phone:requireText(data.siteStaff.phone,'Verisko staff phone')};if(data.scope!==undefined)j.scope=requireText(data.scope,'Job needs');if(data.equipment!==undefined){j.equipment=requireText(data.equipment,'Materials');updateMaterialPlan(j,j.equipment);}j.workLogRequired=true;j.payRequired=true;
+  checkVersion(j,'plan');if(!Array.isArray(data.assignees)||!data.assignees.length)throw fail('Assign installers.');if(!/^\d{4}-\d{2}-\d{2}$/.test(data.scheduledDate||''))throw fail('Choose a scheduled date.');if((j.workLog||[]).some(x=>!x.finish&&!data.assignees.includes(x.by)))throw fail('Let the installer finish work before removing them from this job.',409);j.assignees=[...new Set(data.assignees)];j.scheduledDate=requireText(data.scheduledDate,'Scheduled date');j.instructions=text(data.instructions);if(data.supervisorIds!==undefined){if(!Array.isArray(data.supervisorIds))throw fail('Choose supervisors.');j.supervisorIds=[...new Set(data.supervisorIds)];}if(data.siteStaff)j.siteStaff={name:requireText(data.siteStaff.name,'Verisko staff name'),phone:requireText(data.siteStaff.phone,'Verisko staff phone')};if(data.scope!==undefined)j.scope=requireText(data.scope,'Job needs');if(data.equipment!==undefined){j.equipment=requireText(data.equipment,'Materials');updateMaterialPlan(j,j.equipment);}j.workLogRequired=true;j.payRequired=true;
  }else if(cmd.action==='evidence'){
   // The endpoint validates and stores bytes first. Photos are append-only.
   const e={...data,cameraId:cmd.cameraId||''};if(!['route','mount','fixings','entry','view','exception','resolution','reference','demo','ack'].includes(e.kind)||!e.id||!e.hash)throw fail('Invalid evidence.');

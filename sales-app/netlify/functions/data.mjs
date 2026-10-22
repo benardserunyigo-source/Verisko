@@ -1,3 +1,4 @@
+import {ROLES,guardRoster,visibleRoster,guardCash,checkPhotoLinks,safeUser} from './access.mjs';
 import '../../lead-pipeline.js';
 // Verisko Sales Visit Planner — shared data API backed by Netlify Blobs.
 //
@@ -5,8 +6,8 @@ import '../../lead-pipeline.js';
 // Supabase email session, verified with Supabase, or a staff phone + PIN
 // session issued by /api/auth (pin-auth.mjs). The caller must be on the team
 // allow-list (the `users` list). The very first sign-in on
-// an empty workspace bootstraps the owner. Non-admins cannot alter the team
-// list. Both Supabase values below are public (publishable) and safe to ship.
+// an empty workspace bootstraps the owner. Operations can manage only Sales,
+// Team lead and Installer accounts. Both Supabase values below are public (publishable) and safe to ship.
 import { getStore } from "@netlify/blobs";
 import { inputs as pricingInputs, pricing } from "./lib/pricing-policy.mjs";
 import { validateQuotes } from "./lib/quote-guard.mjs";
@@ -21,7 +22,7 @@ const KEY = "app-data";
 // rejected; they're deprecated and folded into `jobs` client-side on load.
 const EMPTY = { prospects: [], appointments: [], users: [], transactions: [], jobs: [], technicians: [], quotes: [], installations: [], config: {}, training: {} };
 
-export default async (request) => {
+export function createDataHandler({storeFor=getStore,identifyRequest=identify}={}){return async (request) => {
   const headers = {
     "Content-Type": "application/json",
     "Cache-Control": "no-store",
@@ -29,10 +30,10 @@ export default async (request) => {
   };
   try {
     // 1) Load data and identify the caller (email or staff PIN session).
-    const store = getStore(STORE);
+    const store = storeFor({name:STORE,consistency:'strong'});
     const data = (await store.get(KEY, { type: "json" })) || EMPTY;
     const users = Array.isArray(data.users) ? data.users : [];
-    const who = await identify(request, data, { authStore: getStore(AUTH_STORE), now: Date.now(), supabaseUser });
+    const who = await identifyRequest(request, data, { authStore: storeFor({name:AUTH_STORE,consistency:'strong'}), now: Date.now(), supabaseUser });
     if (who.error) return json({ ok: false, error: who.error }, who.status, headers);
     const email = who.email;
 
@@ -43,9 +44,10 @@ export default async (request) => {
     // that (via /api/auth submitId) until they have.
     if (idOverdue(me, Date.now())) return json({ ok: false, error: "id_overdue" }, 403, headers);
     if (!me && !bootstrap) return json({ ok: false, error: "not_authorized" }, 403, headers);
+    if(me&&!ROLES.includes(me.role))return json({ok:false,error:'Role not allowed.'},403,headers);
     if (me && ['installer','supervisor'].includes(me.role)) {
       if(request.method!=='GET')return json({ok:false,error:'Use the installation workspace.'},403,headers);
-      return json({ok:true,data:{...EMPTY,users:[me]}},200,headers);
+      return json({ok:true,data:{...EMPTY,users:[safeUser(me)]}},200,headers);
     }
     const isAdmin = bootstrap || (me && me.role === "admin");
     const isTeamLead = !bootstrap && !!me && me.role === "teamlead";
@@ -55,16 +57,17 @@ export default async (request) => {
       // A salesperson only ever receives their own records (scope.mjs).
       if (isSales) return json({ ok: true, catalogue: pricing.publicPackages(), data: { ...EMPTY, ...scopeForSales(data, email) } }, 200, headers);
       if (isTeamLead) return json({ ok: true, catalogue: pricing.publicPackages(), data: { ...EMPTY, ...scopeForTeamLead(data, email) } }, 200, headers);
-      const out = { ...EMPTY, ...data, prospects: (data.prospects||[]).filter(p=>globalThis.VeriskoLeadPipeline.canSee(p,me)) };
+      const out = { ...EMPTY, ...Object.fromEntries(Object.keys(EMPTY).filter(k=>data[k]!==undefined).map(k=>[k,data[k]])), prospects: (data.prospects||[]).filter(p=>globalThis.VeriskoLeadPipeline.canSee(p,me)) };
       // Owner/Operations: staff sign-ups waiting for approval (no ID photos —
       // those are fetched one at a time from /api/auth).
-      if (isAdmin || (me && me.role === "operations")) out.signups = await pendingSignups();
+      if (isAdmin || (me && me.role === "operations")) out.signups = await pendingSignups(storeFor,me);
       // The spreadsheet export key is Owner/Technical-only: never send it to
       // Sales or Operations devices.
       if (!isAdmin && out.config && typeof out.config === "object") {
-        const { exportKey, ...rest } = out.config;
-        out.config = rest;
+        const keys=["pettyLimit","commissionPerSale","commissionPerQualified","commissionTarget","commissionRule","payScheme","schemeStart","perVisit","floatAmount","floatMinBookings","floatGraceDays","floatStart"];
+        out.config=Object.fromEntries(keys.filter(k=>out.config[k]!==undefined).map(k=>[k,out.config[k]]));
       }
+      out.users=visibleRoster(users,me||{role:"admin"});
       return json({ ok: true, pricing: pricingInputs, catalogue: pricing.publicPackages(), data: out }, 200, headers);
     }
 
@@ -164,25 +167,16 @@ export default async (request) => {
       // a site visit real / not real — those earn the rep pay.
       if (!canReview) clean.appointments = guardVisitChecks(storedAppointments, clean.appointments);
 
-      // Team roster: admins manage everyone. Operations manage only the
-      // non-admin roster (Sales/Operations) — never the Owner or Technical
-      // accounts, and can never grant admin. Sales can't change it at all.
-      if (!isAdmin && JSON.stringify(clean.users) !== JSON.stringify(users)) {
-        clean.users = canReview ? sanitizeRoster(users, clean.users) : users;
-      }
-      // Staff PIN accounts are managed through /api/auth (approve, remove):
-      // a device can only change their role.
-      clean.users = protectPinUsers(users, clean.users);
-      // Workspace config: Operations may set commission fields; the petty-cash
-      // limit stays admin-only; Sales can't change any of it.
-      if (!isAdmin && JSON.stringify(clean.config) !== JSON.stringify(storedConfig)) {
-        clean.config = canReview ? { ...clean.config, pettyLimit: storedConfig.pettyLimit, exportKey: storedConfig.exportKey } : storedConfig;
-      }
-      // An admin device that never received the export key (stale cache) must
-      // not wipe it; only an explicit value (or empty string) replaces it.
-      if (isAdmin && storedConfig.exportKey && clean.config.exportKey === undefined) {
-        clean.config = { ...clean.config, exportKey: storedConfig.exportKey };
-      }
+      // Access and company policy are authoritative on the server.
+      if(bootstrap){
+        if(clean.users.length!==1||String(clean.users[0].email||'').toLowerCase()!==email||clean.users[0].role!=='admin')return json({ok:false,error:'Create only your own first Admin account.'},403,headers);
+        clean.users=[safeUser({...clean.users[0],email,role:'admin'})];
+      }else clean.users=guardRoster(users,clean.users,me);
+      clean.users=protectPinUsers(users,clean.users);
+      if(!isAdmin)clean.config=storedConfig;
+      else if(storedConfig.exportKey&&clean.config.exportKey===undefined)clean.config={...clean.config,exportKey:storedConfig.exportKey};
+      if(!isAdmin){clean.quotes=Array.isArray(data.quotes)?data.quotes:[];clean.installations=Array.isArray(data.installations)?data.installations:[];}
+      await checkPhotoLinks(data,clean,me,storeFor('verisko-receipts'));
       // Jobs (quote→installation lifecycle) & technicians are Operations/admin
       // only — Sales can't touch them.
       if (!canReview) {
@@ -195,25 +189,8 @@ export default async (request) => {
         catch(error) { return json({ok:false,error:error.message},400,headers); }
       }
 
-      // Cash flow: Sales cannot touch transactions; only admins may approve.
-      // (A Team lead's new deposits were already vetted by mergeTeamLeadWrite.)
-      if (!isTeamLead && JSON.stringify(clean.transactions) !== JSON.stringify(storedTx)) {
-        if (!canCash) {
-          clean.transactions = storedTx; // Sales roles cannot write cash entries at all
-        } else if (!isAdmin) {
-          const prevById = Object.fromEntries(storedTx.map((t) => [t.id, t]));
-          clean.transactions = clean.transactions.map((t) => {
-            const prev = prevById[t.id];
-            // Operations cannot approve — revert any new/changed approval to its prior state (pending).
-            if (t && t.status === "approved" && (!prev || prev.status !== "approved")) {
-              return prev || { ...t, status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: "", approvedAt: "" };
-            }
-            // The approval time decides which week deposit commission is paid in.
-            if (t && (t.approvedAt || "") !== ((prev && prev.approvedAt) || "")) return { ...t, approvedAt: (prev && prev.approvedAt) || "" };
-            return t;
-          });
-        }
-      }
+      // Operations records cash; only Admin approves or alters approved entries.
+      if(!isTeamLead)clean.transactions=guardCash(storedTx,clean.transactions,bootstrap?{role:'admin'}:{...me,email});
 
       await store.setJSON(KEY, clean);
       return json({ ok: true, ...(canReview ? { jobs: clean.jobs } : {}) }, 200, headers);
@@ -222,50 +199,22 @@ export default async (request) => {
     return json({ ok: false, error: "method_not_allowed" }, 405, headers);
   } catch (error) {
     console.error(error);
-    return json({ ok: false, error: error.message || "Storage error." }, 500, headers);
+    return json({ ok: false, error: error.message || "Storage error." }, error.status||500, headers);
   }
-};
+};}
+export default createDataHandler();
 
-async function pendingSignups() {
-  const staff = getStore(STAFF_STORE);
+async function pendingSignups(storeFor,actor) {
+  const staff = storeFor(STAFF_STORE);
   const { blobs } = await staff.list({ prefix: "staff/" });
   const out = [];
   for (const b of blobs || []) {
     const r = await staff.get(b.key, { type: "json" });
-    if (r && r.status === "pending") out.push({ id: r.id, legalName: r.legalName, phone: displayPhone(r.phone), nin: r.nin, signupAt: r.signupAt, hasBack: !!r.idBack });
+    if (r && r.status === "pending" && (actor.role==="admin"||["sales","teamlead","installer"].includes(r.role||"sales"))) out.push({ id: r.id, legalName: r.legalName, phone: displayPhone(r.phone), signupAt: r.signupAt, hasBack: !!r.idBack });
   }
   return out.sort((a, b) => String(a.signupAt).localeCompare(String(b.signupAt)));
 }
 
 function json(body, status, headers) {
   return new Response(JSON.stringify(body), { status, headers });
-}
-
-// Apply an Operations roster edit while protecting Owner/Technical accounts and
-// preventing any grant of admin. Returns the sanitized users list.
-function sanitizeRoster(stored, incoming) {
-  const inc = Array.isArray(incoming) ? incoming : [];
-  const ownerId = stored[0] && stored[0].id;
-  const incById = Object.fromEntries(inc.map((u) => [u.id, u]));
-  const storedById = Object.fromEntries(stored.map((u) => [u.id, u]));
-  const result = [];
-  // Owner and all Technical (admin) accounts are kept exactly as stored.
-  for (const su of stored) {
-    if (su.id === ownerId || su.role === "admin") { result.push(su); continue; }
-    const u = incById[su.id];
-    if (!u) continue; // Operations removed this non-admin member — allowed.
-    const role = ["operations","sales","teamlead","installer","supervisor"].includes(u.role) ? u.role : su.role; // never admin
-    result.push({ ...su, name: u.name || su.name, role });
-  }
-  // New members may only be Sales, Team lead or Operations.
-  const emails = new Set(result.map((u) => String(u.email || "").toLowerCase()));
-  for (const u of inc) {
-    if (storedById[u.id]) continue;
-    const email = String(u.email || "").toLowerCase();
-    if (!email || emails.has(email)) continue;
-    const role = ["operations","teamlead","installer","supervisor"].includes(u.role) ? u.role : "sales";
-    result.push({ id: u.id, name: u.name || "", email, role, created: u.created });
-    emails.add(email);
-  }
-  return result;
 }

@@ -25,7 +25,7 @@ export default async (request) => {
   const given = url.searchParams.get("key") || "";
   try {
     if (request.method !== "GET") return json({ ok: false, error: "method_not_allowed" }, 405);
-    const data = (await getStore(DATA_STORE).get(DATA_KEY, { type: "json" })) || {};
+    const data = (await getStore({name:DATA_STORE,consistency:"strong"}).get(DATA_KEY, { type: "json" })) || {};
     const expected = String((data.config && data.config.exportKey) || "");
     if (!keyMatches(given, expected)) return json({ ok: false, error: "bad_key" }, 401);
 

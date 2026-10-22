@@ -1,5 +1,7 @@
 # Verisko Uganda Operations — Handoff for Codex
 
+> Current access rules (v106): [ACCESS.md](ACCESS.md) replaces older role and permission descriptions below.
+
 ## Simple / Complex installations, 18 October 2026 (v83)
 
 Current quote forms use two installation types, with practical definitions.

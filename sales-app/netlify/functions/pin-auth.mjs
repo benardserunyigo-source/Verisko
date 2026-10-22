@@ -1,3 +1,4 @@
+import {ROLES} from './access.mjs';
 // Verisko Uganda Operations — phone + PIN sign-in for staff without email.
 //
 // Staff sign up in the app (legal name as on the National ID, phone, NIN, a
@@ -194,7 +195,7 @@ export async function identify(request, data, deps) {
     // Staff PIN accounts, or an email account (the Owner) that turned on
     // phone + PIN sign-in. Either way the PIN record below must still match.
     const me = users.find((u) => u.id === p.uid);
-    if (!me) return { error: "not_authorized", status: 403 };
+    if (!me||!ROLES.includes(me.role)) return { error: "not_authorized", status: 403 };
     const rec = await deps.authStore.get("pin/" + me.id, { type: "json" });
     if (!rec || rec.v !== p.v) return { error: "session_expired", status: 401 };   // PIN was reset
     return { email: String(me.email).toLowerCase(), me };
@@ -202,6 +203,6 @@ export async function identify(request, data, deps) {
   const email = await deps.supabaseUser(token);
   if (!email) return { error: "session_expired", status: 401 };
   const me = users.find((u) => String(u.email || "").toLowerCase() === email) || null;
-  if (me && me.authMethod === "pin") return { error: "not_authorized", status: 403 };
+  if (me && (!ROLES.includes(me.role)||me.authMethod === "pin")) return { error: "not_authorized", status: 403 };
   return { email, me };
 }

@@ -228,6 +228,8 @@
 
   var state = loadData();
   var settings = loadSettings();
+  var sessionGeneration=0;
+  var localUnsynced=localStorage.getItem(STORAGE_KEY+"_pending")==="1";
   var view = "today";
   var editing = null;
   var connection = { state: "local", text: "Saved on this device" };
@@ -259,6 +261,7 @@
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); } catch (e) { return {}; }
   }
   function saveData(message) {
+    localUnsynced=true;localStorage.setItem(STORAGE_KEY+"_pending","1");
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     if (message) toast(message);
     if (settings.auth) return pushShared();
@@ -449,7 +452,7 @@
   function canInstallWork(){return settings.user&&['admin','operations','supervisor','installer'].includes(settings.user.role);}
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=105');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=106');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       await installerModule.mountInstaller({user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&settings.user.id===installerUser.id&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
@@ -522,7 +525,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=105'), import('./field-shifts-ui.mjs?v=105'), import('./field-shifts-android.mjs?v=105')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=106'), import('./field-shifts-ui.mjs?v=106'), import('./field-shifts-android.mjs?v=106')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -1270,7 +1273,7 @@
             (f.next.active ? line("Next Monday", f.next.bookings.length + " of " + po.floatMinBookings + " confirmed" + (f.next.inGrace ? " · first weeks" : "")) : "") });
       }).join("") + "</div>" : '<p class="result-note">No pay earned in this week yet.</p>';
     }
-    var editor = canReviewProspects() ? '<details class="card settings-card dash-more"><summary>Commission settings</summary>' +
+    var editor = isAdmin() ? '<details class="card settings-card dash-more"><summary>Commission settings</summary>' +
       (scheme4(week)
         ? "<p>Paid every Saturday at 12:00 noon: a client counts once when Operations carries out their site visit, and once when their first deposit is approved. The Monday float goes to reps with enough office-confirmed bookings the week before.</p>"
         : "<p>Paid weekly, every Saturday at 12:00 noon. A qualified prospect counts once the Team lead approves it; a client counts once, as soon as their first deposit is recorded.</p>") +
@@ -1296,7 +1299,7 @@
     // are managed by the Owner in Settings, not shown here.
     var users = (state.users || []).filter(function (u) { return u.id !== ownerId() && u.role !== "admin"; });
     var manageableRoleOpts = function (sel) {
-      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"], ["installer", "Installer"], ["supervisor", "Supervisor"]].map(function (o) {
+      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"], ["installer", "Installer"], ["supervisor", "Supervisor"]].filter(function(o){return isAdmin()||["sales","teamlead","installer"].indexOf(o[0])>=0;}).map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === normRole(sel) ? " selected" : "") + ">" + o[1] + "</option>";
       }).join("");
     };
@@ -1312,7 +1315,7 @@
         (actions ? '<span class="row-actions">' + actions + "</span>" : "") + "</div>";
     }).join("");
     return signupsCard() + '<section class="card settings-card"><h2>Manage the team</h2>' +
-      "<p>Add or remove salespeople and Operations, and switch their roles. Owner and Technical accounts are managed by the Owner in Settings. Removing someone revokes access immediately.</p>" +
+      "<p>Operations can manage Sales, Team leads and Installers. Admin manages Operations, Supervisors and Admin access. Removed accounts lose online access.</p>" +
       (users.length ? '<div class="account-list">' + rows + "</div>" : '<p class="settings-note">No sales or operations members yet — add the first one below.</p>') +
       phoneMemberForm() +
       (isAdmin()?'<details class="email-member-option"><summary>Add by email instead</summary><form id="addMemberForm" class="add-member">' +
@@ -1993,16 +1996,20 @@
     });
   }
   async function uploadProof(dataUrl) {
+    var generation=sessionGeneration;
     if (settings.auth && settings.auth.expires_at && settings.auth.expires_at * 1000 - Date.now() < 60000) await refreshSession();
+    if(generation!==sessionGeneration||!settings.auth)throw new Error("Account changed. Sign in again.");
     var res = await fetch("/api/receipt", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + (settings.auth ? settings.auth.access_token : "") }, body: JSON.stringify({ image: dataUrl }) });
     var j = await res.json().catch(function () { return {}; });
     if (!res.ok || !j.ok) throw new Error(j.error === "Image too large — please retake it." ? j.error : "Couldn't upload the photo. Check your connection.");
+    if(generation!==sessionGeneration)throw new Error("Account changed.");
     return j.id;
   }
   async function fetchProof(id) {
+    var generation=sessionGeneration;
     try {
       var res = await fetch("/api/receipt?id=" + encodeURIComponent(id), { headers: { Authorization: "Bearer " + (settings.auth ? settings.auth.access_token : "") } });
-      var j = await res.json(); return res.ok && j.ok ? j.image : null;
+      var j = await res.json(); return generation===sessionGeneration&&settings.auth&&res.ok&&j.ok?j.image:null;
     } catch (e) { return null; }
   }
   // Generic photo control (receipt or business photo). Hidden input carries the
@@ -2047,11 +2054,12 @@
     var prospectId = isOut ? (data.prospectId || "") : "";
     var note = isOut ? (data.note || "") : "";
     var proofId = isOut ? (data.proofId || "") : "";
-    var preapproved = isOut && !!data.preapproved;
+    var previousTx = editing.id && state.transactions.find(function (t) { return t.id === editing.id; });
+    var preapproved = isOut && (isAdmin() ? !!data.preapproved : !!(previousTx && previousTx.preapproved));
     // Every expense must carry proof — a photo on file, one chosen now (even if
     // it queues offline), or an explicit "pre-approved by the cash-flow team".
     if (isOut && !preapproved && !proofId && !pendingProof) {
-      showFormError("Attach a receipt for this expense — or tick “Already pre-approved by the cash-flow team” to submit without one.");
+      showFormError("Attach a receipt for this expense. Only Admin can allow an expense without a receipt.");
       return;
     }
     var queuePhoto = false;
@@ -2659,7 +2667,7 @@
     var me = settings.user || {};
     var ownId = ownerId();
     var roleOpts = function (sel) {
-      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"], ["installer", "Installer"], ["supervisor", "Supervisor"], ["admin", "Technical"]].map(function (o) {
+      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"], ["installer", "Installer"], ["supervisor", "Supervisor"], ["admin", "Admin"]].map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === sel ? " selected" : "") + ">" + o[1] + "</option>";
       }).join("");
     };
@@ -2689,7 +2697,7 @@
       '<option value="sales">Sales — prospects &amp; visits</option>' +
       '<option value="teamlead">Team lead — approves qualified prospects, records deposits</option>' +
       '<option value="operations">Operations — also Cash flow</option>' +
-      '<option value="admin">Technical — also Settings</option></select></div>' +
+      '<option value="admin">Admin — settings and access</option></select></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Add team member</button>' +
       '</form></details>':'') + '</section>' +
 
@@ -2979,8 +2987,8 @@
         state.prospects.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === source.prospectId ? " selected" : "") + ">" + esc(p.business) + "</option>"; }).join("") + "</select></div>") +
         field("note", "Note", "textarea", source.note, { full: true, optional: true }) +
         '<div class="field full"><label>Proof of payment <span class="req" aria-hidden="true">*</span> <span class="optional-tag">photo or MoMo SMS</span></label>' + proofControl(source.proofId) +
-        '<p class="helper">Every expense needs a receipt. If the cash-flow team already approved this, tick the box below to submit without one.</p>' +
-        '<label class="chk-item preapprove-row"><input type="checkbox" id="f_preapproved" name="preapproved"' + (source.preapproved ? " checked" : "") + '><span>Already pre-approved by the cash-flow team — submit without a receipt</span></label>' +
+        '<p class="helper">Every expense needs a receipt. Only Admin can allow an expense without one.</p>' +
+        '<label class="chk-item preapprove-row"><input type="checkbox" id="f_preapproved" name="preapproved"' + (source.preapproved ? " checked" : "") + (isAdmin() ? "" : " disabled") + '><span>Already pre-approved by the cash-flow team — submit without a receipt</span></label>' +
         "</div></div>" +
         '<input type="hidden" name="installId" value="' + esc(linkInstall) + '">';
       txPreset = null; // preset consumed
@@ -3681,12 +3689,13 @@
     } catch (e) { return ""; }
   }
   async function refreshSession() {
+    var generation=sessionGeneration,email=settings.auth&&settings.auth.email;
     if (!settings.auth || !settings.auth.refresh_token) return false;
     try {
       var res = await sbFetch("/auth/v1/token?grant_type=refresh_token", { method: "POST", body: JSON.stringify({ refresh_token: settings.auth.refresh_token }) });
       var data = await res.json().catch(function () { return {}; });
-      if (!res.ok || !data.access_token) return false;
-      settings.auth = { access_token: data.access_token, refresh_token: data.refresh_token, expires_at: data.expires_at, email: settings.auth.email };
+      if (!res.ok || !data.access_token||generation!==sessionGeneration||!settings.auth) return false;
+      settings.auth = { access_token: data.access_token, refresh_token: data.refresh_token, expires_at: data.expires_at, email: email };
       saveSettings();
       return true;
     } catch (e) { return false; }
@@ -3695,8 +3704,10 @@
   /* -------------------------------- Sharing --------------------------------- */
   // Call the workspace API with the Supabase bearer token; refresh once on 401.
   async function apiData(method, body) {
+    var generation=sessionGeneration;
     if (settings.auth && settings.auth.expires_at && settings.auth.expires_at * 1000 - Date.now() < 60000) await refreshSession();
     var doFetch = function () {
+      if(generation!==sessionGeneration||!settings.auth)throw new Error("Sign in again.");
       return fetch("/api/data", {
         method: method,
         headers: Object.assign({ "Content-Type": "application/json" }, settings.auth ? { Authorization: "Bearer " + settings.auth.access_token } : {}),
@@ -3710,6 +3721,7 @@
 
   // Returns "ok", "signin" (session invalid), "unauth" (not on team), "offline".
   async function loadShared(guardApply) {
+    var generation=sessionGeneration;
     try {
       var res = await apiData("GET");
       if (res.status === 401) return "signin";
@@ -3720,6 +3732,7 @@
       if (res.status >= 500) return "offline";   // a server hiccup isn't "you were removed" — keep working on the device
       var result = await res.json();
       if (!result.ok) return "unauth";
+      if(generation!==sessionGeneration||!settings.auth)return "unchanged";
       if (guardApply && !guardApply()) return "unchanged";
       if (result.pricing) window.VeriskoPricing = window.createVeriskoPricing(result.pricing);
       else window.VeriskoPricing = window.createVeriskoPricing({version:window.VeriskoPriceCatalogue.version,catalogue:result.catalogue || window.VeriskoPriceCatalogue.catalogue});
@@ -3728,6 +3741,7 @@
         migrateToJobs(state);              // fold any legacy quotes/installations the server still holds
         if (!state.jobs) state.jobs = [];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        localUnsynced=false;localStorage.removeItem(STORAGE_KEY+"_pending");
       }
       return "ok";
     } catch (e) { return "offline"; }
@@ -3755,6 +3769,7 @@
     if (!settings.auth) return;
     setSync("syncing", "Refreshing…");
     var result = await loadShared();
+    if(result==="unchanged")return;
     if (result === "ok") { resolveUser(); setSync("connected", "Synced"); toast("Data refreshed"); syncClosedSales(true); render(); }
     else if (result === "signin") { signOutLocal(); showLogin("Your session expired. Please sign in again."); }
     else if (result === "idoverdue") showIdRequired();
@@ -3764,16 +3779,21 @@
 
   var sharedPushQueue = Promise.resolve();
   function pushShared() {
-    sharedPushQueue = sharedPushQueue.then(pushSharedNow, pushSharedNow);
+    var generation=sessionGeneration;var send=function(){return generation===sessionGeneration&&settings.auth?pushSharedNow(generation):false;};
+    sharedPushQueue = sharedPushQueue.then(send, send);
     return sharedPushQueue;
   }
-  async function pushSharedNow() {
+  async function pushSharedNow(generation) {
     try {
+      if(generation!==sessionGeneration||!settings.auth)return false;
+      var sentState=JSON.stringify(state);
       setSync("syncing", "Saving…");
       var jobsBefore = JSON.stringify(state.jobs);
       var res = await apiData("POST", { data: state });
       var result = await res.json().catch(function () { return {}; });
+      if(generation!==sessionGeneration||!settings.auth)return false;
       if (!res.ok || !result.ok) throw new Error(result.error || 'Sync failed.');
+      if(JSON.stringify(state)===sentState){localUnsynced=false;localStorage.removeItem(STORAGE_KEY+'_pending');}
       if(result.jobs && JSON.stringify(state.jobs) === jobsBefore) { state.jobs=result.jobs; localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); }
       setSync("connected", pendingUploadCount() ? pendingUploadCount() + " photo" + (pendingUploadCount() > 1 ? "s" : "") + " waiting to upload" : "Synced");
       return true;
@@ -3939,7 +3959,7 @@
     renderLogin("denied");
     lockScreen.hidden = false;
   }
-  function signOutLocal() { if(installerModule)installerModule.suspendInstaller(); stopFieldTracking(); window.VeriskoPricing=window.createVeriskoPricing(window.VeriskoPriceCatalogue); settings.auth = null; settings.user = null; saveSettings(); }
+  function signOutLocal() { sessionGeneration++; if(installerModule)installerModule.suspendInstaller(); stopFieldTracking(); window.VeriskoPricing=window.createVeriskoPricing(window.VeriskoPriceCatalogue); settings.auth = null; settings.user = null; saveSettings(); }
 
   /* -------- Email magic-link login -------- */
   function renderLogin(step, message) {
@@ -4131,7 +4151,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v105";
+  var APP_VERSION = "v106";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4201,10 +4221,12 @@
     try { await finishPinSignIn(phone, r); } catch (err) { showOpenProblem("pin-sign-in", err); }
   }
   async function finishPinSignIn(phone, r) {
+    var loginGeneration=++sessionGeneration;
     settings.auth = { access_token: r.token, expires_at: r.expiresAt, email: r.user.email, kind: "pin" };
     settings.lastPhone = phone; settings.lastFirst = String(r.user.name || "");   // full name (surname-first on IDs)
     saveSettings();
     var s = await loadShared();
+    if(loginGeneration!==sessionGeneration)return;
     if (s === "idoverdue") { showIdRequired(); return; }
     if (s !== "ok") { signOutLocal(); renderLogin("pin", "Signed in, but the workspace is unreachable. Check your connection."); return; }
     var me = (state.users || []).find(function (u) { return u.id === r.user.id; });
@@ -4216,10 +4238,12 @@
 
 
   async function afterVerify(email, session) {
+    var loginGeneration=++sessionGeneration;
     try {
       settings.auth = { access_token: session.access_token, refresh_token: session.refresh_token, expires_at: session.expires_at, email: email };
       saveSettings();
       var s = await loadShared();
+      if(loginGeneration!==sessionGeneration)return;
       if (s === "unauth") { signOutLocal(); showDenied(email, false); return; }
       if (s === "signin") { signOutLocal(); renderLogin("email", "That sign-in link has expired or was already used. Enter your email to get a new one."); reportProblem("email-link-401", "session rejected by the server"); return; }
       if (s === "idoverdue") { showIdRequired(); return; }
@@ -4318,11 +4342,16 @@
   });
 
   async function logout() {
-    if(installerModule&&installerModule.installerPending()&&!(await confirmSheet('Unsynchronized installation work','Signing out removes installation photos and drafts saved on this phone. Sync them first, or confirm you want to discard them.','Discard and sign out',true)))return;
+    var pendingLocal=localUnsynced||pendingUploadCount()||(installerModule&&installerModule.installerPending());
+    if(pendingLocal&&!(await confirmSheet('Work waiting to send','Sign-out clears this phone copy. Send your work first, or discard unsent work and sign out.','Discard and sign out',true)))return;
     if(installerModule)await installerModule.clearInstaller();
     if (fieldTracker && fieldTracker.snapshot().shift && fieldTracker.snapshot().shift.status === 'active') await fieldTracker.stop('pause');
     try { if (settings.auth) await sbFetch("/auth/v1/logout", { method: "POST", headers: { Authorization: "Bearer " + settings.auth.access_token } }); } catch (e) {}
     signOutLocal();
+    state=JSON.parse(JSON.stringify(seed));localUnsynced=false;pendingSet.clear();pendingProof=null;pendingGeo=null;photoPicks={};
+    localStorage.removeItem(STORAGE_KEY);localStorage.removeItem(STORAGE_KEY+'_pending');localStorage.removeItem(UPLOAD_KEY);
+    try{await idbRun('readwrite',function(s){s.clear();});}catch{}
+    content.innerHTML='';formContent.innerHTML='';
     closeUserMenu();
     view = "today";
     loginEmail = "";
@@ -4404,7 +4433,7 @@
     if(u.role==="installer")return "Installer";
     if(u.role==="supervisor")return "Supervisor";
     if (u.id === ownerId()) return "Owner";
-    if (u.role === "admin") return "Technical";
+    if (u.role === "admin") return "Admin";
     if (u.role === "operations") return "Operations";
     if (u.role === "teamlead") return "Team lead";
     if (u.role === "installer") return "Installer";
@@ -4422,7 +4451,7 @@
     if (!u || !canReviewProspects()) return false;
     if (u.id === ownerId()) return false;
     if (settings.user && u.id === settings.user.id) return false;
-    if (!isAdmin() && u.role === "admin") return false;
+    if (!isAdmin() && ["sales","teamlead","installer"].indexOf(u.role)<0) return false;
     return true;
   }
 
@@ -4457,7 +4486,7 @@
     if (!canReviewProspects()) return false;
     name = (name || "").trim(); email = (email || "").trim().toLowerCase();
     role = normRole(role);
-    if (!isAdmin() && role === "admin") role = "sales"; // Operations can't create admins
+    if (!isAdmin() && ["sales","teamlead","installer"].indexOf(role)<0) { toast("Only Admin can grant that role."); return false; } // Operations can't create admins
     if (!name || !email) { toast("Enter a name and email."); return false; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast("Enter a valid email."); return false; }
     if ((state.users || []).some(function (u) { return String((u && u.email) || "").toLowerCase() === email; })) { toast("That email is already on the team."); return false; }
@@ -4476,7 +4505,7 @@
     if (!u) return;
     if (!actorCanManage(u)) { toast("You can't change that member's role."); return; }
     role = normRole(role);
-    if (!isAdmin() && role === "admin") { toast("Only the Owner can grant Technical access."); return; }
+    if (!isAdmin() && ["sales","teamlead","installer"].indexOf(role)<0) { toast("Only Admin can grant that role."); return; }
     u.role = role;
     saveData();
     render();
@@ -4589,7 +4618,7 @@
   /* ---- Owner / Operations: check new IDs (selfie vs ID card) ---- */
   function idsToCheck() {
     if (!canReviewProspects()) return [];
-    return (state.users || []).filter(function (u) { return u.authMethod === "pin" && u.idStatus === "submitted"; });
+    return (state.users || []).filter(function (u) { return u.authMethod === "pin" && u.idStatus === "submitted" && actorCanManage(u); });
   }
   function idCheckNotice() {
     var list = idsToCheck();
@@ -5052,7 +5081,7 @@
     var commForm = e.target.closest("#commissionForm");
     if (commForm) {
       e.preventDefault();
-      if (!canReviewProspects()) return;
+      if (!isAdmin()) return;
       if (!state.config || typeof state.config !== "object") state.config = {};
       state.config.commissionPerSale = Math.max(0, Math.round(Number(commForm.querySelector("[name=commRate]").value) || 0));
       var cq = commForm.querySelector("[name=commQual]"); if (cq) state.config.commissionPerQualified = Math.max(0, Math.round(Number(cq.value) || 0));
