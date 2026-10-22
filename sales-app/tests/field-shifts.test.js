@@ -15,3 +15,21 @@ test('throttle and cross-origin requests are rejected',async()=>{const f=fieldFi
 test('cleanup physically removes location records older than thirty days',async()=>{const f=fieldFixture();await start(f);f.advance(31*86400000);await cleanupFieldShifts(f.store,f.now());assert.equal(f.store.rows.size,0);});
 test('route lines break for pauses, missing intervals, low accuracy and impossible speed',()=>{const p=(lat,at,segmentId='a',accuracy=10)=>({lat,lng:32.58,at,receivedAt:at,segmentId,accuracy});const s={points:[p(.34,'2026-10-21T06:00:00Z'),p(.341,'2026-10-21T06:01:00Z'),p(.342,'2026-10-21T06:02:00Z','b'),p(.343,'2026-10-21T06:20:00Z','b'),p(.344,'2026-10-21T06:21:00Z','b',500),p(10,'2026-10-21T06:22:00Z','b')]};assert.equal((routeSvg(s).match(/<path /g)||[]).length,1);assert.match(movement({points:[p(.34,'2026-10-21T06:00:00Z')]}),/Not enough/);});
 test('a storage write reported successful but not saved cannot produce a successful check-in',async()=>{const f=fieldFixture();f.store.setJSON=async()=>({modified:true,etag:'not-saved'});assert.equal((await f.call('start',{consent:true,position:f.position()})).status,409);});
+test('check-in and check-out save separate event locations and pauses do not count as shift time',async()=>{
+ const f=fieldFixture(),s=await start(f);assert.equal(s.events[0].position.lat,.3476);f.advance(10*60000);await f.call('pause',{shiftId:s.id});f.advance(20*60000);await f.call('resume',{shiftId:s.id,consent:true,position:f.position(.36)});f.advance(10*60000);
+ const r=await(await f.call('end',{shiftId:s.id,position:f.position(.37)})).json();assert.equal(r.shift.events.at(-1).position.lat,.37);assert.equal(summary(r.shift,f.now()).activeMs,20*60000);assert.equal(r.shift.status,'ended');assert.equal(r.shift.points.length,2);
+ const archived=await(await f.call(null,{},'ops','?userId=rep-a&shiftId='+s.id)).json();assert.equal(archived.shift.events.at(-1).position.lat,.37);
+});
+test('checking out from a pause captures one finish fix without extending work or adding route points',async()=>{
+ const f=fieldFixture(),s=await start(f);f.advance(5*60000);await f.call('pause',{shiftId:s.id});f.advance(25*60000);const r=await(await f.call('end',{shiftId:s.id,position:f.position(.4)})).json();assert.equal(r.shift.points.length,1);assert.equal(r.shift.events.at(-1).position.lat,.4);assert.equal(summary(r.shift,f.now()).activeMs,5*60000);assert.equal(r.shift.endedAt,new Date(f.now()).toISOString());
+});
+test('missing, inaccurate or invalid finish GPS never prevents checkout or invents a location',async()=>{
+ for(const position of [null,{lat:99,lng:0,accuracy:10,at:new Date().toISOString()},{lat:.3,lng:32,accuracy:999,at:'2000-01-01'}]){const f=fieldFixture(),s=await start(f);f.advance(60000);const r=await f.call('end',{shiftId:s.id,position});assert.equal(r.status,200);const b=await r.json();assert.equal(b.shift.status,'ended');assert.equal(b.shift.events.at(-1).position,undefined);assert.ok(b.shift.events.at(-1).locationUnavailable);}
+});
+test('encrypted offline finish fix keeps capture time and a replaced browser pause excludes the break',async()=>{
+ const f=fieldFixture(),s=await start(f);f.advance(10*60000);const pausedAt=new Date(f.now()).toISOString();f.advance(20*60000);const requestedAt=new Date(f.now()).toISOString(),position=f.position(.4);f.advance(3600000);
+ const r=await(await f.call('end',{shiftId:s.id,pausedAt,requestedAt,position})).json();assert.equal(r.shift.endedAt,requestedAt);assert.equal(r.shift.events.at(-1).position.at,position.at);assert.equal(summary(r.shift,f.now()).activeMs,10*60000);assert.equal(r.shift.events.find(e=>e.type==='pause').at,pausedAt);
+});
+test('late checkout after automatic expiry never turns an earlier pause into extra work time',async()=>{
+ const f=fieldFixture(),s=await start(f);f.advance(5*60000);await f.call('pause',{shiftId:s.id});f.advance(25*60000);const requestedAt=new Date(f.now()).toISOString();f.advance(13*3600000);await f.call(null);const r=await(await f.call('end',{shiftId:s.id,requestedAt})).json();assert.equal(summary(r.shift,f.now()).activeMs,5*60000);assert.equal(r.shift.endedAt,requestedAt);
+});

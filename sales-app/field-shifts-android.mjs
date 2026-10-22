@@ -38,7 +38,7 @@ export function createAndroidShiftTracker({api,bridge,credentials,personId,onCha
    try{const auth=credentials();if(auth.kind!=='pin')throw new Error('Use phone number and PIN sign-in for Android field tracking.');await rpc('begin',{userId:personId,token:auth.access_token,expiresAt:auth.expires_at*1000,shiftAction:action,shiftId:state.shift?.id||'',area,consent:true});await refresh();}
    catch(e){state.error=e.message;}finally{state.busy=false;emit();}
   },
-  async stop(action){state.sharing=false;state.error='Stopping Android tracking…';emit();try{applyNative(await rpc(action,{userId:personId}));await refresh();}catch(e){state.error='Could not confirm tracking stopped. Use Pause or Check out in the Android notification. '+e.message;}emit();},
+  async stop(action){if(state.busy)return;state.busy=true;state.sharing=false;state.error='Stopping Android tracking…';emit();try{applyNative(await rpc(action,{userId:personId}));await refresh();}catch(e){state.error='Could not confirm tracking stopped. Use Pause or Check out in the Android notification. '+e.message;}finally{state.busy=false;}emit();},
   // A locked screen / WhatsApp does not stop native GPS.
   async visibility(hidden){if(!hidden)await refresh();},
   destroy(){disposed=true;if(poll)timers.clearInterval(poll);},

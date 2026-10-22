@@ -1,3 +1,4 @@
+import {shiftPrompt,checkoutMessage} from './field-shift-prompts.mjs?v=112';
 export const isFieldManager=u=>['admin','operations'].includes(u?.role);
 const time=iso=>iso?new Date(iso).toLocaleTimeString('en-GB',{timeZone:'Africa/Kampala',hour:'2-digit',minute:'2-digit'}):'—';
 const date=iso=>iso?new Date(iso).toLocaleDateString('en-GB',{timeZone:'Africa/Kampala',day:'numeric',month:'short'}):'—';
@@ -33,9 +34,10 @@ function details(s,esc){
  if(!s)return '';
  if(s.offlineSummary)return '<p class="helper">Android has saved your shift on this phone. The location trail and timeline will load when you reconnect.</p>';
  const last=s.points?.at(-1),active=(s.segments||[]).reduce((n,x)=>n+Math.max(0,Date.parse(x.endedAt||new Date().toISOString())-Date.parse(x.startedAt)),0);
- return '<div class="shift-facts"><span><strong>Checked in</strong>'+date(s.startedAt)+' · '+time(s.startedAt)+'</span><span><strong>Shift time, excluding pauses</strong>'+duration(active)+'</span><span><strong>Location updates</strong>'+(s.points||[]).length+'</span></div>'+
+ return '<div class="shift-facts"><span><strong>Checked in</strong>'+date(s.startedAt)+' · '+time(s.startedAt)+'</span>'+(s.endedAt?'<span><strong>Checked out</strong>'+date(s.endedAt)+' · '+time(s.endedAt)+'</span>':'')+'<span><strong>Shift time, excluding pauses</strong>'+duration(active)+'</span><span><strong>Location updates</strong>'+(s.points||[]).length+'</span></div>'+
   (s.area?'<p><strong>Planned area:</strong> '+esc(s.area)+'</p>':'')+
   '<p class="helper">Shift time is elapsed time, not verified working hours.</p>'+routeSvg(s)+'<p>'+esc(movement(s))+'</p>'+
+  '<div class="shift-facts"><span><strong>Check-in location</strong>'+link(s.events.find(e=>e.type==='check-in')?.position||s.points?.[0])+'</span><span><strong>Check-out location</strong>'+(s.status==='ended'?(s.events.find(e=>e.type==='check-out')?.position?link(s.events.find(e=>e.type==='check-out').position):esc(s.events.find(e=>e.type==='check-out')?.locationUnavailable||'Not recorded for this shift.')):'Saved when you check out.')+'</span></div>'+
   (last?'<p class="helper">Last shared '+date(last.at)+' at '+time(last.at)+' · GPS accuracy ±'+last.accuracy+'m. '+link(last)+'</p>':'')+
   '<details><summary>Check-in, pause and check-out timeline</summary><ul class="shift-timeline">'+s.events.map(e=>'<li><strong>'+esc(({ 'check-in':'Check-in',pause:'Paused',resume:'Resumed',reconnect:'Sharing continued','check-out':'Check-out','auto-end':'Automatically checked out' })[e.type]||e.type)+'</strong> '+date(e.at)+' · '+time(e.at)+(e.receivedAt&&e.receivedAt!==e.at?' · synced '+time(e.receivedAt):'')+'</li>').join('')+'</ul></details>';
 }
@@ -49,28 +51,31 @@ export function renderShiftBanner(host,tracker,onOpen,options={}){
  host.innerHTML='<span>'+label+'</span><button type="button" class="btn btn-ghost btn-sm">Open shift</button>';
  host.querySelector('button').onclick=onOpen;
 }
-export function renderShiftPage(host,{tracker,api,person,esc}){
+export function renderShiftPage(host,{tracker,api,person,esc,onSupport=()=>{}}){
  const previousDetail=host.querySelector('#shiftDetail'),previousHistory=host.querySelector('#shiftHistory');
  const previousArea=host.querySelector('#shiftArea')?.value||'',previousConsent=host.querySelector('#shiftConsent')?.checked||false;
  const x=tracker.snapshot(),s=x.shift,reviewer=isFieldManager(person),canShare=['sales','teamlead'].includes(person.role);
  host.innerHTML='<div class="stack field-shifts"><section class="card"><div class="shift-heading"><div><h2>'+(reviewer?'Field team':'My field shift')+'</h2><p class="helper">Check in when field work starts. Pause for breaks. Check out when you finish.</p></div><button class="btn btn-ghost btn-sm" data-shift-refresh>Refresh</button></div>'+
  '<p class="shift-notice">'+(x.native?'Android tracking continues with the screen locked or while using other apps. Keep precise location and notifications enabled. Pause or check out here, or from the Android notification.':'Keep this browser app open and visible, with location permission and a connection. For tracking with a locked screen, use the Verisko Field Android app. Operations sees when updates go missing.')+'</p>'+
  (x.native&&x.queued?'<p class="helper">'+x.queued+' saved updates waiting to sync securely from this phone.</p>':'')+
- '<p class="helper">Sharing stops on pause or check-out. Only you, Operations and Owner/Technical can see your history, kept for 30 days. Open shifts close after 12 hours.</p>'+
+ '<p class="helper">We save your location at check-in and check-out. Live tracking stops on pause or check-out. Only you, Operations and Admin can see your history, kept for 30 days. Open shifts close after 12 hours.</p>'+
  (x.error?'<p class="shift-warning" role="status">'+esc(x.error)+'</p>':'')+
  (canShare?'<div class="shift-status" data-tone="'+(x.pending?'warning':s?.status==='active'&&x.sharing?'active':'quiet')+'">'+esc(x.pending?'Location sharing off on this phone · stop waiting to sync':!s?'Not checked in':s.status==='ended'?'Checked out':s.status==='paused'?'Paused · location sharing off':x.sharing?'Location sharing '+(x.hidden?'interrupted':'on'):'Open shift · tap Continue sharing')+'</div>':'')+
- (canShare&&!x.pending&&(!s||s.status==='ended'||s.status==='paused'||!x.sharing)?'<div class="shift-consent">'+(!s||s.status==='ended'?'<label for="shiftArea">Today’s field area (optional)</label><input id="shiftArea" maxlength="120" placeholder="For example, Ntinda and Kira">':'')+'<label class="shift-checkbox"><input id="shiftConsent" type="checkbox"> I agree to share my device location during this active field shift with Operations and Owner/Technical accounts.</label></div>':'')+
+ (canShare&&!x.pending&&(!s||s.status==='ended'||s.status==='paused'||!x.sharing)?'<div class="shift-consent">'+(!s||s.status==='ended'?'<label for="shiftArea">Today’s field area (optional)</label><input id="shiftArea" maxlength="120" placeholder="For example, Ntinda and Kira">':'')+'<label class="shift-checkbox"><input id="shiftConsent" type="checkbox"> I agree to share my device location during this active field shift with Operations and Admin accounts.</label></div>':'')+
  '<div class="shift-actions">'+(canShare?x.pending?'<button class="btn btn-primary" data-shift-refresh>Retry sync</button>'+(x.pending.action==='pause'?'<button class="btn btn-ghost" data-shift-action="end">Check out instead</button>':''):!s||s.status==='ended'?'<button class="btn btn-primary" data-shift-begin="start" '+(!x.ready||x.busy?'disabled':'')+'>Check in</button>':s.status==='paused'?'<button class="btn btn-primary" data-shift-begin="resume" '+(x.busy?'disabled':'')+'>Resume shift</button><button class="btn btn-ghost" data-shift-action="end">Check out</button>':(x.sharing?'<button class="btn btn-primary" data-shift-action="pause">Pause shift</button>':'<button class="btn btn-primary" data-shift-begin="reconnect" '+(x.busy?'disabled':'')+'>Continue sharing</button>')+'<button class="btn btn-ghost" data-shift-action="end">Check out</button>':'')+'</div></section>'+
+ (canShare&&(s?.status==='ended'||x.pending?.action==='end')?'<section class="card" role="status"><h2>Thank you for your shift!</h2><p>'+esc(checkoutMessage(x).text)+'</p></section>':'')+
  (canShare&&s?'<section class="card"><h2>Your latest shift</h2>'+details(s,esc)+'</section>':'')+
  (reviewer?'<section class="card"><h2>Latest team status</h2><p class="helper">Refreshes about every 30 seconds. “Location updated” means a device reported recently; it does not prove someone is working. Use this alongside prospect and visit records.</p><div class="list">'+(x.team||[]).map(t=>'<article class="item"><div class="shift-heading"><div><strong>'+esc(t.name)+'</strong><p class="helper">'+esc(t.signal)+(t.startedAt?' · '+date(t.startedAt)+' check-in '+time(t.startedAt):'')+'</p></div>'+(t.id?'<button class="btn btn-ghost btn-sm" data-shift-person="'+esc(t.userId)+'">View shift</button>':'')+'</div>'+(t.lastPosition?'<p class="helper">Last location: '+date(t.lastPosition.at)+' · '+time(t.lastPosition.at)+' ('+age(t.lastPosition.at)+') · ±'+t.lastPosition.accuracy+'m. '+link(t.lastPosition)+'</p>':'')+'</article>').join('')+'</div></section>':'')+
  '<section class="card"><h2>Shift history</h2><p class="helper">Completed shifts from the last 30 days. All times are Uganda time.</p>'+(canShare?'<button class="btn btn-ghost btn-sm" data-shift-history="'+esc(person.id)+'">Load my history</button>':'<p class="helper">Open a team member’s shift to load their history.</p>')+'<div id="shiftHistory"></div></section><section id="shiftDetail" class="card" hidden></section></div>';
  host.querySelectorAll('[data-shift-refresh]').forEach(b=>b.onclick=()=>tracker.refresh());
  if(host.querySelector('#shiftArea'))host.querySelector('#shiftArea').value=previousArea;
  if(host.querySelector('#shiftConsent'))host.querySelector('#shiftConsent').checked=previousConsent;
- host.querySelectorAll('[data-shift-action]').forEach(b=>b.onclick=()=>tracker.stop(b.dataset.shiftAction));
- host.querySelectorAll('[data-shift-begin]').forEach(b=>b.onclick=()=>{
+ host.querySelectorAll('[data-shift-action]').forEach(b=>{b.disabled=!!x.busy;b.onclick=async()=>{const action=b.dataset.shiftAction;await tracker.stop(action);const next=tracker.snapshot();if(action==='end'&&(next.shift?.status==='ended'||next.pending?.action==='end'))await shiftPrompt('end',next);};});
+ host.querySelectorAll('[data-shift-begin]').forEach(b=>b.onclick=async()=>{
   if(!host.querySelector('#shiftConsent')?.checked){const msg=host.querySelector('.shift-consent');msg?.querySelector('input[type=checkbox]')?.focus();if(msg&&!msg.querySelector('[role=alert]'))msg.insertAdjacentHTML('beforeend','<p role="alert" class="shift-warning">Please confirm location sharing first.</p>');return;}
-  tracker.begin(b.dataset.shiftBegin,host.querySelector('#shiftArea')?.value||'');
+  const action=b.dataset.shiftBegin,area=host.querySelector('#shiftArea')?.value||'';
+  if(action==='start'){const choice=await shiftPrompt('start');if(choice==='support'){onSupport();return;}if(choice!=='start')return;}
+  await tracker.begin(action,area);
  });
  if(previousDetail&&!previousDetail.hidden)host.querySelector('#shiftDetail').replaceWith(previousDetail);
  if(previousHistory&&previousHistory.textContent)host.querySelector('#shiftHistory').replaceWith(previousHistory);

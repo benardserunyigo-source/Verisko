@@ -1,13 +1,13 @@
 // Location is requested only after an explicit staff action. No GPS positions
-// are persisted on the device. Only a pending pause/check-out can be queued.
+// are persisted on the device. Only a pending pause/check-out can be queued. A finish GPS fix stays in memory only.
 export function createShiftTracker({api,geolocation,storage,personId,onChange=()=>{},now=Date.now,timers=globalThis}){
  const key='verisko_shift_stop_'+personId;
- let state={shift:null,team:[],ready:false,busy:false,sharing:false,error:'',pending:null},watch=null,gpsTimer=null,pollTimer=null,epoch=0,lastSent=0,sending=false,hidden=false,destroyed=false,lease='';
+ let state={shift:null,team:[],ready:false,busy:false,sharing:false,error:'',pending:null},watch=null,gpsTimer=null,pollTimer=null,epoch=0,lastSent=0,sending=false,hidden=false,destroyed=false,lease='',capturingFinish=false;
  const id=()=>globalThis.crypto.randomUUID();
  try{state.pending=JSON.parse(storage.getItem(key)||'null');}catch{}
  const emit=()=>{if(!destroyed)onChange(snapshot());};
  const snapshot=()=>({...state,hidden});
- function persist(){try{state.pending?storage.setItem(key,JSON.stringify(state.pending)):storage.removeItem(key);}catch{}}
+ function persist(){try{state.pending?storage.setItem(key,JSON.stringify({...state.pending,position:undefined,...(state.pending.action==='end'?{locationUnavailable:'Finish GPS was not saved on this browser. Check-out was queued.'}:{})})):storage.removeItem(key);}catch{}}
  function stopGPS(){epoch++;if(watch!==null)geolocation?.clearWatch(watch);watch=null;if(gpsTimer)timers.clearInterval(gpsTimer);gpsTimer=null;}
  const position=p=>({lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy,at:new Date(p.timestamp).toISOString()});
  const errorText=e=>e?.code===1?'Location permission is blocked. Allow location for this app, then continue sharing.':e?.message||'Could not get a fresh location. Move outdoors and try again.';
@@ -39,7 +39,7 @@ export function createShiftTracker({api,geolocation,storage,personId,onChange=()
   gpsTimer=timers.setInterval(()=>{if(state.sharing&&!hidden)locate().then(sendPoint).catch(gpsError);},60000);
  }
  async function flushStop(){
-  const pending=state.pending;if(!pending)return;
+  const pending=state.pending;if(!pending||capturingFinish)return;
   try{const r=await post(pending);if(destroyed)return;state.shift=r.shift;state.pending=null;state.error='';persist();}
   catch(e){
    // A previous retry may already have ended this shift. Never turn sharing
@@ -49,7 +49,7 @@ export function createShiftTracker({api,geolocation,storage,personId,onChange=()
   }emit();
  }
  async function refresh(){
-  if(destroyed)return;
+  if(destroyed||capturingFinish)return;
   if(state.pending)await flushStop();
   try{
    const r=await api('GET');if(destroyed)return;
@@ -71,11 +71,20 @@ export function createShiftTracker({api,geolocation,storage,personId,onChange=()
  }
  async function stop(action){
   const shiftId=state.shift?.id||state.pending?.shiftId;
-  if(!shiftId||state.shift?.status==='ended'||destroyed)return;
-  state.sharing=false;state.busy=false;stopGPS();
-  // End can replace an unsent pause. Both stop GPS immediately, even offline.
-  state.pending={action,shiftId,requestedAt:state.pending?.requestedAt||new Date(now()).toISOString(),requestId:id()};persist();emit();await flushStop();
+  if(!shiftId||state.shift?.status==='ended'||destroyed||state.busy)return;
+  const prior=state.pending,requestedAt=new Date(now()).toISOString();
+  state.sharing=false;state.busy=true;capturingFinish=action==='end';stopGPS();
+  state.pending={action,shiftId,requestedAt,requestId:id(),...(action==='end'&&prior?.action==='pause'?{pausedAt:prior.requestedAt}:prior?.pausedAt?{pausedAt:prior.pausedAt}:{})};persist();emit();
+  try{
+   if(action==='end'){
+    state.error='Saving your finish location…';emit();
+    try{state.pending.position=await locate();}catch{state.pending.locationUnavailable='GPS was not available at check-out.';}
+    capturingFinish=false;if(destroyed)return;
+   }
+   await flushStop();
+  }finally{capturingFinish=false;state.busy=false;emit();}
  }
+
  return {
   snapshot,
   async init(){await refresh();if(!destroyed)pollTimer=timers.setInterval(refresh,30000);},

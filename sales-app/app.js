@@ -454,10 +454,10 @@
   function canInstallWork(){return settings.user&&['admin','operations','teamlead','installer'].includes(settings.user.role);}
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=111');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=112');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=111');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=112');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
   }
@@ -520,7 +520,7 @@
     if(installationRole()){document.getElementById("fieldShiftBanner").innerHTML="";return;}
     if (!fieldTracker || !fieldUI || !settings.user || document.body.classList.contains('locked')) return;
     fieldUI.renderShiftBanner(document.getElementById('fieldShiftBanner'), fieldTracker, function () { view = 'field'; render(); document.getElementById('main').focus(); }, {person:settings.user,today:view==='today'});
-    if (view === 'field') fieldUI.renderShiftPage(content, {tracker:fieldTracker,api:fieldApi,person:settings.user,esc:esc});
+    if (view === 'field') fieldUI.renderShiftPage(content, {tracker:fieldTracker,api:fieldApi,person:settings.user,esc:esc,onSupport:function(){view='support';render();}});
   }
   async function ensureFieldShifts() {
     if(rolePreview)return;
@@ -530,7 +530,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=111'), import('./field-shifts-ui.mjs?v=111'), import('./field-shifts-android.mjs?v=111')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=112'), import('./field-shifts-ui.mjs?v=112'), import('./field-shifts-android.mjs?v=112')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -4158,7 +4158,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v111";
+  var APP_VERSION = "v112";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4344,7 +4344,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=111");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=112");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }

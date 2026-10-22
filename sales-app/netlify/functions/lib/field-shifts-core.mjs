@@ -54,7 +54,7 @@ export function transition(previous,body,person,now,uuid=randomUUID){
   const geo=cleanPosition(body.position,now);
   if(geo.accuracy>150)throw fail('Location accuracy is over 150 metres. Move outdoors and try again.');
   const segmentId=uuid();
-  s={id:uuid(),userId:person.id,name:person.name||'Sales',area:typeof body.area==='string'?body.area.trim().slice(0,120):'',startedAt:at,status:'active',endedAt:'',consentAt:at,policy:'field-shifts-v1',segments:[{id:segmentId,startedAt:at,endedAt:''}],points:[{...geo,segmentId}],events:[{type:'check-in',at}],issue:'',requests:[]};
+  s={id:uuid(),userId:person.id,name:person.name||'Sales',area:typeof body.area==='string'?body.area.trim().slice(0,120):'',startedAt:at,status:'active',endedAt:'',consentAt:at,policy:'field-shifts-v1',segments:[{id:segmentId,startedAt:at,endedAt:''}],points:[{...geo,segmentId}],events:[{type:'check-in',at,position:geo}],issue:'',requests:[]};
  }else{
   if(!s||body.shiftId!==s.id)throw fail('This shift is no longer current. Refresh and try again.',409);
   const lateStop=s.status==='ended'&&!!s.endReason&&(action==='pause'||action==='end')&&Date.parse(body.requestedAt)>=Date.parse(s.segments.at(-1).startedAt)&&Date.parse(body.requestedAt)<=Date.parse(s.endedAt);
@@ -74,10 +74,18 @@ export function transition(previous,body,person,now,uuid=randomUUID){
    const stop=Number.isFinite(requested)?Math.max(Date.parse(last.at),Date.parse(s.segments.at(-1).startedAt),Math.min(now,requested)):now;
    const stoppedAt=new Date(stop).toISOString();
    if(action==='pause'&&s.status==='paused')return {...s,requests:[...(s.requests||[]),body.requestId].slice(-80)};
-   s.segments=s.segments.map((x,i)=>!x.endedAt||(lateStop&&i===s.segments.length-1)?{...x,endedAt:stoppedAt}:x);
+   const pauseTime=Date.parse(body.pausedAt),offlinePause=action==='end'&&s.status==='active'&&Number.isFinite(pauseTime)&&pauseTime>=Date.parse(last.at)&&pauseTime>=Date.parse(s.segments.at(-1).startedAt)&&pauseTime<=stop;
+   const intervalEnd=offlinePause?new Date(pauseTime).toISOString():stoppedAt;
+   s.segments=s.segments.map((x,i)=>!x.endedAt||(lateStop&&i===s.segments.length-1&&x.endedAt===s.endedAt)?{...x,endedAt:intervalEnd}:x);
+   if(offlinePause)s.events.push({type:'pause',at:intervalEnd,receivedAt:at});
    s.status=action==='end'||lateStop?'ended':'paused';s.issue='';
    if(action==='end'){s.endedAt=stoppedAt;s.endReason='';s.events=s.events.filter(e=>e.type!=='auto-end');}
-   s.events.push({type:action==='end'?'check-out':'pause',at:stoppedAt,receivedAt:at});
+   const event={type:action==='end'?'check-out':'pause',at:stoppedAt,receivedAt:at};
+   if(action==='end'){
+    try{const geo=cleanPosition(body.position,now,MAX_SHIFT_MS+86400000);if(geo.accuracy>150||Math.abs(Date.parse(geo.at)-stop)>120000)throw new Error('Finish GPS unavailable');event.position=geo;}
+    catch{event.locationUnavailable=typeof body.locationUnavailable==='string'?body.locationUnavailable.slice(0,180):'A fresh finish location was not available.';}
+   }
+   s.events.push(event);
   }else if(action==='resume'||action==='reconnect'){
    if(action==='resume'&&s.status!=='paused')throw fail('The shift is not paused. Refresh first.',409);
    if(action==='reconnect'&&s.status!=='active')throw fail('Resume your paused shift first.',409);
