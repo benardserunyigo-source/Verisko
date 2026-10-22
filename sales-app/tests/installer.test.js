@@ -3,10 +3,10 @@ import {createJob,applyCommand,readiness,canRead,TESTS} from '../installer-model
 import {createInstallerHandler,imageData} from '../netlify/functions/lib/installer-core.mjs';
 const now='2026-10-22T12:00:00Z',ops={id:'ops',role:'operations',name:'Operations'},rep={id:'installer-one',role:'installer',name:'Installer One'},other={id:'installer-two',role:'installer'},staff=[ops,rep,other];
 let seq=0;const command=(action,data={},extra={})=>({action,data,requestId:'request-'+(++seq),...extra});
-const make=()=>createJob({id:'installation-one',business:'TEST Shop',contact:'TEST Client',phone:'0000000000',address:'TEST Site',scope:'Two cameras',equipment:'2 cameras, NVR, cable',assignees:[rep.id],scheduledDate:'2026-10-23',locations:['Front gate','Reception'],remoteIncluded:true},ops,now,staff);
+const make=()=>createJob({id:'installation-one',business:'TEST Shop',siteStaff:{name:'TEST Verisko staff',phone:'0000000000'},address:'TEST Site',scope:'Two cameras',equipment:'2 cameras, NVR, cable',assignees:[rep.id],scheduledDate:'2026-10-23',locations:['Front gate','Reception'],remoteIncluded:true},ops,now,staff);
 const apply=(j,action,data={},extra={},u=rep)=>applyCommand(j,command(action,data,extra),u,now);
 function photo(j,kind,cameraId='',id=kind+'-'+(++seq)){return apply(j,'evidence',{id,kind,cameraId,hash:'test-hash'},{cameraId},kind==='reference'?ops:rep);}
-function ready(){let j=make();j=apply(j,'pilot',{cableMethods:'TEST approved methods',weather:'TEST protection',mounting:'TEST mounting',approvalCover:'Operations',backup:'Operations',confirmed:true},{baseVersion:0},ops);j=photo(j,'reference');for(const c of j.cameras){for(const kind of ['route','mount','fixings','entry','view'])j=photo(j,kind,c.id);j=apply(j,'cable',{route:'TEST continuous route',joins:'no',photos:j.evidence.filter(e=>e.kind==='route'&&e.cameraId===c.id).map(e=>e.id)},{cameraId:c.id,baseVersion:0});j=apply(j,'mount',{fixings:true,secured:true,stability:true,photos:j.evidence.filter(e=>e.kind==='mount'&&e.cameraId===c.id).map(e=>e.id),views:j.evidence.filter(e=>e.kind==='view'&&e.cameraId===c.id).map(e=>e.id)},{cameraId:c.id,baseVersion:0});j=apply(j,'tests',Object.fromEntries(TESTS.map(k=>[k,{result:'pass'}])),{cameraId:c.id,baseVersion:0});}j=photo(j,'demo');return apply(j,'handover',{demonstration:'Live view and playback demonstrated',photos:j.evidence.filter(e=>e.kind==='demo').map(e=>e.id),issues:'None',acknowledged:true,customerName:'TEST Customer'},{baseVersion:0});}
+function ready(){let j=make();j=apply(j,'workStart',{capturedAt:now,location:{lat:0.3,lng:32.6,accuracy:10}});j=apply(j,'workFinish',{capturedAt:now,location:{lat:0.3,lng:32.6,accuracy:10}});j=apply(j,'pilot',{cableMethods:'TEST approved methods',weather:'TEST protection',mounting:'TEST mounting',approvalCover:'Operations',backup:'Operations',confirmed:true},{baseVersion:0},ops);j=photo(j,'reference');for(const c of j.cameras){for(const kind of ['route','mount','fixings','entry','view'])j=photo(j,kind,c.id);j=apply(j,'cable',{route:'TEST continuous route',joins:'no',photos:j.evidence.filter(e=>e.kind==='route'&&e.cameraId===c.id).map(e=>e.id)},{cameraId:c.id,baseVersion:0});j=apply(j,'mount',{fixings:true,secured:true,stability:true,photos:j.evidence.filter(e=>e.kind==='mount'&&e.cameraId===c.id).map(e=>e.id),views:j.evidence.filter(e=>e.kind==='view'&&e.cameraId===c.id).map(e=>e.id)},{cameraId:c.id,baseVersion:0});j=apply(j,'tests',Object.fromEntries(TESTS.map(k=>[k,{result:'pass'}])),{cameraId:c.id,baseVersion:0});}j=photo(j,'demo');return apply(j,'handover',{demonstration:'Live view and playback demonstrated',photos:j.evidence.filter(e=>e.kind==='demo').map(e=>e.id),issues:'None',acknowledged:true,customerName:'TEST Customer'},{baseVersion:0});}
 test('installer can read only assigned jobs, never self-assign or approve',()=>{const j=make();assert.equal(canRead(j,rep),true);assert.equal(canRead(j,other),false);assert.equal(canRead(j,{role:'sales',id:rep.id}),false);assert.throws(()=>createJob({},rep,now,staff),/Supervisor/);for(const action of ['plan','pilot','decision','return','complete','metric'])assert.throws(()=>apply(j,action),/Supervisor/);});
 test('incomplete evidence and checks block server submission',()=>{assert.ok(readiness(make()).length>5);assert.throws(()=>apply(make(),'submit'),/photos|checks/);const j=ready();assert.deepEqual(readiness(j),[]);const missing=structuredClone(j);missing.evidence=missing.evidence.filter(e=>e.kind!=='entry');assert.throws(()=>apply(missing,'submit'),/mounting/);});
 test('multi-camera work requires installer submit and supervisor technical approval',()=>{let j=ready();assert.throws(()=>apply(j,'complete',{comment:'Looks fine'},{},ops),/submitted/);j=apply(j,'submit');assert.equal(j.status,'Submitted');assert.throws(()=>apply(j,'complete',{comment:'Fine'}),/Supervisor/);j=apply(j,'complete',{comment:'Technical evidence reviewed'},{},ops);assert.equal(j.status,'Completed');assert.equal(j.approval.by,ops.id);assert.throws(()=>apply(j,'cable',{},{cameraId:'camera-1',baseVersion:1}),/read-only/);});
@@ -31,4 +31,40 @@ test('a corrected exception can be resubmitted with new evidence without losing 
  j=photo(j,'exception','camera-1');j=apply(j,'revise',{proposal:'Continuous route around obstruction',photos:j.evidence.filter(e=>e.kind==='exception').map(e=>e.id)},{exceptionId:id});
  assert.equal(j.exceptions[0].requestedAt,e.requestedAt);assert.equal(j.exceptions[0].status,'pending');assert.equal(j.exceptions[0].revisions.length,1);assert.equal(j.exceptions[0].decisions.length,1);
  j=apply(j,'decision',{decision:'approved',comment:'Use that continuous route'},{exceptionId:id},ops);j=photo(j,'resolution','camera-1');j=apply(j,'resolve',{note:'Continuous cable installed',joinInstalled:false,photos:j.evidence.filter(e=>e.kind==='resolution').map(e=>e.id)},{exceptionId:id});assert.equal(j.cameras[0].cable.joins,'no');assert.equal(j.exceptions[0].resolution.joinInstalled,false);
+});
+
+test('work logs save one start and finish per visit, tied to the assigned installer',()=>{
+ const data={capturedAt:now,location:{lat:.31,lng:32.58,accuracy:12}},cmd=command('workStart',data);
+ let j=applyCommand(make(),cmd,rep,now);assert.equal(j.workLog.length,1);assert.deepEqual(applyCommand(j,cmd,rep,now),j);
+ assert.throws(()=>apply(j,'workStart',data),/already started/);
+ assert.throws(()=>apply(j,'workFinish',data,{},ops),/assigned installer/);
+ assert.throws(()=>apply(j,'workFinish',{...data,location:{lat:91,lng:0,accuracy:1}}),/fresh location/);
+ assert.throws(()=>apply(j,'workFinish',{...data,capturedAt:'2027-01-01'}),/fresh location/);
+ j=apply(j,'workFinish',data);assert.equal(j.workLog[0].finish.location.lng,32.58);assert.equal(j.workLog[0].finish.receivedAt,now);
+ assert.throws(()=>apply(j,'workFinish',data),/Start work/);
+ assert.equal(apply(j,'workStart',data).workLog.length,2);
+});
+test('all assigned crew must save finished visits before submission; old records stay readable',()=>{
+ const j=ready();j.assignees.push(other.id);assert.ok(readiness(j).some(x=>x.includes(other.id)));
+ const old=structuredClone(j);delete old.workLogRequired;delete old.workLog;assert.deepEqual(readiness(old),[]);
+});
+test('GPS time and upload time are separate for offline work, and bad coordinates are rejected',()=>{
+ const data={capturedAt:'2026-10-22T11:00:00Z',location:{lat:0,lng:0,accuracy:15}};
+ const j=apply(make(),'workStart',data);assert.equal(j.workLog[0].start.capturedAt,'2026-10-22T11:00:00.000Z');assert.equal(j.workLog[0].start.receivedAt,now);
+ for(const location of [{lat:'0',lng:0,accuracy:10},{lat:0,lng:Infinity,accuracy:10},{lat:0,lng:0,accuracy:2000}])assert.throws(()=>apply(make(),'workStart',{...data,location}),/fresh location/);
+});
+test('installer API hides old client contact fields and exposes only the Verisko site contact',async()=>{
+ const f=fixture(),j=make();j.contact='PRIVATE CLIENT';j.phone='PRIVATE NUMBER';await f.store.setJSON('jobs/'+j.id,j);
+ for(const query of ['', '?jobId='+j.id]){const b=await(await f.handler(new Request('https://test/api/installer'+query))).json();const out=b.job||b.jobs[0];assert.equal(out.phone,undefined);assert.equal(out.contact,undefined);assert.equal(out.siteStaff.name,'TEST Verisko staff');}
+});
+
+test('GPS helper reads once per tap with no cached position or continuous watch',async()=>{
+ const {captureWorkLocation}=await import('../installer-client.mjs');let calls=0;
+ const geo={getCurrentPosition(ok,error,options){calls++;assert.equal(options.maximumAge,0);assert.equal(options.enableHighAccuracy,true);ok({coords:{latitude:.3,longitude:32.6,accuracy:8}});},watchPosition(){assert.fail('Must never track movement');}};
+ assert.deepEqual(await captureWorkLocation(geo),{lat:.3,lng:32.6,accuracy:8});assert.equal(calls,1);
+ await assert.rejects(()=>captureWorkLocation({getCurrentPosition(ok,error){error();}}),/Allow location/);
+});
+test('Operations cannot remove an installer who has not finished their visit',()=>{
+ const j=apply(make(),'workStart',{capturedAt:now,location:{lat:0,lng:0,accuracy:10}});
+ assert.throws(()=>apply(j,'plan',{assignees:[other.id],scheduledDate:'2026-10-23'},{baseVersion:0},ops),/finish work/);
 });

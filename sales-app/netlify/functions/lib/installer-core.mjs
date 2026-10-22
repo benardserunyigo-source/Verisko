@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import {allowed,manager,canRead,createJob,applyCommand} from '../../../installer-model.mjs';
 const headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
 const json=(v,status=200)=>new Response(JSON.stringify(v),{status,headers});
+const publicJob=j=>{const out=structuredClone(j);delete out.contact;delete out.phone;return out;};
 const valid=v=>typeof v==='string'&&/^[a-zA-Z0-9-]{1,100}$/.test(v);
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 export function imageData(value){
@@ -18,7 +19,7 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
    if(id){
     if(!valid(id))throw fail('Invalid job ID.');const j=await store.get('jobs/'+id,{type:'json'});if(!j||!canRead(j,me))throw fail('Job not found or not assigned.',404);
     const photo=url.searchParams.get('photo');if(photo){if(!valid(photo)||!j.evidence.some(e=>e.id===photo))throw fail('Evidence not found.',404);const p=await store.get('photos/'+id+'/'+photo,{type:'json'});if(!p)throw fail('Photo unavailable.',404);return new Response(Buffer.from(p.base64,'base64'),{headers:{'Content-Type':p.type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});}
-    return json({ok:true,job:j});
+    return json({ok:true,job:publicJob(j)});
    }
    const jobs=[];for await(const page of store.list({prefix:'jobs/',paginate:true})){for(const b of page.blobs){const j=await store.get(b.key,{type:'json'});if(j&&canRead(j,me))jobs.push(j);}}
    if(url.searchParams.get('summary')==='1'){
@@ -26,7 +27,7 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
     return json({ok:true,pendingIds:jobs.flatMap(j=>j.exceptions.filter(e=>e.status==='pending').map(e=>e.id)),corrections:jobs.reduce((n,j)=>n+j.exceptions.filter(e=>e.status==='correction').length+j.cameras.reduce((n,c)=>n+Object.values(c.corrections||{}).filter(v=>v.status==='open').length,0),0),submitted:jobs.filter(j=>j.status==='Submitted').length});
    }
    const staff=(auth.users||[]).filter(u=>u.role==='installer').map(u=>({id:u.id,name:u.name}));
-   return json({ok:true,jobs,staff:manager(me)?staff:[],people:(auth.users||[]).filter(u=>manager(me)||u.id===me.id||jobs.some(j=>j.assignees.includes(u.id)||j.history.some(h=>h.by===u.id))).map(u=>({id:u.id,name:u.name})),sourceJobs:manager(me)?(auth.sourceJobs||[]):[]});
+   return json({ok:true,jobs:jobs.map(publicJob),staff:manager(me)?staff:[],people:(auth.users||[]).filter(u=>manager(me)||u.id===me.id||jobs.some(j=>j.assignees.includes(u.id)||j.history.some(h=>h.by===u.id))).map(u=>({id:u.id,name:u.name})),sourceJobs:manager(me)?(auth.sourceJobs||[]):[]});
   }
   if(request.method!=='POST')return json({ok:false,error:'Method not allowed.'},405);
   if(Number(request.headers.get('content-length'))>1800000)throw fail('Request too large.',413);
@@ -36,7 +37,7 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
    const old=await store.getWithMetadata(key,{type:'json'});let j;
    if(cmd.action==='create'){
     if(!manager(me))throw fail('Supervisor access required.',403);
-    if(old){if(old.data.requests.includes(cmd.requestId))return json({ok:true,job:old.data});throw fail('This job already has an installer record. Open it instead.',409);}
+    if(old){if(old.data.requests.includes(cmd.requestId))return json({ok:true,job:publicJob(old.data)});throw fail('This job already has an installer record. Open it instead.',409);}
     if(!/^[a-zA-Z0-9-]{8,100}$/.test(cmd.requestId||''))throw fail('Request ID required.');
     if(cmd.data?.sourceId&&body.jobId!=='source-'+cmd.data.sourceId)throw fail('Use the existing job installation record.');
     if(cmd.data?.sourceId&&!(auth.sourceJobs||[]).some(x=>x.id===cmd.data.sourceId))throw fail('Source job not found.');
@@ -54,7 +55,7 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
      if(!put.modified){const existing=await store.get(imageKey,{type:'json'});if(existing?.hash!==image.hash)throw fail('Evidence ID collision.',409);}
     }else j=applyCommand(old.data,cmd,me,now());
    }
-   const write=await store.setJSON(key,j,old?{onlyIfMatch:old.etag}:{onlyIfNew:true});if(write.modified)return json({ok:true,job:j});
+   const write=await store.setJSON(key,j,old?{onlyIfMatch:old.etag}:{onlyIfNew:true});if(write.modified)return json({ok:true,job:publicJob(j)});
   }
   throw fail('Someone else updated this job. Sync and try again.',409);
  }catch(e){return json({ok:false,error:e.message||'Installation request failed.'},e.status||500);}};

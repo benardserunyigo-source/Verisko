@@ -449,7 +449,7 @@
   function canInstallWork(){return settings.user&&['admin','operations','supervisor','installer'].includes(settings.user.role);}
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=101');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=102');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       await installerModule.mountInstaller({user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&settings.user.id===installerUser.id&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
@@ -522,7 +522,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=101'), import('./field-shifts-ui.mjs?v=101'), import('./field-shifts-android.mjs?v=101')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=102'), import('./field-shifts-ui.mjs?v=102'), import('./field-shifts-android.mjs?v=102')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -4131,7 +4131,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v101";
+  var APP_VERSION = "v102";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
