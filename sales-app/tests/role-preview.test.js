@@ -35,3 +35,12 @@ test('a blocked storage override cannot leave preview active with real storage',
  const win={document:{},location:{search:'?rolePreview=sales'}};Object.defineProperty(win,'localStorage',{value:{},configurable:false});
  const context={window:win,URLSearchParams,Map};vm.createContext(context);assert.throws(()=>vm.runInContext(source,context));assert.equal(win.VeriskoRolePreview.active,undefined);
 });
+test('Team Lead preview shows shared sales and own saved contacts without finance or other private leads',async()=>{
+ const a=api(),lead=a.create('teamlead');assert.equal(lead.user.role,'teamlead');assert.equal(lead.label,'Team Lead');
+ assert.ok(lead.data.prospects.some(p=>p.createdByEmail==='sales@preview.invalid'));assert.ok(lead.data.prospects.some(p=>p.leadOnly&&p.createdByEmail===lead.user.email));assert.ok(!lead.data.prospects.some(p=>p.id==='preview-school'));
+ assert.equal(lead.data.transactions.length,0);assert.equal(lead.data.jobs.length,0);assert.ok(lead.data.users.filter(u=>u.id!==lead.user.id).every(u=>!u.email));assert.equal((await lead.fetch('/api/data',{method:'POST'})).status,403);
+});
+test('Supervisor preview uses assigned review access and hides installer pay and payments',async()=>{
+ const saved=globalThis.document;globalThis.document={createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>{}}),toDataURL:()=> 'data:image/jpeg;base64,AA=='})};
+ try{const a=api(),context=a.create('supervisor'),client=previewInstallerClient(context);assert.equal(context.data.prospects.length,0);assert.equal(context.data.appointments.length,0);assert.equal(context.data.transactions.length,0);assert.equal(client.user.role,'supervisor');assert.ok(client.jobs[0].supervisorIds.includes(client.user.id));assert.equal(Object.keys(client.jobs[0].installerPay).length,0);assert.equal(client.jobs[0].installerPayments.length,0);assert.equal(client.jobs[0].payHistory.length,0);assert.equal(client.staff.length,0);assert.equal(client.sourceJobs.length,0);await assert.rejects(client.command(),/Preview only/);}finally{globalThis.document=saved;}
+});
