@@ -23,3 +23,4 @@ test('installers see only own-job entry points and help, no contacts, sales trac
 test('unknown and removed roles have no navigation access',()=>{
  for(const r of [undefined,'','supervisor','owner','other']){assert.equal(nav.views(r).length,0);assert.equal(nav.sections(r).length,0);assert.equal(nav.first(r,'home'),null);assert.equal(nav.group(r,'settings'),null);assert.equal(nav.allowed(r,'more'),false);}
 });
+test('only Operations and Admin have the materials and buying page',()=>{for(const role of ['admin','operations'])assert.equal(nav.allowed(role,'materials'),true);for(const role of ['sales','teamlead','installer'])assert.equal(nav.allowed(role,'materials'),false);});

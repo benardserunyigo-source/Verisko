@@ -1,3 +1,4 @@
+import {applyMaterials,paidWork,materialsSummary} from './materials-core.mjs';
 import {firstClientPayment,paymentView,validPaymentDay} from './ready-payments.mjs';
 import {loadReadyCases} from './ready-progress.mjs';
 const headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
@@ -17,7 +18,9 @@ export function transitionReady(old,body,me,p,users,at,appointments=[],transacti
  const c=old?structuredClone(old):{contactId:p.id,state:'queued',ownerId:null,previousOwnerId:null,version:0,history:[]};
  if(c.history.length>=1000)throw fail('This lead has reached its history limit. Ask Admin for help.',409);
  const action=body.action;let type=action,toId=null,toName='',note=text(body.note),creator=users.find(u=>own(p,u));
- if(action==='request'){
+ if(['plan_materials','request_procurement','order_material','receive_material'].includes(action)){
+  applyMaterials(c,body,me,p,transactions,jobs,at);type=action;note='';
+ }else if(action==='request'){
   if(!own(p,me)&&!['admin','operations'].includes(me.role))throw fail('Only the contact creator or Operations can send it.',403);
   if(p.leadOnly!==true)throw fail('This contact already has a visit. Open its queue entry.',409);
   if(old&&old.state!=='returned')throw fail('This contact is already in the site visit queue.',409);
@@ -92,7 +95,7 @@ export function transitionReady(old,body,me,p,users,at,appointments=[],transacti
  }
  c.version++;c.updatedAt=at;c.history.push({id:eventId,type,at,by:me.id,name:me.name||'Staff',toId,toName,note,date:['confirm_visit','complete_visit','quote_sent'].includes(action)?body.date:undefined,time:action==='confirm_visit'?body.time:undefined});return c;
 }
-function view(c,p,users,me,transactions=[],jobs=[]){const creator=users.find(u=>own(p,u));const safe=structuredClone(c);safe.firstPayment=paymentView(c,p,me,transactions,jobs);if(!office(me)){safe.history=safe.history.map(e=>e.type==='payment_queried'?{...e,note:''}:e);if(safe.quoteSent){delete safe.quoteSent.reference;delete safe.quoteSent.byEmail;}if(safe.visit){delete safe.visit.byEmail;delete safe.visit.doneByEmail;}}return {...safe,contact:{id:p.id,business:p.business||'',contact:p.contact||'',phone:p.phone||'',location:p.location||'',leadOnly:p.leadOnly===true,createdBy:p.createdBy||creator?.name||'Sales'},ownerName:users.find(u=>u.id===c.ownerId)?.name||(c.ownerId?'Former team member':'Unassigned'),creatorId:creator?.id||null};}
+function view(c,p,users,me,transactions=[],jobs=[]){const creator=users.find(u=>own(p,u));const safe=structuredClone(c);safe.firstPayment=paymentView(c,p,me,transactions,jobs);safe.materialsStatus=materialsSummary(c.materialPlans);if(['admin','operations'].includes(me.role))safe.paidWork=paidWork(p,transactions,jobs,c);else delete safe.materialPlans;if(!office(me)){safe.history=safe.history.map(e=>e.type==='payment_queried'?{...e,note:''}:e);if(safe.quoteSent){delete safe.quoteSent.reference;delete safe.quoteSent.byEmail;}if(safe.visit){delete safe.visit.byEmail;delete safe.visit.doneByEmail;}}return {...safe,contact:{id:p.id,business:p.business||'',contact:p.contact||'',phone:p.phone||'',location:p.location||'',leadOnly:p.leadOnly===true,createdBy:p.createdBy||creator?.name||'Sales'},ownerName:users.find(u=>u.id===c.ownerId)?.name||(c.ownerId?'Former team member':'Unassigned'),creatorId:creator?.id||null};}
 export function createReadyHandler({store,authorize,now=()=>new Date().toISOString()}){return async request=>{try{
  const auth=await authorize(request),me=auth?.me;if(!allowed(me))return json({ok:false,error:'Site visit access required.'},auth?.status||403);
  if(request.headers.get('origin')&&request.headers.get('origin')!==new URL(request.url).origin)return json({ok:false,error:'Use this app to update the queue.'},403);
@@ -100,17 +103,21 @@ export function createReadyHandler({store,authorize,now=()=>new Date().toISOStri
  if(request.method==='GET'){
   const cases=new Map((await loadReadyCases(store)).map(c=>[c.contactId,c]));
   for(const p of prospects){if(!cases.has(p.id)){const c=legacyCase(p);if(c)cases.set(p.id,c);}}
-  const items=[];for(const c of cases.values()){const p=prospects.find(p=>p.id===c.contactId);if(p&&(office(me)||own(p,me)))items.push(view(c,p,users,me,auth.transactions||[],auth.jobs||[]));}
+  const materials=new URL(request.url).searchParams.get('materials')==='1';
+  if(materials){if(!['admin','operations'].includes(me.role))throw fail('Only Operations can open materials and buying.',403);for(const p of prospects){if(!cases.has(p.id)&&paidWork(p,auth.transactions,auth.jobs).length)cases.set(p.id,{contactId:p.id,state:'assigned',ownerId:null,version:0,history:[]});}}
+  const items=[];for(const c of cases.values()){const p=prospects.find(p=>p.id===c.contactId);if(p&&(office(me)||own(p,me))&&(!materials||paidWork(p,auth.transactions,auth.jobs,c).length))items.push(view(c,p,users,me,auth.transactions||[],auth.jobs||[]));}
   items.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
   return json({ok:true,items,people:office(me)?users.filter(u=>['operations','teamlead'].includes(u.role)).map(u=>({id:u.id,name:u.name,role:u.role})):[]});
  }
  if(request.method!=='POST')return json({ok:false,error:'Method not allowed.'},405);
- if(Number(request.headers.get('content-length'))>6000)throw fail('Request too large.',413);
+ if(Number(request.headers.get('content-length'))>20000)throw fail('Request too large.',413);
  const body=await request.json();if(!valid(body.contactId))throw fail('Choose a saved contact.');
  const p=prospects.find(p=>p.id===body.contactId);if(!p||(!office(me)&&!own(p,me))||(me.role==='teamlead'&&body.action==='request'&&!own(p,me)))throw fail('Contact not found.',404);
  const key='cases/'+p.id,old=await store.getWithMetadata(key,{type:'json'}),previous=old?.data||legacyCase(p);
  if(me.role==='teamlead'&&!own(p,me)&&!previous)throw fail('Contact not found.',404);
- const next=transitionReady(previous,body,me,p,users,now(),auth.appointments||[],auth.transactions||[],auth.jobs||[]);
- if(next!==previous){const result=await store.setJSON(key,next,old?.etag?{onlyIfMatch:old.etag}:{onlyIfNew:true});if(!result?.modified)throw fail('Someone updated this lead first. Refresh the queue to see its owner.',409);}
+ const materialAction=['plan_materials','request_procurement','order_material','receive_material'].includes(body.action);
+ const initial=previous||(materialAction&&['admin','operations'].includes(me.role)&&paidWork(p,auth.transactions,auth.jobs).length?{contactId:p.id,state:'assigned',ownerId:me.id,version:0,history:[]}:null);
+ const next=transitionReady(initial,body,me,p,users,now(),auth.appointments||[],auth.transactions||[],auth.jobs||[]);
+ if(next!==initial){const result=await store.setJSON(key,next,old?.etag?{onlyIfMatch:old.etag}:{onlyIfNew:true});if(!result?.modified)throw fail('Someone updated this lead first. Refresh the queue to see its owner.',409);}
  return json({ok:true,item:view(next,p,users,me,auth.transactions||[],auth.jobs||[])});
  }catch(e){return json({ok:false,error:e.status?e.message:'Could not load or save the site visit queue.'},e.status||500);}};}
