@@ -20,7 +20,7 @@ test('preview storage and changes stay in memory without a real session',async()
 test('preview bootstrap never reads real device storage and replaces network transport',()=>{
  let reads=0;const listeners={};const win={location:{search:'?rolePreview=sales'},document:{body:{prepend(){},classList:{add(){}}},addEventListener(type,fn){listeners[type]=fn;},querySelectorAll(){return [];},createElement(){return {setAttribute(){}};}},get localStorage(){reads++;throw new Error('Real storage must not be read');},fetch(){throw new Error('Real fetch must not be called');}};
  const context={window:win,document:win.document,URLSearchParams,URL,Response,Map,MutationObserver:class{observe(){}}};vm.createContext(context);vm.runInContext(source,context);
- assert.equal(reads,0);assert.equal(win.VeriskoRolePreview.active.user.role,'sales');assert.equal(win.fetch,win.VeriskoRolePreview.active.fetch);assert.equal(JSON.parse(win.localStorage.getItem('verisko_sales_settings_v1')).user.role,'sales');assert.equal(typeof listeners.submit,'function');
+ assert.equal(reads,0);assert.equal(win.VeriskoRolePreview.active.user.role,'sales');assert.equal(win.fetch,win.VeriskoRolePreview.active.fetch);assert.equal(JSON.parse(win.localStorage.getItem('verisko_sales_settings_v1')).user.role,'sales');assert.equal(typeof listeners.submit,'function');assert.throws(()=>win.indexedDB,/Preview does not use device storage/);assert.equal(win.sessionStorage,win.localStorage);
 });
 test('installer preview reuses the real payment projection without offline storage or APIs',async()=>{
  // Canvas is only used to draw a fictional reference image.

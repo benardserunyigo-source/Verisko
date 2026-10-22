@@ -31,6 +31,8 @@
  var context=create(role);
  // Overrides belong only to this separate preview frame. Never read the real stores.
  Object.defineProperty(root,'localStorage',{value:context.storage,configurable:true});
+ Object.defineProperty(root,'sessionStorage',{value:context.storage,configurable:true});
+ Object.defineProperty(root,'indexedDB',{get:function(){throw new Error('Preview does not use device storage.');},configurable:true});
  root.fetch=context.fetch;api.active=context;
  var allowed='[data-view],[data-more],[data-xc-toggle],[data-new],[data-edit-lead],#primaryAction,#iwCancel,[data-installation-work],[data-preview-info],[data-iw-open],[data-iw-back],[data-iw-camera],[data-iw-photo],[data-edit],#userChip,[data-close],[data-open-leads],[data-lead-filter],[data-followup-filter]';
  function block(e){var el=e.target.closest&&e.target.closest('button,a,input,select,textarea');if(!el)return;
