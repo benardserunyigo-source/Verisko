@@ -46,3 +46,9 @@ test('Team Lead installation preview keeps its role and receives review access w
  const saved=globalThis.document;globalThis.document={createElement:()=>({getContext:()=>new Proxy({},{get:()=>()=>{}}),toDataURL:()=> 'data:image/jpeg;base64,AA=='})};
  try{const client=previewInstallerClient(api().create('teamlead'));assert.equal(client.user.role,'teamlead');assert.ok(client.jobs[0].supervisorIds.includes(client.user.id));assert.equal(Object.keys(client.jobs[0].installerPay).length,0);assert.equal(client.jobs[0].installerPayments.length,0);assert.equal(client.staff.length,0);assert.equal(client.reviewers.length,0);}finally{globalThis.document=saved;}
 });
+
+test('sample follow-ups and visits use the Uganda day at the evening UTC boundary',()=>{
+ const preview=api().create('operations','2026-10-22T22:30:00.000Z');
+ assert.equal(preview.data.appointments[0].date,'2026-10-23');
+ assert.ok(preview.data.prospects.every(p=>p.followUp==='2026-10-23'));
+});

@@ -9,3 +9,5 @@ Home, Contacts, Jobs and More stay in the same order on phones and computers. Re
 - Installer: Home, Jobs (assigned Installations, including own pay and balance), More (Help). Contacts is hidden. No sales tracking, customer leads or office finance.
 
 `navigation.js` provides the display allowlist and guards page navigation. Existing server permissions and scoped data responses still enforce record access. Role preview uses the same navigation with fictional data; preview writes and tracking remain disabled.
+
+Sales and Operations Home screens use a shared start card and real counts for overdue follow-ups, follow-ups today and confirmed visits today. Training stays available in an expandable section. Operations' salesperson summary uses a table on larger screens and individual cards on phones; tapping a name keeps the same contact filter behaviour. Package inclusions expand separately so prices and instalments are easier to reach. Home dates and preview examples use Uganda time.

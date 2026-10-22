@@ -4,7 +4,7 @@
  var roles={sales:'Sales',teamlead:'Team Lead',operations:'Operations',installer:'Installer'};
  function create(role,now){
   if(!roles[role])throw new Error('Choose a team role from the list.');
-  var at=now||new Date().toISOString(),day=at.slice(0,10);
+  var at=now||new Date().toISOString(),day=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Kampala',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(at));
   var users=['admin','operations','sales','teamlead','installer'].map(function(r){return {id:'preview-'+r,name:'DEMO '+(roles[r]||'Admin'),email:r+'@preview.invalid',role:r,created:at};});
   var me=users.find(function(u){return u.role===role;});
   var prospects=[{id:'preview-shop',business:'DEMO · Kampala Shop',contact:'Sample shop owner',phone:'DEMO — no calls',location:'DEMO · Ntinda, Kampala',vertical:'Retail shop',source:'Cold visit',stage:'Qualified',createdBy:'DEMO Sales',createdByEmail:'sales@preview.invalid',created:day,reviewStatus:'approved',qualStatus:'approved',followUp:day,nextAction:'Confirm the visit',followUps:[{at:at,by:'DEMO Sales',byEmail:'sales@preview.invalid',note:'DEMO: Client asked about four cameras.'}]},{id:'preview-school',business:'DEMO · School enquiry',contact:'Sample school contact',phone:'DEMO — no calls',location:'DEMO · Kampala',vertical:'School',stage:'New prospect',leadOnly:true,createdBy:'DEMO Operations',createdByEmail:'operations@preview.invalid',created:day,followUp:day,nextAction:'Call back',followUps:[]}];
@@ -35,7 +35,7 @@
  Object.defineProperty(root,'sessionStorage',{value:context.storage,configurable:true});
  Object.defineProperty(root,'indexedDB',{get:function(){throw new Error('Preview does not use device storage.');},configurable:true});
  root.fetch=context.fetch;api.active=context;
- var allowed='[data-section],[data-nav-view],[data-view],[data-more],[data-xc-toggle],[data-new],[data-edit-lead],#primaryAction,#iwCancel,[data-installation-work],[data-preview-info],[data-iw-open],[data-iw-back],[data-iw-camera],[data-iw-photo],[data-edit],#userChip,[data-close],[data-open-leads],[data-lead-filter],[data-followup-filter]';
+ var allowed='.package-intro>summary,[data-lead-summary-owner],[data-section],[data-nav-view],[data-view],[data-more],[data-xc-toggle],[data-new],[data-edit-lead],#primaryAction,#iwCancel,[data-installation-work],[data-preview-info],[data-iw-open],[data-iw-back],[data-iw-camera],[data-iw-photo],[data-edit],#userChip,[data-close],[data-open-leads],[data-lead-filter],[data-followup-filter]';
  function block(e){var el=e.target.closest&&e.target.closest('button,a,input,select,textarea');if(!el)return;
   if(el.matches('[data-preview-info]')){e.preventDefault();return;}
   if(el.matches('a')||el.matches('button')&&!el.matches(allowed)){e.preventDefault();e.stopImmediatePropagation();}

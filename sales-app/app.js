@@ -156,8 +156,8 @@
   var APPT_STATUSES = ["Proposed", "Confirmed", "Completed", "Rescheduled", "Cancelled", "No-show"];
   var PURPOSES = ["Technical site survey", "Follow-up visit", "Installation planning"];
 
-  var today = new Date().toISOString().slice(0, 10);
-  var plusDays = function (n) { var d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  var today = window.VeriskoLeadPipeline.kampalaDay();
+  var plusDays = function (n) { return window.VeriskoLeadPipeline.kampalaDay(Date.now() + n * 86400000); };
   var uid = function () { return "v" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); };
   var esc = function (v) { return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]; }); };
   var telHref = function (v) { return "tel:" + String(v || "").replace(/[^\d+]/g, ""); };
@@ -453,15 +453,15 @@
   function canInstallWork(){return settings.user&&['admin','operations','teamlead','installer'].includes(settings.user.role);}
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=114');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=115');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=114');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=115');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
   }
   var installationAlerts={pendingIds:[],corrections:0,submitted:0},installationAlertUser='',installationAlertAt=0,installationAlertBusy=false,installationAlertKnown=false;
-  function installationAlertHtml(){return '<section class="card iw-card" id="installationAlerts"><h2>Installer reviews</h2><p>'+installationAlerts.pendingIds.length+' need a decision · '+installationAlerts.corrections+' need correction · '+installationAlerts.submitted+' ready for review</p><button type="button" class="btn btn-ghost" data-installation-work>Open installer work</button></section>';}
+  function installationAlertHtml(){return '<section class="card review-overview" id="installationAlerts"><div class="workspace-section-head"><h2>Installation reviews</h2><p>Help the crew keep work moving.</p></div><div class="review-totals"><div><strong>'+installationAlerts.pendingIds.length+'</strong><span>Need a decision</span></div><div><strong>'+installationAlerts.corrections+'</strong><span>Need a fix</span></div><div><strong>'+installationAlerts.submitted+'</strong><span>Ready to review</span></div></div><button type="button" class="btn btn-ghost" data-installation-work>Open installations</button></section>';}
   async function refreshInstallationAlerts(){
     var user=settings.user;if(!user||!settings.auth||!['admin','operations','teamlead'].includes(user.role)||document.hidden||installationAlertBusy)return;
     if(installationAlertUser!==user.id){installationAlertUser=user.id;installationAlertAt=0;installationAlertKnown=false;installationAlerts={pendingIds:[],corrections:0,submitted:0};}
@@ -474,6 +474,7 @@
   }
   setInterval(refreshInstallationAlerts,30000);
   function render() {
+    today=window.VeriskoLeadPipeline.kampalaDay();
     if(!navigation.allowed((settings.user||{}).role,view))view=navigation.first((settings.user||{}).role,'home')||'today';
     if (view === "settings" && !isAdmin()) view = "today";      // Settings is admin-only
     if (view === "cashflow" && !canCashflow()) view = "today";  // Cash flow is Operations + admin
@@ -531,7 +532,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=114'), import('./field-shifts-ui.mjs?v=114'), import('./field-shifts-android.mjs?v=114')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=115'), import('./field-shifts-ui.mjs?v=115'), import('./field-shifts-android.mjs?v=115')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -561,7 +562,7 @@
   function renderPackagePrices() {
     setHead("SALES", "Camera package prices", "Standard installation prices, subject to a site survey. Operations confirms the final quote.", "", false);
     if (!window.VeriskoPricing) { content.innerHTML = '<p class="helper">Reconnect and refresh to load current package prices.</p>'; return; }
-    content.innerHTML = '<section class="card package-intro"><h2>What is included?</h2><p>Simple installation: fixed cameras, recorder, standard cabling, installation and phone viewing setup.</p><ul class="help-steps"><li><strong>12 months:</strong> callbacks and camera-status monitoring through an on-site mini PC.</li><li><strong>Privacy:</strong> monitoring checks system health without access to footage.</li><li><strong>2 years:</strong> replacement of faulty cameras and installed cables. Accidents and power-surge damage are excluded.</li></ul><p class="helper">Included in the package price. Hard drive is an add-on; without one, there is no stored recording.</p><p class="helper">Three-month payment plan included. Complex jobs are priced after measuring extra materials, labour and equipment/travel. Outdoor cameras alone do not make a job complex. Prices are before VAT where applicable.</p></section>' +
+    content.innerHTML = '<details class="card package-intro"><summary>What the package includes</summary><div class="package-inclusions"><p>Simple installation: fixed cameras, recorder, standard cabling, installation and phone viewing setup.</p><ul class="help-steps"><li><strong>12 months:</strong> callbacks and camera-status monitoring through an on-site mini PC.</li><li><strong>Privacy:</strong> monitoring checks system health without access to footage.</li><li><strong>2 years:</strong> replacement of faulty cameras and installed cables. Accidents and power-surge damage are excluded.</li></ul><p class="helper">Included in the package price. Hard drive is an add-on; without one, there is no stored recording.</p><p class="helper">Three-month payment plan included. Complex jobs are priced after measuring extra materials, labour and equipment/travel. Outdoor cameras alone do not make a job complex. Prices are before VAT where applicable.</p></div></details>' +
       '<div class="list">' + window.VeriskoPricing.publicPackages().map(function (p) {
         return '<article class="item"><div class="item-top"><div><div class="item-title">' + p.cameras + ' cameras · ' + esc(p.name) + '</div><div class="item-meta">' + p.recorderChannels + 'CH recorder · hard drive separate</div></div></div>' +
           '<div class="pay-summary"><div class="pay-line pay-grand"><span>Standard installation price</span><strong>' + money(p.price) + '</strong></div></div><div class="item-lines">' +
@@ -611,7 +612,7 @@
 
   /* --------------------------------- TODAY ---------------------------------- */
   function renderToday() {
-    setHead("Your work today", "Today", "Your priorities, most urgent first.", canReviewProspects() ? "Add prospect" : "Book site check", true);
+    setHead("Home", canReviewProspects() ? "Team work today" : "Your work today", canReviewProspects() ? "Follow up with the team and keep jobs moving." : "Your contacts, follow-ups and site visits in one place.", "", false);
 
     var active = visibleProspects().filter(function (p) { return !isClosed(p.stage); });
 
@@ -629,11 +630,12 @@
     var confirmed = visibleAppointments().filter(function (a) { return a.status === "Confirmed" && (!a.date || a.date >= today); })
       .sort(function (a, b) { return (a.date || "").localeCompare(b.date || ""); });
 
-    var leadDue=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&ownProspect(p)&&(isToday(p.followUp)||isOverdue(p.followUp));});
-    var sections = (canInstalls()?installationAlertHtml():'')+'<section class="card"><h2>Keep contacts for later</h2><p class="helper">Not ready for a site visit? Save their details and follow up first.</p><button class="btn btn-ghost" data-save-lead>Save a lead</button>'+(leadDue.length?'<p class="helper">'+leadDue.length+' saved-contact follow-ups due.</p>'+leadDue.map(function(p){return '<p><strong>'+esc(p.business)+'</strong> · '+dateLabel(p.followUp)+' <button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button></p>';}).join(''):'')+'</section>';
-
-    var receivedLeads=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&leadTools().canManage(p,settings.user);});
-    if(receivedLeads.length)sections+='<section class="card"><h2>'+receivedLeads.length+' prospecting contact'+(receivedLeads.length===1?'':'s')+'</h2><p class="helper">Saved contacts are visible to Operations while Sales follows up. No visits are booked yet.</p><button class="btn btn-primary" data-open-leads>View prospecting contacts</button></section>';
+    var leadDue=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&(canReviewProspects()?leadTools().canManage(p,settings.user):ownProspect(p))&&(isToday(p.followUp)||isOverdue(p.followUp));});
+    var manager=canReviewProspects(),receivedLeads=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&leadTools().canManage(p,settings.user);});
+    var priorityStats='<div class="home-priorities" aria-label="Today at a glance"><div><strong>'+ (overdue.length+leadDue.filter(function(p){return isOverdue(p.followUp);}).length)+'</strong><span>Overdue follow-ups</span></div><div><strong>'+ (dueToday.length+leadDue.filter(function(p){return isToday(p.followUp);}).length)+'</strong><span>Follow-ups today</span></div><div><strong>'+confirmed.filter(function(a){return isToday(a.date);}).length+'</strong><span>Site visits today</span></div></div>';
+    var homeStart='<section class="card staff-start"><div><p class="workspace-label">'+(manager?'OPERATIONS':'SALES')+'</p><h2>'+(manager?'Keep the team moving':'Start with a contact')+'</h2><p>'+(manager?'Review contacts, plan site visits and check the installation work.':'Save who you meet. Follow up, then send ready contacts to Operations.')+'</p><div class="staff-start-actions">'+(manager?'<button type="button" class="btn btn-primary" data-nav-view="installwork">Open installations</button><button type="button" class="btn btn-ghost" data-nav-view="leads">View contacts</button>':'<button type="button" class="btn btn-primary" data-save-lead>Save a contact</button><button type="button" class="btn btn-ghost" data-nav-view="leads">My contacts</button>')+'</div></div>'+priorityStats+'</section>';
+    var sections=(manager?installationAlertHtml():'');
+    if(leadDue.length)sections+='<section class="card"><h2>Contacts to follow up</h2><div class="home-followups">'+leadDue.map(function(p){return '<div><div><strong>'+esc(p.business)+'</strong><span>'+dateLabel(p.followUp)+'</span></div><button type="button" class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow up</button></div>';}).join('')+'</div></section>';
     sections += section("Overdue follow-ups", overdue.length, "alert",
       overdue.sort(function (a, b) { return (a.followUp || "").localeCompare(b.followUp || ""); })
         .map(function (p) { return prospectAction(p, "red"); }).join(""),
@@ -656,7 +658,7 @@
       sections += emptyState(ICON_CALENDAR, "You're all caught up", "No overdue follow-ups, nothing due today, and no visits waiting. Add a prospect to keep the pipeline moving.", "Add prospect", 'data-new="prospect"');
     }
 
-    content.innerHTML = idNotice() + idCheckNotice() + signupNotice() + certNotice() + trainingNudge() + '<div class="stack">' + sections + "</div>";
+    content.innerHTML = idNotice() + idCheckNotice() + signupNotice() + certNotice() + '<div class="staff-home stack">' + homeStart + sections + (trainingNudge()?'<details class="home-training"><summary>Training & support</summary>'+trainingNudge()+'</details>':'') + "</div>";
   }
 
   function section(title, count, cls, body) {
@@ -682,14 +684,14 @@
     if(leadOwnerFilter&&!ownerOptions[leadOwnerFilter])leadOwnerFilter='';
     if(!manager){leadOwnerFilter='';leadDueFilter='';}
     var operationsFilters=manager?'<div class="field-inline"><label for="leadOwnerFilter">Salesperson</label><select id="leadOwnerFilter"><option value="">All salespeople</option>'+Object.keys(ownerOptions).sort(function(a,b){return ownerOptions[a].localeCompare(ownerOptions[b]);}).map(function(key){return '<option value="'+esc(key)+'">'+esc(ownerOptions[key])+'</option>';}).join('')+'</select></div><div class="field-inline"><label for="leadDueFilter">Follow-ups</label><select id="leadDueFilter"><option value="">All follow-ups</option><option value="today">Due today</option><option value="overdue">Overdue</option><option value="upcoming">Upcoming</option><option value="unscheduled">Not scheduled</option></select></div>':'';
-    content.innerHTML = (manager?leadSalespersonSummary():'')+'<section class="card"><div class="toolbar lead-toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Search leads" value="'+esc(leadQuery)+'"></div><div class="filter-row lead-filter-row"><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="mine">My saved leads</option><option value="sent">My sent handovers</option>'+(manager?'<option value="all">All prospecting contacts</option><option value="inbox">Ready for Operations</option>':'')+'</select></div>'+operationsFilters+'</div></div>'+(manager?'<button class="btn btn-ghost btn-sm" data-reset-lead-filters>Clear filters</button>':'')+'<p class="helper">Operations sees saved contacts automatically in the prospecting stage. Send to Operations flags readiness; it does not book a visit or create visit pay.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
+    content.innerHTML = (manager?leadSalespersonSummary():'')+'<section class="card"><div class="toolbar lead-toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Search leads" value="'+esc(leadQuery)+'"></div><div class="filter-row lead-filter-row"><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="mine">My saved leads</option><option value="sent">My sent handovers</option>'+(manager?'<option value="all">All prospecting contacts</option><option value="inbox">Ready for Operations</option>':'')+'</select></div>'+operationsFilters+'</div></div>'+(manager?'<button class="btn btn-ghost btn-sm" data-reset-lead-filters>Clear filters</button>':'')+'<p class="helper">Operations can see these contacts. Sending a contact marks it ready; it does not book a visit.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
     document.getElementById('leadMode').value = leadListMode;
     if(manager){document.getElementById('leadOwnerFilter').value=leadOwnerFilter;document.getElementById('leadDueFilter').value=leadDueFilter;}
     updateLeadGrid();
   }
   function leadSalespersonSummary() {
     var rows=leadTools().salespersonSummary(state.prospects,state.users);
-    return '<section class="card lead-team-summary"><h2>Salesperson summary</h2><p class="helper">Current prospecting contacts. Follow-ups count conversations recorded by each person. Dates use Uganda time. Select a name to filter contacts.</p><div class="lead-summary-scroll"><table class="lead-summary-table"><caption class="sr-only">Salesperson prospecting activity</caption><thead><tr><th scope="col">Salesperson</th><th scope="col">Contacts added</th><th scope="col">Follow-ups done</th><th scope="col">Due today</th><th scope="col">Overdue</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><th scope="row"><button class="btn btn-ghost btn-sm" data-lead-summary-owner="'+esc(r.key)+'">'+esc(r.name)+'</button></th><td>'+r.contacts+'</td><td>'+r.followUps+'</td><td'+(r.today?' class="lead-summary-today"':'')+'>'+r.today+'</td><td'+(r.overdue?' class="lead-summary-overdue"':'')+'>'+r.overdue+'</td></tr>';}).join('')+'</tbody></table></div>'+(!rows.length?'<p class="helper">Salespeople will appear here when staff or contacts are added.</p>':'')+'</section>';
+    return '<section class="card lead-team-summary"><h2>Salesperson summary</h2><p class="helper">See each person’s contacts and follow-ups. Tap a name to filter. Dates use Uganda time.</p><div class="lead-summary-scroll"><table class="lead-summary-table"><caption class="sr-only">Salesperson prospecting activity</caption><thead><tr><th scope="col">Salesperson</th><th scope="col">Contacts added</th><th scope="col">Follow-ups done</th><th scope="col">Due today</th><th scope="col">Overdue</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><th scope="row"><button class="btn btn-ghost btn-sm" data-lead-summary-owner="'+esc(r.key)+'">'+esc(r.name)+'</button></th><td>'+r.contacts+'</td><td>'+r.followUps+'</td><td'+(r.today?' class="lead-summary-today"':'')+'>'+r.today+'</td><td'+(r.overdue?' class="lead-summary-overdue"':'')+'>'+r.overdue+'</td></tr>';}).join('')+'</tbody></table></div><div class="lead-summary-cards">'+rows.map(function(r){return '<article class="salesperson-summary-card"><h3><button type="button" data-lead-summary-owner="'+esc(r.key)+'">'+esc(r.name)+' <span aria-hidden="true">→</span></button></h3><dl><div><dt>Contacts added</dt><dd>'+r.contacts+'</dd></div><div><dt>Follow-ups done</dt><dd>'+r.followUps+'</dd></div><div'+(r.today?' class="due-today"':'')+'><dt>Due today</dt><dd>'+r.today+'</dd></div><div'+(r.overdue?' class="due-overdue"':'')+'><dt>Overdue</dt><dd>'+r.overdue+'</dd></div></dl></article>';}).join('')+'</div>'+(!rows.length?'<p class="helper">Salespeople will appear here when staff or contacts are added.</p>':'')+'</section>';
   }
   function updateLeadGrid() {
     var L=leadTools(), me=settings.user||{}, search=(document.getElementById('leadSearch').value||'').toLowerCase(), dueToday=L.kampalaDay();
@@ -4178,7 +4180,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v114";
+  var APP_VERSION = "v115";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4364,7 +4366,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=114");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=115");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }
