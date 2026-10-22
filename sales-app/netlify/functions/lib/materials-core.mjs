@@ -6,7 +6,8 @@ export const materialTotals=item=>({ordered:sum(item.orders),arrived:sum(item.re
 export function materialStatus(plan){if(!plan?.items?.length)return 'Not planned';const totals=plan.items.map(materialTotals);if(totals.every((t,i)=>t.arrived>=plan.items[i].planned))return 'All materials arrived';if(totals.some(t=>t.arrived>0))return 'Some materials arrived';if(totals.some(t=>t.ordered>0))return 'Materials ordered';return plan.requestedAt?'Buying requested':'Materials planned';}
 export function paidWork(p,transactions=[],jobs=[],c){
  const rows=c?.firstPayment?[...transactions.filter(t=>t.id!==c.firstPayment.id),c.firstPayment]:transactions;
- const linked=jobs.filter(j=>j.prospectId===p.id&&!['Rejected','Cancelled'].includes(j.stage));
+ const allJobs=jobs.filter(j=>j.prospectId===p.id),linked=allJobs.filter(j=>!['Rejected','Cancelled'].includes(j.stage));
+ if(allJobs.length&&!linked.length)return [];
  const paid=firstClientPayment(p.id,rows,jobs)?.status==='approved';if(!paid)return [];
  // A client-level deposit covers their selected job; job-linked deposits stay with that job.
  const direct=rows.some(t=>t.direction==='in'&&Number(t.amount)>0&&t.status==='approved'&&t.prospectId===p.id&&!t.installId);

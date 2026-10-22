@@ -4,7 +4,7 @@ import {createReadyHandler} from '../netlify/functions/lib/ready-leads-core.mjs'
 const at='2026-10-23T10:00:00Z',ops={id:'ops',name:'Ops',role:'operations',email:'ops@test'},p={id:'client',business:'TEST Shop',createdByEmail:'sales@test',leadOnly:false},tx=[{id:'payment',direction:'in',prospectId:'client',status:'approved',amount:2000000}],item={id:'camera',name:'4K bullet camera',planned:4,source:'China',unit:'pcs'};
 function fixture(){const c={contactId:p.id,history:[],version:0};return {c,call:(action,extra={})=>applyMaterials(c,{action,sourceId:'client-client',...extra},ops,p,tx,[],at)};}
 test('materials use paid client and job IDs, and require Operations and approved money',()=>{
- assert.equal(paidWork(p,[]).length,0);assert.equal(paidWork(p,[{...tx[0],status:'pending'}]).length,0);assert.equal(paidWork(p,tx)[0].id,'client-client');assert.equal(paidWork(p,[{...tx[0],installId:'job1'}],[{id:'job1',prospectId:p.id},{id:'job2',prospectId:p.id}])[0].id,'job1');
+ assert.equal(paidWork(p,tx,[{id:'cancelled',prospectId:p.id,stage:'Cancelled'}]).length,0);assert.equal(paidWork(p,[]).length,0);assert.equal(paidWork(p,[{...tx[0],status:'pending'}]).length,0);assert.equal(paidWork(p,tx)[0].id,'client-client');assert.equal(paidWork(p,[{...tx[0],installId:'job1'}],[{id:'job1',prospectId:p.id},{id:'job2',prospectId:p.id}])[0].id,'job1');
  assert.throws(()=>applyMaterials({}, {action:'plan_materials'}, {...ops,role:'teamlead'},p,tx,[],at),/Only Operations/);assert.throws(()=>applyMaterials({}, {action:'plan_materials',sourceId:'other'},ops,p,tx,[],at),/approved client payment/);
 });
 test('plan, request, partial orders and arrivals keep exact quantities and links on one job',()=>{
