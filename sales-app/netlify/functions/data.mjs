@@ -192,6 +192,18 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
       // Operations records cash; only Admin approves or alters approved entries.
       if(!isTeamLead)clean.transactions=guardCash(storedTx,clean.transactions,bootstrap?{role:'admin'}:{...me,email});
 
+      for(const nextContact of clean.prospects){
+        const before=storedProspects.find(p=>p.id===nextContact.id);
+        if(before?.leadOnly&&!nextContact.leadOnly){
+          const ready=await storeFor({name:'verisko-ready-cases',consistency:'strong'}).get('cases/'+nextContact.id,{type:'json'});
+          if(ready?.contactId===nextContact.id&&me.role!=='admin'&&ready.ownerId!==me.id)return json({ok:false,error:'Take this lead in the site visit queue before moving it to Prospects.'},403,headers);
+        }
+      }
+      const keptContactIds=new Set(clean.prospects.map(p=>p.id));
+      for(const oldContact of storedProspects){if(!keptContactIds.has(oldContact.id)){
+        const ready=await storeFor({name:'verisko-ready-cases',consistency:'strong'}).get('cases/'+oldContact.id,{type:'json'});
+        if(ready?.contactId===oldContact.id)return json({ok:false,error:'This contact has site visit history. Keep the contact record.'},409,headers);
+      }}
       await store.setJSON(KEY, clean);
       return json({ ok: true, ...(canReview ? { jobs: clean.jobs } : {}) }, 200, headers);
     }

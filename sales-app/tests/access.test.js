@@ -99,3 +99,16 @@ test('retired Supervisor role cannot be granted or use installation access even 
  const {createInstallerHandler}=await import('../netlify/functions/lib/installer-core.mjs');const handler=createInstallerHandler({store:{},authorize:async()=>({me:supervisor})});assert.equal((await handler(new Request('https://test/api/installer'))).status,403);
  const incoming=[...users,{id:'retired-new',name:'Retired',email:'retired@test.invalid',role:'supervisor'}];assert.ok(!guardRoster(users,incoming,admin).some(u=>u.id==='retired-new'));
 });
+
+test('a contact linked to the site visit queue survives stale workspace deletion attempts',async()=>{
+ const f=fixture(ops);f.photos.set('cases/private',{contactId:'private',ownerId:lead.id,state:'assigned',version:2});
+ const body=f.read();body.prospects=body.prospects.filter(p=>p.id!=='private');
+ const r=await f.post(body);assert.equal(r.status,409);assert.ok(f.read().prospects.some(p=>p.id==='private'));
+});
+test('Operations cannot move another queue owner’s contact to Prospects',async()=>{
+ const f=fixture(ops);f.photos.set('cases/private',{contactId:'private',ownerId:lead.id,state:'assigned',version:2});
+ const body=f.read(),p=body.prospects.find(p=>p.id==='private');p.leadOnly=false;p.leadConvertedAt='2026-10-22T12:00:00Z';
+ assert.equal((await f.post(body)).status,403);assert.equal(f.read().prospects.find(p=>p.id==='private').leadOnly,true);
+ f.photos.set('cases/private',{contactId:'private',ownerId:ops.id,state:'assigned',version:3});
+ assert.equal((await f.post(body)).status,200);
+});

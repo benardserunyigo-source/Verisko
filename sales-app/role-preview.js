@@ -18,6 +18,7 @@
    fetch:async function(input,options){
     var url=new URL(typeof input==='string'?input:input.url,'https://preview.invalid'),method=(options&&options.method||input&&input.method||'GET').toUpperCase();
     if(method!=='GET')return reply({ok:false,error:'Preview only. Changes are turned off.'},403);
+    if(url.pathname==='/api/ready-leads')return reply({ok:true,items:[{contactId:'preview-ready-contact',state:'queued',ownerId:null,previousOwnerId:null,ownerName:'Unassigned',version:1,readyAt:at,updatedAt:at,context:'Client asked for a site visit this week. Call before travelling.',creatorId:'preview-sales',contact:{id:'preview-ready-contact',business:'DEMO · Shop ready for a visit',contact:'Sample shop owner',phone:'DEMO — no calls',location:'DEMO · Ntinda',leadOnly:true,createdBy:'DEMO Sales'},history:[{id:'preview-request',type:'requested',at:at,by:'preview-sales',name:'DEMO Sales',toName:'Shared queue',note:'Ready for a site visit'}]}],people:role==='sales'?[]:users.filter(u=>['teamlead','operations'].includes(u.role)).map(u=>({id:u.id,name:u.name,role:u.role}))});
     if(url.pathname==='/api/data')return reply({ok:true,data:JSON.parse(JSON.stringify(data)),catalogue:root.VeriskoPriceCatalogue&&root.VeriskoPriceCatalogue.catalogue});
     if(url.pathname==='/api/installer'&&url.searchParams.has('summary'))return reply({pendingIds:[],corrections:0,submitted:0});
     if(url.pathname==='/api/applications')return reply({ok:true,applications:[],cursor:null});
@@ -35,7 +36,7 @@
  Object.defineProperty(root,'sessionStorage',{value:context.storage,configurable:true});
  Object.defineProperty(root,'indexedDB',{get:function(){throw new Error('Preview does not use device storage.');},configurable:true});
  root.fetch=context.fetch;api.active=context;
- var allowed='[data-pay-week],.package-intro>summary,[data-lead-summary-owner],[data-section],[data-nav-view],[data-view],[data-more],[data-xc-toggle],[data-new],[data-edit-lead],#primaryAction,#iwCancel,[data-installation-work],[data-preview-info],[data-iw-open],[data-iw-back],[data-iw-camera],[data-iw-photo],[data-edit],#userChip,[data-close],[data-open-leads],[data-lead-filter],[data-followup-filter]';
+ var allowed='[data-ready-filter],[data-ready-refresh],[data-pay-week],.package-intro>summary,[data-lead-summary-owner],[data-section],[data-nav-view],[data-view],[data-more],[data-xc-toggle],[data-new],[data-edit-lead],#primaryAction,#iwCancel,[data-installation-work],[data-preview-info],[data-iw-open],[data-iw-back],[data-iw-camera],[data-iw-photo],[data-edit],#userChip,[data-close],[data-open-leads],[data-lead-filter],[data-followup-filter]';
  function block(e){var el=e.target.closest&&e.target.closest('button,a,input,select,textarea');if(!el)return;
   if(el.matches('[data-preview-info]')){e.preventDefault();return;}
   if(el.matches('a')||el.matches('button')&&!el.matches(allowed)){e.preventDefault();e.stopImmediatePropagation();}

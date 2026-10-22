@@ -3,6 +3,11 @@
   functions = "netlify/functions"
 
 [[redirects]]
+  from = "/api/ready-leads"
+  to = "/.netlify/functions/ready-leads"
+  status = 200
+
+[[redirects]]
   from = "/api/installer"
   to = "/.netlify/functions/installer"
   status = 200

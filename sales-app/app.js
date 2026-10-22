@@ -453,10 +453,10 @@
   function canInstallWork(){return settings.user&&['admin','operations','teamlead','installer'].includes(settings.user.role);}
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=116');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=117');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=116');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=117');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
   }
@@ -474,6 +474,7 @@
   }
   setInterval(refreshInstallationAlerts,30000);
   function render() {
+    if(readyMounted){readyMounted.stop();readyMounted=null;}
     today=window.VeriskoLeadPipeline.kampalaDay();
     if(!navigation.allowed((settings.user||{}).role,view))view=navigation.first((settings.user||{}).role,'home')||'today';
     if (view === "settings" && !isAdmin()) view = "today";      // Settings is admin-only
@@ -490,6 +491,7 @@
     else if (view === "today") renderToday();
     else if (view === "dashboard") renderDashboard();
     else if (view === "leads") renderLeads();
+    else if (view === "ready") renderReadyQueue();
     else if (view === "prospects") renderProspects();
     else if (view === "visits") renderVisits();
     else if (view === "jobs") renderJobs();
@@ -500,7 +502,29 @@
     else if (view === "applications") renderApplications();
     else if (view === "field") renderFieldShifts();
     if (view !== 'field' && fieldTracker && fieldUI) updateFieldUI();
+    if(view!=='ready'&&!installationRole())refreshReadySummary();
   }
+
+  var readyMounted=null,readyData={items:[],people:[]},readyUser='',readyLoadedAt=0,readyLoading=false;
+  async function readyApi(method,body){
+    var id=settings.user&&settings.user.id;if(!id||!settings.auth)throw new Error('Sign in to open the queue.');
+    if(settings.auth.expires_at&&settings.auth.expires_at*1000-Date.now()<60000)await refreshSession();
+    async function request(){if(settings.user?.id!==id)throw new Error('Account changed. Open the queue again.');return fetch('/api/ready-leads',{method:method,headers:Object.assign({'Content-Type':'application/json'},{Authorization:'Bearer '+settings.auth.access_token}),body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000)});}
+    var res=await request();if(res.status===401&&await refreshSession())res=await request();var data=await res.json();
+    if(settings.user?.id!==id)throw new Error('Account changed. Open the queue again.');
+    if(!res.ok||!data.ok){var e=new Error(data.error||'Could not connect to the queue. Try again when online.');e.status=res.status;throw e;}return data;
+  }
+  function updateReadyData(data){readyData=data;readyUser=settings.user?.id||'';readyLoadedAt=Date.now();var badge=document.getElementById('readyBadge'),count=data.items.filter(function(c){return !c.ownerId&&c.state!=='returned';}).length;if(badge){badge.textContent=count;badge.hidden=!count;}}
+  async function refreshReadySummary(force){
+    var id=settings.user?.id;if(!id||installationRole()||readyLoading||(!force&&readyUser===id&&Date.now()-readyLoadedAt<30000))return;
+    if(readyUser!==id){readyData={items:[],people:[]};readyUser=id;}
+    readyLoading=true;try{var data=await readyApi('GET');if(settings.user?.id!==id)return;updateReadyData(data);if(view==='leads'&&document.getElementById('leadGrid'))updateLeadGrid();}catch(e){}finally{readyLoading=false;}
+  }
+  async function renderReadyQueue(){
+    var id=settings.user.id;setHead('Contacts','Ready for site visit','Loading the shared queue…','',false);content.innerHTML='<p role="status">Loading queue…</p>';
+    try{var m=await import('./ready-leads-ui.mjs?v=117');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
+  }
+  setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
   /* Field shifts use a separate authenticated service. GPS never enters the
      shared app-data backup or export, and managers never start a rep's GPS. */
@@ -532,7 +556,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=116'), import('./field-shifts-ui.mjs?v=116'), import('./field-shifts-android.mjs?v=116')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=117'), import('./field-shifts-ui.mjs?v=117'), import('./field-shifts-android.mjs?v=117')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -591,6 +615,7 @@
     sub.innerHTML=navigation.views(role,section).map(function(p){return '<button type="button" class="section-tab'+(view===p.id?' is-active':'')+'" data-nav-view="'+p.id+'"'+(view===p.id?' aria-current="page"':'')+'>'+esc(p.label)+(p.badge?'<span class="section-count" id="'+p.badge+'" hidden></span>':'')+'</button>';}).join('');
     var ib=document.getElementById('installerBadge'),count=installationAlerts.pendingIds.length+installationAlerts.submitted;
     if(ib){ib.hidden=!count;ib.textContent=count;}
+    var readyBadge=document.getElementById('readyBadge');if(readyBadge&&readyUser===settings.user?.id){var readyCount=readyData.items.filter(function(c){return !c.ownerId&&c.state!=='returned';}).length;readyBadge.textContent=readyCount;readyBadge.hidden=!readyCount;}
   }
   function renderMoreHome(){
     setHead('More','Tools & help','Choose what you need.','',false);
@@ -633,7 +658,7 @@
     var leadDue=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&(canReviewProspects()?leadTools().canManage(p,settings.user):ownProspect(p))&&(isToday(p.followUp)||isOverdue(p.followUp));});
     var manager=canReviewProspects(),receivedLeads=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&leadTools().canManage(p,settings.user);});
     var priorityStats='<div class="home-priorities" aria-label="Today at a glance"><div><strong>'+ (overdue.length+leadDue.filter(function(p){return isOverdue(p.followUp);}).length)+'</strong><span>Overdue follow-ups</span></div><div><strong>'+ (dueToday.length+leadDue.filter(function(p){return isToday(p.followUp);}).length)+'</strong><span>Follow-ups today</span></div><div><strong>'+confirmed.filter(function(a){return isToday(a.date);}).length+'</strong><span>Site visits today</span></div></div>';
-    var homeStart='<section class="card staff-start"><div><p class="workspace-label">'+(manager?'OPERATIONS':'SALES')+'</p><h2>'+(manager?'Keep the team moving':'Start with a contact')+'</h2><p>'+(manager?'Review contacts, plan site visits and check the installation work.':'Save who you meet. Follow up, then send ready contacts to Operations.')+'</p><div class="staff-start-actions">'+(manager?'<button type="button" class="btn btn-primary" data-nav-view="installwork">Open installations</button><button type="button" class="btn btn-ghost" data-nav-view="leads">View contacts</button>':'<button type="button" class="btn btn-primary" data-save-lead>Save a contact</button><button type="button" class="btn btn-ghost" data-nav-view="leads">My contacts</button>')+'</div></div>'+priorityStats+'</section>';
+    var homeStart='<section class="card staff-start"><div><p class="workspace-label">'+(manager?'OPERATIONS':'SALES')+'</p><h2>'+(manager?'Keep the team moving':'Start with a contact')+'</h2><p>'+(manager?'Review contacts, plan site visits and check the installation work.':'Save who you meet. Follow up, then send ready contacts to the shared site visit queue.')+'</p><div class="staff-start-actions">'+(manager?'<button type="button" class="btn btn-primary" data-nav-view="installwork">Open installations</button><button type="button" class="btn btn-ghost" data-nav-view="ready">Site visit queue</button>':'<button type="button" class="btn btn-primary" data-save-lead>Save a contact</button><button type="button" class="btn btn-ghost" data-nav-view="ready">' +(isTeamLead()?'Shared site visit queue':'My site visit requests')+'</button>')+'</div></div>'+priorityStats+'</section>';
     var sections=(manager?installationAlertHtml():'');
     if(leadDue.length)sections+='<section class="card"><h2>Contacts to follow up</h2><div class="home-followups">'+leadDue.map(function(p){return '<div><div><strong>'+esc(p.business)+'</strong><span>'+dateLabel(p.followUp)+'</span></div><button type="button" class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow up</button></div>';}).join('')+'</div></section>';
     sections += section("Overdue follow-ups", overdue.length, "alert",
@@ -684,7 +709,7 @@
     if(leadOwnerFilter&&!ownerOptions[leadOwnerFilter])leadOwnerFilter='';
     if(!manager){leadOwnerFilter='';leadDueFilter='';}
     var operationsFilters=manager?'<div class="field-inline"><label for="leadOwnerFilter">Salesperson</label><select id="leadOwnerFilter"><option value="">All salespeople</option>'+Object.keys(ownerOptions).sort(function(a,b){return ownerOptions[a].localeCompare(ownerOptions[b]);}).map(function(key){return '<option value="'+esc(key)+'">'+esc(ownerOptions[key])+'</option>';}).join('')+'</select></div><div class="field-inline"><label for="leadDueFilter">Follow-ups</label><select id="leadDueFilter"><option value="">All follow-ups</option><option value="today">Due today</option><option value="overdue">Overdue</option><option value="upcoming">Upcoming</option><option value="unscheduled">Not scheduled</option></select></div>':'';
-    content.innerHTML = (manager?leadSalespersonSummary():'')+'<section class="card"><div class="toolbar lead-toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Search leads" value="'+esc(leadQuery)+'"></div><div class="filter-row lead-filter-row"><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="mine">My saved leads</option><option value="sent">My sent handovers</option>'+(manager?'<option value="all">All prospecting contacts</option><option value="inbox">Ready for Operations</option>':'')+'</select></div>'+operationsFilters+'</div></div>'+(manager?'<button class="btn btn-ghost btn-sm" data-reset-lead-filters>Clear filters</button>':'')+'<p class="helper">Operations can see these contacts. Sending a contact marks it ready; it does not book a visit.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
+    content.innerHTML = (manager?leadSalespersonSummary():'')+'<section class="card"><div class="toolbar lead-toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Search leads" value="'+esc(leadQuery)+'"></div><div class="filter-row lead-filter-row"><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="mine">My saved leads</option><option value="sent">My sent handovers</option>'+(manager?'<option value="all">All prospecting contacts</option><option value="inbox">Ready for site visit</option>':'')+'</select></div>'+operationsFilters+'</div></div>'+(manager?'<button class="btn btn-ghost btn-sm" data-reset-lead-filters>Clear filters</button>':'')+'<p class="helper">Operations can see these contacts. Sending a contact marks it ready; it does not book a visit.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
     document.getElementById('leadMode').value = leadListMode;
     if(manager){document.getElementById('leadOwnerFilter').value=leadOwnerFilter;document.getElementById('leadDueFilter').value=leadDueFilter;}
     updateLeadGrid();
@@ -697,21 +722,23 @@
     var L=leadTools(), me=settings.user||{}, search=(document.getElementById('leadSearch').value||'').toLowerCase(), dueToday=L.kampalaDay();
     var rows=(state.prospects||[]).filter(function(p){
       if(!L.isLead(p))return false;
-      var inList=leadListMode==='all'?L.canManage(p,me):leadListMode==='inbox'?L.routed(p,me):L.own(p,me)&&(leadListMode==='sent'?!!p.handoffAt:!p.handoffAt);
+      var request=readyUser===me.id?readyData.items.find(function(c){return c.contactId===p.id;}):null,sent=request?request.state!=='returned':!!p.handoffAt;
+      var inList=leadListMode==='all'?L.canManage(p,me):leadListMode==='inbox'?L.canManage(p,me)&&sent:L.own(p,me)&&(leadListMode==='sent'?sent:!sent);
       return inList&&L.matchesFilters(p,{owner:leadOwnerFilter,due:leadDueFilter,today:dueToday})&&[p.business,p.contact,p.phone,p.location,p.createdBy,p.notes,p.nextAction].join(' ').toLowerCase().indexOf(search)!==-1;
     }).sort(function(a,b){return (a.followUp||'9999').localeCompare(b.followUp||'9999');});
     document.getElementById('leadCount').textContent=rows.length+' '+(rows.length===1?'contact':'contacts');
     document.getElementById('leadGrid').innerHTML=rows.length?rows.map(function(p){
+      var queueItem=readyUser===me.id?readyData.items.find(function(c){return c.contactId===p.id;}):null;
       var mine=L.own(p,me), receive=L.canManage(p,me), overdue=L.followUpBucket(p,dueToday)==='overdue';
-      return xCard({key:'l:'+p.id,cls:overdue?'tone-amber':'tone-navy',title:esc(p.business),chip:chip(p.handoffAt?'Ready for Operations':'Prospecting',p.handoffAt?'cyan':'grey'),meta:esc([p.contact,p.location].filter(Boolean).join(' · ')),
+      return xCard({key:'l:'+p.id,cls:overdue?'tone-amber':'tone-navy',title:esc(p.business),chip:chip(queueItem?(queueItem.state==='returned'?'Sent back':'Site visit requested'):p.handoffAt?'Site visit requested':'Prospecting',queueItem||p.handoffAt?'cyan':'grey'),meta:esc([p.contact,p.location].filter(Boolean).join(' · ')),
        next:{tone:overdue?'amber':'muted',text:(p.followUp?'Follow up '+dateLabel(p.followUp)+' · ':'')+(p.nextAction||'Plan your next conversation')},
        summary:leadContactSummary(p),
        quick:callBtn(p.phone)+'<button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button>',
        lines:line('Contact status',esc(p.leadStatus||'New contact'))+line('Phone',esc(p.phone))+line('Notes',esc(p.notes||'No notes yet'))+(p.handoffAt?line('Handover',esc((p.handoffBy||p.createdBy||'Sales')+' · '+dateLabel(p.handoffAt.slice(0,10))))+line('Request',esc(p.handoffNote||'Contact is ready for the team to follow up')):'')+followUpSummaryLine(p),
        more:(mine?'<button class="btn btn-sm btn-ghost" data-edit-lead="'+esc(p.id)+'">Edit contact</button>':'')+
-        ((mine&&!canReviewProspects())?'<button class="btn btn-sm btn-primary" data-lead-send="operations" data-lead-id="'+esc(p.id)+'">Send to Operations</button>':'')+
-        (receive?'<button class="btn btn-sm btn-ghost" data-lead-convert="'+esc(p.id)+'">Move to Prospects</button>':'')});
-    }).join(''):'<p class="helper">'+((leadQuery||leadOwnerFilter||leadDueFilter)?'No contacts match these filters.':leadListMode==='inbox'?'No contacts flagged ready for Operations.':leadListMode==='all'?'Saved contacts will appear here automatically as Sales adds them.':'No contacts here yet. Tap Save a lead to keep someone for follow-up.')+'</p>';
+        ((mine&&(!queueItem||queueItem.state==='returned'))?'<button class="btn btn-sm btn-primary" data-lead-send="operations" data-lead-id="'+esc(p.id)+'">Ready for site visit</button>':'')+
+        (receive&&(!queueItem||queueItem.ownerId===me.id||me.role==='admin')?'<button class="btn btn-sm btn-ghost" data-lead-convert="'+esc(p.id)+'">Move to Prospects</button>':'')});
+    }).join(''):'<p class="helper">'+((leadQuery||leadOwnerFilter||leadDueFilter)?'No contacts match these filters.':leadListMode==='inbox'?'No contacts flagged ready for a site visit.':leadListMode==='all'?'Saved contacts will appear here automatically as Sales adds them.':'No contacts here yet. Tap Save a lead to keep someone for follow-up.')+'</p>';
   }
   function leadContactSummary(p) {
     var recordedBy=p.createdBy || ((state.users||[]).find(function(u){return u.email && String(u.email).toLowerCase()===String(p.createdByEmail||'').toLowerCase();})||{}).name || 'Not recorded';
@@ -723,7 +750,8 @@
     }
     var dueStatus=leadTools().followUpBucket(p);
     var due=dueStatus==='unscheduled'?'Not scheduled':dateLabel(p.followUp)+(dueStatus==='overdue'?' · overdue':dueStatus==='today'?' · due today':'');
-    return '<div class="lead-contact-summary">'+line('Added by',esc(recordedBy))+line('Last follow-up',esc(lastText))+line('Next follow-up', '<span'+(dueStatus==='overdue'?' style="color:var(--red);font-weight:600"':'')+'>'+esc(due)+'</span>')+'</div>';
+    var readyCase=readyUser===settings.user?.id?readyData.items.find(function(c){return c.contactId===p.id;}):null;
+    return '<div class="lead-contact-summary">'+(readyCase?line('Site visit owner',esc(readyCase.ownerName))+'<button type="button" class="btn btn-ghost btn-sm" data-nav-view="ready">View site visit request</button>':'')+line('Added by',esc(recordedBy))+line('Last follow-up',esc(lastText))+line('Next follow-up', '<span'+(dueStatus==='overdue'?' style="color:var(--red);font-weight:600"':'')+'>'+esc(due)+'</span>')+'</div>';
   }
   function leadFormHtml(p) {
     return '<p class="helper full">Keep this contact for follow-up. No site visit, GPS pin or qualification answers are required.</p>'+
@@ -746,12 +774,11 @@
     dialog.close();saveData('Lead saved for follow-up. No visit booked.');view='leads';render();
   }
   async function sendLead(id,target) {
-    if(target!=='operations')return;
-    var p=prospect(id),L=leadTools();if(!L.isLead(p)||(!ownProspect(p)&&!L.canManage(p,settings.user)))return;
-    var answer=await openSheet({title:'Send to Operations',body:'What should the team help with? Sending does not book a visit.',input:{placeholder:'Client is ready for a call about a site visit',value:p.handoffNote||''},requireValue:true,confirmLabel:'Send handover'});
-    if(answer===null)return;var note=answer.text;
-    p.handoffTo=target;p.handoffAt=nowIso();p.handoffBy=(settings.user||{}).name||'';p.handoffByEmail=(settings.user||{}).email||'';p.handoffNote=note;
-    var saved=await saveData();toast(saved?'Handover sent. No visit booked yet.':'Handover saved on this phone; it will send when sync succeeds.');render();
+    var userId=settings.user?.id;try{
+      if(localUnsynced&&!(await pushShared()))throw new Error('Sync this contact before sending it to the site visit queue.');
+      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=117');if(settings.user?.id!==userId)return;
+      m.openReadyRequest({api:readyApi,user:settings.user,contacts:state.prospects||[],selectedId:id,items:readyData.items,esc:esc,isCurrent:function(){return settings.user?.id===userId&&!document.body.classList.contains('locked');},onSaved:function(item){updateReadyData({items:[item].concat(readyData.items.filter(function(c){return c.contactId!==item.contactId;})),people:readyData.people});toast('Sent to Team Lead and Operations.');if(view==='leads')updateLeadGrid();}});
+    }catch(e){toast(e.message);}
   }
   async function convertLead(id) {
     var p=prospect(id);if(!leadTools().canManage(p,settings.user))return;
@@ -3795,7 +3822,7 @@
   function canRefreshContacts(){
     var active=document.activeElement;
     return !!settings.auth&&canReviewProspects()&&!document.hidden&&!document.body.classList.contains('locked')&&
-      (view==='leads'||view==='today')&&connection.state==='connected'&&!dialog.open&&!document.getElementById('askDialog').open&&
+      (view==='leads'||view==='today')&&connection.state==='connected'&&!dialog.open&&!document.getElementById('askDialog').open&&!document.getElementById('readyLeadDialog')&&
       !(active&&active.matches('input,textarea,[contenteditable="true"]'));
   }
   async function refreshOperationsContacts(){
@@ -4194,7 +4221,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v116";
+  var APP_VERSION = "v117";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4380,7 +4407,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=116");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=117");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }
