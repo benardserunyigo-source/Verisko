@@ -144,7 +144,7 @@ mini PC reference and offline-alert test evidence; handover requires these.
 Care dates are 12 and 24 calendar months from installation. An activation-test
 record is not an automatic monitoring deployment or proof of delivered alerts.
 
-## Field shifts (v88)
+## Field shifts (v89)
 
 **Today → Check in** or **More → Field shifts** opens the field shift screen.
 Sales and Team leads start only their own shift, agree to location sharing and

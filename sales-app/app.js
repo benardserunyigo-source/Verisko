@@ -3988,7 +3988,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v88";
+  var APP_VERSION = "v89";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
