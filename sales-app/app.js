@@ -453,10 +453,10 @@
   function canInstallWork(){return settings.user&&['admin','operations','teamlead','installer'].includes(settings.user.role);}
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=113');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=114');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=113');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=114');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
   }
@@ -531,7 +531,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=113'), import('./field-shifts-ui.mjs?v=113'), import('./field-shifts-android.mjs?v=113')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=114'), import('./field-shifts-ui.mjs?v=114'), import('./field-shifts-android.mjs?v=114')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -598,8 +598,11 @@
     content.innerHTML='<div class="nav-tool-grid">'+pages.map(function(p){return '<button type="button" class="nav-tool" data-nav-view="'+p.id+'"><strong>'+esc(p.label)+'</strong><span>'+esc(notes[p.id]||'')+'</span><span class="nav-tool-arrow" aria-hidden="true">→</span></button>';}).join('')+'</div>';
   }
   function renderInstallerHome(){
-    setHead('Home','Your work today','Open your job to see the plan, agreed pay and site contact.','',false);
-    content.innerHTML='<section class="card"><h2>Ready for your next job?</h2><p>Check the plan and materials before you start. Check in at the site, add your checks and photos, then send the job for approval.</p><button type="button" class="btn btn-primary" data-nav-view="installwork">Open my jobs</button></section>';
+    setHead('Installer workspace','Your work today','Your jobs, site checks and payments in one place.','',false);
+    content.innerHTML='<div class="installer-home">'+
+      '<section class="card installer-start"><div class="installer-start-main"><span class="workspace-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v4H9zM9 12h6M9 16h4"/></svg></span><p class="workspace-label">START HERE</p><h2>Open your assigned job</h2><p>See where to go, who to meet and what to bring.</p><button type="button" class="btn btn-primary" data-nav-view="installwork">Open my jobs <span aria-hidden="true">→</span></button></div><aside class="installer-job-guide"><h3>Inside each job</h3><ul><li><span class="guide-mark" aria-hidden="true">✓</span>The plan and site contact</li><li><span class="guide-mark" aria-hidden="true">✓</span>Materials and camera checks</li><li><span class="guide-mark" aria-hidden="true">✓</span>Your agreed pay and balance</li></ul></aside></section>'+
+      '<section aria-labelledby="installationStepsTitle"><div class="workspace-section-head"><h2 id="installationStepsTitle">A good job, step by step</h2><p>Three things to remember on every installation.</p></div><ol class="installer-steps"><li class="card"><span class="step-number" aria-hidden="true">01</span><h3>Before you start</h3><p>Check the plan, materials and agreed pay. Ask if anything is missing.</p></li><li class="card"><span class="step-number" aria-hidden="true">02</span><h3>At the site</h3><p>Check in. Test each camera and cable. Add clear photos of the work.</p></li><li class="card"><span class="step-number" aria-hidden="true">03</span><h3>Before you leave</h3><p>Record leftover materials. Check out and send the job for approval.</p></li></ol></section>'+
+      '<aside class="workspace-help"><div><strong>Something changed on site?</strong><p>Ask your Verisko site contact before you change the plan.</p></div><button type="button" class="btn btn-ghost" data-nav-view="installerhelp">Get help</button></aside></div>';
   }
   function renderInstallerHelp(){
     setHead('Help','Need a hand?','Your site contact is listed inside each job.','',false);
@@ -4175,7 +4178,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v113";
+  var APP_VERSION = "v114";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4361,7 +4364,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=113");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=114");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }

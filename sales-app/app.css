@@ -879,3 +879,28 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 @media(min-width:860px){.mainnav{gap:8px;padding-top:26px}.nav-item{min-height:50px;font-size:16px}.section-nav{margin-top:14px}.nav-tool-grid{grid-template-columns:1fr 1fr}.nav-note{background:transparent;padding-left:14px}}
 @media(max-width:400px){.section-tab{padding:8px 10px;font-size:13px}}
 @media(max-width:859px){.lead-toolbar .search,.lead-filter-row{flex:0 1 auto;width:100%}}
+
+/* Workspace layout: readable widths, consistent card spacing and clear actions. */
+:root{--radius:12px;--shadow:none;--shadow-sm:none;--font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI","Helvetica Neue",Arial,sans-serif}
+.card{padding:24px;border:1px solid #eaeaea;border-radius:12px;box-shadow:none}
+.card>h2{font-size:20px;line-height:1.3;margin-bottom:10px}
+.card>p{line-height:1.6}
+.card>p+.btn{margin-top:18px}
+.card>p+p{margin-top:10px}
+.btn{border-radius:8px;box-shadow:none}
+.page-head{align-items:center;margin:22px 0 28px;gap:24px}
+.page-head-text{min-width:0}.page-head h1{letter-spacing:-.035em;line-height:1.15}.page-sub{max-width:64ch;line-height:1.6;margin-top:10px}
+.section-nav{margin-bottom:0;padding-bottom:18px;gap:8px}
+.section-tab{min-height:44px}.stack{gap:20px}
+.installer-home{display:grid;gap:28px}
+.installer-start{display:grid;gap:32px;align-items:center;padding:32px}
+.workspace-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:12px;background:var(--accent-soft);color:var(--logo-navy);margin-bottom:22px}.workspace-icon svg{width:26px;height:26px}
+.workspace-label{font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted);margin-bottom:10px}
+.installer-start-main h2{font-size:28px;line-height:1.2;letter-spacing:-.03em;margin-bottom:12px}.installer-start-main>p:not(.workspace-label){max-width:40ch;color:var(--muted);line-height:1.6}.installer-start-main>.btn{margin-top:24px;gap:18px}
+.installer-job-guide{padding:24px;background:#f7f8fa;border:1px solid #eaeaea;border-radius:12px}.installer-job-guide h3{font-size:15px;margin-bottom:18px}.installer-job-guide ul{list-style:none;padding:0;margin:0;display:grid;gap:18px}.installer-job-guide li{display:flex;align-items:center;gap:10px;font-size:14px;line-height:1.5}.guide-mark{flex:none;color:var(--green);font-weight:700}
+.workspace-section-head{margin-bottom:16px}.workspace-section-head h2{font-size:20px;letter-spacing:-.02em}.workspace-section-head p{color:var(--muted);font-size:14px;margin-top:7px;line-height:1.6}
+.installer-steps{list-style:none;margin:0;padding:0;display:grid;gap:14px}.installer-steps>li{min-width:0}.step-number{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--accent);background:var(--accent-soft);padding:6px 9px;border-radius:6px;margin-bottom:20px}.installer-steps h3{font-size:17px;margin-bottom:10px;line-height:1.3}.installer-steps p{font-size:14px;line-height:1.65;color:var(--muted);max-width:38ch}
+.workspace-help{display:flex;justify-content:space-between;align-items:center;gap:20px;border-top:1px solid #eaeaea;padding:22px 0 4px}.workspace-help strong{font-size:14px}.workspace-help p{font-size:14px;line-height:1.6;color:var(--muted);margin-top:5px}.workspace-help .btn{flex:none}
+@media(min-width:860px){main{width:100%;max-width:1120px;margin:0 auto;padding:20px 36px 52px}.page-head h1{font-size:34px}.installer-start{grid-template-columns:minmax(0,1.2fr) minmax(240px,1fr);padding:36px}.installer-steps{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:859px){main{padding:12px 18px 32px}.card{padding:22px}.page-head{align-items:flex-start;gap:16px}.page-head:has(.page-action:not([hidden])){flex-wrap:wrap}.page-head h1{font-size:28px}.installer-start{padding:24px;gap:26px}.installer-start-main h2{font-size:25px}.workspace-help{align-items:flex-start;flex-direction:column;gap:14px}.installer-home{gap:24px}}
+@media(prefers-reduced-motion:no-preference){.installer-home{animation:workspace-arrive .25s ease-out}@keyframes workspace-arrive{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}}
