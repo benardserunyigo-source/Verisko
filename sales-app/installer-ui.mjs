@@ -1,5 +1,5 @@
-import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=106';
-import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady,installerPaymentSummary,PAYMENT_METHODS} from './installer-model.mjs?v=106';
+import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=107';
+import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady,installerPaymentSummary,PAYMENT_METHODS} from './installer-model.mjs?v=107';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>'UGX '+Number(v).toLocaleString('en-UG');
 const time=v=>new Date(v).toLocaleString('en-GB',{timeZone:'Africa/Kampala'});
@@ -20,7 +20,7 @@ export async function mountInstaller(ctx){
 async function showDemo(role='operations'){
  if(!realContext||!manager(realContext.user))return;
  if(active?.client.queue.length){realContext.toast('Send saved work before changing views.');return;}
- if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=106');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
+ if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=107');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
  if(active)active.stop();const actor=demoController.transport.actors[role==='installer'?1:0];
  active=new InstallerView({...realContext,user:actor,demo:true,demoRole:role,initialJobId:'demo-installation',fetcher:demoController.transport.fetcher(role),token:async()=>''});await active.start();
 }
@@ -29,7 +29,7 @@ export function installerPending(){return active?.client.queue.length||0;}
 export function suspendInstaller(){if(active){active.stop();active=null;}}
 export async function clearInstaller(){if(active){await active.clear();active=null;}}
 class InstallerView {
- constructor(ctx){this.ctx=ctx;this.user=ctx.user;this.jobId='';this.cameraId='';this.queueFilter='all';this.client=new InstallerClient({user:ctx.user,token:ctx.token,...(ctx.fetcher?{fetcher:ctx.fetcher}:{}),onChange:()=>{if(this.ctx.isCurrent())this.draw();}});}
+ constructor(ctx){this.ctx=ctx;this.user=ctx.user;this.jobId='';this.cameraId='';this.queueFilter='all';this.client=ctx.previewClient||new InstallerClient({user:ctx.user,token:ctx.token,...(ctx.fetcher?{fetcher:ctx.fetcher}:{}),onChange:()=>{if(this.ctx.isCurrent())this.draw();}});if(ctx.previewClient)this.client.onChange=()=>{if(this.ctx.isCurrent())this.draw();};}
  async start(){try{await this.client.init();this.draw();await this.client.sync();if(this.ctx.initialJobId){this.jobId=this.ctx.initialJobId;this.draw();}this.client.cachePhotos();}catch(e){this.ctx.container.innerHTML='<section class="card iw-card">'+esc(e.message)+' · Offline storage must be available before work can be saved.</section>';}
   this.online=()=>{if(this.ctx.isCurrent())this.client.sync();};window.addEventListener('online',this.online);
   this.timer=setInterval(()=>{if(this.ctx.isCurrent()&&!document.querySelector('#iwDialog[open]')&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))this.client.sync();},30000);

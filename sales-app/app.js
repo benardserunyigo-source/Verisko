@@ -1,5 +1,7 @@
 (function () {
   "use strict";
+  var rolePreview=window.VeriskoRolePreview&&window.VeriskoRolePreview.active;
+  if(new URLSearchParams(location.search).has("rolePreview")&&!rolePreview){document.body.textContent="Preview could not load. Close this preview and try again when online.";return;}
 
   /* ---------------------------------------------------------------------------
    * Verisko Uganda Operations
@@ -452,9 +454,11 @@
   function canInstallWork(){return settings.user&&['admin','operations','supervisor','installer'].includes(settings.user.role);}
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=106');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=107');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
-      await installerModule.mountInstaller({user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&settings.user.id===installerUser.id&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
+      var previewClient;
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=107');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      await installerModule.mountInstaller({previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
   }
   var installationAlerts={pendingIds:[],corrections:0,submitted:0},installationAlertUser='',installationAlertAt=0,installationAlertBusy=false,installationAlertKnown=false;
@@ -519,13 +523,14 @@
     if (view === 'field') fieldUI.renderShiftPage(content, {tracker:fieldTracker,api:fieldApi,person:settings.user,esc:esc});
   }
   async function ensureFieldShifts() {
+    if(rolePreview)return;
     if (!settings.user || !settings.auth || installationRole()) return;
     var personId = settings.user.id;
     if (fieldTracker && fieldPersonId === personId) { updateFieldUI(); return; }
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=106'), import('./field-shifts-ui.mjs?v=106'), import('./field-shifts-android.mjs?v=106')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=107'), import('./field-shifts-ui.mjs?v=107'), import('./field-shifts-android.mjs?v=107')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -540,6 +545,7 @@
   }
   function renderFieldShifts() {
     setHead('FIELD WORK', canReviewProspects() ? 'Field team shifts' : 'My field shift', 'Check-in, pauses, location updates and check-out. All times are Uganda time.', '', false);
+    if(rolePreview){content.innerHTML='<section class="card"><h2>'+ (canReviewProspects()?'Team check-ins':'Your check-in')+'</h2><p>Preview only. '+(canReviewProspects()?'Operations can see team shifts and reported locations.':'Sales can check in, pause and check out of their own shift.')+'</p><p>No location is collected in this preview.</p><button class="btn btn-ghost" disabled>Check-in is turned off in preview</button></section>';return;}
     if (fieldTracker && fieldUI) updateFieldUI();
     else { content.innerHTML = '<p class="helper" role="status">Loading field shifts…</p>'; ensureFieldShifts(); }
   }
@@ -2685,7 +2691,7 @@
         '<span class="who"><strong>' + esc(u.name) + " · " + esc(roleName(u)) + "</strong><span>" + esc(contactOf(u)) + "</span></span>" +
         (actions ? '<span class="row-actions">' + actions + "</span>" : "") + "</div>";
     }).join("") + "</div>" : '<p class="settings-note">No accounts yet.</p>';
-    content.innerHTML = '<div class="settings-grid">' + signupsCard() + pinSignInCard() +
+    content.innerHTML = '<div class="settings-grid"><section class="card settings-card"><h2>Preview a team role</h2><p>See the Sales, Operations and Installer screens with sample records. Your Admin account stays signed in.</p><button type="button" class="btn btn-primary" data-role-preview>Preview a team role</button></section>' + signupsCard() + pinSignInCard() +
       '<section class="card settings-card"><h2>Team members</h2>' +
       "<p><strong>Sales</strong> see only their own prospects and visits. <strong>Team leads</strong> see every rep's prospects, approve qualified ones and record client deposits. <strong>Operations</strong> also get the Cash flow tab. <strong>Technical</strong> can also open this Settings page. Removing someone revokes access immediately.</p>" +
       teamRows +
@@ -3356,6 +3362,7 @@
   // Resolves { geo, error } — geo is the pin (or null); error names why it failed
   // (denied / timeout / unavailable / unsupported) so we can guide the rep.
   function captureGeo() {
+    if(rolePreview)return Promise.resolve({geo:null,error:"Preview only. Location is turned off."});
     return new Promise(function (resolve) {
       if (!navigator.geolocation) return resolve({ geo: null, error: "unsupported" });
       var done = false;
@@ -4151,7 +4158,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v106";
+  var APP_VERSION = "v107";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4324,6 +4331,7 @@
     document.getElementById("userMenuAvatar").textContent = initials(u.name);
     document.getElementById("userMenuName").textContent = u.name + " · " + roleName(u);
     document.getElementById("userMenuEmail").textContent = contactOf(u);
+    document.querySelector("[data-role-preview]").hidden=!isAdmin()||!!rolePreview;
   }
   // How to reach a team member: email, or phone for PIN sign-in accounts.
   function contactOf(u) { return u && u.authMethod === "pin" ? (u.phone || "") + " · " + (idStatusLabel(u) || "PIN sign-in") : (u && u.email) || ""; }
@@ -4336,7 +4344,9 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=107");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
+    if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }
     if (e.target.closest("[data-logout]")) logout();
   });
@@ -4992,6 +5002,7 @@
   });
 
   content.addEventListener("click", function (e) {
+    if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if(e.target.closest('[data-installation-work]')){e.stopPropagation();view='installwork';render();return;}
     var summaryOwner=e.target.closest('[data-lead-summary-owner]');
     if(summaryOwner&&canReviewProspects()){leadOwnerFilter=summaryOwner.dataset.leadSummaryOwner;leadDueFilter='';leadQuery='';leadListMode='all';renderLeads();document.getElementById('leadCount').scrollIntoView({block:'center',behavior:'smooth'});return;}
@@ -5103,12 +5114,12 @@
   /* -------------------------------- Start ----------------------------------- */
   // Offline loading (sw.js): keep a copy of the app on the phone so it opens
   // with no signal. Registered after load so it never slows the first paint.
-  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+  if (!rolePreview && "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
     window.addEventListener("load", function () { navigator.serviceWorker.register("/sw.js").catch(function () {}); });
   }
   // Load any offline photos waiting to upload (migrates the old localStorage
   // queue into IndexedDB on first run).
-  initUploadQueue();
+  if(!rolePreview)initUploadQueue();
   // Recover automatically when the phone gets signal back.
   window.addEventListener("online", function () { setSync("syncing", "Back online — syncing…"); syncNow(); });
   window.addEventListener("offline", function () { setSync("error", "Offline — saved on this device"); });
@@ -5126,6 +5137,7 @@
       if (document.body.classList.contains("locked")) renderLogin("signup", r.ok ? "" : r.error);
     });
   })();
+  if(rolePreview){window.VeriskoPricing=window.createVeriskoPricing({version:window.VeriskoPriceCatalogue.version,catalogue:window.VeriskoPriceCatalogue.catalogue});enterApp();setSync('local','Preview only · sample data');return;}
   var hashAuth = readAuthFromHash();
   if (!storageWorks()) showOpenProblem("storage-blocked", "This browser won't let the app save on this phone");
   else if (hashAuth && hashAuth.access_token) {

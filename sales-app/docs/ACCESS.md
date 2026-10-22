@@ -34,3 +34,11 @@ The installation demo uses fictional records in the browser. Its role preview do
 ## Verification
 
 Automated tests cover all six roles, forged writes, staff privilege escalation, photo access, hidden lead references, supervisor assignments, payment privacy and account/session boundaries. Browser checks use fictional Sales, Operations and Supervisor accounts. No real staff account is changed for testing.
+
+## Admin screen preview (v107)
+
+Admin can open **Account menu → Preview a team role**, or use the same button in **Settings**. Choose Sales, Operations or Installer. Select **Back to Admin** to return to the same account and page.
+
+The preview opens the real app screens in a separate frame with fictional records. It is a view-only screen preview, not an impersonation session or a substitute for server access tests. Buttons that save, send, pay or collect location are turned off. Navigation and record details remain available. The preview holds no real credentials, reads no workspace storage, uses no real API, and stores no work. Switching roles starts a fresh sample view. The installer screen uses the same job/payment projection as real installations, backed by an in-memory sample client.
+
+The launch button appears only for Admin. A direct preview URL can display only public fictional sample data; it grants no access to real records. Server permissions remain unchanged. Automated preview tests cover launcher eligibility, isolated storage, blocked network writes and the installer sample projection.
