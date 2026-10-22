@@ -27,3 +27,23 @@ test('missing or invalid follow-up times are not displayed as a recent conversat
 test('follow-up filtering separates today, overdue, future and unscheduled contacts',()=>{const today='2026-10-22';assert.equal(L.followUpBucket({followUp:today},today),'today');assert.equal(L.followUpBucket({followUp:'2026-10-21'},today),'overdue');assert.equal(L.followUpBucket({followUp:'2026-10-23'},today),'upcoming');assert.equal(L.followUpBucket({},today),'unscheduled');assert.equal(L.matchesFilters({}, {due:'overdue',today}),false);});
 test('salesperson and due filters combine without merging people with the same name',()=>{const p={createdBy:'Sam',createdByEmail:'ABRAHAM@test',followUp:'2026-10-21'},filter={owner:'abraham@test',due:'overdue',today:'2026-10-22'};assert.equal(L.matchesFilters(p,filter),true);assert.equal(L.matchesFilters({...p,createdByEmail:'other@test'},filter),false);assert.equal(L.matchesFilters({...p,followUp:'2026-10-22'},filter),false);});
 test('today switches at Uganda midnight even when UTC and the viewer are still on yesterday',()=>{assert.equal(L.kampalaDay('2026-10-21T20:59:59Z'),'2026-10-21');assert.equal(L.kampalaDay('2026-10-21T21:00:00Z'),'2026-10-22');});
+
+
+test('sales summary credits conversations to their actor, counts current contacts by creator and retains zero-activity salespeople',()=>{
+ const other={email:'other@test',name:'Other',role:'sales'},idle={email:'idle@test',name:'Idle',role:'sales'};
+ const note={at:now,byEmail:other.email,by:other.name,note:'Called'};
+ const records=[{...draft(),createdBy:rep.name,followUp:'2026-10-22',followUps:[note,{...note},{at:now,byEmail:ops.email,note:'Operations called'},{at:'bad',byEmail:rep.email}]},
+  {...draft(),id:'two',followUp:'2026-10-21',followUps:[{at:now,byEmail:'REP@test',note:'Followed up'}]},
+  {...draft(),id:'converted',leadOnly:false,leadConvertedAt:now,followUps:[note]}];
+ const rows=L.salespersonSummary(records,[rep,other,idle,ops],'2026-10-22');
+ assert.deepEqual(rows.find(r=>r.key===rep.email),{key:rep.email,name:rep.name,contacts:2,followUps:1,today:1,overdue:1});
+ assert.equal(rows.find(r=>r.key===other.email).followUps,1);
+ assert.equal(rows.find(r=>r.key===idle.email).contacts,0);
+ assert.equal(rows.some(r=>r.key===ops.email),false);
+});
+test('sales summary retains former creators and resolves legacy actor names without guessing between identical names',()=>{
+ const records=[{...draft(),createdBy:'Former',createdByEmail:'former@test',followUps:[{at:now,by:'Former',note:'Called'}]}];
+ const row=L.salespersonSummary(records,[], '2026-10-22')[0];assert.equal(row.followUps,1);assert.equal(row.contacts,1);
+ const rows=L.salespersonSummary([{...draft(),followUps:[{at:now,by:'Sam',note:'Called'}]}],[{name:'Sam',email:'one@test',role:'sales'},{name:'Sam',email:'two@test',role:'sales'}]);
+ assert.equal(rows.find(r=>r.key==='one@test').followUps,0);assert.equal(rows.find(r=>r.key==='two@test').followUps,0);
+});

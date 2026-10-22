@@ -23,6 +23,36 @@
  function matchesFilters(p,{owner='',due='',today=kampalaDay()}={}){
   return (!owner||ownerKey(p)===owner)&&(!due||followUpBucket(p,today)===due);
  }
+ // Summary is deliberately independent of the contact-list filters.
+ function salespersonSummary(records,users=[],today=kampalaDay()){
+  const rows=new Map(), roster=new Map(users.filter(u=>u.email).map(u=>[lc(u.email),u]));
+  const nameKeys=new Map();
+  users.forEach(u=>{if(u.name){const k=lc(u.name);nameKeys.set(k,nameKeys.has(k)?null:lc(u.email));}});
+  const ensure=(key,name)=>{if(!rows.has(key))rows.set(key,{key,name:roster.get(key)?.name||name||'Not recorded',contacts:0,followUps:0,today:0,overdue:0});return rows.get(key);};
+  users.filter(u=>['sales','teamlead'].includes(u.role)&&u.email).forEach(u=>ensure(lc(u.email),u.name));
+  const contacts=(records||[]).filter(isLead);
+  contacts.forEach(p=>{
+   const row=ensure(ownerKey(p),p.createdBy);row.contacts++;
+   const bucket=followUpBucket(p,today);if(bucket==='today'||bucket==='overdue')row[bucket]++;
+  });
+  contacts.forEach(p=>{
+   const seen=new Set();
+   (Array.isArray(p.followUps)?p.followUps:[]).forEach(f=>{
+    if(!f||!Number.isFinite(Date.parse(f.at)))return;
+    const key=lc(f.byEmail)||(f.by?(nameKeys.get(lc(f.by))||'name:'+lc(f.by)):'');
+    const actor=roster.get(key);
+    if(!key||(actor&&!['sales','teamlead'].includes(actor.role)))return;
+    // Legacy names can match a creator only when that name is unambiguous.
+    let row=rows.get(key);
+    if(!row&&!f.byEmail&&f.by){const matches=[...rows.values()].filter(r=>lc(r.name)===lc(f.by));if(matches.length===1)row=matches[0];}
+    if(!row&&f.role&&!['sales','teamlead'].includes(f.role))return;
+    if(!row)row=ensure(key,f.by);
+    const signature=JSON.stringify([f.at,key,f.note||'',f.outcome||'']);
+    if(seen.has(signature))return;seen.add(signature);row.followUps++;
+   });
+  });
+  return [...rows.values()].sort((a,b)=>a.name.localeCompare(b.name)||a.key.localeCompare(b.key));
+ }
  const phoneKey=v=>{let d=String(v||'').replace(/\D/g,'');return d.length>=9?d.slice(-9):'';};
  function check(data,records,id){
   if(String(data.business||'').trim().length<2)return 'Add the business or contact name.';
@@ -69,5 +99,5 @@
   if(appointments.some(a=>leads.has(a.prospectId))||jobs.some(j=>leads.has(j.prospectId)))throw new Error('Move the saved lead to Prospects before creating a visit or quote.');
   return out;
  }
- root.VeriskoLeadPipeline={ownerKey,kampalaDay,followUpBucket,matchesFilters,latestFollowUp,isLead,own,routed,canSee,canManage,phoneKey,check,guard,STATUSES:['New contact','Following up','Not ready','Not interested']};
+ root.VeriskoLeadPipeline={salespersonSummary,ownerKey,kampalaDay,followUpBucket,matchesFilters,latestFollowUp,isLead,own,routed,canSee,canManage,phoneKey,check,guard,STATUSES:['New contact','Following up','Not ready','Not interested']};
 })(typeof window!=='undefined'?window:globalThis);

@@ -234,3 +234,6 @@ Upcoming or Not scheduled) with search and the existing contact scope. These
 selections survive automatic refresh, reset on account changes and can be cleared
 without editing contact records. Due-date classification uses the current date
 in Africa/Kampala, including when midnight passes while the app stays open.
+
+### Operations salesperson summary (v96)
+Operations and admins see one row per Sales/Team lead roster member, including zero activity, plus creators retained on current prospecting contacts. All four metrics cover current `leadOnly` contacts, independent of search/list filters; converted prospects leave this summary. Contacts and due counts use the original creator, while recorded follow-ups use the actual actor, not contact ownership. Valid timestamped follow-up records count once per contact/event; scheduling alone is not a conversation. Operations/admin notes do not count as sales activity. Dates use Africa/Kampala. Select a name to clear other filters and show that creator's prospecting contacts. Summary refreshes with the existing read-only Operations contact refresh.

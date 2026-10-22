@@ -495,7 +495,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=95'), import('./field-shifts-ui.mjs?v=95'), import('./field-shifts-android.mjs?v=95')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=96'), import('./field-shifts-ui.mjs?v=96'), import('./field-shifts-android.mjs?v=96')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -620,14 +620,18 @@
     if (!leadListMode) leadListMode = manager ? 'all' : 'mine';
     setHead('Sales contacts', manager ? 'Prospecting contacts' : 'My leads', 'Operations can see saved contacts while Sales follows up. Send to Operations when ready for the next step. No visit is booked automatically.', 'Save a lead', true);
     var ownerOptions={};
-    if(manager)(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&leadTools().canManage(p,settings.user);}).forEach(function(p){ownerOptions[leadTools().ownerKey(p)]=p.createdBy||((state.users||[]).find(function(u){return u.email&&String(u.email).toLowerCase()===String(p.createdByEmail||'').toLowerCase();})||{}).name||'Not recorded';});
+    if(manager)leadTools().salespersonSummary(state.prospects,state.users).forEach(function(r){ownerOptions[r.key]=r.name;});
     if(leadOwnerFilter&&!ownerOptions[leadOwnerFilter])leadOwnerFilter='';
     if(!manager){leadOwnerFilter='';leadDueFilter='';}
     var operationsFilters=manager?'<div class="field-inline"><label for="leadOwnerFilter">Salesperson</label><select id="leadOwnerFilter"><option value="">All salespeople</option>'+Object.keys(ownerOptions).sort(function(a,b){return ownerOptions[a].localeCompare(ownerOptions[b]);}).map(function(key){return '<option value="'+esc(key)+'">'+esc(ownerOptions[key])+'</option>';}).join('')+'</select></div><div class="field-inline"><label for="leadDueFilter">Follow-ups</label><select id="leadDueFilter"><option value="">All follow-ups</option><option value="today">Due today</option><option value="overdue">Overdue</option><option value="upcoming">Upcoming</option><option value="unscheduled">Not scheduled</option></select></div>':'';
-    content.innerHTML = '<section class="card"><div class="toolbar lead-toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Search leads" value="'+esc(leadQuery)+'"></div><div class="filter-row lead-filter-row"><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="mine">My saved leads</option><option value="sent">My sent handovers</option>'+(manager?'<option value="all">All prospecting contacts</option><option value="inbox">Ready for Operations</option>':'')+'</select></div>'+operationsFilters+'</div></div>'+(manager?'<button class="btn btn-ghost btn-sm" data-reset-lead-filters>Clear filters</button>':'')+'<p class="helper">Operations sees saved contacts automatically in the prospecting stage. Send to Operations flags readiness; it does not book a visit or create visit pay.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
+    content.innerHTML = (manager?leadSalespersonSummary():'')+'<section class="card"><div class="toolbar lead-toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Search leads" value="'+esc(leadQuery)+'"></div><div class="filter-row lead-filter-row"><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="mine">My saved leads</option><option value="sent">My sent handovers</option>'+(manager?'<option value="all">All prospecting contacts</option><option value="inbox">Ready for Operations</option>':'')+'</select></div>'+operationsFilters+'</div></div>'+(manager?'<button class="btn btn-ghost btn-sm" data-reset-lead-filters>Clear filters</button>':'')+'<p class="helper">Operations sees saved contacts automatically in the prospecting stage. Send to Operations flags readiness; it does not book a visit or create visit pay.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
     document.getElementById('leadMode').value = leadListMode;
     if(manager){document.getElementById('leadOwnerFilter').value=leadOwnerFilter;document.getElementById('leadDueFilter').value=leadDueFilter;}
     updateLeadGrid();
+  }
+  function leadSalespersonSummary() {
+    var rows=leadTools().salespersonSummary(state.prospects,state.users);
+    return '<section class="card lead-team-summary"><h2>Salesperson summary</h2><p class="helper">Current prospecting contacts. Follow-ups count conversations recorded by each person. Dates use Uganda time. Select a name to filter contacts.</p><div class="lead-summary-scroll"><table class="lead-summary-table"><caption class="sr-only">Salesperson prospecting activity</caption><thead><tr><th scope="col">Salesperson</th><th scope="col">Contacts added</th><th scope="col">Follow-ups done</th><th scope="col">Due today</th><th scope="col">Overdue</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><th scope="row"><button class="btn btn-ghost btn-sm" data-lead-summary-owner="'+esc(r.key)+'">'+esc(r.name)+'</button></th><td>'+r.contacts+'</td><td>'+r.followUps+'</td><td'+(r.today?' class="lead-summary-today"':'')+'>'+r.today+'</td><td'+(r.overdue?' class="lead-summary-overdue"':'')+'>'+r.overdue+'</td></tr>';}).join('')+'</tbody></table></div>'+(!rows.length?'<p class="helper">Salespeople will appear here when staff or contacts are added.</p>':'')+'</section>';
   }
   function updateLeadGrid() {
     var L=leadTools(), me=settings.user||{}, search=(document.getElementById('leadSearch').value||'').toLowerCase(), dueToday=L.kampalaDay();
@@ -4101,7 +4105,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v95";
+  var APP_VERSION = "v96";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4889,6 +4893,8 @@
   });
 
   content.addEventListener("click", function (e) {
+    var summaryOwner=e.target.closest('[data-lead-summary-owner]');
+    if(summaryOwner&&canReviewProspects()){leadOwnerFilter=summaryOwner.dataset.leadSummaryOwner;leadDueFilter='';leadQuery='';leadListMode='all';renderLeads();document.getElementById('leadCount').scrollIntoView({block:'center',behavior:'smooth'});return;}
     if(e.target.closest('[data-reset-lead-filters]')){leadOwnerFilter='';leadDueFilter='';leadQuery='';renderLeads();return;}
     if(e.target.closest('[data-open-leads]')){view='leads';leadListMode='all';leadViewer=(settings.user||{}).email;render();return;}
     var leadEdit=e.target.closest('[data-edit-lead]');if(leadEdit){openForm('prospect',leadEdit.dataset.editLead);return;}
