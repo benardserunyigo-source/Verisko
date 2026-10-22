@@ -1,3 +1,4 @@
+import {loadReadyCases,projectReady} from './lib/ready-progress.mjs';
 // Verisko Uganda Operations — read-only data export for spreadsheets.
 //
 // GET /api/export?key=<export key>&table=<name>            -> CSV (default)
@@ -25,7 +26,7 @@ export default async (request) => {
   const given = url.searchParams.get("key") || "";
   try {
     if (request.method !== "GET") return json({ ok: false, error: "method_not_allowed" }, 405);
-    const data = (await getStore({name:DATA_STORE,consistency:"strong"}).get(DATA_KEY, { type: "json" })) || {};
+    let data = (await getStore({name:DATA_STORE,consistency:"strong"}).get(DATA_KEY, { type: "json" })) || {};
     const expected = String((data.config && data.config.exportKey) || "");
     if (!keyMatches(given, expected)) return json({ ok: false, error: "bad_key" }, 401);
 
@@ -43,6 +44,7 @@ export default async (request) => {
       return json({ ok: true, table: "diagnostics", rows }, 200);
     }
 
+    data=projectReady(data,await loadReadyCases(getStore({name:'verisko-ready-cases',consistency:'strong'})));
     const base = `${url.origin}/api/export?key=${encodeURIComponent(given)}`;
     const tables = buildTables(data, base);
     const table = (url.searchParams.get("table") || "").toLowerCase();

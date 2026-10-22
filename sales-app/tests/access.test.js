@@ -8,7 +8,7 @@ const [admin,ops,lead,sales,installer,supervisor]=users;
 function fixture(actor=sales){
  let data={users:structuredClone(users),prospects:[{id:'mine',business:'TEST Mine',createdByEmail:sales.email,reviewStatus:'pending',photoId:'mine-photo'},{id:'other',business:'TEST Other',createdByEmail:ops.email,photoId:'other-photo'},{id:'private',business:'PRIVATE SAVED LEAD',createdByEmail:ops.email,leadOnly:true,phone:'0772000011'}],appointments:[{id:'v1',prospectId:'mine'}],jobs:[],transactions:[{id:'expense',direction:'out',amount:20,status:'approved',proofId:'finance-photo',note:'PRIVATE FINANCE'},{id:'deposit',direction:'in',amount:100,status:'approved',prospectId:'mine'}],technicians:[{id:'tech',phone:'PRIVATE TECH'}],quotes:[{id:'OLD PRIVATE QUOTE'}],installations:[{id:'OLD PRIVATE INSTALL'}],training:{u0:{v1:'T'},u2:{v2:'T'},u3:{v3:'T'}},config:{exportKey:'PRIVATE EXPORT KEY',internalSecret:'PRIVATE CONFIG',pettyLimit:20000,commissionPerSale:100000},unexpectedSecret:'PRIVATE TOP LEVEL'};
  const photos=new Map([['owner/mine-photo',{userId:sales.id,role:'sales'}],['owner/finance-photo',{userId:ops.id,role:'operations'}]]);
- const storeFor=name=>{name=typeof name==='string'?name:name.name;return {async get(key){return structuredClone(name==='verisko-sales'?data:photos.get(key)||null);},async setJSON(key,value){if(name==='verisko-sales')data=structuredClone(value);else photos.set(key,structuredClone(value));},async list(){return {blobs:[]};}};};
+ const storeFor=name=>{name=typeof name==='string'?name:name.name;return {async get(key){return structuredClone(name==='verisko-sales'?data:photos.get(key)||null);},async setJSON(key,value){if(name==='verisko-sales')data=structuredClone(value);else photos.set(key,structuredClone(value));},async *list(){yield {blobs:name==='verisko-ready-cases'?[...photos.keys()].filter(k=>k.startsWith('cases/')).map(key=>({key})):[]};}};};
  const handler=createDataHandler({storeFor,identifyRequest:async()=>({me:actor,email:actor?.email})});
  const get=()=>handler(new Request('https://test/api/data'));
  const post=body=>handler(new Request('https://test/api/data',{method:'POST',body:JSON.stringify({data:body})}));
@@ -111,4 +111,12 @@ test('Operations cannot move another queue owner’s contact to Prospects',async
  assert.equal((await f.post(body)).status,403);assert.equal(f.read().prospects.find(p=>p.id==='private').leadOnly,true);
  f.photos.set('cases/private',{contactId:'private',ownerId:ops.id,state:'assigned',version:3});
  assert.equal((await f.post(body)).status,200);
+});
+
+test('canonical queue progress reaches scoped site visits and survives older workspace saves',async()=>{
+ const f=fixture(sales),original=f.read();const ready={contactId:'private',ownerId:ops.id,visit:{id:'ready-visit-private',date:'2026-10-22',time:'10:00',confirmedAt:'2026-10-22T07:00:00Z',byName:ops.name,byEmail:ops.email,doneAt:'2026-10-22T12:00:00+03:00',doneByName:ops.name,doneByEmail:ops.email}};
+ f.photos.set('cases/private',ready);const mine={...ready,contactId:'mine',visit:{...ready.visit,id:'v1'}};f.photos.set('cases/mine',mine);
+ let r=await f.get(),b=await r.json();assert.equal(r.status,200);assert.equal(b.data.appointments.length,1);assert.equal(b.data.appointments[0].id,'v1');assert.equal(b.data.appointments[0].visitResult,'real');assert.equal(b.data.prospects[0].readyProgress,'Visit done');assert.ok(!JSON.stringify(b).includes('PRIVATE SAVED LEAD'));
+ assert.equal((await f.post(original)).status,200);assert.equal(f.read().appointments.find(a=>a.id==='v1').visitResult,'real');
+ const duplicate=f.read();duplicate.appointments.push({id:'duplicate-visit',prospectId:'mine'});assert.equal((await f.post(duplicate)).status,409);
 });

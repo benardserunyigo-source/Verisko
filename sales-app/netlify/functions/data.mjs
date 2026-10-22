@@ -1,3 +1,4 @@
+import {loadReadyCases,projectReady} from './lib/ready-progress.mjs';
 import {ROLES,guardRoster,visibleRoster,guardCash,checkPhotoLinks,safeUser} from './access.mjs';
 import '../../lead-pipeline.js';
 // Verisko Sales Visit Planner — shared data API backed by Netlify Blobs.
@@ -31,7 +32,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
   try {
     // 1) Load data and identify the caller (email or staff PIN session).
     const store = storeFor({name:STORE,consistency:'strong'});
-    const data = (await store.get(KEY, { type: "json" })) || EMPTY;
+    let data = (await store.get(KEY, { type: "json" })) || EMPTY;
     const users = Array.isArray(data.users) ? data.users : [];
     const who = await identifyRequest(request, data, { authStore: storeFor({name:AUTH_STORE,consistency:'strong'}), now: Date.now(), supabaseUser });
     if (who.error) return json({ ok: false, error: who.error }, who.status, headers);
@@ -49,6 +50,8 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
       if(request.method!=='GET')return json({ok:false,error:'Use the installation workspace.'},403,headers);
       return json({ok:true,data:{...EMPTY,users:[safeUser(me)]}},200,headers);
     }
+    const readyCases=await loadReadyCases(storeFor({name:'verisko-ready-cases',consistency:'strong'}));
+    data=projectReady(data,readyCases);
     const isAdmin = bootstrap || (me && me.role === "admin");
     const isTeamLead = !bootstrap && !!me && me.role === "teamlead";
     const isSales = !bootstrap && !!me && me.role !== "admin" && me.role !== "operations" && me.role !== "teamlead";
@@ -115,6 +118,10 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
       const savedLeadIds = new Set(clean.prospects.filter(p=>globalThis.VeriskoLeadPipeline.isLead(p)).map(p=>p.id));
       const knownPayments = new Set(storedTx.map(t=>t.id));
       if(clean.transactions.some(t=>!knownPayments.has(t.id)&&savedLeadIds.has(t.prospectId)))return json({ok:false,error:'Move the saved lead to Prospects before recording a payment.'},400,headers);
+
+      const managedVisits=new Set(readyCases.filter(c=>c.visit).map(c=>c.contactId));
+      const existingVisitIds=new Set(storedAppointments.map(a=>a.id));
+      if(clean.appointments.some(a=>managedVisits.has(a.prospectId)&&!existingVisitIds.has(a.id)))return json({ok:false,error:'This contact already has a site visit. Open its site visit queue entry.'},409,headers);
 
       // Every role: call notes are never lost (append-only) and a phone with
       // an older copy can't overwrite a newer follow-up plan.
@@ -204,7 +211,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
         const ready=await storeFor({name:'verisko-ready-cases',consistency:'strong'}).get('cases/'+oldContact.id,{type:'json'});
         if(ready?.contactId===oldContact.id)return json({ok:false,error:'This contact has site visit history. Keep the contact record.'},409,headers);
       }}
-      await store.setJSON(KEY, clean);
+      await store.setJSON(KEY, projectReady(clean,readyCases));
       return json({ ok: true, ...(canReview ? { jobs: clean.jobs } : {}) }, 200, headers);
     }
 

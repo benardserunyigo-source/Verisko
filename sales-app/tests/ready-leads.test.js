@@ -4,10 +4,10 @@ import {FieldMemoryStore} from './helpers/field-fixture.mjs';
 function fixture(){
  const users=[{id:'sales',name:'Test Sales',email:'sales@test',role:'sales'},{id:'other',name:'Other Sales',email:'other@test',role:'sales'},{id:'lead',name:'Test Lead',email:'lead@test',role:'teamlead'},{id:'ops',name:'Test Operations',email:'ops@test',role:'operations'},{id:'admin',name:'Test Admin',email:'admin@test',role:'admin'},{id:'installer',name:'Test Installer',email:'installer@test',role:'installer'}];
  const prospects=[{id:'contact',business:'Test Shop',phone:'0772000111',createdBy:'Test Sales',createdByEmail:'sales@test',leadOnly:true},{id:'private',business:'PRIVATE UNSENT CONTACT',createdByEmail:'other@test',leadOnly:true}];
- const store=new FieldMemoryStore();let serial=0;
- const handler=createReadyHandler({store,authorize:async req=>({me:users.find(u=>u.id===req.headers.get('authorization')),users,prospects}),now:()=> '2026-10-22T12:00:00.000Z'});
+ const appointments=[],store=new FieldMemoryStore();let serial=0;
+ const handler=createReadyHandler({store,authorize:async req=>({me:users.find(u=>u.id===req.headers.get('authorization')),users,prospects,appointments}),now:()=> '2026-10-22T12:00:00.000Z'});
  const call=async(user,action,extra={})=>{const response=await handler(new Request('https://test.local/api/ready-leads',{method:action?'POST':'GET',headers:{authorization:user,'Content-Type':'application/json'},...(action?{body:JSON.stringify({contactId:'contact',baseVersion:0,requestId:'request-'+(++serial),action,...extra})}:{})}));return {status:response.status,...await response.json()};};
- return {users,prospects,store,handler,call};
+ return {users,prospects,appointments,store,handler,call};
 }
 test('one saved contact enters a shared queue visible to Sales, Team Lead and Operations only',async()=>{const f=fixture();assert.equal((await f.call('sales','request',{note:'Call before visiting'})).status,200);for(const role of ['sales','lead','ops','admin']){const r=await f.call(role);assert.equal(r.items.length,1);assert.equal(r.items[0].contact.id,'contact');assert.equal(r.items[0].ownerId,null);assert.ok(!JSON.stringify(r).includes('PRIVATE UNSENT'));}assert.equal((await f.call('other')).items.length,0);assert.equal((await f.call('installer')).status,403);assert.equal((await f.call('missing')).status,403);});
 test('ready submission is idempotent and cannot create duplicates or change the original salesperson',async()=>{const f=fixture(),body={requestId:'same-request',note:'First context'};const a=await f.call('sales','request',body),b=await f.call('sales','request',body);assert.equal(b.item.version,a.item.version);assert.equal(b.item.history.length,1);assert.equal((await f.call('sales','request')).status,409);assert.equal(f.prospects[0].createdByEmail,'sales@test');});
@@ -18,3 +18,33 @@ test('Sales cannot take or assign, other reps cannot request, and invalid target
 test('legacy Operations handovers are included for both receiving roles without a write on GET',async()=>{const f=fixture();Object.assign(f.prospects[0],{handoffAt:'2026-10-20T10:00:00Z',handoffTo:'operations',handoffNote:'Legacy context'});assert.equal((await f.call('lead')).items[0].version,0);assert.equal(f.store.rows.size,0);const r=await f.call('lead','take');assert.equal(r.item.ownerId,'lead');assert.equal(r.item.history.length,2);});
 test('a client cannot spoof actor names, request IDs, ownership or return history',async()=>{const f=fixture();const r=await f.call('sales','request',{by:'ops',ownerId:'ops',history:[{type:'taken'}]});assert.equal(r.item.history[0].by,'sales');assert.equal(r.item.ownerId,null);assert.equal((await f.call('ops','take',{baseVersion:1,requestId:r.item.history[0].id})).status,409);});
 test('cross-origin writes and malformed request data are rejected',async()=>{const f=fixture();const r=await f.handler(new Request('https://test.local/api/ready-leads',{method:'POST',headers:{authorization:'sales',origin:'https://other.local'},body:JSON.stringify({})}));assert.equal(r.status,403);assert.equal((await f.call('sales','request',{baseVersion:-1})).status,409);assert.equal((await f.call('sales','request',{contactId:'../private'})).status,400);});
+
+test('Team Lead can confirm, complete and record quote sent; Sales sees progress without quote reference',async()=>{
+ const f=fixture();await f.call('sales','request');await f.call('lead','take',{baseVersion:1});
+ let r=await f.call('lead','confirm_visit',{baseVersion:2,date:'2026-10-22',time:'14:30'});assert.equal(r.status,200);assert.equal(r.item.visit.date,'2026-10-22');assert.equal(r.item.visit.byName,'Test Lead');
+ r=await f.call('lead','complete_visit',{baseVersion:3,date:'2026-10-22'});assert.equal(r.status,200);assert.equal(r.item.visit.doneByName,'Test Lead');
+ r=await f.call('lead','quote_sent',{baseVersion:4,date:'2026-10-22',reference:'PRIVATE-QUOTE-021'});assert.equal(r.status,200);assert.equal(r.item.quoteSent.reference,'PRIVATE-QUOTE-021');
+ const sales=(await f.call('sales')).items[0];assert.equal(sales.visit.doneAt,'2026-10-22T12:00:00+03:00');assert.equal(sales.quoteSent.at,'2026-10-22T12:00:00+03:00');assert.ok(!JSON.stringify(sales).includes('PRIVATE-QUOTE'));assert.equal(sales.quoteSent.byEmail,undefined);assert.equal(sales.contact.createdBy,'Test Sales');assert.equal((await f.call('other')).items.length,0);
+});
+test('progress requires an owner, the correct order and valid dates; duplicate updates do not earn twice',async()=>{
+ const f=fixture();await f.call('sales','request');assert.equal((await f.call('ops','confirm_visit',{baseVersion:1,date:'2026-10-22',time:'10:00'})).status,409);await f.call('ops','take',{baseVersion:1});
+ for(const action of ['complete_visit','quote_sent'])assert.equal((await f.call('ops',action,{baseVersion:2,date:'2026-10-22'})).status,409);
+ for(const [date,time] of [['2026-02-30','10:00'],['2026-10-21','10:00'],['2026-10-22','25:10']])assert.equal((await f.call('ops','confirm_visit',{baseVersion:2,date,time})).status,400);
+ await f.call('ops','confirm_visit',{baseVersion:2,date:'2026-10-22',time:'10:00'});
+ assert.equal((await f.call('ops','complete_visit',{baseVersion:3,date:'2026-10-23'})).status,400);
+ const a=await f.call('ops','complete_visit',{baseVersion:3,date:'2026-10-22',requestId:'done-once-only'}),b=await f.call('ops','complete_visit',{baseVersion:3,date:'2026-10-22',requestId:'done-once-only'});assert.equal(a.item.version,b.item.version);assert.equal((await f.call('ops','complete_visit',{baseVersion:4,date:'2026-10-22'})).status,409);
+ assert.equal((await f.call('ops','quote_sent',{baseVersion:4,date:'2026-10-21'})).status,400);
+});
+test('Sales and a non-owner cannot change progress; converted contacts keep their existing queue progress',async()=>{
+ const f=fixture();await f.call('sales','request');await f.call('ops','take',{baseVersion:1});
+ for(const action of ['confirm_visit','complete_visit','quote_sent'])for(const user of ['sales','lead'])assert.equal((await f.call(user,action,{baseVersion:2,date:'2026-10-22',time:'10:00'})).status,403);
+ await f.call('ops','confirm_visit',{baseVersion:2,date:'2026-10-22',time:'10:00'});f.prospects[0].leadOnly=false;assert.equal((await f.call('ops','complete_visit',{baseVersion:3,date:'2026-10-22'})).status,200);
+ assert.equal((await f.call('ops','return',{baseVersion:4,note:'Back to Sales'})).status,409);
+});
+test('simultaneous confirmations create only one visit',async()=>{
+ const f=fixture();await f.call('sales','request');await f.call('ops','take',{baseVersion:1});const results=await Promise.all(['ops','admin'].map(user=>f.call(user,'confirm_visit',{baseVersion:2,date:'2026-10-22',time:'10:00'})));assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);assert.equal((await f.call('sales')).items[0].history.filter(h=>h.type==='visit_confirmed').length,1);
+});
+test('confirmation reuses a single existing booking and refuses ambiguous or completed legacy visits',async()=>{
+ for(const scenario of ['single','multiple','completed']){const f=fixture();await f.call('sales','request');await f.call('ops','take',{baseVersion:1});f.prospects[0].leadOnly=false;f.appointments.push({id:'existing-visit',prospectId:'contact',status:'Proposed',...(scenario==='completed'?{visitResult:'real'}:{})});if(scenario==='multiple')f.appointments.push({id:'second-visit',prospectId:'contact',status:'Proposed'});
+ const r=await f.call('ops','confirm_visit',{baseVersion:2,date:'2026-10-22',time:'10:00'});assert.equal(r.status,scenario==='single'?200:409);if(r.item)assert.equal(r.item.visit.id,'existing-visit');}
+});

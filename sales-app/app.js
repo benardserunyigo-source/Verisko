@@ -17,7 +17,7 @@
 
   // Salesperson-facing prospect stages (Excel `stage` is a free string, so any
   // legacy value coming from the workbook still renders — this is the pick-list).
-  var STAGES = ["New prospect", "Contact attempted", "Qualified", "Appointment proposed", "Appointment confirmed", "Lost", "Postponed"];
+  var STAGES = ["New prospect", "Contact attempted", "Qualified", "Appointment proposed", "Appointment confirmed", "Site visit done", "Quote sent", "Lost", "Postponed"];
   var VERTICALS = ["Pharmacy", "Clinic", "Hospital", "Mobile money", "Retail shop", "Supermarket", "School", "Office", "Warehouse", "Residence", "Other"];
   var SOURCES = ["Cold visit", "Walk-in prospecting", "Referral", "Instagram", "Facebook", "Google search", "Website enquiry", "Phone enquiry", "Existing customer", "Other"];
   // Common next actions — offered as tap-or-type suggestions to cut typing.
@@ -453,10 +453,10 @@
   function canInstallWork(){return settings.user&&['admin','operations','teamlead','installer'].includes(settings.user.role);}
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=117');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=118');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=117');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=118');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
   }
@@ -514,7 +514,7 @@
     if(settings.user?.id!==id)throw new Error('Account changed. Open the queue again.');
     if(!res.ok||!data.ok){var e=new Error(data.error||'Could not connect to the queue. Try again when online.');e.status=res.status;throw e;}return data;
   }
-  function updateReadyData(data){readyData=data;readyUser=settings.user?.id||'';readyLoadedAt=Date.now();var badge=document.getElementById('readyBadge'),count=data.items.filter(function(c){return !c.ownerId&&c.state!=='returned';}).length;if(badge){badge.textContent=count;badge.hidden=!count;}}
+  function updateReadyData(data){var previous=readyData,changed=data.items.some(function(c){return c.visit&&previous.items.find(function(old){return old.contactId===c.contactId;})?.version!==c.version;});if(changed&&!localUnsynced&&settings.auth){var progressUser=settings.user?.id;loadShared(function(){return settings.user?.id===progressUser&&!localUnsynced;});}readyData=data;readyUser=settings.user?.id||'';readyLoadedAt=Date.now();var badge=document.getElementById('readyBadge'),count=data.items.filter(function(c){return !c.ownerId&&c.state!=='returned';}).length;if(badge){badge.textContent=count;badge.hidden=!count;}}
   async function refreshReadySummary(force){
     var id=settings.user?.id;if(!id||installationRole()||readyLoading||(!force&&readyUser===id&&Date.now()-readyLoadedAt<30000))return;
     if(readyUser!==id){readyData={items:[],people:[]};readyUser=id;}
@@ -522,7 +522,7 @@
   }
   async function renderReadyQueue(){
     var id=settings.user.id;setHead('Contacts','Ready for site visit','Loading the shared queue…','',false);content.innerHTML='<p role="status">Loading queue…</p>';
-    try{var m=await import('./ready-leads-ui.mjs?v=117');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
+    try{var m=await import('./ready-leads-ui.mjs?v=118');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
   }
   setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
@@ -556,7 +556,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=117'), import('./field-shifts-ui.mjs?v=117'), import('./field-shifts-android.mjs?v=117')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=118'), import('./field-shifts-ui.mjs?v=118'), import('./field-shifts-android.mjs?v=118')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -751,7 +751,7 @@
     var dueStatus=leadTools().followUpBucket(p);
     var due=dueStatus==='unscheduled'?'Not scheduled':dateLabel(p.followUp)+(dueStatus==='overdue'?' · overdue':dueStatus==='today'?' · due today':'');
     var readyCase=readyUser===settings.user?.id?readyData.items.find(function(c){return c.contactId===p.id;}):null;
-    return '<div class="lead-contact-summary">'+(readyCase?line('Site visit owner',esc(readyCase.ownerName))+'<button type="button" class="btn btn-ghost btn-sm" data-nav-view="ready">View site visit request</button>':'')+line('Added by',esc(recordedBy))+line('Last follow-up',esc(lastText))+line('Next follow-up', '<span'+(dueStatus==='overdue'?' style="color:var(--red);font-weight:600"':'')+'>'+esc(due)+'</span>')+'</div>';
+    return '<div class="lead-contact-summary">'+(readyCase?line('Site visit owner',esc(readyCase.ownerName))+line('Progress',esc(readyCase.quoteSent?'Quote sent':readyCase.visit?.doneAt?'Visit done':readyCase.visit?'Visit confirmed':'Waiting for visit confirmation'))+'<button type="button" class="btn btn-ghost btn-sm" data-nav-view="ready">View site visit request</button>':'')+line('Added by',esc(recordedBy))+line('Last follow-up',esc(lastText))+line('Next follow-up', '<span'+(dueStatus==='overdue'?' style="color:var(--red);font-weight:600"':'')+'>'+esc(due)+'</span>')+'</div>';
   }
   function leadFormHtml(p) {
     return '<p class="helper full">Keep this contact for follow-up. No site visit, GPS pin or qualification answers are required.</p>'+
@@ -776,7 +776,7 @@
   async function sendLead(id,target) {
     var userId=settings.user?.id;try{
       if(localUnsynced&&!(await pushShared()))throw new Error('Sync this contact before sending it to the site visit queue.');
-      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=117');if(settings.user?.id!==userId)return;
+      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=118');if(settings.user?.id!==userId)return;
       m.openReadyRequest({api:readyApi,user:settings.user,contacts:state.prospects||[],selectedId:id,items:readyData.items,esc:esc,isCurrent:function(){return settings.user?.id===userId&&!document.body.classList.contains('locked');},onSaved:function(item){updateReadyData({items:[item].concat(readyData.items.filter(function(c){return c.contactId!==item.contactId;})),people:readyData.people});toast('Sent to Team Lead and Operations.');if(view==='leads')updateLeadGrid();}});
     }catch(e){toast(e.message);}
   }
@@ -1007,9 +1007,9 @@
     var area = areaOf(p.location);
     var main = "";
     if (/Proposed|Rescheduled/i.test(a.status)) main = '<button class="btn btn-sm btn-primary" data-confirm="' + a.id + '">Confirm visit</button>';
-    else if (canReviewProspects() && a.status !== "Cancelled" && !a.visitResult) main = '<button class="btn btn-sm btn-primary" data-visit-done="' + esc(a.id) + '">Visit done</button>';
+    else if (!a.readyCaseId && canReviewProspects() && a.status !== "Cancelled" && !a.visitResult) main = '<button class="btn btn-sm btn-primary" data-visit-done="' + esc(a.id) + '">Visit done</button>';
     var more = visitCheckActions(a).replace(/<button class="btn btn-sm btn-primary" data-visit-done="[^"]*">Visit done<\/button>/, main.indexOf("data-visit-done") > -1 ? "" : "$&") +
-      '<button class="btn btn-sm btn-ghost" data-edit="appointment" data-id="' + a.id + '">Edit</button>';
+      (a.readyCaseId?'':'<button class="btn btn-sm btn-ghost" data-edit="appointment" data-id="' + a.id + '">Edit</button>');
     return xCard({ key: "v:" + a.id, cls: a.status === "Confirmed" ? "handoff" : "tone-amber",
       title: esc(p.business || "Unknown prospect"), chip: apptChip(a.status),
       meta: "<strong>" + esc(relDay(a.date)) + "</strong> · " + esc(a.time || "no time") + (area ? " · " + esc(area) : ""),
@@ -1037,13 +1037,14 @@
       ? '<span style="color:var(--green);font-weight:600">✓ Confirmed by phone</span> · ' + esc(a.callConfirmedBy || "") + " · " + esc(dateTimeLabel(a.callConfirmedAt))
       : '<span style="color:var(--muted)">Not called yet — the office confirms by phone</span>';
     var res = a.visitResult === "real"
-      ? '<span style="color:var(--green);font-weight:600">✓ Visited — quote assessment done</span> · ' + esc(a.visitResultBy || "") + " · " + esc(dateTimeLabel(a.visitResultAt))
+      ? '<span style="color:var(--green);font-weight:600">✓ Visited — quote assessment done</span> · ' + esc(a.visitResultBy || "") + " · " + esc(a.readyCaseId?dateLabel(a.visitResultAt.slice(0,10)):dateTimeLabel(a.visitResultAt))
       : a.visitResult === "not_real"
         ? '<span style="color:var(--red);font-weight:600">✕ Visit didn\'t happen</span> — ' + esc(a.visitResultReason || "") + (a.visitResultNote ? " (" + esc(a.visitResultNote) + ")" : "") + " · " + esc(a.visitResultBy || "")
         : '<span style="color:var(--muted)">Not visited yet</span>';
     return line("Office call", call) + line("Site visit", res);
   }
   function visitCheckActions(a) {
+    if(a.readyCaseId)return '<button class="btn btn-sm btn-ghost" data-nav-view="ready">Open visit progress</button>';
     if (!canReviewProspects() || a.status === "Cancelled") return "";
     var out = "";
     if (!a.callConfirmedAt && !a.visitResult) out += '<button class="btn btn-sm btn-ghost" data-call-ok="' + esc(a.id) + '">Called — confirmed</button>';
@@ -1053,6 +1054,7 @@
   }
   function markCallConfirmed(id) {
     var a = state.appointments.find(function (x) { return x.id === id; });
+    if(a?.readyCaseId){view='ready';render();return;}
     if (!a || !canReviewProspects()) return;
     var p = prospect(a.prospectId);
     confirmSheet("Customer confirmed by phone?", "Only tap Confirm if you called " + (p.contact || p.business || "the customer") + " from the office line and they said they expect our team. This confirms the booking. Visit pay and the weekly bonus count only after the site visit happens.", "Confirm").then(function (ok) {
@@ -1064,6 +1066,7 @@
   }
   function markVisitDone(id) {
     var a = state.appointments.find(function (x) { return x.id === id; });
+    if(a?.readyCaseId){view='ready';render();return;}
     if (!a || !canReviewProspects()) return;
     var p = prospect(a.prospectId);
     openSheet({ title: "Site visit at " + (p.business || "this site"), body: "Choose the first one if you were on site and the client let you look around to prepare a quote, whatever they decide. It pays the rep " + money(window.VeriskoSalesPay.active()?window.VeriskoSalesPay.POLICY.perVisit:payOpts().perVisit) + (window.VeriskoSalesPay.active()?" on Monday.":" on Saturday."),
@@ -1086,6 +1089,7 @@
   }
   function undoVisitResult(id) {
     var a = state.appointments.find(function (x) { return x.id === id; });
+    if(a?.readyCaseId){view='ready';render();return;}
     if (!a || !isAdmin()) return;
     confirmSheet("Undo the visit result?", "The rep's pay for this visit is removed if it hasn't been paid yet.", "Undo", true).then(function (ok) {
       if (!ok) return;
@@ -2914,6 +2918,7 @@
   }
 
   function openForm(type, id, presetProspect) {
+    if(type==='appointment'&&id&&state.appointments.some(function(a){return a.id===id&&a.readyCaseId;})){view='ready';render();return;}
     editing = { type: type, id: id || null };
     hideFormError();
     var collection = state[type + "s"];
@@ -3349,6 +3354,7 @@
   // Confirm directly from a card when the handoff is already complete.
   function confirmVisit(id) {
     var a = state.appointments.find(function (x) { return x.id === id; });
+    if(a?.readyCaseId){view='ready';render();return;}
     if (!a) return;
     var gaps = handoffGaps(a);
     if (hasGaps(gaps)) {
@@ -4221,7 +4227,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v117";
+  var APP_VERSION = "v118";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4407,7 +4413,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=117");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=118");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }
