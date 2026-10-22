@@ -1,3 +1,4 @@
+import {resolveInstallationSource,offerMaterialInstallation} from './materials-assignment.mjs';
 import {createHash} from 'node:crypto';
 import {allowed,manager,canSuperviseSite,canRead,createJob,applyCommand,installerJobView} from '../../../installer-model.mjs';
 const headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
@@ -25,8 +26,10 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
     if(!manager(me))throw fail('Supervisor access required.',403);
     return json({ok:true,pendingIds:jobs.flatMap(j=>j.exceptions.filter(e=>e.status==='pending').map(e=>e.id)),corrections:jobs.reduce((n,j)=>n+j.exceptions.filter(e=>e.status==='correction').length+j.cameras.reduce((n,c)=>n+Object.values(c.corrections||{}).filter(v=>v.status==='open').length,0),0),submitted:jobs.filter(j=>j.status==='Submitted').length});
    }
+   const readySources=ops?await Promise.all((auth.readySources||[]).map(s=>resolveInstallationSource(s,store))):[];
+   const sitePeople=ops?(auth.users||[]).filter(u=>['operations','teamlead'].includes(u.role)||u.id===me.id).map(u=>({id:u.id,name:u.name,phone:u.phone||u.pinPhone||''})):[];
    const staff=(auth.users||[]).filter(u=>u.role==='installer').map(u=>({id:u.id,name:u.name}));
-   return json({ok:true,availableJobs,jobs:jobs.map(j=>installerJobView(j,me)),staff:ops?staff:[],reviewers:ops?(auth.users||[]).filter(canSuperviseSite).map(u=>({id:u.id,name:u.name,role:u.role})):[],people:(auth.users||[]).filter(u=>ops||u.id===me.id||jobs.some(j=>j.assignees.includes(u.id)||(j.supervisorIds||[]).includes(u.id)||j.history.some(h=>h.by===u.id))).map(u=>({id:u.id,name:u.name})),sourceJobs:ops?(auth.sourceJobs||[]):[]});
+   return json({ok:true,readySources,sitePeople,availableJobs,jobs:jobs.map(j=>installerJobView(j,me)),staff:ops?staff:[],reviewers:ops?(auth.users||[]).filter(canSuperviseSite).map(u=>({id:u.id,name:u.name,role:u.role})):[],people:(auth.users||[]).filter(u=>ops||u.id===me.id||jobs.some(j=>j.assignees.includes(u.id)||(j.supervisorIds||[]).includes(u.id)||j.history.some(h=>h.by===u.id))).map(u=>({id:u.id,name:u.name})),sourceJobs:ops?(auth.sourceJobs||[]):[]});
   }
   if(request.method!=='POST')return json({ok:false,error:'Method not allowed.'},405);
   if(Number(request.headers.get('content-length'))>1800000)throw fail('Request too large.',413);
@@ -34,12 +37,20 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
   const key='jobs/'+body.jobId,cmd=body.command||{};
   for(let attempt=0;attempt<4;attempt++){
    const old=await store.getWithMetadata(key,{type:'json'});let j;
-   if(cmd.action==='create'){
+   if(cmd.action==='offerMaterials'){
+    if(!ops)throw fail('Only Operations can assign ready materials.',403);
+    if(!/^[a-zA-Z0-9-]{8,100}$/.test(cmd.requestId||''))throw fail('Request ID required.');
+    if(old?.data.requests.includes(cmd.requestId)){if(!old.data.history.some(h=>h.id===cmd.requestId&&h.by===me.id))throw fail('Request ID already in use.',409);return json({ok:true,job:installerJobView(old.data,me)});}
+    const candidate=(auth.readySources||[]).find(s=>s.contactId===cmd.data?.contactId&&s.materialSourceId===cmd.data?.materialSourceId);if(!candidate)throw fail('This paid job does not have all its materials yet. Refresh Materials & buying.',409);
+    const source=await resolveInstallationSource(candidate,store);if(source.installationId!==body.jobId)throw fail('An installation already exists for this job. Refresh and open it.',409);
+    j=offerMaterialInstallation(source,old?.data,cmd,me,auth.users,now());
+   }else if(cmd.action==='create'){
     if(!ops)throw fail('Only Operations can create an installation.',403);
     if(old){if(old.data.requests.includes(cmd.requestId))return json({ok:true,job:installerJobView(old.data,me)});throw fail('This job already has an installer record. Open it instead.',409);}
     if(!/^[a-zA-Z0-9-]{8,100}$/.test(cmd.requestId||''))throw fail('Request ID required.');
     if(cmd.data?.sourceId&&body.jobId!=='source-'+cmd.data.sourceId)throw fail('Use the existing job installation record.');
     if(cmd.data?.sourceId&&!(auth.sourceJobs||[]).some(x=>x.id===cmd.data.sourceId))throw fail('Source job not found.');
+    if(cmd.data?.sourceId){for await(const page of store.list({prefix:'jobs/',paginate:true})){for(const b of page.blobs){const existing=await store.get(b.key,{type:'json'});if(existing?.sourceId===cmd.data.sourceId)throw fail('This job already has an installation. Open it instead.',409);}}}
     j=createJob({...cmd.data,id:body.jobId},me,now(),auth.users);j.requests.push(cmd.requestId);j.history.push({id:cmd.requestId,action:'create',by:me.id,name:me.name,at:now()});
    }else{
     if(!old||!canRead(old.data,me)&&!(cmd.action==='superviseSelf'&&['admin','operations','teamlead'].includes(me.role)))throw fail('Job not found or no longer assigned.',404);

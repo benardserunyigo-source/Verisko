@@ -55,7 +55,7 @@ test('sample follow-ups and visits use the Uganda day at the evening UTC boundar
 test('Sales preview links the approved client payment to exactly one 100,000 commission',async()=>{
  await import('../commission.js');await import('../sales-pay-policy.js');const preview=api().create('sales','2026-10-22T12:00:00Z');assert.equal(globalThis.VeriskoSalesPay.calculate(preview.data,globalThis.VeriskoSalesPay.period('2026-10-22T12:00:00Z'),preview.user.email).total,100000);const queue=await(await preview.fetch('/api/ready-leads')).json(),paid=queue.items.find(c=>c.firstPayment);assert.equal(paid.firstPayment.status,'approved');assert.equal(paid.firstPayment.reference,undefined);assert.equal(paid.firstPayment.amount,undefined);
 });
-test('Operations materials preview shows partial delivery and hides suppliers from Sales and Team Lead',async()=>{
- const ops=api().create('operations','2026-10-23T10:00:00Z'),r=await ops.fetch('/api/ready-leads?materials=1'),body=await r.json();assert.equal(body.items.length,1);assert.equal(body.items[0].materialPlans[0].status,'Some materials arrived');assert.equal(body.items[0].materialPlans[0].items[0].receipts[0].quantity,2);
+test('Operations materials preview shows ready materials and hides suppliers from Sales and Team Lead',async()=>{
+ const ops=api().create('operations','2026-10-23T10:00:00Z'),r=await ops.fetch('/api/ready-leads?materials=1'),body=await r.json();assert.equal(body.items.length,1);assert.equal(body.items[0].materialPlans[0].status,'All materials arrived');assert.equal(body.items[0].materialPlans[0].items[0].receipts[0].quantity,4);
  for(const role of ['sales','teamlead']){const context=api().create(role);assert.equal((await context.fetch('/api/ready-leads?materials=1')).status,403);const summary=await(await context.fetch('/api/ready-leads')).json();assert.ok(summary.items.every(c=>!c.materialPlans));}
 });

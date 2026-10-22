@@ -1,5 +1,5 @@
-import {initialMaterials,applyMaterialCommand,materialProblems,updateMaterialPlan} from './installer-materials.mjs';
-export {materialBalance,materialProblems,stockManager,UNITS,initialMaterials} from './installer-materials.mjs';
+import {initialMaterials,applyMaterialCommand,materialProblems,updateMaterialPlan} from './installer-materials.mjs?v=122';
+export {materialBalance,materialProblems,stockManager,UNITS,initialMaterials} from './installer-materials.mjs?v=122';
 // Shared installation workflow. Server applies commands, never client snapshots.
 export const TESTS=['live','recording','playback','coverage','remote'];
 export const PARTS=['cable','mount','tests'];
@@ -37,6 +37,7 @@ const has=(j,id,kind,cameraId)=>j.evidence.some(e=>e.id===id&&e.kind===kind&&e.c
 const evidence=(j,ids,kind,cameraId)=>Array.isArray(ids)&&ids.length>0&&ids.every(id=>has(j,id,kind,cameraId));
 export function readiness(j){
  const missing=materialProblems(j);
+ if(j.assignment&&j.assignment.status!=='accepted')missing.push('The installer must accept this job before work can be submitted.');
  if(j.payRequired&&!(typeof j.payReady==='boolean'?j.payReady:payReady(j)))missing.push('Operations must set the agreed pay for each installer.');
  if(!j.pilot?.confirmed||!j.pilot.cableMethods||!j.pilot.weather||!j.pilot.mounting||!j.pilot.approvalCover||!j.pilot.backup)missing.push('Operations must confirm the work rules and who can approve changes.');
  if(!j.evidence.some(e=>e.kind==='reference'))missing.push('Operations must add a photo showing good mounting and cable work.');
@@ -82,8 +83,15 @@ export function applyCommand(previous,cmd,user,now){
  if(supervisorActions.includes(cmd.action)&&!supervisor)throw fail('Supervisor access required.',403);
  if(j.status==='Completed'&&!['metric','workFinish','installerPayment','installerPaymentVoid'].includes(cmd.action))throw fail('Completed installation records are read-only.',409);
  if(j.status==='Submitted'&&!['superviseSelf','return','complete','metric','decision','workFinish','materialReceive','materialReturn','installerPay','installerPayment','installerPaymentVoid'].includes(cmd.action))throw fail('Supervisor review is pending. Return an item before editing.',409);
+ if(user.role==='installer'&&j.assignment&&j.assignment.status!=='accepted'&&cmd.action!=='assignmentResponse')throw fail('Accept this job before recording work.',409);
  const checkVersion=(obj,key)=>{if(cmd.baseVersion!==(obj.versions?.[key]||0))throw fail('This item changed on another device. Review the latest record before retrying.',409);obj.versions[key]=(obj.versions[key]||0)+1;};
- if(cmd.action==='superviseSelf'){
+ if(cmd.action==='assignmentResponse'){
+  if(user.role!=='installer'||j.assignment?.installerId!==user.id)throw fail('Only the offered installer can reply.',403);
+  if(j.assignment.status!=='pending')throw fail('You have already replied to this job.',409);
+  if(!['accepted','declined'].includes(data.status))throw fail('Choose Accept or Decline.');
+  const note=data.status==='declined'?requireText(data.note,'Reason for declining'):'';checkVersion(j,'assignment');
+  j.assignment={...j.assignment,status:data.status,note,respondedBy:user.id,respondedAt:now};j.assignmentHistory=[...(j.assignmentHistory||[]),{...j.assignment}];
+ }else if(cmd.action==='superviseSelf'){
   if(!selfAssign)throw fail('Only Operations, Admin or a Team Lead can assign themselves as site supervisor.',403);
   checkVersion(j,'plan');j.supervisorIds=[...new Set([...(j.supervisorIds||[]),user.id])];
  }else if(cmd.action==='installerPayment'||cmd.action==='installerPaymentVoid'){
@@ -107,6 +115,7 @@ export function applyCommand(previous,cmd,user,now){
   }
  }else if(cmd.action==='installerPay'){
   if(!['admin','operations'].includes(user.role))throw fail('Only Operations can set installer pay.',403);
+  if(j.readyContactId&&!(j.workLog||[]).length)throw fail('Use Materials & buying to change the offered pay.',409);
   checkVersion(j,'installerPay');
   if(!Array.isArray(data.payments)||!data.payments.length)throw fail('Enter the agreed pay for the installer.');
   const payments={};for(const p of data.payments){
@@ -117,6 +126,7 @@ export function applyCommand(previous,cmd,user,now){
   }
   j.installerPay={...(j.installerPay||{}),...payments};j.payHistory=[...(j.payHistory||[]),{id:cmd.requestId,by:user.id,at:now,payments}];j.payRequired=true;delete j.payReady;
  }else if(String(cmd.action||'').startsWith('material')){
+  if(cmd.action==='materialIssue'&&j.assignment&&j.assignment.status!=='accepted')throw fail('Wait for the installer to accept before sending site materials.',409);
   checkVersion(j,'materials');applyMaterialCommand(j,cmd,user,now);
  }else if(cmd.action==='workStart'||cmd.action==='workFinish'){
   if(user.role!=='installer'||!j.assignees.includes(user.id))throw fail('Only an assigned installer can start or finish work.',403);
@@ -130,6 +140,8 @@ export function applyCommand(previous,cmd,user,now){
  }else if(cmd.action==='pilot'){
   checkVersion(j,'pilot');j.pilot={cableMethods:requireText(data.cableMethods,'Acceptable cable methods'),weather:requireText(data.weather,'Weather protection'),mounting:requireText(data.mounting,'Mounting guidance'),approvalCover:requireText(data.approvalCover,'Approval cover'),backup:requireText(data.backup,'Backup approval cover'),confirmed:data.confirmed===true,by:user.id,at:now};
  }else if(cmd.action==='plan'){
+  if(j.readyContactId&&(JSON.stringify(data.assignees)!==JSON.stringify(j.assignees)||data.scheduledDate!==j.scheduledDate||data.equipment!==undefined&&data.equipment!==j.equipment))throw fail('Use Materials & buying to offer this job to another installer.',409);
+  if(j.assignment&&data.scheduledDate!==j.scheduledDate&&!(j.workLog||[]).length){j.assignment={...j.assignment,status:'pending',offeredAt:now,offeredBy:user.id,offeredByName:user.name};j.versions.assignment=(j.versions.assignment||0)+1;}
   checkVersion(j,'plan');if(!Array.isArray(data.assignees)||!data.assignees.length)throw fail('Assign installers.');if(!/^\d{4}-\d{2}-\d{2}$/.test(data.scheduledDate||''))throw fail('Choose a scheduled date.');if((j.workLog||[]).some(x=>!x.finish&&!data.assignees.includes(x.by)))throw fail('Let the installer finish work before removing them from this job.',409);j.assignees=[...new Set(data.assignees)];j.scheduledDate=requireText(data.scheduledDate,'Scheduled date');j.instructions=text(data.instructions);if(data.supervisorIds!==undefined){if(!Array.isArray(data.supervisorIds))throw fail('Choose supervisors.');j.supervisorIds=[...new Set(data.supervisorIds)];}if(data.siteStaff)j.siteStaff={name:requireText(data.siteStaff.name,'Verisko staff name'),phone:requireText(data.siteStaff.phone,'Verisko staff phone')};if(data.scope!==undefined)j.scope=requireText(data.scope,'Job needs');if(data.equipment!==undefined){j.equipment=requireText(data.equipment,'Materials');updateMaterialPlan(j,j.equipment);}j.workLogRequired=true;j.payRequired=true;
  }else if(cmd.action==='evidence'){
   // The endpoint validates and stores bytes first. Photos are append-only.

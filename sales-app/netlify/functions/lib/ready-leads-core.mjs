@@ -117,6 +117,7 @@ export function createReadyHandler({store,authorize,now=()=>new Date().toISOStri
  if(me.role==='teamlead'&&!own(p,me)&&!previous)throw fail('Contact not found.',404);
  const materialAction=['plan_materials','request_procurement','order_material','receive_material'].includes(body.action);
  const initial=previous||(materialAction&&['admin','operations'].includes(me.role)&&paidWork(p,auth.transactions,auth.jobs).length?{contactId:p.id,state:'assigned',ownerId:me.id,version:0,history:[]}:null);
+ if(body.action==='plan_materials'&&(auth.materialLocks||[]).some(x=>x.contactId===p.id&&x.sourceId===body.sourceId))throw fail('An installer already has this materials list. Use the existing installation; declined offers can be changed here.',409);
  const next=transitionReady(initial,body,me,p,users,now(),auth.appointments||[],auth.transactions||[],auth.jobs||[]);
  if(next!==initial){const result=await store.setJSON(key,next,old?.etag?{onlyIfMatch:old.etag}:{onlyIfNew:true});if(!result?.modified)throw fail('Someone updated this lead first. Refresh the queue to see its owner.',409);}
  return json({ok:true,item:view(next,p,users,me,auth.transactions||[],auth.jobs||[])});

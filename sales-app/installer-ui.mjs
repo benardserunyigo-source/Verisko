@@ -1,5 +1,5 @@
-import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=121';
-import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady,installerPaymentSummary,PAYMENT_METHODS} from './installer-model.mjs?v=121';
+import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=122';
+import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady,installerPaymentSummary,PAYMENT_METHODS} from './installer-model.mjs?v=122';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>'UGX '+Number(v).toLocaleString('en-UG');
 const time=v=>new Date(v).toLocaleString('en-GB',{timeZone:'Africa/Kampala'});
@@ -15,12 +15,12 @@ let active;
 let demoController=null,realContext=null;
 export async function mountInstaller(ctx){
  realContext=ctx;
- if(!active||active.user.id!==ctx.user.id){if(active)active.stop();active=new InstallerView(ctx);await active.start();}else{active.ctx=ctx;active.draw();active.client.sync();}
+ if(!active||active.user.id!==ctx.user.id){if(active)active.stop();active=new InstallerView(ctx);await active.start();}else{active.ctx=ctx;if(ctx.initialJobId)active.jobId=ctx.initialJobId;active.draw();active.client.sync();}
 }
 async function showDemo(role='operations'){
  if(!realContext||!manager(realContext.user))return;
  if(active?.client.queue.length){realContext.toast('Send saved work before changing views.');return;}
- if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=121');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
+ if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=122');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
  if(active)active.stop();const actor=demoController.transport.actors[role==='installer'?1:0];
  active=new InstallerView({...realContext,user:actor,demo:true,demoRole:role,initialJobId:'demo-installation',fetcher:demoController.transport.fetcher(role),token:async()=>''});await active.start();
 }
@@ -66,7 +66,7 @@ class InstallerView {
     else if(this.queueFilter==='correction'){job.exceptions.filter(e=>e.status==='correction').forEach(e=>details.push({camera:job.cameras.find(c=>c.id===e.cameraId)?.name,who:this.name(e.requestedBy),issue:e.decisions.at(-1)?.comment,at:e.decisions.at(-1)?.at}));job.cameras.forEach(c=>Object.entries(c.corrections||{}).filter(([,v])=>v.status==='open').forEach(([k,v])=>details.push({camera:c.name,who:job.assignees.map(id=>this.name(id)).join(', '),issue:k+': '+v.comment,at:v.at})));}
     else if(this.queueFilter==='materials'){const items=job.materials?.items||[];const needs=items.filter(item=>{const b=materialBalance(item);return item.issued>0&&(!b.checked||b.leftGood>0||b.leftDamaged>0||(item.missing||0)>0&&item.lossAccepted!==item.missing);});if(needs.length||job.materials?.required&&!job.materials.confirmed)details.push({camera:'Materials and returns',who:job.assignees.map(id=>this.name(id)).join(', '),issue:needs.length+' items to check · '+(job.materials?.confirmed?'site list checked':'check full site list'),at:job.updatedAt});}
     else if(this.queueFilter==='review'&&job.status!=='Submitted'||this.queueFilter==='completed'&&job.status!=='Completed')continue;
-    else details.push({camera:['review','completed'].includes(this.queueFilter)?job.cameras.map(c=>c.name).join(' · '):job.cameras.length+' cameras',who:job.assignees.map(id=>this.name(id)).join(', '),issue:job.status+(stockManager(this.user)?' · Crew pay: '+(payReady(job)?money(crewPay(job)):'Set agreed pay'):this.user.role==='installer'?' · Your pay: '+(job.installerPay?.[this.user.id]?money(job.installerPay[this.user.id].amount)+' · Left: '+money(installerPaymentSummary(job,this.user.id).balance):'Operations must set'):' '),at:job.submittedAt||job.updatedAt});
+    else details.push({camera:['review','completed'].includes(this.queueFilter)?job.cameras.map(c=>c.name).join(' · '):job.cameras.length+' cameras',who:job.assignees.map(id=>this.name(id)).join(', '),issue:(job.assignment?({pending:'Waiting for installer reply',accepted:'Installer accepted',declined:'Installer declined'})[job.assignment.status]+' · ':'')+job.status+(stockManager(this.user)?' · Crew pay: '+(payReady(job)?money(crewPay(job)):'Set agreed pay'):this.user.role==='installer'?' · Your pay: '+(job.installerPay?.[this.user.id]?money(job.installerPay[this.user.id].amount)+' · Left: '+money(installerPaymentSummary(job,this.user.id).balance):'Operations must set'):' '),at:job.submittedAt||job.updatedAt});
     details.forEach(d=>items.push('<article class="iw-job"><h3>'+esc(job.business)+' · '+esc(d.camera)+'</h3><p>'+esc(d.who)+' · '+esc(d.issue)+'</p><p class="helper">Waiting '+esc(waiting(d.at))+' · scheduled '+esc(job.scheduledDate)+'</p>'+button('data-iw-open="'+esc(job.id)+'"','Open installation')+'</article>'));
    }
    html+=items.join('')||'<p>No installations in this queue.</p>';html+='</section>';
@@ -91,6 +91,8 @@ class InstallerView {
   if(['admin','operations','teamlead'].includes(this.user.role)&&!locked&&!(j.supervisorIds||[]).includes(this.user.id))html+=button('data-iw-supervise-self="'+esc(j.id)+'"','Assign me as site supervisor');
   if(stockManager(this.user)&&!locked)html+=button('data-iw-plan','Edit job setup')+button('data-iw-pilot','Work rules and who can approve');
   html+='<details><summary>Work rules '+(j.pilot.confirmed?'· confirmed':'· Operations must check')+'</summary><p class="iw-pre">Cable methods: '+esc(j.pilot.cableMethods||'Not defined')+'\nWeather protection: '+esc(j.pilot.weather||'Not defined')+'\nMounting: '+esc(j.pilot.mounting||'Not defined')+'\nApprovals: '+esc(j.pilot.approvalCover||'Operations')+'\nBackup: '+esc(j.pilot.backup||'Not defined')+'</p>'+this.evidence(j,'reference')+(supervisor&&!locked?this.upload('reference','Add approved mounting / finishing example'):'')+'</details></section>';
+  if(j.assignment){html+='<section class="card iw-card"><h2>'+esc(({pending:'Job offer',accepted:'Job accepted',declined:'Job declined'})[j.assignment.status])+'</h2><p>'+esc(j.assignment.status==='pending'?'Check the date, agreed pay and materials, then reply.':j.assignment.status==='accepted'?'The installer has accepted this job.':'The installer declined: '+(j.assignment.note||''))+'</p>'+(this.user.role==='installer'?'<p>Agreed pay: <strong>'+esc(money(j.installerPay?.[this.user.id]?.amount||0))+'</strong> · Left to pay: '+esc(money(installerPaymentSummary(j,this.user.id).balance))+'</p>':'')+(this.user.role==='installer'&&j.assignment.status==='pending'?button('data-iw-accept','Accept job',true)+button('data-iw-decline','Decline job'):'')+'</section>';if(this.user.role==='installer'&&j.assignment.status!=='accepted')return html;}
+
   html+=this.paymentView(j);
   html+=this.workLog(j,supervisor,locked);
   html+=this.materialsView(j,locked);
@@ -135,6 +137,8 @@ class InstallerView {
   if(d.iwSample){await this.samplePhoto(d.iwSample,d.camera||'');return;}
 
   if(d.iwSuperviseSelf){const site=this.client.jobs.find(x=>x.id===d.iwSuperviseSelf)||(this.client.availableJobs||[]).find(x=>x.id===d.iwSuperviseSelf);if(!site)throw new Error('Refresh the site list and try again.');const assigned=await this.client.online(site.id,{action:'superviseSelf',baseVersion:site.versions?.plan??site.planVersion??0,data:{}});this.jobId=assigned.id;await this.client.sync();this.draw();return;}
+  if('iwAccept'in d){b.disabled=true;try{await this.client.online(j.id,{action:'assignmentResponse',baseVersion:j.versions.assignment||0,data:{status:'accepted'}});this.draw();}finally{b.disabled=false;}return;}
+  if('iwDecline'in d){this.modal('Decline job','<p>Let Operations know why you cannot take this job.</p>'+field('note','Reason','','textarea'),f=>this.client.online(j.id,{action:'assignmentResponse',baseVersion:j.versions.assignment||0,data:{status:'declined',note:f.get('note')}}));return;}
   if(d.iwWork){b.disabled=true;try{const location=this.ctx.demo?{lat:0,lng:0,accuracy:0}:await captureWorkLocation();await this.client.save(j.id,{action:d.iwWork,data:{location,capturedAt:new Date().toISOString()}});this.ctx.toast(this.ctx.demo?'Demo time and sample location saved.':this.client.message);}finally{b.disabled=false;}return;}
   if(j&&this.paymentActions(d,j))return;
   if(j&&'iwPay'in d){this.modal('Set agreed installer pay','<p>Enter each person’s total pay for this job. Each installer sees their own amount.</p>'+j.assignees.map((id,i)=>field('pay'+i,this.name(id)+' · agreed pay (UGX)',j.installerPay?.[id]?.amount??'','number').replace('type="number"','type="number" min="1" max="100000000" step="1" required')+field('payNote'+i,'Payment notes for '+this.name(id),j.installerPay?.[id]?.note||'','textarea')).join(''),f=>this.client.online(j.id,{action:'installerPay',baseVersion:j.versions.installerPay||0,data:{payments:j.assignees.map((id,i)=>({installerId:id,amount:Number(f.get('pay'+i)),note:f.get('payNote'+i)}))}}));return;}
@@ -175,7 +179,7 @@ class InstallerView {
    if(ops&&p&&b.balance>0)html+=button('data-iw-record-payment="'+esc(id)+'"','Record payment',true);
    html+='<h3>Payments</h3>'+(payments.length?payments.map(x=>{const v=voids.find(v=>v.paymentId===x.id);return '<div class="iw-job"><p><strong>'+esc(money(x.amount))+'</strong> · '+esc(x.paidOn)+' · '+esc(x.method)+(v?' · Cancelled entry':'')+'</p><p>'+esc(x.reference?'Reference: '+x.reference:'Cash payment')+'</p><p class="iw-pre">'+esc(x.note||'')+'</p><p class="helper">Recorded by '+esc(this.name(x.by))+' · '+esc(time(x.at))+' (Uganda time)</p>'+(v?'<p>Correction: '+esc(v.reason)+' · '+esc(this.name(v.by))+' · '+esc(time(v.at))+'</p>':ops?button('data-iw-void-payment="'+esc(x.id)+'"','Correct this entry'):'')+'</div>';}).join(''):'<p>No payments recorded yet.</p>')+'</article>';
   }
-  if(ops){if(j.assignees.length)html+='<p><strong>Current crew agreed pay: '+(payReady(j)?esc(money(crewPay(j))):'Set the amount for every installer')+'</strong></p>';else html+='<p>Assign an installer first.</p>';if(j.status!=='Completed'&&j.assignees.length)html+=button('data-iw-pay','Set / update agreed pay');}
+  if(ops){if(j.assignees.length)html+='<p><strong>Current crew agreed pay: '+(payReady(j)?esc(money(crewPay(j))):'Set the amount for every installer')+'</strong></p>';else html+='<p>Assign an installer first.</p>';if(j.status!=='Completed'&&j.assignees.length){if(j.readyContactId&&!(j.workLog||[]).length)html+='<p class="helper">To change the offer or agreed pay, open Jobs → Materials &amp; buying.</p>';else html+=button('data-iw-pay','Set / update agreed pay');}}
   if(j.payHistory?.length)html+='<details><summary>Agreed amount history</summary>'+j.payHistory.map(h=>'<p>'+esc(time(h.at))+' · '+esc(this.name(h.by))+'</p>'+Object.entries(h.payments).map(([id,p])=>'<p>'+esc(this.name(id))+' · '+esc(money(p.amount))+'<br>'+esc(p.note)+'</p>').join('')).join('')+'</details>';
   return html+'</section>';
  }

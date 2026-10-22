@@ -1,6 +1,6 @@
 // Per-job material custody. Quantities are never inferred from a free-text note.
 export const stockManager=u=>['admin','operations'].includes(u?.role);
-export const UNITS=['metres','pieces','sets','rolls'];
+export const UNITS=['metres','pieces','sets','rolls','boxes'];
 const error=(message,status=400)=>Object.assign(new Error(message),{status});
 const clean=v=>String(v||'').trim().slice(0,200);
 const round=n=>Math.round(n*100)/100;

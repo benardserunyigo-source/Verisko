@@ -31,3 +31,8 @@ test('API supports paid legacy clients without duplicate contacts; CAS and scope
 test('a client plan remains available when its quote job is added later',()=>{
  const plans={materialPlans:[{sourceId:'client-client'}]};assert.equal(paidWork(p,tx,[{id:'new-job',prospectId:p.id,ref:'J-001'}],plans)[0].id,'client-client');assert.equal(paidWork(p,tx,[{id:'new-job',prospectId:p.id,ref:'J-001'}],plans)[0].label,'J-001');
 });
+test('an offered materials list cannot be edited until its offer is declined',async()=>{
+ const store=new FieldMemoryStore();let locked=true;const h=createReadyHandler({store,now:()=>at,authorize:async()=>({me:ops,users:[ops],prospects:[p],transactions:tx,jobs:[],materialLocks:locked?[{contactId:p.id,sourceId:'client-client'}]:[]})});
+ const call=async()=>{const r=await h(new Request('https://test/api/ready-leads',{method:'POST',body:JSON.stringify({contactId:p.id,sourceId:'client-client',action:'plan_materials',items:[item],baseVersion:0,requestId:'locked-material-plan'})}));return {status:r.status,...await r.json()};};
+ assert.equal((await call()).status,409);locked=false;assert.equal((await call()).status,200);
+});
