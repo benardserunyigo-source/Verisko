@@ -495,7 +495,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=93'), import('./field-shifts-ui.mjs?v=93'), import('./field-shifts-android.mjs?v=93')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=94'), import('./field-shifts-ui.mjs?v=94'), import('./field-shifts-android.mjs?v=94')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -628,19 +628,31 @@
     var rows=(state.prospects||[]).filter(function(p){
       if(!L.isLead(p))return false;
       var inList=leadListMode==='all'?L.canManage(p,me):leadListMode==='inbox'?L.routed(p,me):L.own(p,me)&&(leadListMode==='sent'?!!p.handoffAt:!p.handoffAt);
-      return inList&&[p.business,p.contact,p.phone,p.location,p.notes,p.nextAction].join(' ').toLowerCase().indexOf(search)!==-1;
+      return inList&&[p.business,p.contact,p.phone,p.location,p.createdBy,p.notes,p.nextAction].join(' ').toLowerCase().indexOf(search)!==-1;
     }).sort(function(a,b){return (a.followUp||'9999').localeCompare(b.followUp||'9999');});
     document.getElementById('leadCount').textContent=rows.length+' '+(rows.length===1?'contact':'contacts');
     document.getElementById('leadGrid').innerHTML=rows.length?rows.map(function(p){
       var mine=L.own(p,me), receive=L.canManage(p,me);
       return xCard({key:'l:'+p.id,cls:isOverdue(p.followUp)?'tone-amber':'tone-navy',title:esc(p.business),chip:chip(p.handoffAt?'Ready for Operations':'Prospecting',p.handoffAt?'cyan':'grey'),meta:esc([p.contact,p.location].filter(Boolean).join(' · ')),
        next:{tone:isOverdue(p.followUp)?'amber':'muted',text:(p.followUp?'Follow up '+dateLabel(p.followUp)+' · ':'')+(p.nextAction||'Plan your next conversation')},
+       summary:leadContactSummary(p),
        quick:callBtn(p.phone)+'<button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button>',
        lines:line('Contact status',esc(p.leadStatus||'New contact'))+line('Phone',esc(p.phone))+line('Notes',esc(p.notes||'No notes yet'))+(p.handoffAt?line('Handover',esc((p.handoffBy||p.createdBy||'Sales')+' · '+dateLabel(p.handoffAt.slice(0,10))))+line('Request',esc(p.handoffNote||'Contact is ready for the team to follow up')):'')+followUpSummaryLine(p),
        more:(mine?'<button class="btn btn-sm btn-ghost" data-edit-lead="'+esc(p.id)+'">Edit contact</button>':'')+
         ((mine&&!canReviewProspects())?'<button class="btn btn-sm btn-primary" data-lead-send="operations" data-lead-id="'+esc(p.id)+'">Send to Operations</button>':'')+
         (receive?'<button class="btn btn-sm btn-ghost" data-lead-convert="'+esc(p.id)+'">Move to Prospects</button>':'')});
     }).join(''):'<p class="helper">'+(leadListMode==='inbox'?'No contacts flagged ready for Operations.':leadListMode==='all'?'Saved contacts will appear here automatically as Sales adds them.':'No contacts here yet. Tap Save a lead to keep someone for follow-up.')+'</p>';
+  }
+  function leadContactSummary(p) {
+    var recordedBy=p.createdBy || ((state.users||[]).find(function(u){return u.email && String(u.email).toLowerCase()===String(p.createdByEmail||'').toLowerCase();})||{}).name || 'Not recorded';
+    var last=leadTools().latestFollowUp(p), lastText='No follow-up recorded';
+    if(last){
+      var time=new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Kampala',dateStyle:'medium',timeStyle:'short'}).format(new Date(last.at));
+      var note=last.note||last.outcome||'';
+      lastText=time+(last.by?' · '+last.by:'')+(note?' — '+(note.length>160?note.slice(0,160)+'…':note):'');
+    }
+    var due=p.followUp?dateLabel(p.followUp)+(isOverdue(p.followUp)?' · overdue':isToday(p.followUp)?' · due today':''):'Not scheduled';
+    return '<div class="lead-contact-summary">'+line('Added by',esc(recordedBy))+line('Last follow-up',esc(lastText))+line('Next follow-up', '<span'+(isOverdue(p.followUp)?' style="color:var(--red);font-weight:600"':'')+'>'+esc(due)+'</span>')+'</div>';
   }
   function leadFormHtml(p) {
     return '<p class="helper full">Keep this contact for follow-up. No site visit, GPS pin or qualification answers are required.</p>'+
@@ -872,6 +884,7 @@
       '<span class="item-top"><span class="item-title">' + o.title + "</span>" + (o.chip || "") + "</span>" +
       (o.meta ? '<span class="item-meta">' + o.meta + "</span>" : "") +
       (o.next && o.next.text ? '<span class="xc-next ' + (o.next.tone || "muted") + '">' + esc(o.next.text) + "</span>" : "") + "</button>" +
+      (o.summary || '') +
       (hasMore ? '<div class="xc-details"' + (open ? "" : " hidden") + ">" + (o.lines ? '<div class="xc-lines">' + o.lines + "</div>" : "") +
         (o.more ? '<div class="item-actions">' + o.more + "</div>" : "") + "</div>" : "") +
       '<div class="item-actions xc-quick">' + (o.quick || "") +
@@ -3558,7 +3571,7 @@
   function followUpSummaryLine(p) {
     var fs = p.followUps || [];
     if (!fs.length) return "";
-    var last = fs[fs.length - 1], na = noAnswerCount(p);
+    var last = leadTools().latestFollowUp(p) || fs[fs.length - 1], na = noAnswerCount(p);
     return '<div class="item-line"><span class="k">Calls &amp; notes</span><span class="v">' + fs.length + (na ? ' · <span style="color:var(--red);font-weight:600">' + na + " unanswered</span>" : "") +
       '<br><span style="color:var(--muted)">' + esc(dateTimeLabel(last.at)) + " · " + esc(last.by || "—") + ":</span> " + esc(last.note || "") + "</span></div>";
   }
@@ -4081,7 +4094,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v93";
+  var APP_VERSION = "v94";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;

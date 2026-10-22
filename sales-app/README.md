@@ -200,7 +200,7 @@ new device's shift. A killed service needs explicit Continue sharing.
 Build/JUnit/lint checks do not prove phone battery behaviour. Pilot on one actual
 team phone before rollout, following `android-field/README.md`.
 
-## Prospecting contacts and Operations readiness (v93)
+## Prospecting contacts and Operations readiness (v94)
 
 Today → Save a lead, or More → My leads on a phone, saves contacts, notes,
 status and next follow-up without booking a visit. No GPS or qualification
@@ -222,3 +222,9 @@ trigger visit pay. Server guards preserve other reps' contacts when an older or
 scoped client saves, reject duplicate phones on new leads, and stop stale drafts
 from undoing handovers/conversions. Offline saves appear to Operations only after
 successful sync. Follow-up history and newer follow-up plans remain protected.
+
+Contact cards show Added by, Last follow-up (date, time, person and note) and
+Next follow-up without opening Details. Missing follow-ups/dates are explicit,
+and overdue dates are labelled. Latest follow-up is selected by its recorded
+timestamp, so a delayed older upload cannot replace a newer conversation.
+Follow-up timestamps on these summaries use Africa/Kampala time.

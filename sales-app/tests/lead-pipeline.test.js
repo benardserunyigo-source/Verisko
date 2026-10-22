@@ -20,3 +20,6 @@ test('Operations can view and manage prospecting contacts without receiving or a
 test('existing visit-ready prospects retain their stages and review state',()=>{const p={id:'legacy',business:'TEST Existing',stage:'Quoted',reviewStatus:'approved'};assert.deepEqual(L.guard([p],[p],ops),[p]);});
 
 test('editing a handed-over contact cannot change ownership or forge the recorded sender',()=>{const p=send(draft(),'operations');const out=L.guard([p],[{...p,createdByEmail:ops.email,handoffBy:'Someone else',handoffByEmail:ops.email}],rep)[0];assert.equal(out.createdByEmail,rep.email);assert.equal(out.handoffByEmail,rep.email);assert.equal(out.handoffBy,rep.name);});
+
+test('last follow-up uses recorded time when an older offline note arrives later',()=>{const newest={at:'2026-10-21T09:15:00Z',by:'Rep',note:'Client asked for a call on Friday'};const p={followUps:[newest,{at:'2026-10-19T09:15:00Z',note:'Older offline note'}]};assert.equal(L.latestFollowUp(p),newest);assert.equal(p.followUps[0],newest);});
+test('missing or invalid follow-up times are not displayed as a recent conversation',()=>{assert.equal(L.latestFollowUp({}),null);assert.equal(L.latestFollowUp({followUps:[{at:'invalid',note:'No valid time'}]}),null);});

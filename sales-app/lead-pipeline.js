@@ -6,6 +6,10 @@
  const routed=(p,u)=>!!p?.handoffAt&&['admin','operations'].includes(u?.role);
  const canSee=(p,u)=>!isLead(p)||own(p,u)||['admin','operations'].includes(u?.role);
  const canManage=(p,u)=>isLead(p)&&['admin','operations'].includes(u?.role);
+ // Capture time, not append/upload order, determines the latest conversation.
+ function latestFollowUp(p){
+  return (Array.isArray(p?.followUps)?p.followUps:[]).filter(f=>f&&Number.isFinite(Date.parse(f.at))).reduce((latest,f)=>!latest||Date.parse(f.at)>=Date.parse(latest.at)?f:latest,null);
+ }
  const phoneKey=v=>{let d=String(v||'').replace(/\D/g,'');return d.length>=9?d.slice(-9):'';};
  function check(data,records,id){
   if(String(data.business||'').trim().length<2)return 'Add the business or contact name.';
@@ -52,5 +56,5 @@
   if(appointments.some(a=>leads.has(a.prospectId))||jobs.some(j=>leads.has(j.prospectId)))throw new Error('Move the saved lead to Prospects before creating a visit or quote.');
   return out;
  }
- root.VeriskoLeadPipeline={isLead,own,routed,canSee,canManage,phoneKey,check,guard,STATUSES:['New contact','Following up','Not ready','Not interested']};
+ root.VeriskoLeadPipeline={latestFollowUp,isLead,own,routed,canSee,canManage,phoneKey,check,guard,STATUSES:['New contact','Following up','Not ready','Not interested']};
 })(typeof window!=='undefined'?window:globalThis);
