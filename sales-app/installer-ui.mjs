@@ -1,5 +1,5 @@
-import {InstallerClient,cameraPhoto,requestId} from './installer-client.mjs?v=99';
-import {manager,TESTS,PARTS,reasons,readiness} from './installer-model.mjs?v=99';
+import {InstallerClient,cameraPhoto,requestId} from './installer-client.mjs?v=100';
+import {manager,TESTS,PARTS,reasons,readiness} from './installer-model.mjs?v=100';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels={live:'Live image',recording:'Recording',playback:'Playback of a newly recorded clip',coverage:'Coverage of agreed area',remote:'Customer remote access'};
 const checked=v=>v?' checked':'';
@@ -9,15 +9,25 @@ const check=(key,label,value)=>'<label class="iw-check"><input name="'+key+'" ty
 const button=(attr,label,primary=false)=>'<button type="button" class="btn '+(primary?'btn-primary':'btn-ghost')+'" '+attr+'>'+esc(label)+'</button>';
 const waiting=at=>{const n=Math.max(0,Math.floor((Date.now()-Date.parse(at))/3600000));return n<1?'under 1 hour':n+' hours';};
 let active;
+let demoController=null,realContext=null;
 export async function mountInstaller(ctx){
+ realContext=ctx;
  if(!active||active.user.id!==ctx.user.id){if(active)active.stop();active=new InstallerView(ctx);await active.start();}else{active.ctx=ctx;active.draw();active.client.sync();}
 }
+async function showDemo(role='operations'){
+ if(!realContext||!manager(realContext.user))return;
+ if(active?.client.queue.length){realContext.toast('Synchronize pending work before switching views.');return;}
+ if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=100');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
+ if(active)active.stop();const actor=demoController.transport.actors[role==='installer'?1:0];
+ active=new InstallerView({...realContext,user:actor,demo:true,demoRole:role,initialJobId:'demo-installation',fetcher:demoController.transport.fetcher(role),token:async()=>''});await active.start();
+}
+async function exitDemo(){if(active?.client.queue.length){realContext.toast('Sync the demo before leaving.');return;}if(active)active.stop();active=null;await mountInstaller(realContext);}
 export function installerPending(){return active?.client.queue.length||0;}
 export function suspendInstaller(){if(active){active.stop();active=null;}}
 export async function clearInstaller(){if(active){await active.clear();active=null;}}
 class InstallerView {
- constructor(ctx){this.ctx=ctx;this.user=ctx.user;this.jobId='';this.cameraId='';this.queueFilter='all';this.client=new InstallerClient({user:ctx.user,token:ctx.token,onChange:()=>{if(this.ctx.isCurrent())this.draw();}});}
- async start(){try{await this.client.init();this.draw();await this.client.sync();this.client.cachePhotos();}catch(e){this.ctx.container.innerHTML='<section class="card iw-card">'+esc(e.message)+' · Offline storage must be available before work can be saved.</section>';}
+ constructor(ctx){this.ctx=ctx;this.user=ctx.user;this.jobId='';this.cameraId='';this.queueFilter='all';this.client=new InstallerClient({user:ctx.user,token:ctx.token,...(ctx.fetcher?{fetcher:ctx.fetcher}:{}),onChange:()=>{if(this.ctx.isCurrent())this.draw();}});}
+ async start(){try{await this.client.init();this.draw();await this.client.sync();if(this.ctx.initialJobId){this.jobId=this.ctx.initialJobId;this.draw();}this.client.cachePhotos();}catch(e){this.ctx.container.innerHTML='<section class="card iw-card">'+esc(e.message)+' · Offline storage must be available before work can be saved.</section>';}
   this.online=()=>{if(this.ctx.isCurrent())this.client.sync();};window.addEventListener('online',this.online);
   this.timer=setInterval(()=>{if(this.ctx.isCurrent()&&!document.querySelector('#iwDialog[open]')&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))this.client.sync();},30000);
  }
@@ -28,18 +38,23 @@ class InstallerView {
   const list=j.evidence.filter(e=>e.kind===kind&&e.cameraId===cameraId);
   return '<div class="iw-evidence">'+list.map(e=>'<button type="button" class="btn btn-ghost btn-sm" data-iw-photo="'+esc(e.id)+'">'+esc(kind)+' photo · '+(e.hash==='pending'?'pending upload':'synced')+'</button>').join('')+'</div>';
  }
- upload(kind,label,cameraId=''){return '<label class="btn btn-ghost iw-upload">'+esc(label)+'<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" data-iw-upload="'+kind+'" data-camera="'+esc(cameraId)+'"></label>';}
+ upload(kind,label,cameraId=''){return (this.ctx.demo?button('data-iw-sample="'+kind+'" data-camera="'+esc(cameraId)+'"','Use sample '+kind+' photo'):'')+ '<label class="btn btn-ghost iw-upload">'+esc(label)+'<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" data-iw-upload="'+kind+'" data-camera="'+esc(cameraId)+'"></label>';}
  draw(){
   if(!this.ctx.isCurrent())return;const cl=this.client,supervisor=manager(this.user),j=cl.local(this.jobId);
   this.ctx.head('Installation quality',supervisor?'Installation review':'My installations','Assigned jobs, evidence and technical review. Never record customer or camera passwords.','',false);
   const pendingDecisions=cl.jobs.flatMap(j=>j.exceptions.filter(e=>e.status==='pending').map(e=>e.id));
   if(supervisor&&!cl.busy&&this.seenDecisions&&pendingDecisions.some(id=>!this.seenDecisions.includes(id)))this.ctx.toast('New installation exception needs a supervisor decision.');
   if(!cl.busy)this.seenDecisions=pendingDecisions;
-  let html='<div class="iw-sync" role="status"><strong>'+esc(cl.message||'Saved on this phone')+'</strong><span>'+cl.queue.length+' pending changes · '+cl.queue.filter(q=>q.command.action==='evidence').length+' pending photo uploads</span>'+button('data-iw-sync','Sync now')+'</div>';
+  let demoBanner='';
+  if(this.ctx.demo){
+   const job=cl.jobs[0],step=!job?.assignees.length?'1. Operations: open Change assignment / instructions and select DEMO Installer.':job.status==='Submitted'?'3. Switch to Operations, review the evidence and approve or return an item.':job.status==='Completed'?'Demo complete. Reset it to try again.':'2. Switch to Installer. Complete both cameras, add sample photos, save handover and submit.';
+   demoBanner='<section class="iw-demo"><strong>DEMO INSTALLATION · viewing as '+esc(this.ctx.demoRole==='installer'?'Installer':'Operations')+'</strong><p>Fictional customer and crew. Saved on this browser only; real jobs and approvals are unaffected.</p><p>'+esc(step)+'</p><div class="iw-row">'+button('data-iw-demo-role="operations"','View as Operations',this.ctx.demoRole==='operations')+button('data-iw-demo-role="installer"','View as Installer',this.ctx.demoRole==='installer')+button('data-iw-demo-reset','Reset demo')+button('data-iw-demo-exit','Exit demo')+'</div></section>';
+  }else if(supervisor)demoBanner='<section class="card iw-card"><h2>Try a demo installation</h2><p>Practice assignment, installer checks, sample photos and final approval without changing real jobs.</p>'+button('data-iw-demo','Open demo installation',true)+'</section>';
+  let html=demoBanner+'<div class="iw-sync" role="status"><strong>'+esc(cl.message||'Saved on this phone')+'</strong><span>'+cl.queue.length+' pending changes · '+cl.queue.filter(q=>q.command.action==='evidence').length+' pending photo uploads</span>'+button('data-iw-sync','Sync now')+'</div>';
   if(cl.message.startsWith('Sync conflict:')&&cl.queue.length)html+='<section class="card iw-card"><strong>A newer item exists on the server.</strong><p>Your pending version is retained on this phone. Review the latest item, then remove only the conflicting pending change and enter the correction again. Photo evidence already uploaded stays in the record.</p>'+button('data-iw-discard','Remove first pending change')+'</section>';
   if(!j){
    this.jobId='';
-   if(supervisor)html+='<p class="iw-rule">'+pendingDecisions.length+' exception requests need a decision · '+cl.jobs.filter(j=>j.status==='Submitted').length+' jobs ready for review</p>';html+='<section class="card iw-card"><div class="iw-row"><h2>'+ (supervisor?'Supervisor queues':'Assigned work')+'</h2>'+(supervisor?button('data-iw-create','Set up installation',true):'')+'</div>';
+   if(supervisor)html+='<p class="iw-rule">'+pendingDecisions.length+' exception requests need a decision · '+cl.jobs.filter(j=>j.status==='Submitted').length+' jobs ready for review</p>';html+='<section class="card iw-card"><div class="iw-row"><h2>'+ (supervisor?'Supervisor queues':'Assigned work')+'</h2>'+(supervisor&&!this.ctx.demo?button('data-iw-create','Set up installation',true):'')+'</div>';
    if(supervisor)html+='<label>Show <select id="iwQueue">'+options([['all','All installations'],['decision','Needs a decision'],['correction','Needs correction'],['review','Ready for review'],['completed','Completed']],this.queueFilter)+'</select></label>';
    const jobs=cl.jobs.map(x=>cl.local(x.id));let items=[];
    for(const job of jobs){
@@ -72,7 +87,7 @@ class InstallerView {
   if(c){
    html+='<section class="card iw-card"><h2>'+esc(c.name)+'</h2><p class="iw-rule">Use a continuous cable run. Obtain supervisor approval before adding a join.</p>';
    PARTS.forEach(part=>{const correction=c.corrections?.[part];if(correction)html+='<p class="iw-alert">'+esc(part)+' correction ('+esc(correction.status)+'): '+esc(correction.comment)+'</p>';});
-   html+='<form data-iw-form="cable"><h3>1. Cable installation</h3>'+field('route','Planned route',c.cable?.route||'','textarea')+'<label>Any cable joins? <select name="joins">'+options([['','Choose'],['no','No joins'],['yes','Yes · approval required']],c.cable?.joins||'')+'</select></label><p class="helper">Photograph the route before concealing the cable.</p>'+this.evidence(j,'route',c.id)+(!locked?this.upload('route','Capture cable route',c.id)+'<button class="btn btn-primary">Save cable checks</button>':'')+'</form>';
+   html+='<form data-iw-form="cable"><h3>1. Cable installation</h3>'+field('route','Planned route',c.cable?.route||(this.ctx.demo?'DEMO: continuous route from NVR through cable tray to '+c.name:''),'textarea')+'<label>Any cable joins? <select name="joins">'+options([['','Choose'],['no','No joins'],['yes','Yes · approval required']],c.cable?.joins||'')+'</select></label><p class="helper">Photograph the route before concealing the cable.</p>'+this.evidence(j,'route',c.id)+(!locked?this.upload('route','Capture cable route',c.id)+'<button class="btn btn-primary">Save cable checks</button>':'')+'</form>';
    if(!locked)html+=button('data-iw-exception','Request a join / Report a cable problem');
    html+='<form data-iw-form="mount"><h3>2. Mounting and finish</h3><p>Use the approved reference above. Capture each close-up and the final view.</p>'+check('fixings','Appropriate fixings for the mounting surface',c.mount?.fixings)+check('secured','Fasteners secured according to manufacturer instructions',c.mount?.secured)+check('stability','Safe stability check completed',c.mount?.stability);
    [['mount','Mounting close-up'],['fixings','Fixings close-up'],['entry','Cable entry / weather finish'],['view','Final camera view']].forEach(([kind,label])=>{html+='<p>'+label+'</p>'+this.evidence(j,kind,c.id)+(!locked?this.upload(kind,'Capture '+label.toLowerCase(),c.id):'');});
@@ -90,7 +105,7 @@ class InstallerView {
    if(supervisor&&['pending','correction'].includes(e.status))html+=button('data-iw-decide="'+e.id+'"','Approve method / request correction');
    if(e.status==='approved')html+=this.evidence(j,'resolution',e.cameraId)+(!locked?this.upload('resolution','Capture approved work',e.cameraId)+button('data-iw-resolve="'+e.id+'"','Record approved work done'):'');html+='</article>';});
   if(!j.exceptions.length)html+='<p>No exceptions recorded.</p>';html+='</section>';
-  const h=j.handover;html+='<section class="card iw-card"><form data-iw-form="handover"><h2>Customer handover</h2>'+field('demonstration','What you demonstrated to the customer',h.demonstration,'textarea')+this.evidence(j,'demo')+(!locked?this.upload('demo','Capture demonstration evidence'):'')+field('issues','Outstanding issues (write None if clear)',h.issues,'textarea')+check('acknowledged','Customer acknowledged the handover',h.acknowledged)+field('customerName','Name of person who acknowledged',h.customerName)+field('reason','If no acknowledgment, explain why',h.reason)+(!locked?'<button class="btn btn-primary">Save handover</button>':'')+'</form><p class="helper">Customer acknowledgment does not replace technical review.</p></section>';
+  const h=j.handover;html+='<section class="card iw-card"><form data-iw-form="handover"><h2>Customer handover</h2>'+field('demonstration','What you demonstrated to the customer',h.demonstration||(this.ctx.demo?'DEMO: showed live view, recording, playback and phone access to the site manager':''),'textarea')+this.evidence(j,'demo')+(!locked?this.upload('demo','Capture demonstration evidence'):'')+field('issues','Outstanding issues (write None if clear)',h.issues||(this.ctx.demo?'None · demo only':''),'textarea')+check('acknowledged','Customer acknowledged the handover',h.acknowledged)+field('customerName','Name of person who acknowledged',h.customerName||(this.ctx.demo?'DEMO Site Manager':''))+field('reason','If no acknowledgment, explain why',h.reason)+(!locked?'<button class="btn btn-primary">Save handover</button>':'')+'</form><p class="helper">Customer acknowledgment does not replace technical review.</p></section>';
   html+='<section class="card iw-card"><h2>Final technical review</h2>'+(missing.length?'<ul>'+missing.map(m=>'<li>'+esc(m)+'</li>').join('')+'</ul>':'<p>All required checks and evidence are present.</p>');
   if(!locked)html+='<button type="button" class="btn btn-primary" data-iw-submit'+(missing.length||pending||cl.busy?' disabled':'')+'>Submit for supervisor review</button>';
   if(supervisor&&j.status==='Submitted')html+=button('data-iw-complete','Approve technical review and complete',true);
@@ -102,6 +117,12 @@ class InstallerView {
   document.getElementById('iwDialog')?.remove();const d=document.createElement('dialog');d.id='iwDialog';d.className='iw-dialog';d.innerHTML='<form><h2>'+esc(title)+'</h2>'+html+'<p role="alert" class="iw-alert" hidden></p><div class="iw-row"><button class="btn btn-ghost" type="button" data-iw-close>Cancel</button><button class="btn btn-primary" type="submit">Save</button></div></form>';document.body.append(d);d.querySelector('[data-iw-close]').onclick=()=>d.close();d.onclose=()=>d.remove();d.querySelector('form').onsubmit=async e=>{e.preventDefault();const b=d.querySelector('[type="submit"]');b.disabled=true;try{await save(new FormData(e.target));d.close();this.draw();}catch(e){const error=d.querySelector('[role="alert"]');error.textContent=e.message;error.hidden=false;b.disabled=false;}};d.showModal();return d;
  }
  async click(e){const b=e.target.closest('button');if(!b)return;const d=b.dataset,j=this.client.local(this.jobId),c=j?.cameras.find(x=>x.id===this.cameraId);try{
+  if('iwDemo'in d){await showDemo();return;}
+  if(d.iwDemoRole){await showDemo(d.iwDemoRole);return;}
+  if('iwDemoExit'in d){await exitDemo();return;}
+  if('iwDemoReset'in d){if(confirm('Reset only the fictional demo installation?')){if(active)await active.clear();await demoController.transport.reset();await showDemo();}return;}
+  if(d.iwSample){await this.samplePhoto(d.iwSample,d.camera||'');return;}
+
   if('iwSync'in d){await this.client.sync();this.client.cachePhotos();}
   if('iwBack'in d){this.jobId='';this.draw();}
   if(d.iwOpen){this.jobId=d.iwOpen;this.cameraId='';this.draw();}
@@ -126,6 +147,10 @@ class InstallerView {
   d.querySelector('#iwSource').onchange=e=>{const j=this.client.sourceJobs.find(j=>j.id===e.target.value);if(!j)return;['business','contact','phone','address','scheduledDate','instructions'].forEach(k=>{d.querySelector('[name="'+k+'"]').value=j[k]||'';});d.querySelector('[name="locations"]').value=Array.from({length:Math.min(64,Number(j.cameraCount)||1)},(_,i)=>'Camera '+(i+1)+' · name location').join('\n');};
  }
  async change(e){if(TESTS.includes(e.target.name)){const group=e.target.closest('fieldset');group.querySelector('[data-iw-test-note]').hidden=!['fail','na'].includes(e.target.value);group.querySelector('[data-iw-test-action]').hidden=e.target.value!=='fail';return;}if(e.target.id==='iwQueue'){this.queueFilter=e.target.value;this.draw();return;}if(e.target.dataset.iwUpload)await this.uploadFile(e.target);}
+ async samplePhoto(kind,cameraId=''){
+  if(!this.ctx.demo)return;const image=demoController.module.sampleDemoImage(kind);
+  await this.client.save(this.jobId,{action:'evidence',cameraId,data:{id:requestId(),kind,image}});this.ctx.toast('Sample photo added to the demo only.');
+ }
  async uploadFile(input){
   const file=input.files?.[0];if(!file)return;const jobId=this.jobId;try{const image=await cameraPhoto(file);await this.client.save(jobId,{action:'evidence',cameraId:input.dataset.camera||'',data:{id:requestId(),kind:input.dataset.iwUpload,image}});this.ctx.toast('Photo saved. '+this.client.message);}catch(e){this.ctx.toast(e.message);}input.value='';
  }
@@ -140,3 +165,5 @@ class InstallerView {
 }
 // Photo inputs inside the exception dialog are outside the workspace container.
 document.addEventListener('change',e=>{if(e.target.closest('#iwDialog')&&e.target.dataset.iwUpload&&active)active.uploadFile(e.target);});
+
+document.addEventListener('click',e=>{const button=e.target.closest('#iwDialog [data-iw-sample]');if(button&&active?.ctx.demo)active.samplePhoto(button.dataset.iwSample,button.dataset.camera||'').catch(error=>active.ctx.toast(error.message));});

@@ -47,3 +47,9 @@ Operations records return visits, cable replacements, actual completion minutes 
 - No existing jobs, staff accounts or customer records are automatically migrated or assigned.
 - Node tests cover assignment isolation, photo authorization, evidence gates, join decisions, per-camera correction, technical approval, idempotent retries and stale edits.
 - Synthetic browser QA covers assigned-only access, offline checklist + photo persistence across reload, reconnection without duplicate records, and supervisor queues. Physical Android pilot remains required.
+
+## Interactive demo (v100)
+
+Operations/admins can open **Installer work → Open demo installation**. It contains a fictional Kampala shop and two cameras. Start as Operations, assign DEMO Installer and a date, then switch to Installer. Use the sample-photo buttons (illustrations labelled DEMO ONLY), save cable/mounting/tests for both cameras, record handover, and submit. Switch back to Operations to approve or return one camera item. Reset repeats the exercise; Exit returns to real jobs.
+
+The demo reuses the production workflow model and UI, but replaces network calls with a browser-only transport and separate account-partitioned IndexedDB records. No real crew accounts, jobs, notifications, approvals, or billing entries are created or modified. Demo data stays on the same browser. Its placeholder standards and schematic photos are for training, not approved installation instructions.

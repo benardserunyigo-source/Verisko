@@ -244,3 +244,6 @@ Team management now defaults to name, phone number and role. “Add by phone · 
 ## Installer quality and supervisor review (v99)
 
 See [pilot guide](docs/installer/PILOT.md) and [requirements](docs/installer/requirements.md). Installer/Supervisor roles have a separate authenticated installation API and private evidence store. Operations and admins supervise. Phone onboarding now includes these roles. No customer jobs or staff are assigned automatically. Confirm operating standards and run the physical Android pilot before wider rollout.
+
+### Interactive installer demo (v100)
+Operations/admins have an **Open demo installation** button in Installer work. Switch between simulated Operations and Installer, assign a fictional two-camera job, add labelled sample images, submit and approve. The demo runs in an isolated browser-only transport; it never writes to the installation API. Reset/Exit affect only the demo. See the pilot guide for the walkthrough.
