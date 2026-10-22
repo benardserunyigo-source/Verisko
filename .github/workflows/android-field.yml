@@ -22,12 +22,17 @@ jobs:
       - name: Test, lint and build APK
         working-directory: android-field
         run: '"$RUNNER_TEMP/gradle-8.13/bin/gradle" --no-daemon testDebugUnitTest lintDebug assembleDebug'
+      - name: Verify APK signature and checksum
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose android-field/app/build/outputs/apk/debug/app-debug.apk
+          sha256sum android-field/app/build/outputs/apk/debug/app-debug.apk > android-field/app/build/outputs/apk/debug/SHA256SUMS.txt
       - name: Upload pilot APK and checks
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Verisko-Field-Android-pilot
           path: |
             android-field/app/build/outputs/apk/debug/app-debug.apk
+            android-field/app/build/outputs/apk/debug/SHA256SUMS.txt
             android-field/app/build/reports/tests/testDebugUnitTest/
             android-field/app/build/reports/lint-results-debug.html
           retention-days: 14
