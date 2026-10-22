@@ -494,7 +494,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=88'), import('./field-shifts-ui.mjs?v=88'), import('./field-shifts-android.mjs?v=88')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=89'), import('./field-shifts-ui.mjs?v=89'), import('./field-shifts-android.mjs?v=89')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
