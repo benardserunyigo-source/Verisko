@@ -1,5 +1,5 @@
-import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=104';
-import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady} from './installer-model.mjs?v=104';
+import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=105';
+import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady,installerPaymentSummary,PAYMENT_METHODS} from './installer-model.mjs?v=105';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>'UGX '+Number(v).toLocaleString('en-UG');
 const time=v=>new Date(v).toLocaleString('en-GB',{timeZone:'Africa/Kampala'});
@@ -20,7 +20,7 @@ export async function mountInstaller(ctx){
 async function showDemo(role='operations'){
  if(!realContext||!manager(realContext.user))return;
  if(active?.client.queue.length){realContext.toast('Send saved work before changing views.');return;}
- if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=104');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
+ if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=105');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
  if(active)active.stop();const actor=demoController.transport.actors[role==='installer'?1:0];
  active=new InstallerView({...realContext,user:actor,demo:true,demoRole:role,initialJobId:'demo-installation',fetcher:demoController.transport.fetcher(role),token:async()=>''});await active.start();
 }
@@ -66,7 +66,7 @@ class InstallerView {
     else if(this.queueFilter==='correction'){job.exceptions.filter(e=>e.status==='correction').forEach(e=>details.push({camera:job.cameras.find(c=>c.id===e.cameraId)?.name,who:this.name(e.requestedBy),issue:e.decisions.at(-1)?.comment,at:e.decisions.at(-1)?.at}));job.cameras.forEach(c=>Object.entries(c.corrections||{}).filter(([,v])=>v.status==='open').forEach(([k,v])=>details.push({camera:c.name,who:job.assignees.map(id=>this.name(id)).join(', '),issue:k+': '+v.comment,at:v.at})));}
     else if(this.queueFilter==='materials'){const items=job.materials?.items||[];const needs=items.filter(item=>{const b=materialBalance(item);return item.issued>0&&(!b.checked||b.leftGood>0||b.leftDamaged>0||(item.missing||0)>0&&item.lossAccepted!==item.missing);});if(needs.length||job.materials?.required&&!job.materials.confirmed)details.push({camera:'Materials and returns',who:job.assignees.map(id=>this.name(id)).join(', '),issue:needs.length+' items to check · '+(job.materials?.confirmed?'site list checked':'check full site list'),at:job.updatedAt});}
     else if(this.queueFilter==='review'&&job.status!=='Submitted'||this.queueFilter==='completed'&&job.status!=='Completed')continue;
-    else details.push({camera:['review','completed'].includes(this.queueFilter)?job.cameras.map(c=>c.name).join(' · '):job.cameras.length+' cameras',who:job.assignees.map(id=>this.name(id)).join(', '),issue:job.status+(stockManager(this.user)?' · Crew pay: '+(payReady(job)?money(crewPay(job)):'Set agreed pay'):this.user.role==='installer'?' · Your pay: '+(job.installerPay?.[this.user.id]?money(job.installerPay[this.user.id].amount):'Operations must set'):' '),at:job.submittedAt||job.updatedAt});
+    else details.push({camera:['review','completed'].includes(this.queueFilter)?job.cameras.map(c=>c.name).join(' · '):job.cameras.length+' cameras',who:job.assignees.map(id=>this.name(id)).join(', '),issue:job.status+(stockManager(this.user)?' · Crew pay: '+(payReady(job)?money(crewPay(job)):'Set agreed pay'):this.user.role==='installer'?' · Your pay: '+(job.installerPay?.[this.user.id]?money(job.installerPay[this.user.id].amount)+' · Left: '+money(installerPaymentSummary(job,this.user.id).balance):'Operations must set'):' '),at:job.submittedAt||job.updatedAt});
     details.forEach(d=>items.push('<article class="iw-job"><h3>'+esc(job.business)+' · '+esc(d.camera)+'</h3><p>'+esc(d.who)+' · '+esc(d.issue)+'</p><p class="helper">Waiting '+esc(waiting(d.at))+' · scheduled '+esc(job.scheduledDate)+'</p>'+button('data-iw-open="'+esc(job.id)+'"','Open installation')+'</article>'));
    }
    html+=items.join('')||'<p>No installations in this queue.</p>';html+='</section>';
@@ -131,6 +131,7 @@ class InstallerView {
   if(d.iwSample){await this.samplePhoto(d.iwSample,d.camera||'');return;}
 
   if(d.iwWork){b.disabled=true;try{const location=this.ctx.demo?{lat:0,lng:0,accuracy:0}:await captureWorkLocation();await this.client.save(j.id,{action:d.iwWork,data:{location,capturedAt:new Date().toISOString()}});this.ctx.toast(this.ctx.demo?'Demo time and sample location saved.':this.client.message);}finally{b.disabled=false;}return;}
+  if(j&&this.paymentActions(d,j))return;
   if(j&&'iwPay'in d){this.modal('Set agreed installer pay','<p>Enter each person’s total pay for this job. Each installer sees their own amount.</p>'+j.assignees.map((id,i)=>field('pay'+i,this.name(id)+' · agreed pay (UGX)',j.installerPay?.[id]?.amount??'','number').replace('type="number"','type="number" min="1" max="100000000" step="1" required')+field('payNote'+i,'Payment notes for '+this.name(id),j.installerPay?.[id]?.note||'','textarea')).join(''),f=>this.client.online(j.id,{action:'installerPay',baseVersion:j.versions.installerPay||0,data:{payments:j.assignees.map((id,i)=>({installerId:id,amount:Number(f.get('pay'+i)),note:f.get('payNote'+i)}))}}));return;}
   if(j&&this.materialActions(d,j))return;
   if('iwSync'in d){await this.client.sync();this.client.cachePhotos();}
@@ -151,15 +152,27 @@ class InstallerView {
   if('iwComplete'in d)this.modal('Final technical approval',field('comment','Technical review notes','','textarea'),f=>this.client.online(j.id,{action:'complete',data:{comment:f.get('comment')}}));
   if('iwMetric'in d)this.modal('Pilot observation','<label>Measure<select name="type">'+options(['Return visit','Cable replacement','On-site inspection','Completion time (minutes)'])+'</select></label>'+field('value','Quantity / minutes','1','number')+field('note','Observation / outcome','','textarea'),f=>this.client.online(j.id,{action:'metric',data:Object.fromEntries(f)}));
  }catch(error){this.ctx.toast(error.message);}}
+ paymentActions(d,j){
+  if(d.iwRecordPayment){const id=d.iwRecordPayment,b=installerPaymentSummary(j,id),today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Kampala',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+   this.modal('Record payment · '+this.name(id),'<p>Balance left: <strong>'+esc(money(b.balance))+'</strong>. Record money already paid.</p>'+field('amount','Amount paid (UGX)','','number').replace('type="number"','type="number" min="1" max="'+b.balance+'" step="1" required')+field('paidOn','Date paid',today,'date')+'<label>How you paid<select name="method">'+options(PAYMENT_METHODS)+'</select></label>'+field('reference','Payment reference (optional for cash)')+field('note','Extra payment note (optional)','','textarea'),f=>this.client.online(j.id,{action:'installerPayment',baseVersion:j.versions.installerPay||0,data:{installerId:id,amount:Number(f.get('amount')),paidOn:f.get('paidOn'),method:f.get('method'),reference:f.get('reference'),note:f.get('note')}}));return true;
+  }
+  if(d.iwVoidPayment){const p=j.installerPayments.find(p=>p.id===d.iwVoidPayment);if(!p)return true;
+   this.modal('Correct a payment entry','<p>Remove '+esc(money(p.amount))+' from the paid total for '+esc(this.name(p.installerId))+'. The original entry stays in the history. This changes the app record only.</p>'+field('reason','Why was this entry wrong?','','textarea'),f=>this.client.online(j.id,{action:'installerPaymentVoid',baseVersion:j.versions.installerPay||0,data:{paymentId:p.id,reason:f.get('reason')}}));return true;
+  }
+  return false;
+ }
  paymentView(j){
-  const ops=stockManager(this.user),own=j.installerPay?.[this.user.id];
-  if(!ops&&this.user.role!=='installer')return '';
-  let html='<section class="card iw-card"><h2>'+ (ops?'Agreed installer pay':'Your agreed pay for this job')+'</h2>';
-  const show=(id,p)=>'<article class="iw-job">'+(ops?'<h3>'+esc(this.name(id))+'</h3>':'')+'<h2>'+esc(p?money(p.amount):'Operations has not set the amount yet')+'</h2>'+(p?'<p>This is your total pay for this job.</p><p class="iw-pre">'+esc(p.note||'No extra payment notes.')+'</p><p class="helper">Set by '+esc(this.name(p.by))+' · '+esc(time(p.at))+' (Uganda time)</p>':'')+'</article>';
-  if(ops){html+='<p>Set the agreed amount for each installer before work starts.</p>'+j.assignees.map(id=>show(id,j.installerPay?.[id])).join('');if(j.assignees.length)html+='<p><strong>Total crew pay: '+(payReady(j)?esc(money(crewPay(j))):'Set the amount for every installer')+'</strong></p>';else html+='<p>Assign an installer first.</p>';if(j.status!=='Completed'&&j.assignees.length)html+=button('data-iw-pay','Set / update agreed pay',true);}
-  else html+=show(this.user.id,own);
-  if(j.payHistory?.length)html+='<details><summary>Payment amount history</summary>'+j.payHistory.map(h=>'<p>'+esc(time(h.at))+' · '+esc(this.name(h.by))+'</p>'+Object.entries(h.payments).map(([id,p])=>'<p>'+esc(this.name(id))+' · '+esc(money(p.amount))+'<br>'+esc(p.note)+'</p>').join('')).join('')+'</details>';
-  return html+'<p class="helper">This records the agreed amount. It does not mark the money as paid.</p></section>';
+  const ops=stockManager(this.user);if(!ops&&this.user.role!=='installer')return '';
+  const voids=j.installerPaymentVoids||[],ids=ops?[...new Set([...j.assignees,...Object.keys(j.installerPay||{}),...(j.installerPayments||[]).map(p=>p.installerId)])]:[this.user.id];
+  let html='<section class="card iw-card"><h2>'+(ops?'Installer pay and payments':'Your pay and balance for this job')+'</h2>';
+  for(const id of ids){const p=j.installerPay?.[id],b=installerPaymentSummary(j,id),payments=(j.installerPayments||[]).filter(x=>x.installerId===id);
+   html+='<article class="iw-job">'+(ops?'<h3>'+esc(this.name(id))+(j.assignees.includes(id)?'':' · previously assigned')+'</h3>':'')+(p?'<p>Agreed pay: <strong>'+esc(money(b.agreed))+'</strong></p><p>Paid so far: <strong>'+esc(money(b.paid))+'</strong></p><h2>Left to pay: '+esc(money(b.balance))+'</h2><p class="iw-pre">'+esc(p.note||'No extra payment notes.')+'</p><p class="helper">Agreed amount set by '+esc(this.name(p.by))+' · '+esc(time(p.at))+' (Uganda time)</p>':'<p>Operations has not set the amount yet.</p>');
+   if(ops&&p&&b.balance>0)html+=button('data-iw-record-payment="'+esc(id)+'"','Record payment',true);
+   html+='<h3>Payments</h3>'+(payments.length?payments.map(x=>{const v=voids.find(v=>v.paymentId===x.id);return '<div class="iw-job"><p><strong>'+esc(money(x.amount))+'</strong> · '+esc(x.paidOn)+' · '+esc(x.method)+(v?' · Cancelled entry':'')+'</p><p>'+esc(x.reference?'Reference: '+x.reference:'Cash payment')+'</p><p class="iw-pre">'+esc(x.note||'')+'</p><p class="helper">Recorded by '+esc(this.name(x.by))+' · '+esc(time(x.at))+' (Uganda time)</p>'+(v?'<p>Correction: '+esc(v.reason)+' · '+esc(this.name(v.by))+' · '+esc(time(v.at))+'</p>':ops?button('data-iw-void-payment="'+esc(x.id)+'"','Correct this entry'):'')+'</div>';}).join(''):'<p>No payments recorded yet.</p>')+'</article>';
+  }
+  if(ops){if(j.assignees.length)html+='<p><strong>Current crew agreed pay: '+(payReady(j)?esc(money(crewPay(j))):'Set the amount for every installer')+'</strong></p>';else html+='<p>Assign an installer first.</p>';if(j.status!=='Completed'&&j.assignees.length)html+=button('data-iw-pay','Set / update agreed pay');}
+  if(j.payHistory?.length)html+='<details><summary>Agreed amount history</summary>'+j.payHistory.map(h=>'<p>'+esc(time(h.at))+' · '+esc(this.name(h.by))+'</p>'+Object.entries(h.payments).map(([id,p])=>'<p>'+esc(this.name(id))+' · '+esc(money(p.amount))+'<br>'+esc(p.note)+'</p>').join('')).join('')+'</details>';
+  return html+'</section>';
  }
  materialsView(j,locked){
   const m=j.materials||initialMaterials(j.equipment),ops=stockManager(this.user),installer=this.user.role==='installer';

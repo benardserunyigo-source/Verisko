@@ -1,6 +1,6 @@
 // Interactive training data stays on this browser. This transport never calls fetch.
-import {createJob,applyCommand,canRead,manager,installerJobView} from './installer-model.mjs?v=104';
-import {openOfflineStore,records} from './installer-client.mjs?v=104';
+import {createJob,applyCommand,canRead,manager,installerJobView} from './installer-model.mjs?v=105';
+import {openOfflineStore,records} from './installer-client.mjs?v=105';
 export const DEMO_JOB_ID='demo-installation';
 export function demoActors(ownerId){return [{id:'demo-ops-'+ownerId,name:'DEMO Operations',role:'operations'},{id:'demo-installer-'+ownerId,name:'DEMO Installer',role:'installer'}];}
 export function sampleDemoImage(kind='reference'){
@@ -18,6 +18,7 @@ export function seedDemo(ownerId,image,now=new Date().toISOString()){
  for(const item of job.materials.items)job=applyCommand(job,{action:'materialIssue',requestId:'demo-issue-'+item.id,baseVersion:job.versions.materials||0,data:{itemId:item.id,quantity:item.needed,note:'DEMO dispatch only'}},ops,now);
  job=applyCommand(job,{action:'materialConfirm',requestId:'demo-materials-confirm',baseVersion:job.versions.materials||0},ops,now);
  job=applyCommand(job,{action:'installerPay',requestId:'demo-pay-seed',baseVersion:0,data:{payments:[{installerId:installer.id,amount:350000,note:'DEMO example only. Agreed total for this installation.'}]}},ops,now);
+ job=applyCommand(job,{action:'installerPayment',requestId:'demo-payment-seed',baseVersion:job.versions.installerPay,data:{installerId:installer.id,amount:100000,paidOn:date,method:'Cash',reference:'',note:'DEMO ONLY: sample part payment.'}},ops,now);
  job.assignees=[]; // Assignment is the first interactive step; no real crew accounts are created.
  job=applyCommand(job,{action:'pilot',requestId:'demo-pilot-seed',baseVersion:0,data:{cableMethods:'DEMO: continuous runs; request approval for any join. Training example only.',weather:'DEMO placeholder. Real jobs require Operations-approved weather protection.',mounting:'DEMO placeholder. Real jobs require surface-appropriate fixings and manufacturer guidance.',approvalCover:'DEMO Operations',backup:'DEMO Operations',confirmed:true}},ops,now);
  job=applyCommand(job,{action:'evidence',requestId:'demo-reference-seed',data:{id:'demo-reference',kind:'reference',hash:'demo-reference-placeholder'}},ops,now);
@@ -52,6 +53,6 @@ export function createDemoTransport({ownerId,load,save,image,lock=fn=>fn(),now=(
  };
 }
 export async function browserDemo(ownerId){
- const db=await openOfflineStore(),key='demo-server-pay/'+ownerId;
+ const db=await openOfflineStore(),key='demo-server-payments/'+ownerId;
  return createDemoTransport({ownerId,image:sampleDemoImage(),load:()=>records(db,key),save:value=>records(db,key,value),lock:fn=>navigator.locks.request(key,fn)});
 }

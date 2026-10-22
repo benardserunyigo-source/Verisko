@@ -14,11 +14,19 @@ const text=(v,max=2000)=>String(v||'').trim().slice(0,max);
 const requireText=(v,label)=>{const out=text(v);if(!out)throw fail(label+' is required.');return out;};
 export const payReady=j=>j.assignees.length>0&&j.assignees.every(id=>Number.isSafeInteger(j.installerPay?.[id]?.amount)&&j.installerPay[id].amount>0);
 export const crewPay=j=>j.assignees.reduce((sum,id)=>sum+(j.installerPay?.[id]?.amount||0),0);
+export const PAYMENT_METHODS=['Mobile money','Cash','Bank transfer'];
+export function installerPaymentSummary(j,id){
+ const voided=new Set((j.installerPaymentVoids||[]).map(v=>v.paymentId));
+ const paid=(j.installerPayments||[]).filter(p=>p.installerId===id&&!voided.has(p.id)).reduce((sum,p)=>sum+p.amount,0);
+ const agreed=j.installerPay?.[id]?.amount||0;return {agreed,paid,balance:agreed-paid};
+}
 // Use the same projection for list, single-job and mutation responses.
 export function installerJobView(j,user){
  const out=structuredClone(j);delete out.contact;delete out.phone;out.payReady=payReady(j);
  if(!['admin','operations'].includes(user.role)){
   out.installerPay=user.role==='installer'&&out.installerPay?.[user.id]?{[user.id]:out.installerPay[user.id]}:{};
+  out.installerPayments=(out.installerPayments||[]).filter(p=>user.role==='installer'&&p.installerId===user.id);
+  const visibleIds=new Set(out.installerPayments.map(p=>p.id));out.installerPaymentVoids=(out.installerPaymentVoids||[]).filter(v=>visibleIds.has(v.paymentId));
   out.payHistory=(out.payHistory||[]).flatMap(h=>user.role==='installer'&&h.payments[user.id]?[{...h,payments:{[user.id]:h.payments[user.id]}}]:[]);
  }
  return out;
@@ -56,7 +64,7 @@ export function createJob(input,user,now,staff=[]){
  const assignees=Array.isArray(input.assignees)?[...new Set(input.assignees)]:[];
  if(!assignees.length||assignees.some(id=>!staff.some(u=>u.id===id&&u.role==='installer')))throw fail('Assign at least one Installer account.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(input.scheduledDate||''))throw fail('Choose a scheduled date.');
- return {id:input.id,sourceId:text(input.sourceId,100),business:requireText(input.business,'Customer'),siteStaff:{name:requireText(input.siteStaff?.name,'Verisko staff name'),phone:requireText(input.siteStaff?.phone,'Verisko staff phone')},workLogRequired:true,workLog:[],payRequired:true,installerPay:{},payHistory:[],address:requireText(input.address,'Site address'),scope:requireText(input.scope,'Scope'),equipment:requireText(input.equipment,'Equipment list'),materials:initialMaterials(input.equipment),instructions:text(input.instructions),remoteIncluded:input.remoteIncluded===true,assignees,scheduledDate:input.scheduledDate,status:'In progress',createdAt:now,createdBy:user.id,updatedAt:now,pilot:{approvalCover:'Operations'},cameras:[...new Set(locations)].map((name,i)=>({id:'camera-'+(i+1),name,versions:{},corrections:{}})),exceptions:[],evidence:[],handover:{},versions:{},history:[],requests:[],metrics:[]};
+ return {id:input.id,sourceId:text(input.sourceId,100),business:requireText(input.business,'Customer'),siteStaff:{name:requireText(input.siteStaff?.name,'Verisko staff name'),phone:requireText(input.siteStaff?.phone,'Verisko staff phone')},workLogRequired:true,workLog:[],payRequired:true,installerPay:{},payHistory:[],installerPayments:[],installerPaymentVoids:[],address:requireText(input.address,'Site address'),scope:requireText(input.scope,'Scope'),equipment:requireText(input.equipment,'Equipment list'),materials:initialMaterials(input.equipment),instructions:text(input.instructions),remoteIncluded:input.remoteIncluded===true,assignees,scheduledDate:input.scheduledDate,status:'In progress',createdAt:now,createdBy:user.id,updatedAt:now,pilot:{approvalCover:'Operations'},cameras:[...new Set(locations)].map((name,i)=>({id:'camera-'+(i+1),name,versions:{},corrections:{}})),exceptions:[],evidence:[],handover:{},versions:{},history:[],requests:[],metrics:[]};
 }
 export function applyCommand(previous,cmd,user,now){
  if(!canRead(previous,user))throw fail('This installation is not assigned to you.',403);
@@ -65,16 +73,36 @@ export function applyCommand(previous,cmd,user,now){
  const j=structuredClone(previous),supervisor=manager(user),c=j.cameras.find(x=>x.id===cmd.cameraId),data=cmd.data||{};
  const supervisorActions=['plan','pilot','decision','return','complete','metric'];
  if(supervisorActions.includes(cmd.action)&&!supervisor)throw fail('Supervisor access required.',403);
- if(j.status==='Completed'&&!['metric','workFinish'].includes(cmd.action))throw fail('Completed installation records are read-only.',409);
- if(j.status==='Submitted'&&!['return','complete','metric','decision','workFinish','materialReceive','materialReturn','installerPay'].includes(cmd.action))throw fail('Supervisor review is pending. Return an item before editing.',409);
+ if(j.status==='Completed'&&!['metric','workFinish','installerPayment','installerPaymentVoid'].includes(cmd.action))throw fail('Completed installation records are read-only.',409);
+ if(j.status==='Submitted'&&!['return','complete','metric','decision','workFinish','materialReceive','materialReturn','installerPay','installerPayment','installerPaymentVoid'].includes(cmd.action))throw fail('Supervisor review is pending. Return an item before editing.',409);
  const checkVersion=(obj,key)=>{if(cmd.baseVersion!==(obj.versions?.[key]||0))throw fail('This item changed on another device. Review the latest record before retrying.',409);obj.versions[key]=(obj.versions[key]||0)+1;};
- if(cmd.action==='installerPay'){
+ if(cmd.action==='installerPayment'||cmd.action==='installerPaymentVoid'){
+  if(!['admin','operations'].includes(user.role))throw fail('Only Operations can record installer payments.',403);
+  checkVersion(j,'installerPay');j.installerPayments||=[];j.installerPaymentVoids||=[];
+  if(cmd.action==='installerPayment'){
+   if(!j.installerPay?.[data.installerId])throw fail('Set the agreed pay for this installer first.');
+   const amount=data.amount;if(typeof amount!=='number'||!Number.isSafeInteger(amount)||amount<=0)throw fail('Enter a whole UGX payment above zero.');
+   if(amount>installerPaymentSummary(j,data.installerId).balance)throw fail('Payment is more than the balance left. Check the agreed pay and earlier payments.');
+   const paidOn=String(data.paidOn||''),date=new Date(paidOn+'T00:00:00Z'),today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Kampala',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now));
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(paidOn)||!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==paidOn||paidOn<'2000-01-01'||paidOn>today)throw fail('Choose the date you paid. It cannot be in the future.');
+   if(!PAYMENT_METHODS.includes(data.method))throw fail('Choose how you paid.');
+   const reference=text(data.reference,120);if(data.method!=='Cash'&&!reference)throw fail('Add the mobile money or bank payment reference.');
+   const voided=new Set(j.installerPaymentVoids.map(v=>v.paymentId));
+   if(reference&&j.installerPayments.some(p=>p.installerId===data.installerId&&p.method===data.method&&p.reference.toLowerCase()===reference.toLowerCase()&&!voided.has(p.id)))throw fail('This payment reference is already recorded. Check the payment history.',409);
+   j.installerPayments.push({id:cmd.requestId,installerId:data.installerId,amount,currency:'UGX',paidOn,method:data.method,reference,note:text(data.note),by:user.id,at:now});
+  }else{
+   const payment=j.installerPayments.find(p=>p.id===data.paymentId);if(!payment)throw fail('Payment record not found.');
+   if(j.installerPaymentVoids.some(v=>v.paymentId===payment.id))throw fail('This payment entry has already been cancelled.',409);
+   j.installerPaymentVoids.push({id:cmd.requestId,paymentId:payment.id,reason:requireText(data.reason,'Reason for correcting this entry'),by:user.id,at:now});
+  }
+ }else if(cmd.action==='installerPay'){
   if(!['admin','operations'].includes(user.role))throw fail('Only Operations can set installer pay.',403);
   checkVersion(j,'installerPay');
   if(!Array.isArray(data.payments)||!data.payments.length)throw fail('Enter the agreed pay for the installer.');
   const payments={};for(const p of data.payments){
    if(!j.assignees.includes(p.installerId)||Object.hasOwn(payments,p.installerId))throw fail('Choose each assigned installer once.');
    if(typeof p.amount!=='number'||!Number.isSafeInteger(p.amount)||p.amount<=0||p.amount>100000000)throw fail('Enter a whole UGX amount above zero, up to 100,000,000.');
+   if(p.amount<installerPaymentSummary(j,p.installerId).paid)throw fail('Agreed pay cannot be less than the payments already recorded.');
    payments[p.installerId]={amount:p.amount,currency:'UGX',note:text(p.note),by:user.id,at:now};
   }
   j.installerPay={...(j.installerPay||{}),...payments};j.payHistory=[...(j.payHistory||[]),{id:cmd.requestId,by:user.id,at:now,payments}];j.payRequired=true;delete j.payReady;
