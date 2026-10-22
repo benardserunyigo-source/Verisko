@@ -1,0 +1,49 @@
+# Installer quality module · first pilot
+
+Use the live app's **Installer work** screen. Operations runs approvals. Admins and an optional dedicated Supervisor role can also review. Installer and Supervisor accounts sign in through the existing phone/PIN invite process.
+
+## Operations setup
+
+1. In team management, create a phone setup link with the **Installer** role for each crew member. The crew member completes onboarding and chooses their PIN. Existing technician roster names are not login accounts; invite the actual person first.
+2. Open **Installer work → Set up installation**. Select an existing sales job to copy its customer, address, camera count and schedule, or create a standalone installation. Confirm the actual scope and equipment list, name every camera location, and assign installer accounts. This quality record links to the sales job without changing its quote, profit or payment schedule.
+3. Open **Pilot standards and approval cover**. Define approved cable methods, weather protection and mounting/finishing instructions. Operations is the primary and backup approval group, per Ben's direction; assign a named duty person internally. Upload an approved reference photo. Confirm the rules for this limited pilot. Unconfirmed standards block final submission.
+4. Start with a few jobs. On a real Android phone, test the camera picker, lock/unlock, airplane mode, reload, reconnect, and permissions before wider rollout. Browser simulation is not a physical-device acceptance test.
+
+## Installer workflow
+
+- Only assigned jobs appear. Select a named camera.
+- Plan a continuous cable route. Photograph it **before concealment**. Declare joins. Each exception needs a reason, location, proposal and photo. Pending/correction requests block completion, while other work can continue.
+- Capture separate mounting, fixing and cable-entry photos, plus the final view. Confirm manufacturer fastening guidance and the safe stability check.
+- Record each test: live image, recording, playback of a newly recorded clip, agreed coverage, and remote access. A failure needs an explanation and corrective action. Only remote access outside the agreed scope may be N/A, with a reason.
+- Save each checklist section. Photos save directly against the item. The status line shows unsynchronized changes/photos; a successful upload is labelled synced. Previously synchronized images are cached for offline viewing when connectivity permits.
+- If returned, upload a new photo and resubmit a revised proposal. After approval, capture the actual approved work, record what was done, and state whether a join was installed or the cable was kept continuous. Approval alone does not resolve it.
+- Record the customer demonstration with a photo, outstanding issues (or None), and acknowledgment/name or the reason acknowledgment was unavailable. Do not photograph passwords, sensitive screens or unrelated people.
+- Submit when the checklist is clear and all pending work has synchronized. Submission is an online action. The customer's acknowledgment is not technical approval.
+
+## Supervisor queues
+
+- **Needs a decision:** pending cable exceptions, camera, requester and waiting time.
+- **Needs correction:** returned camera items and cable requests, instructions and waiting time.
+- **Ready for review:** submitted jobs.
+- **Completed:** technical approval with reviewer, time and comments.
+
+Operations’ Today screen and Installer work navigation show pending review counts. The review screen refreshes every 30 seconds while open and idle; the app also checks review counts while visible. New exceptions produce an in-app notice. There are no email, WhatsApp, browser-push or background notifications in this version; keep the review queue staffed. Supervisors return one camera's cable, mounting or tests; other work and every older photo remain. Corrected cable/mounting items require new evidence and a resolution note. Only a supervisor may complete a submitted job.
+
+## Offline and access boundaries
+
+- Progress and queued photo bytes are kept in IndexedDB under the signed-in account, not localStorage. Commands have stable request IDs, per-item versions and server compare-and-set writes. Network retries cannot duplicate events or photos; a stale item is held as a conflict rather than overwriting newer work.
+- Use the latest Chrome/Android app on HTTPS and one active tab. Browser Web Locks prevent competing tabs from overwriting the offline queue. The first connection must load the app and assigned records before offline use. Do not clear browser data or uninstall with pending work. Signing out warns before removing unsynchronized installer data.
+- A conflict keeps the pending change. Review the latest record; remove only that conflicting local command, then re-enter it. Photo evidence already on the server is preserved.
+- Assignment and media access are checked on every server request. Installer/Supervisor roles cannot access the sales/customer workspace or shared receipt endpoint. Offline records reflect the last authorized assignment; a disconnected phone cannot learn of a revocation until reconnecting. Secure the device and avoid shared logins.
+- Installation photos live in a private Blobs store and are returned only through the authenticated, job-scoped endpoint. Never store camera/customer account passwords in text or pictures.
+
+## Pilot measures and inspection
+
+Operations records return visits, cable replacements, actual completion minutes and on-site inspection notes. Correction requests are counted from the audit history. Review these after the first few installations. Photo evidence supports review; it does not certify concealed work. Conduct occasional site inspections.
+
+## Implementation and verification
+
+- New private `verisko-installations` store: per-job records, append-only event history and immutable photo objects.
+- No existing jobs, staff accounts or customer records are automatically migrated or assigned.
+- Node tests cover assignment isolation, photo authorization, evidence gates, join decisions, per-camera correction, technical approval, idempotent retries and stale edits.
+- Synthetic browser QA covers assigned-only access, offline checklist + photo persistence across reload, reconnection without duplicate records, and supervisor queues. Physical Android pilot remains required.

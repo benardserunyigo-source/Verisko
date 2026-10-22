@@ -3,6 +3,11 @@
   functions = "netlify/functions"
 
 [[redirects]]
+  from = "/api/installer"
+  to = "/.netlify/functions/installer"
+  status = 200
+
+[[redirects]]
   from = "/api/field-shifts"
   to = "/.netlify/functions/field-shifts"
   status = 200

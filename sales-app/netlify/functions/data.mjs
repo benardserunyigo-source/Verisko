@@ -43,6 +43,10 @@ export default async (request) => {
     // that (via /api/auth submitId) until they have.
     if (idOverdue(me, Date.now())) return json({ ok: false, error: "id_overdue" }, 403, headers);
     if (!me && !bootstrap) return json({ ok: false, error: "not_authorized" }, 403, headers);
+    if (me && ['installer','supervisor'].includes(me.role)) {
+      if(request.method!=='GET')return json({ok:false,error:'Use the installation workspace.'},403,headers);
+      return json({ok:true,data:{...EMPTY,users:[me]}},200,headers);
+    }
     const isAdmin = bootstrap || (me && me.role === "admin");
     const isTeamLead = !bootstrap && !!me && me.role === "teamlead";
     const isSales = !bootstrap && !!me && me.role !== "admin" && me.role !== "operations" && me.role !== "teamlead";
@@ -250,7 +254,7 @@ function sanitizeRoster(stored, incoming) {
     if (su.id === ownerId || su.role === "admin") { result.push(su); continue; }
     const u = incById[su.id];
     if (!u) continue; // Operations removed this non-admin member — allowed.
-    const role = u.role === "operations" || u.role === "sales" || u.role === "teamlead" ? u.role : su.role; // never admin
+    const role = ["operations","sales","teamlead","installer","supervisor"].includes(u.role) ? u.role : su.role; // never admin
     result.push({ ...su, name: u.name || su.name, role });
   }
   // New members may only be Sales, Team lead or Operations.
@@ -259,7 +263,7 @@ function sanitizeRoster(stored, incoming) {
     if (storedById[u.id]) continue;
     const email = String(u.email || "").toLowerCase();
     if (!email || emails.has(email)) continue;
-    const role = u.role === "operations" ? "operations" : u.role === "teamlead" ? "teamlead" : "sales";
+    const role = ["operations","teamlead","installer","supervisor"].includes(u.role) ? u.role : "sales";
     result.push({ id: u.id, name: u.name || "", email, role, created: u.created });
     emails.add(email);
   }

@@ -109,8 +109,8 @@ export function cleanInviteCode(v) { return String(v || "").toUpperCase().replac
 // Who may invite whom: Team lead -> Sales; Operations -> Sales, Team lead;
 // Owner/Technical -> Sales, Team lead, Operations.
 export function canInviteRole(inviterRole, role) {
-  if (inviterRole === "admin") return ["sales", "teamlead", "operations"].includes(role);
-  if (inviterRole === "operations") return ["sales", "teamlead"].includes(role);
+  if (inviterRole === "admin") return ["sales", "teamlead", "operations", "installer", "supervisor"].includes(role);
+  if (inviterRole === "operations") return ["sales", "teamlead", "installer"].includes(role);
   if (inviterRole === "teamlead") return role === "sales";
   return false;
 }
@@ -163,7 +163,7 @@ export function protectPinUsers(storedUsers, incomingUsers) {
     .map((u) => {
       if (!u || !pinIds.has(u.id)) return u;
       const s = stored.find((x) => x.id === u.id);
-      const role = ["sales", "teamlead", "operations"].includes(u.role) ? u.role : s.role;
+      const role = ["sales", "teamlead", "operations", "installer", "supervisor"].includes(u.role) ? u.role : s.role;
       return { ...s, role };
     });
   stored.forEach((s) => { if (s && s.authMethod === "pin" && !incById.has(s.id)) out.push(s); });

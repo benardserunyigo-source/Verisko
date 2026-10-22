@@ -59,6 +59,7 @@ async function verify(request) {
   if (!who.me && users.length > 0) return null;   // on the team? (empty workspace = bootstrap owner)
   if (idOverdue(who.me, Date.now())) return null;   // National ID overdue
   const me = who.me;
+  if (["installer","supervisor"].includes(me?.role)) return null;
   const canCash = users.length === 0 || (me && (me.role === "admin" || me.role === "operations"));
   return { email: who.email, me, canCash };
 }

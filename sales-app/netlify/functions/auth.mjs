@@ -37,7 +37,7 @@ const DATA_STORE = "verisko-sales";
 const DATA_KEY = "app-data";
 const MAX_IMAGE = 1500000;
 const WRONG = "That phone number and PIN don't match.";
-const ROLE_LABEL = { sales: "Sales", teamlead: "Team lead", operations: "Operations" };
+const ROLE_LABEL = { sales: "Sales", teamlead: "Team lead", operations: "Operations", installer: "Installer", supervisor: "Supervisor" };
 const isImage = (v) => /^data:image\/(jpeg|png|webp);base64,/.test(String(v || ""));
 
 export default async (request) => {
@@ -201,7 +201,7 @@ export default async (request) => {
     if (action === "invite") {
       if (!["admin", "operations", "teamlead"].includes(me.role)) return reply({ ok: false, error: "forbidden" }, 403);
       const phone = normalizePhone(body.phone);
-      const role = ["sales", "teamlead", "operations"].includes(body.role) ? body.role : "sales";
+      const role = ["sales", "teamlead", "operations", "installer", "supervisor"].includes(body.role) ? body.role : "sales";
       if (!phone) return reply({ ok: false, error: "Enter their WhatsApp number, e.g. 0772 123 456." }, 400);
       if (!canInviteRole(me.role, role)) return reply({ ok: false, error: me.role === "teamlead" ? "Team leads can invite Sales only." : "Only the Owner can invite someone as Operations." }, 403);
       if ((data.users || []).some((u) => String(u.email || "").toLowerCase() === phoneEmail(phone))) return reply({ ok: false, error: "That phone number is already on the team." }, 409);
@@ -244,7 +244,7 @@ export default async (request) => {
       const id = String(body.id || "");
       const r = await staff.get("staff/" + id, { type: "json" });
       if (!r || r.status !== "pending") return reply({ ok: false, error: "This sign-up was already handled." }, 409);
-      const role = ["sales", "teamlead", "operations"].includes(body.role) ? body.role : "sales";
+      const role = ["sales", "teamlead", "operations", "installer", "supervisor"].includes(body.role) ? body.role : "sales";
       if (role === "operations" && !isOwner) return reply({ ok: false, error: "Only the Owner can approve someone as Operations." }, 403);
       const fresh = await loadData();
       const users = Array.isArray(fresh.users) ? fresh.users : [];

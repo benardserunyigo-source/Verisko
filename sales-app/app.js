@@ -37,7 +37,7 @@
     { key: "credentials", label: "Login & warranty handed over" }
   ];
   // Operations/admin extras live behind the bottom-nav "More" sheet.
-  var MORE_VIEWS = ["leads", "jobs", "cashflow", "applications", "field", "settings"];
+  var MORE_VIEWS = ["leads", "jobs", "cashflow", "applications", "field", "installwork", "settings"];
 
   /* ---------------------------- Quote calculator ---------------------------- */
   // Site-scoring rubric (answer points drive the site tier).
@@ -444,7 +444,32 @@
     button.querySelector(".page-action-label").textContent = actionLabel;
   }
 
+  var installerModule=null;
+  function installationRole(){return settings.user&&['installer','supervisor'].includes(settings.user.role);}
+  function canInstallWork(){return settings.user&&['admin','operations','supervisor','installer'].includes(settings.user.role);}
+  async function renderInstallerWork(){
+    content.innerHTML='<p class="helper">Loading installation workspace…</p>';
+    try{installerModule=await import('./installer-ui.mjs?v=98');if(view!=='installwork'||!canInstallWork())return;
+      var installerUser=settings.user;
+      await installerModule.mountInstaller({user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&settings.user.id===installerUser.id&&!document.body.classList.contains('locked');},token:async function(){if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
+    }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
+  }
+  var installationAlerts={pendingIds:[],corrections:0,submitted:0},installationAlertUser='',installationAlertAt=0,installationAlertBusy=false,installationAlertKnown=false;
+  function installationAlertHtml(){return '<section class="card iw-card" id="installationAlerts"><h2>Installer reviews</h2><p>'+installationAlerts.pendingIds.length+' need a decision · '+installationAlerts.corrections+' need correction · '+installationAlerts.submitted+' ready for review</p><button type="button" class="btn btn-ghost" data-installation-work>Open installer work</button></section>';}
+  async function refreshInstallationAlerts(){
+    var user=settings.user;if(!user||!settings.auth||!['admin','operations','supervisor'].includes(user.role)||document.hidden||installationAlertBusy)return;
+    if(installationAlertUser!==user.id){installationAlertUser=user.id;installationAlertAt=0;installationAlertKnown=false;installationAlerts={pendingIds:[],corrections:0,submitted:0};}
+    if(Date.now()-installationAlertAt<25000)return;installationAlertAt=Date.now();installationAlertBusy=true;
+    try{var request=function(){return fetch('/api/installer?summary=1',{headers:{Authorization:'Bearer '+settings.auth.access_token}});};var res=await request();if(res.status===401&&await refreshSession())res=await request();if(!res.ok)return;var next=await res.json();if(!settings.user||settings.user.id!==user.id)return;
+      if(installationAlertKnown&&next.pendingIds.some(id=>!installationAlerts.pendingIds.includes(id)))toast('New installer request needs your review.');installationAlerts=next;installationAlertKnown=true;
+      var badge=document.getElementById('installerBadge'),count=next.pendingIds.length+next.submitted;if(badge){badge.textContent=count;badge.hidden=!count;}
+      var block=document.getElementById('installationAlerts');if(block&&view==='today'){block.outerHTML=installationAlertHtml();var empty=content.querySelector('.empty');if(empty&&next.pendingIds.length+next.corrections+next.submitted)empty.hidden=true;}
+    }catch(e){}finally{installationAlertBusy=false;}
+  }
+  setInterval(refreshInstallationAlerts,30000);
   function render() {
+    if(installationRole())view='installwork';
+    if(view==='installwork'&&!canInstallWork())view='today';
     if (view === "settings" && !isAdmin()) view = "today";      // Settings is admin-only
     if (view === "cashflow" && !canCashflow()) view = "today";  // Cash flow is Operations + admin
     if (view === "jobs" && !canInstalls()) view = "today";      // Jobs is Operations + admin
@@ -452,7 +477,8 @@
     updateNavActive();
     updateCashBadge();
     updateProspectBadge();
-    if (view === "today") renderToday();
+    if (view === "installwork") renderInstallerWork();
+    else if (view === "today") renderToday();
     else if (view === "dashboard") renderDashboard();
     else if (view === "leads") renderLeads();
     else if (view === "prospects") renderProspects();
@@ -484,18 +510,19 @@
     return data;
   }
   function updateFieldUI() {
+    if(installationRole()){document.getElementById("fieldShiftBanner").innerHTML="";return;}
     if (!fieldTracker || !fieldUI || !settings.user || document.body.classList.contains('locked')) return;
     fieldUI.renderShiftBanner(document.getElementById('fieldShiftBanner'), fieldTracker, function () { view = 'field'; render(); document.getElementById('main').focus(); }, {person:settings.user,today:view==='today'});
     if (view === 'field') fieldUI.renderShiftPage(content, {tracker:fieldTracker,api:fieldApi,person:settings.user,esc:esc});
   }
   async function ensureFieldShifts() {
-    if (!settings.user || !settings.auth) return;
+    if (!settings.user || !settings.auth || installationRole()) return;
     var personId = settings.user.id;
     if (fieldTracker && fieldPersonId === personId) { updateFieldUI(); return; }
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=97'), import('./field-shifts-ui.mjs?v=97'), import('./field-shifts-android.mjs?v=97')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=98'), import('./field-shifts-ui.mjs?v=98'), import('./field-shifts-android.mjs?v=98')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -572,7 +599,7 @@
       .sort(function (a, b) { return (a.date || "").localeCompare(b.date || ""); });
 
     var leadDue=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&ownProspect(p)&&(isToday(p.followUp)||isOverdue(p.followUp));});
-    var sections = '<section class="card"><h2>Keep contacts for later</h2><p class="helper">Not ready for a site visit? Save their details and follow up first.</p><button class="btn btn-ghost" data-save-lead>Save a lead</button>'+(leadDue.length?'<p class="helper">'+leadDue.length+' saved-contact follow-ups due.</p>'+leadDue.map(function(p){return '<p><strong>'+esc(p.business)+'</strong> · '+dateLabel(p.followUp)+' <button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button></p>';}).join(''):'')+'</section>';
+    var sections = (canInstalls()?installationAlertHtml():'')+'<section class="card"><h2>Keep contacts for later</h2><p class="helper">Not ready for a site visit? Save their details and follow up first.</p><button class="btn btn-ghost" data-save-lead>Save a lead</button>'+(leadDue.length?'<p class="helper">'+leadDue.length+' saved-contact follow-ups due.</p>'+leadDue.map(function(p){return '<p><strong>'+esc(p.business)+'</strong> · '+dateLabel(p.followUp)+' <button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button></p>';}).join(''):'')+'</section>';
 
     var receivedLeads=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&leadTools().canManage(p,settings.user);});
     if(receivedLeads.length)sections+='<section class="card"><h2>'+receivedLeads.length+' prospecting contact'+(receivedLeads.length===1?'':'s')+'</h2><p class="helper">Saved contacts are visible to Operations while Sales follows up. No visits are booked yet.</p><button class="btn btn-primary" data-open-leads>View prospecting contacts</button></section>';
@@ -593,7 +620,7 @@
     sections += section("Confirmed site visits", confirmed.length, "",
       confirmed.map(function (a) { return handoffCard(a, true); }).join(""));
 
-    var anything = overdue.length + dueToday.length + toSchedule.length + awaiting.length + confirmed.length;
+    var anything = overdue.length + dueToday.length + toSchedule.length + awaiting.length + confirmed.length + (canInstalls()?installationAlerts.pendingIds.length+installationAlerts.corrections+installationAlerts.submitted:0);
     if (!anything && !leadDue.length && !receivedLeads.length) {
       sections += emptyState(ICON_CALENDAR, "You're all caught up", "No overdue follow-ups, nothing due today, and no visits waiting. Add a prospect to keep the pipeline moving.", "Add prospect", 'data-new="prospect"');
     }
@@ -1269,7 +1296,7 @@
     // are managed by the Owner in Settings, not shown here.
     var users = (state.users || []).filter(function (u) { return u.id !== ownerId() && u.role !== "admin"; });
     var manageableRoleOpts = function (sel) {
-      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"]].map(function (o) {
+      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"], ["installer", "Installer"], ["supervisor", "Supervisor"]].map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === normRole(sel) ? " selected" : "") + ">" + o[1] + "</option>";
       }).join("");
     };
@@ -1763,7 +1790,7 @@
       (delivery ? '<div class="item-line"><span class="k">Install</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Date not set") + " · " + (tech ? esc(tech.name) : '<span style="color:var(--amber)">no technician</span>') + "</span></div>" : "") +
       ((delivery && (val > 0 || paidForJob(j.id) > 0)) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (val > 0 ? " · " + money(Math.max(0, val - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
       (j.stage === "Handed over" || (/progress|installed/i.test(j.stage || "") && checklistDone(j) > 0) ? '<div class="item-line"><span class="k">Checklist</span><span class="v">' + checklistDone(j) + " / " + INSTALL_CHECKLIST.length + (checklistComplete(j.checklist) ? " · done" : "") + "</span></div>" : "") +
-      "</div>" + quoteActionsHtml(j.id) + "</article>";
+      "</div>" + '<button type="button" class="btn btn-ghost" data-installation-work>Installer work / quality review</button>' + quoteActionsHtml(j.id) + "</article>";
   }
 
   // Onboard/manage technicians (Operations + admin).
@@ -2632,7 +2659,7 @@
     var me = settings.user || {};
     var ownId = ownerId();
     var roleOpts = function (sel) {
-      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"], ["admin", "Technical"]].map(function (o) {
+      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"], ["installer", "Installer"], ["supervisor", "Supervisor"], ["admin", "Technical"]].map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === sel ? " selected" : "") + ">" + o[1] + "</option>";
       }).join("");
     };
@@ -3912,7 +3939,7 @@
     renderLogin("denied");
     lockScreen.hidden = false;
   }
-  function signOutLocal() { stopFieldTracking(); window.VeriskoPricing=window.createVeriskoPricing(window.VeriskoPriceCatalogue); settings.auth = null; settings.user = null; saveSettings(); }
+  function signOutLocal() { if(installerModule)installerModule.suspendInstaller(); stopFieldTracking(); window.VeriskoPricing=window.createVeriskoPricing(window.VeriskoPriceCatalogue); settings.auth = null; settings.user = null; saveSettings(); }
 
   /* -------- Email magic-link login -------- */
   function renderLogin(step, message) {
@@ -4104,7 +4131,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v97";
+  var APP_VERSION = "v98";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4291,6 +4318,8 @@
   });
 
   async function logout() {
+    if(installerModule&&installerModule.installerPending()&&!(await confirmSheet('Unsynchronized installation work','Signing out removes installation photos and drafts saved on this phone. Sync them first, or confirm you want to discard them.','Discard and sign out',true)))return;
+    if(installerModule)await installerModule.clearInstaller();
     if (fieldTracker && fieldTracker.snapshot().shift && fieldTracker.snapshot().shift.status === 'active') await fieldTracker.stop('pause');
     try { if (settings.auth) await sbFetch("/auth/v1/logout", { method: "POST", headers: { Authorization: "Bearer " + settings.auth.access_token } }); } catch (e) {}
     signOutLocal();
@@ -4309,13 +4338,17 @@
     if (wideMq.addEventListener) wideMq.addEventListener("change", onWideChange); else if (wideMq.addListener) wideMq.addListener(onWideChange);
   }
   function moreViewsForRole() {
+    if(installationRole())return ["installwork"];
     var v = ["leads", "field"];
+    if(canInstallWork())v.push("installwork");
     if (canInstalls()) { v.push("jobs"); v.push("cashflow"); v.push("applications"); }
     if (supportNavInMore()) v.push("support");
     if (isAdmin()) v.push("settings");
     return v;
   }
   function applyRole() {
+    var ib=document.getElementById("installerBadge");if(ib&&!canInstalls())ib.hidden=true;refreshInstallationAlerts();
+    ['today','dashboard','prospects','visits','prices'].forEach(function(v){var b=document.querySelector('.mainnav [data-view="'+v+'"]');if(b)b.hidden=false;});
     // Operations/admin extras (cash flow, installs, settings) live in "More",
     // so they're always hidden from the bar itself; the More button reveals them.
     MORE_VIEWS.forEach(function (v) {
@@ -4337,6 +4370,8 @@
       });
       if (moreBtn) moreBtn.hidden = true;
     }
+    document.querySelectorAll('.mainnav .nav-item[data-view]').forEach(function(btn){if(installationRole())btn.hidden=btn.dataset.view!=='installwork';});
+    if(installationRole()){view='installwork';if(moreBtn)moreBtn.hidden=true;}
     if (view === "settings" && !isAdmin()) view = "today";
     if ((view === "cashflow" || view === "jobs") && !canInstalls()) view = "today";
     updateNavActive();
@@ -4366,15 +4401,19 @@
   // The first member on the workspace is the owner (protected).
   function ownerId() { return (state.users && state.users[0]) ? state.users[0].id : null; }
   function roleName(u) {
+    if(u.role==="installer")return "Installer";
+    if(u.role==="supervisor")return "Supervisor";
     if (u.id === ownerId()) return "Owner";
     if (u.role === "admin") return "Technical";
     if (u.role === "operations") return "Operations";
     if (u.role === "teamlead") return "Team lead";
+    if (u.role === "installer") return "Installer";
+    if (u.role === "supervisor") return "Supervisor";
     return "Sales";
   }
 
   // Normalise a role input to one of: admin (Technical), operations, teamlead, sales.
-  function normRole(role) { return role === "admin" ? "admin" : role === "operations" ? "operations" : role === "teamlead" ? "teamlead" : "sales"; }
+  function normRole(role) { return ["admin","operations","teamlead","installer","supervisor"].includes(role)?role:"sales"; }
 
   // Who may manage the roster: admins (everyone) and Operations (non-admins only).
   // Operations can never touch the Owner, Technical accounts, or their own row,
@@ -4388,7 +4427,7 @@
   }
 
   function staffInviteRoles() {
-    return (settings.user||{}).role==='teamlead' ? [['sales','Sales']] : [['sales','Sales'],['teamlead','Team lead']].concat(isAdmin()?[['operations','Operations']]:[]);
+    return (settings.user||{}).role==='teamlead' ? [['sales','Sales']] : [['sales','Sales'],['teamlead','Team lead'],['installer','Installer']].concat(isAdmin()?[['operations','Operations'],['supervisor','Supervisor']]:[]);
   }
   function phoneMemberForm() {
     return '<form id="addPhoneMemberForm" class="add-member">'+
@@ -4639,7 +4678,7 @@
   function inviteStaff() {
     if (!canApproveQual()) return;
     var role = (settings.user || {}).role;
-    var roles = role === "teamlead" ? [["sales", "Sales"]] : [["sales", "Sales"], ["teamlead", "Team lead"]].concat(isAdmin() ? [["operations", "Operations"]] : []);
+    var roles = staffInviteRoles();
     var dlg = document.getElementById("askDialog");
     dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Invite someone to the team</h2>' +
       '<p class="ask-body">They get a personal link that works once, for 7 days, only with their phone number. They join straight away and add their National ID within 5 days.</p></div>' +
@@ -4924,6 +4963,7 @@
   });
 
   content.addEventListener("click", function (e) {
+    if(e.target.closest('[data-installation-work]')){e.stopPropagation();view='installwork';render();return;}
     var summaryOwner=e.target.closest('[data-lead-summary-owner]');
     if(summaryOwner&&canReviewProspects()){leadOwnerFilter=summaryOwner.dataset.leadSummaryOwner;leadDueFilter='';leadQuery='';leadListMode='all';renderLeads();document.getElementById('leadCount').scrollIntoView({block:'center',behavior:'smooth'});return;}
     if(e.target.closest('[data-reset-lead-filters]')){leadOwnerFilter='';leadDueFilter='';leadQuery='';renderLeads();return;}

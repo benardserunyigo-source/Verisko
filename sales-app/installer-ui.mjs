@@ -1,0 +1,142 @@
+import {InstallerClient,cameraPhoto,requestId} from './installer-client.mjs?v=98';
+import {manager,TESTS,PARTS,reasons,readiness} from './installer-model.mjs?v=98';
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const labels={live:'Live image',recording:'Recording',playback:'Playback of a newly recorded clip',coverage:'Coverage of agreed area',remote:'Customer remote access'};
+const checked=v=>v?' checked':'';
+const options=(rows,value)=>rows.map(x=>{const [v,label]=Array.isArray(x)?x:[x,x];return '<option value="'+esc(v)+'"'+(v===value?' selected':'')+'>'+esc(label)+'</option>';}).join('');
+const field=(key,label,value='',type='text')=>'<div class="field"><label>'+esc(label)+(type==='textarea'?'<textarea name="'+key+'" rows="3">'+esc(value)+'</textarea>':'<input name="'+key+'" type="'+type+'" value="'+esc(value)+'">')+'</label></div>';
+const check=(key,label,value)=>'<label class="iw-check"><input name="'+key+'" type="checkbox"'+checked(value)+'>'+esc(label)+'</label>';
+const button=(attr,label,primary=false)=>'<button type="button" class="btn '+(primary?'btn-primary':'btn-ghost')+'" '+attr+'>'+esc(label)+'</button>';
+const waiting=at=>{const n=Math.max(0,Math.floor((Date.now()-Date.parse(at))/3600000));return n<1?'under 1 hour':n+' hours';};
+let active;
+export async function mountInstaller(ctx){
+ if(!active||active.user.id!==ctx.user.id){if(active)active.stop();active=new InstallerView(ctx);await active.start();}else{active.ctx=ctx;active.draw();active.client.sync();}
+}
+export function installerPending(){return active?.client.queue.length||0;}
+export function suspendInstaller(){if(active){active.stop();active=null;}}
+export async function clearInstaller(){if(active){await active.clear();active=null;}}
+class InstallerView {
+ constructor(ctx){this.ctx=ctx;this.user=ctx.user;this.jobId='';this.cameraId='';this.queueFilter='all';this.client=new InstallerClient({user:ctx.user,token:ctx.token,onChange:()=>{if(this.ctx.isCurrent())this.draw();}});}
+ async start(){try{await this.client.init();this.draw();await this.client.sync();this.client.cachePhotos();}catch(e){this.ctx.container.innerHTML='<section class="card iw-card">'+esc(e.message)+' · Offline storage must be available before work can be saved.</section>';}
+  this.online=()=>{if(this.ctx.isCurrent())this.client.sync();};window.addEventListener('online',this.online);
+  this.timer=setInterval(()=>{if(this.ctx.isCurrent()&&!document.querySelector('#iwDialog[open]')&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))this.client.sync();},30000);
+ }
+ stop(){clearInterval(this.timer);window.removeEventListener('online',this.online);}
+ async clear(){this.stop();if(this.client.db){const db=this.client.db,key=this.client.key;await new Promise((resolve,reject)=>{const tx=db.transaction('records','readwrite'),r=tx.objectStore('records').openCursor();r.onsuccess=()=>{const c=r.result;if(c){if(String(c.key).startsWith(key))c.delete();c.continue();}};tx.oncomplete=resolve;tx.onerror=reject;});db.close();}}
+ name(id){return this.client.people.find(u=>u.id===id)?.name||this.client.staff.find(u=>u.id===id)?.name||id;}
+ evidence(j,kind,cameraId=''){
+  const list=j.evidence.filter(e=>e.kind===kind&&e.cameraId===cameraId);
+  return '<div class="iw-evidence">'+list.map(e=>'<button type="button" class="btn btn-ghost btn-sm" data-iw-photo="'+esc(e.id)+'">'+esc(kind)+' photo · '+(e.hash==='pending'?'pending upload':'synced')+'</button>').join('')+'</div>';
+ }
+ upload(kind,label,cameraId=''){return '<label class="btn btn-ghost iw-upload">'+esc(label)+'<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" data-iw-upload="'+kind+'" data-camera="'+esc(cameraId)+'"></label>';}
+ draw(){
+  if(!this.ctx.isCurrent())return;const cl=this.client,supervisor=manager(this.user),j=cl.local(this.jobId);
+  this.ctx.head('Installation quality',supervisor?'Installation review':'My installations','Assigned jobs, evidence and technical review. Never record customer or camera passwords.','',false);
+  const pendingDecisions=cl.jobs.flatMap(j=>j.exceptions.filter(e=>e.status==='pending').map(e=>e.id));
+  if(supervisor&&!cl.busy&&this.seenDecisions&&pendingDecisions.some(id=>!this.seenDecisions.includes(id)))this.ctx.toast('New installation exception needs a supervisor decision.');
+  if(!cl.busy)this.seenDecisions=pendingDecisions;
+  let html='<div class="iw-sync" role="status"><strong>'+esc(cl.message||'Saved on this phone')+'</strong><span>'+cl.queue.length+' pending changes · '+cl.queue.filter(q=>q.command.action==='evidence').length+' pending photo uploads</span>'+button('data-iw-sync','Sync now')+'</div>';
+  if(cl.message.startsWith('Sync conflict:')&&cl.queue.length)html+='<section class="card iw-card"><strong>A newer item exists on the server.</strong><p>Your pending version is retained on this phone. Review the latest item, then remove only the conflicting pending change and enter the correction again. Photo evidence already uploaded stays in the record.</p>'+button('data-iw-discard','Remove first pending change')+'</section>';
+  if(!j){
+   this.jobId='';
+   if(supervisor)html+='<p class="iw-rule">'+pendingDecisions.length+' exception requests need a decision · '+cl.jobs.filter(j=>j.status==='Submitted').length+' jobs ready for review</p>';html+='<section class="card iw-card"><div class="iw-row"><h2>'+ (supervisor?'Supervisor queues':'Assigned work')+'</h2>'+(supervisor?button('data-iw-create','Set up installation',true):'')+'</div>';
+   if(supervisor)html+='<label>Show <select id="iwQueue">'+options([['all','All installations'],['decision','Needs a decision'],['correction','Needs correction'],['review','Ready for review'],['completed','Completed']],this.queueFilter)+'</select></label>';
+   const jobs=cl.jobs.map(x=>cl.local(x.id));let items=[];
+   for(const job of jobs){
+    const details=[];
+    if(this.queueFilter==='decision')job.exceptions.filter(e=>e.status==='pending').forEach(e=>details.push({camera:job.cameras.find(c=>c.id===e.cameraId)?.name,who:this.name(e.requestedBy),issue:e.reason+': '+e.description,at:e.waitingSince||e.requestedAt}));
+    else if(this.queueFilter==='correction'){job.exceptions.filter(e=>e.status==='correction').forEach(e=>details.push({camera:job.cameras.find(c=>c.id===e.cameraId)?.name,who:this.name(e.requestedBy),issue:e.decisions.at(-1)?.comment,at:e.decisions.at(-1)?.at}));job.cameras.forEach(c=>Object.entries(c.corrections||{}).filter(([,v])=>v.status==='open').forEach(([k,v])=>details.push({camera:c.name,who:job.assignees.map(id=>this.name(id)).join(', '),issue:k+': '+v.comment,at:v.at})));}
+    else if(this.queueFilter==='review'&&job.status!=='Submitted'||this.queueFilter==='completed'&&job.status!=='Completed')continue;
+    else details.push({camera:['review','completed'].includes(this.queueFilter)?job.cameras.map(c=>c.name).join(' · '):job.cameras.length+' cameras',who:job.assignees.map(id=>this.name(id)).join(', '),issue:job.status,at:job.submittedAt||job.updatedAt});
+    details.forEach(d=>items.push('<article class="iw-job"><h3>'+esc(job.business)+' · '+esc(d.camera)+'</h3><p>'+esc(d.who)+' · '+esc(d.issue)+'</p><p class="helper">Waiting '+esc(waiting(d.at))+' · scheduled '+esc(job.scheduledDate)+'</p>'+button('data-iw-open="'+esc(job.id)+'"','Open installation')+'</article>'));
+   }
+   html+=items.join('')||'<p>No installations in this queue.</p>';html+='</section>';
+  }else html+=this.job(j,supervisor);
+  const key=this.jobId+'/'+this.cameraId,drafts=[];
+  if(this.displayKey===key)this.ctx.container.querySelectorAll('[data-iw-form]').forEach(form=>{form.querySelectorAll('[name]').forEach(el=>{if(el.type!=='file')drafts.push({form:form.dataset.iwForm,name:el.name,value:el.value,checked:el.checked});});});
+  this.ctx.container.innerHTML='<div class="installer-workspace">'+html+'</div>';this.displayKey=key;
+  if(j){const camera=j.cameras.find(c=>c.id===this.cameraId);if(camera)PARTS.forEach(part=>{if(camera.corrections?.[part]){const form=this.ctx.container.querySelector('[data-iw-form="'+part+'"]');if(form){const slot=document.createElement('div');slot.innerHTML=field('correctionNote','How you corrected the returned item',camera.corrections[part].resolution||'','textarea');form.insertBefore(slot,form.querySelector('button[type="submit"],button:not([type])'));}}});}
+  drafts.forEach(d=>{const form=this.ctx.container.querySelector('[data-iw-form="'+d.form+'"]'),el=form?.elements.namedItem(d.name);if(el){el.value=d.value;if(el.type==='checkbox')el.checked=d.checked;}});
+  if(j&&j.exceptions.some(e=>e.type==='join'&&e.cameraId===this.cameraId&&(e.status!=='resolved'||e.resolution?.joinInstalled!==false))){const joins=this.ctx.container.querySelector('[name="joins"]');if(joins)joins.value='yes';}
+  this.ctx.container.querySelector('.installer-workspace').addEventListener('click',e=>this.click(e));
+  this.ctx.container.querySelector('.installer-workspace').addEventListener('change',e=>this.change(e));
+  this.ctx.container.querySelector('.installer-workspace').addEventListener('submit',e=>this.submitForm(e));
+ }
+ job(j,supervisor){
+  const cl=this.client,locked=['Submitted','Completed'].includes(j.status),c=j.cameras.find(c=>c.id===this.cameraId),missing=readiness(j),pending=cl.queue.some(q=>q.jobId===j.id);
+  let html='<section class="card iw-card">'+button('data-iw-back','← All installations')+'<h2>'+esc(j.business)+' <span class="iw-status">'+esc(j.status)+'</span></h2><p>'+esc(j.address)+'<br>'+esc(j.contact)+' · '+esc(j.phone)+'</p><p><strong>Scheduled:</strong> '+esc(j.scheduledDate)+' · '+esc(j.assignees.map(id=>this.name(id)).join(', '))+'</p><h3>Scope and equipment</h3><p class="iw-pre">'+esc(j.scope)+'\n'+esc(j.equipment)+'</p><h3>Instructions</h3><p class="iw-pre">'+esc(j.instructions||'No additional instructions')+'</p>';
+  if(j.status==='Completed')html+='<p>Technical approval: '+esc(this.name(j.approval.by))+' · '+esc(j.approval.at)+' · '+esc(j.approval.comment)+'</p>';
+  if(supervisor&&!locked)html+=button('data-iw-plan','Change assignment / instructions')+button('data-iw-pilot','Pilot standards and approval cover');
+  html+='<details><summary>Installation standards '+(j.pilot.confirmed?'· confirmed':'· supervisor confirmation required')+'</summary><p class="iw-pre">Cable methods: '+esc(j.pilot.cableMethods||'Not defined')+'\nWeather protection: '+esc(j.pilot.weather||'Not defined')+'\nMounting: '+esc(j.pilot.mounting||'Not defined')+'\nApprovals: '+esc(j.pilot.approvalCover||'Operations')+'\nBackup: '+esc(j.pilot.backup||'Not defined')+'</p>'+this.evidence(j,'reference')+(supervisor&&!locked?this.upload('reference','Add approved mounting / finishing example'):'')+'</details></section>';
+  html+='<section class="card iw-card"><h2>Camera locations</h2><div class="iw-row">'+j.cameras.map(x=>button('data-iw-camera="'+x.id+'"',x.name,x.id===this.cameraId)).join('')+'</div></section>';
+  if(c){
+   html+='<section class="card iw-card"><h2>'+esc(c.name)+'</h2><p class="iw-rule">Use a continuous cable run. Obtain supervisor approval before adding a join.</p>';
+   PARTS.forEach(part=>{const correction=c.corrections?.[part];if(correction)html+='<p class="iw-alert">'+esc(part)+' correction ('+esc(correction.status)+'): '+esc(correction.comment)+'</p>';});
+   html+='<form data-iw-form="cable"><h3>1. Cable installation</h3>'+field('route','Planned route',c.cable?.route||'','textarea')+'<label>Any cable joins? <select name="joins">'+options([['','Choose'],['no','No joins'],['yes','Yes · approval required']],c.cable?.joins||'')+'</select></label><p class="helper">Photograph the route before concealing the cable.</p>'+this.evidence(j,'route',c.id)+(!locked?this.upload('route','Capture cable route',c.id)+'<button class="btn btn-primary">Save cable checks</button>':'')+'</form>';
+   if(!locked)html+=button('data-iw-exception','Request a join / Report a cable problem');
+   html+='<form data-iw-form="mount"><h3>2. Mounting and finish</h3><p>Use the approved reference above. Capture each close-up and the final view.</p>'+check('fixings','Appropriate fixings for the mounting surface',c.mount?.fixings)+check('secured','Fasteners secured according to manufacturer instructions',c.mount?.secured)+check('stability','Safe stability check completed',c.mount?.stability);
+   [['mount','Mounting close-up'],['fixings','Fixings close-up'],['entry','Cable entry / weather finish'],['view','Final camera view']].forEach(([kind,label])=>{html+='<p>'+label+'</p>'+this.evidence(j,kind,c.id)+(!locked?this.upload(kind,'Capture '+label.toLowerCase(),c.id):'');});
+   html+=!locked?'<button class="btn btn-primary">Save mounting checks</button></form>':'</form>';
+   html+='<form data-iw-form="tests"><h3>3. System testing</h3>';
+   TESTS.forEach(k=>{const t=c.tests?.[k]||{};html+='<fieldset><legend>'+labels[k]+'</legend><select aria-label="'+labels[k]+' result" name="'+k+'">'+options([['','Choose result'],['pass','Pass'],['fail','Fail'],...(k==='remote'&&!j.remoteIncluded?[['na','Not applicable · outside scope']]:[])],t.result||'')+'</select>'+'<div data-iw-test-note'+(!['fail','na'].includes(t.result)?' hidden':'')+'>'+field(k+'Note','Description / reason',t.note)+'</div><div data-iw-test-action'+(t.result!=='fail'?' hidden':'')+'>'+field(k+'Action','Corrective action',t.action)+'</div>'+'</fieldset>';});
+   html+=!locked?'<button class="btn btn-primary">Save test results</button></form>':'</form>';
+   if(supervisor&&j.status!=='Completed')html+=button('data-iw-return','Return one camera item for correction');html+='</section>';
+  }
+  html+='<section class="card iw-card"><h2>Cable exceptions / approved connections</h2>';
+  j.exceptions.forEach(e=>{html+='<article class="iw-job"><h3>'+esc(j.cameras.find(c=>c.id===e.cameraId)?.name)+' · '+esc(e.status)+'</h3><p>'+esc(e.type)+' · '+esc(e.reason)+' · location: '+esc(e.location)+'</p><p>'+esc(e.description)+'<br>Proposed: '+esc(e.proposal)+'</p><p class="helper">'+esc(this.name(e.requestedBy))+' · '+esc(e.requestedAt)+'</p>'+this.evidence(j,'exception',e.cameraId);e.decisions.forEach(d=>{html+='<p>'+esc(d.decision)+' · '+esc(this.name(d.by))+' · '+esc(d.at)+'<br>'+esc(d.comment)+'</p>';});
+   (e.revisions||[]).forEach(r=>{html+='<p>Revised proposal: '+esc(r.proposal)+' · '+esc(this.name(r.by))+' · '+esc(r.at)+'</p>';});
+   if(e.status==='correction'&&!locked)html+=button('data-iw-revise="'+e.id+'"','Resubmit revised proposal');
+   if(e.resolution)html+='<p>'+esc(e.type==='join'?(e.resolution.joinInstalled?'Approved join installed. ':'Continuous cable used; no join installed. '):'')+'Work performed: '+esc(e.resolution.note)+'</p>'+this.evidence(j,'resolution',e.cameraId);
+   if(supervisor&&['pending','correction'].includes(e.status))html+=button('data-iw-decide="'+e.id+'"','Approve method / request correction');
+   if(e.status==='approved')html+=this.evidence(j,'resolution',e.cameraId)+(!locked?this.upload('resolution','Capture approved work',e.cameraId)+button('data-iw-resolve="'+e.id+'"','Record approved work done'):'');html+='</article>';});
+  if(!j.exceptions.length)html+='<p>No exceptions recorded.</p>';html+='</section>';
+  const h=j.handover;html+='<section class="card iw-card"><form data-iw-form="handover"><h2>Customer handover</h2>'+field('demonstration','What you demonstrated to the customer',h.demonstration,'textarea')+this.evidence(j,'demo')+(!locked?this.upload('demo','Capture demonstration evidence'):'')+field('issues','Outstanding issues (write None if clear)',h.issues,'textarea')+check('acknowledged','Customer acknowledged the handover',h.acknowledged)+field('customerName','Name of person who acknowledged',h.customerName)+field('reason','If no acknowledgment, explain why',h.reason)+(!locked?'<button class="btn btn-primary">Save handover</button>':'')+'</form><p class="helper">Customer acknowledgment does not replace technical review.</p></section>';
+  html+='<section class="card iw-card"><h2>Final technical review</h2>'+(missing.length?'<ul>'+missing.map(m=>'<li>'+esc(m)+'</li>').join('')+'</ul>':'<p>All required checks and evidence are present.</p>');
+  if(!locked)html+='<button type="button" class="btn btn-primary" data-iw-submit'+(missing.length||pending||cl.busy?' disabled':'')+'>Submit for supervisor review</button>';
+  if(supervisor&&j.status==='Submitted')html+=button('data-iw-complete','Approve technical review and complete',true);
+  html+='<p class="helper">Only a supervisor can complete the job. Submission requires synchronized evidence.</p></section>';
+  html+='<section class="card iw-card"><h2>Pilot measures</h2><p>Return visits: '+j.metrics.filter(m=>m.type==='Return visit').reduce((a,m)=>a+m.value,0)+' · Cable replacements: '+j.metrics.filter(m=>m.type==='Cable replacement').reduce((a,m)=>a+m.value,0)+' · Correction requests: '+j.history.filter(h=>h.action==='return'||h.action==='decision'&&h.decision==='correction').length+'</p>'+j.metrics.map(m=>'<p>'+esc(m.type)+': '+m.value+' · '+esc(m.note)+'</p>').join('')+(supervisor?button('data-iw-metric','Record pilot measure / site inspection'):'')+'</section>';
+  html+='<section class="card iw-card"><details><summary>Job history · '+j.history.length+' events</summary>'+j.history.map(h=>'<p>'+esc(h.at)+' · '+esc(h.name||this.name(h.by))+' · '+esc(h.action)+' '+esc(j.cameras.find(c=>c.id===h.cameraId)?.name||'')+'<br>'+esc(h.detail)+'</p>').join('')+'</details></section>';return html;
+ }
+ modal(title,html,save){
+  document.getElementById('iwDialog')?.remove();const d=document.createElement('dialog');d.id='iwDialog';d.className='iw-dialog';d.innerHTML='<form><h2>'+esc(title)+'</h2>'+html+'<p role="alert" class="iw-alert" hidden></p><div class="iw-row"><button class="btn btn-ghost" type="button" data-iw-close>Cancel</button><button class="btn btn-primary" type="submit">Save</button></div></form>';document.body.append(d);d.querySelector('[data-iw-close]').onclick=()=>d.close();d.onclose=()=>d.remove();d.querySelector('form').onsubmit=async e=>{e.preventDefault();const b=d.querySelector('[type="submit"]');b.disabled=true;try{await save(new FormData(e.target));d.close();this.draw();}catch(e){const error=d.querySelector('[role="alert"]');error.textContent=e.message;error.hidden=false;b.disabled=false;}};d.showModal();return d;
+ }
+ async click(e){const b=e.target.closest('button');if(!b)return;const d=b.dataset,j=this.client.local(this.jobId),c=j?.cameras.find(x=>x.id===this.cameraId);try{
+  if('iwSync'in d){await this.client.sync();this.client.cachePhotos();}
+  if('iwBack'in d){this.jobId='';this.draw();}
+  if(d.iwOpen){this.jobId=d.iwOpen;this.cameraId='';this.draw();}
+  if(d.iwCamera){this.cameraId=d.iwCamera;this.draw();}
+  if('iwDiscard'in d&&confirm('Remove only the first pending change from this phone? Review and re-enter it from the latest record.'))await this.client.discardFirst();
+  if(d.iwPhoto){const image=await this.client.photo(j.id,d.iwPhoto);this.modal('Installation evidence','<img class="iw-photo" src="'+esc(image)+'" alt="Installation evidence">',async()=>{});}
+  if('iwCreate'in d)this.create();
+  if('iwPilot'in d){const p=j.pilot;this.modal('Pilot standards and approval cover',field('cableMethods','Approved cable methods',p.cableMethods,'textarea')+field('weather','Weather protection',p.weather,'textarea')+field('mounting','Mounting and finishing guidance',p.mounting,'textarea')+field('approvalCover','Primary approval cover',p.approvalCover||'Operations')+field('backup','Backup approval cover',p.backup||'Operations')+check('confirmed','Approved for a limited installation pilot',p.confirmed),f=>this.client.online(j.id,{action:'pilot',baseVersion:j.versions.pilot||0,data:{...Object.fromEntries(f),confirmed:f.has('confirmed')}}));}
+  if('iwPlan'in d)this.modal('Assignment and instructions',this.staffChoices(j.assignees)+field('scheduledDate','Scheduled date',j.scheduledDate,'date')+field('instructions','Instructions',j.instructions,'textarea'),f=>this.client.online(j.id,{action:'plan',baseVersion:j.versions.plan||0,data:{assignees:f.getAll('assignees'),scheduledDate:f.get('scheduledDate'),instructions:f.get('instructions')}}));
+  if('iwException'in d)this.modal('Request a join / report cable problem','<p>Approval stays pending until the supervisor decides. Continue unrelated work.</p><label>Type<select name="type">'+options([['join','Join request'],['problem','Cable problem']])+'</select></label><label>Reason<select name="reason">'+options(reasons)+'</select></label>'+field('location','Exact connection / problem location')+field('description','What happened?','','textarea')+field('proposal','Proposed solution','','textarea')+this.evidence(j,'exception',c.id)+this.upload('exception','Capture problem / proposed join',c.id),async f=>{const current=this.client.local(j.id);await this.client.save(j.id,{action:'exception',cameraId:c.id,data:{...Object.fromEntries(f),photos:current.evidence.filter(e=>e.kind==='exception'&&e.cameraId===c.id).map(e=>e.id)}});});
+  if(d.iwDecide)this.modal('Supervisor decision','<label>Decision<select name="decision">'+options([['approved','Approve the method'],['correction','Request correction']])+'</select></label>'+field('comment','Approved method / correction instructions','','textarea'),f=>this.client.online(j.id,{action:'decision',exceptionId:d.iwDecide,data:Object.fromEntries(f)}));
+  if(d.iwRevise){const ex=j.exceptions.find(x=>x.id===d.iwRevise);this.modal('Revised cable proposal',field('proposal','Revised proposal','','textarea')+this.upload('exception','Capture revised proposal',ex.cameraId),async f=>{const current=this.client.local(j.id);return this.client.save(j.id,{action:'revise',exceptionId:ex.id,data:{proposal:f.get('proposal'),photos:current.evidence.filter(e=>e.kind==='exception'&&e.cameraId===ex.cameraId).map(e=>e.id)}});});}
+  if(d.iwResolve){const ex=j.exceptions.find(x=>x.id===d.iwResolve);this.modal('Record approved work',field('note','Work performed and final connection location','','textarea')+(ex.type==='join'?check('joinInstalled','Approved join was installed (untick if the cable was replaced / rerouted continuously)',true):''),f=>this.client.save(j.id,{action:'resolve',exceptionId:ex.id,data:{note:f.get('note'),joinInstalled:f.has('joinInstalled'),photos:j.evidence.filter(e=>e.kind==='resolution'&&e.cameraId===ex.cameraId).map(e=>e.id)}}));}
+  if('iwReturn'in d)this.modal('Return one camera item','<p>Other cameras and completed checks remain intact.</p><label>Item<select name="part">'+options(PARTS)+'</select></label>'+field('comment','Correction needed','','textarea'),f=>this.client.online(j.id,{action:'return',cameraId:c.id,part:f.get('part'),data:{comment:f.get('comment')}}));
+  if('iwSubmit'in d)await this.client.online(j.id,{action:'submit'});
+  if('iwComplete'in d)this.modal('Final technical approval',field('comment','Technical review notes','','textarea'),f=>this.client.online(j.id,{action:'complete',data:{comment:f.get('comment')}}));
+  if('iwMetric'in d)this.modal('Pilot observation','<label>Measure<select name="type">'+options(['Return visit','Cable replacement','On-site inspection','Completion time (minutes)'])+'</select></label>'+field('value','Quantity / minutes','1','number')+field('note','Observation / outcome','','textarea'),f=>this.client.online(j.id,{action:'metric',data:Object.fromEntries(f)}));
+ }catch(error){this.ctx.toast(error.message);}}
+ staffChoices(selected=[]){return '<fieldset><legend>Assigned installers</legend>'+this.client.staff.map(u=>check('assignees',u.name,selected.includes(u.id)).replace('name="assignees"','name="assignees" value="'+esc(u.id)+'"')).join('')+(!this.client.staff.length?'<p>Invite staff with the Installer role first.</p>':'')+'</fieldset>';}
+ create(){
+  const d=this.modal('Set up installation','<label>Existing sales job (optional)<select name="sourceId" id="iwSource">'+options([['','Standalone installation'],...this.client.sourceJobs.map(j=>[j.id,(j.ref?j.ref+' · ':'')+j.business])])+'</select></label>'+field('business','Customer name')+field('contact','Site contact')+field('phone','Site phone')+field('address','Site address')+field('scope','Agreed installation scope','','textarea')+field('equipment','Equipment list / quantities','','textarea')+field('locations','Camera locations · one per line','','textarea')+field('instructions','Installation instructions','','textarea')+field('scheduledDate','Scheduled date','','date')+this.staffChoices()+check('remoteIncluded','Customer remote access is in scope',true),async f=>{const sourceId=f.get('sourceId'),jobId=sourceId?'source-'+sourceId:requestId();const data={...Object.fromEntries(f),locations:String(f.get('locations')).split('\n'),assignees:f.getAll('assignees'),remoteIncluded:f.has('remoteIncluded')};const j=await this.client.online(jobId,{action:'create',data});this.jobId=j.id;});
+  d.querySelector('#iwSource').onchange=e=>{const j=this.client.sourceJobs.find(j=>j.id===e.target.value);if(!j)return;['business','contact','phone','address','scheduledDate','instructions'].forEach(k=>{d.querySelector('[name="'+k+'"]').value=j[k]||'';});d.querySelector('[name="locations"]').value=Array.from({length:Math.min(64,Number(j.cameraCount)||1)},(_,i)=>'Camera '+(i+1)+' · name location').join('\n');};
+ }
+ async change(e){if(TESTS.includes(e.target.name)){const group=e.target.closest('fieldset');group.querySelector('[data-iw-test-note]').hidden=!['fail','na'].includes(e.target.value);group.querySelector('[data-iw-test-action]').hidden=e.target.value!=='fail';return;}if(e.target.id==='iwQueue'){this.queueFilter=e.target.value;this.draw();return;}if(e.target.dataset.iwUpload)await this.uploadFile(e.target);}
+ async uploadFile(input){
+  const file=input.files?.[0];if(!file)return;const jobId=this.jobId;try{const image=await cameraPhoto(file);await this.client.save(jobId,{action:'evidence',cameraId:input.dataset.camera||'',data:{id:requestId(),kind:input.dataset.iwUpload,image}});this.ctx.toast('Photo saved. '+this.client.message);}catch(e){this.ctx.toast(e.message);}input.value='';
+ }
+ async submitForm(e){const form=e.target.closest('[data-iw-form]');if(!form)return;e.preventDefault();const action=form.dataset.iwForm,j=this.client.local(this.jobId),c=j.cameras.find(c=>c.id===this.cameraId),f=new FormData(form),photos=kind=>j.evidence.filter(e=>e.kind===kind&&e.cameraId===(c?.id||'')).map(e=>e.id);let data={};
+  if(action==='cable')data={route:f.get('route'),joins:f.get('joins'),photos:photos('route')};
+  if(action==='mount')data={fixings:f.has('fixings'),secured:f.has('secured'),stability:f.has('stability'),photos:photos('mount'),views:photos('view')};
+  if(action==='tests')TESTS.forEach(k=>{data[k]={result:f.get(k),note:f.get(k+'Note'),action:f.get(k+'Action')};});
+  if(action==='handover')data={...Object.fromEntries(f),acknowledged:f.has('acknowledged'),photos:j.evidence.filter(e=>e.kind==='demo'&&!e.cameraId).map(e=>e.id)};
+  data.correctionNote=f.get('correctionNote')||'';
+  try{await this.client.save(j.id,{action,cameraId:c?.id,baseVersion:action==='handover'?j.versions.handover||0:c.versions[action]||0,data});this.ctx.toast('Progress saved. '+this.client.message);}catch(error){this.ctx.toast(error.message);}
+ }
+}
+// Photo inputs inside the exception dialog are outside the workspace container.
+document.addEventListener('change',e=>{if(e.target.closest('#iwDialog')&&e.target.dataset.iwUpload&&active)active.uploadFile(e.target);});

@@ -240,3 +240,7 @@ Operations and admins see one row per Sales/Team lead roster member, including z
 
 ### Add staff by phone (v97)
 Team management now defaults to name, phone number and role. “Add by phone · create setup link” uses the existing phone-bound, one-use, seven-day invite endpoint. The manager copies or opens the prepared WhatsApp message; nothing is sent automatically. The staff member joins, chooses their own PIN and completes existing identity onboarding. No email is needed. New phones require number + PIN; recognised phones ask only for the PIN. The member appears in the roster after signup. Owner/Technical retain the collapsed email form for existing email-based access. Existing accounts, roles, PIN checks and recovery stay intact. Operations can invite Sales and Team leads; admins can also invite Operations.
+
+## Installer quality and supervisor review (v98)
+
+See [pilot guide](docs/installer/PILOT.md) and [requirements](docs/installer/requirements.md). Installer/Supervisor roles have a separate authenticated installation API and private evidence store. Operations and admins supervise. Phone onboarding now includes these roles. No customer jobs or staff are assigned automatically. Confirm operating standards and run the physical Android pilot before wider rollout.
