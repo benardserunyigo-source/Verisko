@@ -4,10 +4,10 @@ import {FieldMemoryStore} from './helpers/field-fixture.mjs';
 function fixture(){
  const users=[{id:'sales',name:'Test Sales',email:'sales@test',role:'sales'},{id:'other',name:'Other Sales',email:'other@test',role:'sales'},{id:'lead',name:'Test Lead',email:'lead@test',role:'teamlead'},{id:'ops',name:'Test Operations',email:'ops@test',role:'operations'},{id:'admin',name:'Test Admin',email:'admin@test',role:'admin'},{id:'installer',name:'Test Installer',email:'installer@test',role:'installer'}];
  const prospects=[{id:'contact',business:'Test Shop',phone:'0772000111',createdBy:'Test Sales',createdByEmail:'sales@test',leadOnly:true},{id:'private',business:'PRIVATE UNSENT CONTACT',createdByEmail:'other@test',leadOnly:true}];
- const appointments=[],store=new FieldMemoryStore();let serial=0;
- const handler=createReadyHandler({store,authorize:async req=>({me:users.find(u=>u.id===req.headers.get('authorization')),users,prospects,appointments}),now:()=> '2026-10-22T12:00:00.000Z'});
+ const transactions=[],jobs=[],appointments=[],store=new FieldMemoryStore();let serial=0;
+ const handler=createReadyHandler({store,authorize:async req=>({me:users.find(u=>u.id===req.headers.get('authorization')),users,prospects,appointments,transactions,jobs}),now:()=> '2026-10-22T12:00:00.000Z'});
  const call=async(user,action,extra={})=>{const response=await handler(new Request('https://test.local/api/ready-leads',{method:action?'POST':'GET',headers:{authorization:user,'Content-Type':'application/json'},...(action?{body:JSON.stringify({contactId:'contact',baseVersion:0,requestId:'request-'+(++serial),action,...extra})}:{})}));return {status:response.status,...await response.json()};};
- return {users,prospects,appointments,store,handler,call};
+ return {users,prospects,appointments,transactions,jobs,store,handler,call};
 }
 test('one saved contact enters a shared queue visible to Sales, Team Lead and Operations only',async()=>{const f=fixture();assert.equal((await f.call('sales','request',{note:'Call before visiting'})).status,200);for(const role of ['sales','lead','ops','admin']){const r=await f.call(role);assert.equal(r.items.length,1);assert.equal(r.items[0].contact.id,'contact');assert.equal(r.items[0].ownerId,null);assert.ok(!JSON.stringify(r).includes('PRIVATE UNSENT'));}assert.equal((await f.call('other')).items.length,0);assert.equal((await f.call('installer')).status,403);assert.equal((await f.call('missing')).status,403);});
 test('ready submission is idempotent and cannot create duplicates or change the original salesperson',async()=>{const f=fixture(),body={requestId:'same-request',note:'First context'};const a=await f.call('sales','request',body),b=await f.call('sales','request',body);assert.equal(b.item.version,a.item.version);assert.equal(b.item.history.length,1);assert.equal((await f.call('sales','request')).status,409);assert.equal(f.prospects[0].createdByEmail,'sales@test');});
@@ -47,4 +47,31 @@ test('simultaneous confirmations create only one visit',async()=>{
 test('confirmation reuses a single existing booking and refuses ambiguous or completed legacy visits',async()=>{
  for(const scenario of ['single','multiple','completed']){const f=fixture();await f.call('sales','request');await f.call('ops','take',{baseVersion:1});f.prospects[0].leadOnly=false;f.appointments.push({id:'existing-visit',prospectId:'contact',status:'Proposed',...(scenario==='completed'?{visitResult:'real'}:{})});if(scenario==='multiple')f.appointments.push({id:'second-visit',prospectId:'contact',status:'Proposed'});
  const r=await f.call('ops','confirm_visit',{baseVersion:2,date:'2026-10-22',time:'10:00'});assert.equal(r.status,scenario==='single'?200:409);if(r.item)assert.equal(r.item.visit.id,'existing-visit');}
+});
+
+async function paymentFixture(owner='ops') {const f=fixture();await f.call('sales','request');await f.call(owner,'take',{baseVersion:1});await f.call(owner,'confirm_visit',{baseVersion:2,date:'2026-10-22',time:'10:00'});return f;}
+const pay={baseVersion:3,amount:2000000,date:'2026-10-22',method:'MTN MoMo',reference:'PRIVATE-MOMO-REF'};
+test('Operations and Team Lead record pending first payments, only Admin approves, Sales sees approval and eligibility',async()=>{
+ for(const owner of ['ops','lead']){const f=await paymentFixture(owner);let r=await f.call(owner,'record_payment',pay);assert.equal(r.status,200);assert.equal(r.item.firstPayment.status,'pending');assert.equal(r.item.firstPayment.amount,2000000);let sales=(await f.call('sales')).items[0];assert.equal(sales.firstPayment.status,'pending');assert.equal(sales.firstPayment.commissionEligible,true);assert.equal(sales.firstPayment.amount,undefined);assert.ok(!JSON.stringify(sales).includes('PRIVATE-MOMO-REF'));
+ for(const user of ['sales','ops','lead'])assert.equal((await f.call(user,'approve_payment',{baseVersion:4})).status,403);
+ r=await f.call('admin','approve_payment',{baseVersion:4,approvedAt:'2020-01-01'});assert.equal(r.item.firstPayment.status,'approved');assert.equal(r.item.firstPayment.approvedAt,'2026-10-22T12:00:00.000Z');sales=(await f.call('sales')).items[0];assert.equal(sales.firstPayment.status,'approved');assert.equal((await f.call('other')).items.length,0);}
+});
+test('duplicate and concurrent first payments produce one record, and approval retries stay idempotent',async()=>{
+ const f=await paymentFixture();const r=await Promise.all([f.call('ops','record_payment',pay),f.call('admin','record_payment',pay)]);assert.deepEqual(r.map(x=>x.status).sort(),[200,409]);assert.equal((await f.call('ops','record_payment',{...pay,baseVersion:4})).status,409);
+ const a=await f.call('admin','approve_payment',{baseVersion:4,requestId:'approve-just-once'}),b=await f.call('admin','approve_payment',{baseVersion:4,requestId:'approve-just-once'});assert.equal(a.item.version,b.item.version);assert.equal(a.item.history.filter(h=>h.type==='payment_approved').length,1);assert.equal((await f.call('admin','approve_payment',{baseVersion:5})).status,409);
+});
+test('payments require valid amounts and dates, no forged approval, and only the owner can record',async()=>{
+ const f=await paymentFixture();for(const user of ['sales','lead'])assert.equal((await f.call(user,'record_payment',pay)).status,403);
+ for(const amount of [0,-1,1.2,'bad',1e20])assert.equal((await f.call('ops','record_payment',{...pay,amount})).status,400);
+ for(const date of ['2026-02-30','2026-10-23','bad'])assert.equal((await f.call('ops','record_payment',{...pay,date})).status,400);
+ assert.equal((await f.call('ops','record_payment',{...pay,method:'Crypto'})).status,400);const r=await f.call('ops','record_payment',{...pay,status:'approved',approvedAt:'2026-10-01',createdByEmail:'other@test'});assert.equal(r.item.firstPayment.status,'pending');assert.equal(r.item.firstPayment.approvedAt,'');const stored=await f.store.get('cases/contact');assert.equal(stored.firstPayment.createdByEmail,'ops@test');
+});
+test('Admin sends a payment back with a reason; owner corrects the same record and requests approval again',async()=>{
+ const f=await paymentFixture('lead');await f.call('lead','record_payment',pay);assert.equal((await f.call('admin','payment_query',{baseVersion:4,note:''})).status,400);
+ let r=await f.call('admin','payment_query',{baseVersion:4,note:'PRIVATE REVIEW REASON'});assert.equal(r.item.firstPayment.status,'query');assert.ok(!JSON.stringify((await f.call('sales')).items[0]).includes('PRIVATE REVIEW REASON'));
+ assert.equal((await f.call('admin','approve_payment',{baseVersion:5})).status,409);const id=r.item.firstPayment.id;r=await f.call('lead','record_payment',{...pay,baseVersion:5,amount:1500000});assert.equal(r.item.firstPayment.id,id);assert.equal(r.item.firstPayment.status,'pending');assert.equal(r.item.firstPayment.amount,1500000);assert.equal((await f.call('admin','approve_payment',{baseVersion:6})).status,200);
+});
+test('existing direct and job-linked payments are shown instead of recorded twice; imported contacts stay ineligible',async()=>{
+ for(const linked of [false,true]){const f=await paymentFixture();f.jobs.push({id:'job',prospectId:'contact'});f.transactions.push({id:'existing-payment',direction:'in',amount:500000,status:'pending',date:'2026-10-22',...(linked?{installId:'job'}:{prospectId:'contact'})});const r=await f.call('ops','record_payment',pay);assert.equal(r.status,409);assert.equal((await f.call('sales')).items[0].firstPayment.legacy,true);f.transactions[0].status='approved';f.transactions[0].approvedAt='2026-10-22T12:00:00Z';assert.equal((await f.call('sales')).items[0].firstPayment.status,'approved');}
+ const f=await paymentFixture();f.prospects[0].imported=true;await f.call('ops','record_payment',pay);await f.call('admin','approve_payment',{baseVersion:4});assert.equal((await f.call('sales')).items[0].firstPayment.commissionEligible,false);
 });

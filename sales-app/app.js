@@ -453,10 +453,10 @@
   function canInstallWork(){return settings.user&&['admin','operations','teamlead','installer'].includes(settings.user.role);}
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=118');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=119');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=118');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=119');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
   }
@@ -514,7 +514,7 @@
     if(settings.user?.id!==id)throw new Error('Account changed. Open the queue again.');
     if(!res.ok||!data.ok){var e=new Error(data.error||'Could not connect to the queue. Try again when online.');e.status=res.status;throw e;}return data;
   }
-  function updateReadyData(data){var previous=readyData,changed=data.items.some(function(c){return c.visit&&previous.items.find(function(old){return old.contactId===c.contactId;})?.version!==c.version;});if(changed&&!localUnsynced&&settings.auth){var progressUser=settings.user?.id;loadShared(function(){return settings.user?.id===progressUser&&!localUnsynced;});}readyData=data;readyUser=settings.user?.id||'';readyLoadedAt=Date.now();var badge=document.getElementById('readyBadge'),count=data.items.filter(function(c){return !c.ownerId&&c.state!=='returned';}).length;if(badge){badge.textContent=count;badge.hidden=!count;}}
+  function updateReadyData(data){var previous=readyData,changed=data.items.some(function(c){return (c.visit||c.firstPayment)&&previous.items.find(function(old){return old.contactId===c.contactId;})?.version!==c.version;});if(changed&&!localUnsynced&&settings.auth){var progressUser=settings.user?.id;loadShared(function(){return settings.user?.id===progressUser&&!localUnsynced;});}readyData=data;readyUser=settings.user?.id||'';readyLoadedAt=Date.now();var badge=document.getElementById('readyBadge'),count=data.items.filter(function(c){return !c.ownerId&&c.state!=='returned';}).length;if(badge){badge.textContent=count;badge.hidden=!count;}}
   async function refreshReadySummary(force){
     var id=settings.user?.id;if(!id||installationRole()||readyLoading||(!force&&readyUser===id&&Date.now()-readyLoadedAt<30000))return;
     if(readyUser!==id){readyData={items:[],people:[]};readyUser=id;}
@@ -522,7 +522,7 @@
   }
   async function renderReadyQueue(){
     var id=settings.user.id;setHead('Contacts','Ready for site visit','Loading the shared queue…','',false);content.innerHTML='<p role="status">Loading queue…</p>';
-    try{var m=await import('./ready-leads-ui.mjs?v=118');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
+    try{var m=await import('./ready-leads-ui.mjs?v=119');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
   }
   setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
@@ -556,7 +556,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=118'), import('./field-shifts-ui.mjs?v=118'), import('./field-shifts-android.mjs?v=118')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=119'), import('./field-shifts-ui.mjs?v=119'), import('./field-shifts-android.mjs?v=119')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -751,7 +751,7 @@
     var dueStatus=leadTools().followUpBucket(p);
     var due=dueStatus==='unscheduled'?'Not scheduled':dateLabel(p.followUp)+(dueStatus==='overdue'?' · overdue':dueStatus==='today'?' · due today':'');
     var readyCase=readyUser===settings.user?.id?readyData.items.find(function(c){return c.contactId===p.id;}):null;
-    return '<div class="lead-contact-summary">'+(readyCase?line('Site visit owner',esc(readyCase.ownerName))+line('Progress',esc(readyCase.quoteSent?'Quote sent':readyCase.visit?.doneAt?'Visit done':readyCase.visit?'Visit confirmed':'Waiting for visit confirmation'))+'<button type="button" class="btn btn-ghost btn-sm" data-nav-view="ready">View site visit request</button>':'')+line('Added by',esc(recordedBy))+line('Last follow-up',esc(lastText))+line('Next follow-up', '<span'+(dueStatus==='overdue'?' style="color:var(--red);font-weight:600"':'')+'>'+esc(due)+'</span>')+'</div>';
+    return '<div class="lead-contact-summary">'+(readyCase?line('Site visit owner',esc(readyCase.ownerName))+line('Progress',esc(readyCase.firstPayment?(readyCase.firstPayment.status==='approved'?'Payment approved':readyCase.firstPayment.status==='query'?'Payment needs fixing':'Payment awaiting approval'):readyCase.quoteSent?'Quote sent':readyCase.visit?.doneAt?'Visit done':readyCase.visit?'Visit confirmed':'Waiting for visit confirmation'))+'<button type="button" class="btn btn-ghost btn-sm" data-nav-view="ready">View site visit request</button>':'')+line('Added by',esc(recordedBy))+line('Last follow-up',esc(lastText))+line('Next follow-up', '<span'+(dueStatus==='overdue'?' style="color:var(--red);font-weight:600"':'')+'>'+esc(due)+'</span>')+'</div>';
   }
   function leadFormHtml(p) {
     return '<p class="helper full">Keep this contact for follow-up. No site visit, GPS pin or qualification answers are required.</p>'+
@@ -776,7 +776,7 @@
   async function sendLead(id,target) {
     var userId=settings.user?.id;try{
       if(localUnsynced&&!(await pushShared()))throw new Error('Sync this contact before sending it to the site visit queue.');
-      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=118');if(settings.user?.id!==userId)return;
+      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=119');if(settings.user?.id!==userId)return;
       m.openReadyRequest({api:readyApi,user:settings.user,contacts:state.prospects||[],selectedId:id,items:readyData.items,esc:esc,isCurrent:function(){return settings.user?.id===userId&&!document.body.classList.contains('locked');},onSaved:function(item){updateReadyData({items:[item].concat(readyData.items.filter(function(c){return c.contactId!==item.contactId;})),people:readyData.people});toast('Sent to Team Lead and Operations.');if(view==='leads')updateLeadGrid();}});
     }catch(e){toast(e.message);}
   }
@@ -2250,10 +2250,14 @@
     render();
   }
 
+  async function approveReadyPayment(t){
+    try{var d=await readyApi('GET'),c=d.items.find(function(c){return c.firstPayment?.id===t.id;});if(!c)throw new Error('Refresh the payment before approving.');var r=await readyApi('POST',{action:'approve_payment',contactId:c.contactId,baseVersion:c.version,requestId:crypto.randomUUID()});updateReadyData({items:d.items.map(function(c){return c.contactId===r.item.contactId?r.item:c;}),people:d.people});if(dialog.open)dialog.close();await loadShared();toast('Payment approved. Eligible Sales commission added once.');render();}catch(e){toast(e.message);}
+  }
   function approveTransaction() {
     if (!editing || !editing.id || !isAdmin()) return;
     var t = state.transactions.find(function (x) { return x.id === editing.id; });
     if (!t) return;
+    if(t.readyCaseId){approveReadyPayment(t);return;}
     if (t.direction === "out" && !t.proofId && !pendingProof && !t.preapproved) { showFormError("Attach a receipt before approving — or the recorder can mark it pre-approved by the cash-flow team."); return; }
     t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.approvedAt = nowIso(); t.reviewNote = "";
     dialog.close(); saveData("Entry approved"); render();
@@ -2267,6 +2271,7 @@
     if (!isAdmin()) return;
     var t = state.transactions.find(function (x) { return x.id === id; });
     if (!t) return;
+    if(t.readyCaseId){approveReadyPayment(t);return;}
     if (needsProof(t)) { toast("Add a proof photo before approving."); return; }
     t.status = "approved"; t.reviewedBy = (settings.user && settings.user.name) || ""; t.reviewedAt = today; t.approvedAt = nowIso(); t.reviewNote = "";
     saveData("Entry approved"); render();
@@ -2275,6 +2280,7 @@
     if (!isAdmin()) return false;
     var t = state.transactions.find(function (x) { return x.id === id; });
     if (!t) return false;
+    if(t.readyCaseId){if(dialog.open)dialog.close();view='ready';render();toast('Open All requests to send this payment back with a reason.');return false;}
     var r = await openSheet({ title: "Send back to the recorder", body: "What needs fixing?",
       choices: ["Blurry receipt", "No receipt", "Wrong amount", "Wrong category"], input: { placeholder: "Add a note (optional)" },
       requireValue: true, confirmLabel: "Send back" });
@@ -2918,6 +2924,7 @@
   }
 
   function openForm(type, id, presetProspect) {
+    if(type==='transaction'&&id&&state.transactions.some(function(t){return t.id===id&&t.readyCaseId;})){view='ready';render();toast('Review the first payment on its contact.');return;}
     if(type==='appointment'&&id&&state.appointments.some(function(a){return a.id===id&&a.readyCaseId;})){view='ready';render();return;}
     editing = { type: type, id: id || null };
     hideFormError();
@@ -3001,8 +3008,8 @@
           var fq = quoteForProspect(id);
           var statusHtml = source.closedSale
             ? '<p class="helper" style="color:var(--green);font-weight:600">Closed sale' + (source.closedAuto ? " — " + (source.closedBy === "Client deposit" ? "the client paid a deposit" : "the client accepted the quote") : "") + ".</p>" +
-              (firstPaymentFor(source) ? '<p class="helper">Client\'s first deposit recorded ' + dateLabel(firstPaymentFor(source)) + (source.imported ? "." : " — " + money(commissionRate()) + " commission earned.") + "</p>"
-                : source.imported ? "" : '<p class="helper" style="color:var(--amber)">The rep earns ' + money(commissionRate()) + " as soon as the client's first deposit is recorded.</p>")
+              (firstPaymentFor(source) ? '<p class="helper">Client\'s first deposit recorded ' + dateLabel(firstPaymentFor(source)) + (source.imported ? "." : " — " + money(commissionRate()) + (approvedPaymentFor(source)?" commission earned.":" commission after approval.")) + "</p>"
+                : source.imported ? "" : '<p class="helper" style="color:var(--amber)">The rep earns ' + money(commissionRate()) + " after Admin approves the client's first payment.</p>")
             : (fq ? '<p class="helper">Quoted — ' + esc(fq.ref || "job") + " is " + esc(fq.stage || "Draft") + ". It becomes a closed sale when the client accepts.</p>"
               : '<p class="helper">No quote yet. The sale closes automatically once the client accepts a quote.</p>');
           html += '<div class="field full"><label>Quote &amp; sale</label>' + statusHtml +
@@ -3378,7 +3385,7 @@
 
   /* ------ Closed sales & commission (Operations-verified, UGX 100k, paid ------ */
   /* ------ out once the client's first payment is recorded and approved)  ------ */
-  function commissionRate() { var n = state.config && Number(state.config.commissionPerSale); return n > 0 ? n : 100000; }
+  function commissionRate() { if(window.VeriskoSalesPay.active())return window.VeriskoSalesPay.POLICY.perDeposit;var n = state.config && Number(state.config.commissionPerSale); return n > 0 ? n : 100000; }
   function commissionPerQualified() { var n = state.config && Number(state.config.commissionPerQualified); return n > 0 ? n : 2500; }
   // The client's first recorded deposit (pending or approved, not sent back),
   // directly or through their job. Returns its date, or "".
@@ -3387,7 +3394,8 @@
     var fd = window.VeriskoCommission.firstDeposit(p, state.jobs || [], state.transactions || []);
     return fd ? (fd.tx.date || fd.tx.createdAt || "") : "";
   }
-  function commissionQualified(p) { return !!firstPaymentFor(p); }
+  function approvedPaymentFor(p){return window.VeriskoCommission.firstApprovedDeposit(p,state.jobs||[],state.transactions||[]);}
+  function commissionQualified(p) { return !!approvedPaymentFor(p); }
   function commissionTarget() { var n = state.config && Number(state.config.commissionTarget); return n > 0 ? n : 1600000; }
   function closedSalesFor(email) {
     email = (email || "").toLowerCase();
@@ -3698,15 +3706,16 @@
   }
 
   // Record a client deposit against a prospect (Team lead or Operations/admin).
-  // It counts for the rep's UGX 100,000 straight away; the Owner still
-  // approves it in Cash flow as usual.
+  // Commission is earned only after Admin approves the payment.
   function recordDeposit(id) {
     if (!canRecordDeposit()) return;
     var p = prospect(id); if (!p || !p.id) return;
+    var readyPaymentCase=readyData.items.find(function(c){return c.contactId===id;});
+    if(readyPaymentCase&&readyPaymentCase.firstPayment?.status!=='approved'){view='ready';render();toast('Open the contact to record or review its first payment.');return;}
     var first = !firstPaymentFor(p) && !p.imported;
     var dlg = document.getElementById("askDialog");
     dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Record client deposit</h2><p class="ask-body">' + esc(p.business) +
-      (first ? " · first deposit earns " + esc(p.createdBy || "the rep") + " " + money(commissionRate()) + "." : p.imported ? " · imported lead — no commission." : " · this client already has a deposit.") + "</p></div>" +
+      (first ? " · once approved, the first deposit earns " + esc(p.createdBy || "the rep") + " " + money(commissionRate()) + "." : p.imported ? " · imported lead — no commission." : " · this client already has a deposit.") + "</p></div>" +
       '<div class="field"><label for="depAmount">Amount (UGX)</label><input id="depAmount" type="number" inputmode="numeric" min="1" step="1000" placeholder="e.g. 500000"></div>' +
       '<div class="field"><label for="depMethod">Method</label><select id="depMethod"><option>MTN MoMo</option><option>Airtel Money</option><option>Cash</option><option>Bank</option></select></div>' +
       '<div class="field"><label for="depDate">Date</label><input id="depDate" type="date" value="' + esc(today) + '"></div>' +
@@ -4227,7 +4236,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v118";
+  var APP_VERSION = "v119";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4413,7 +4422,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=118");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=119");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }

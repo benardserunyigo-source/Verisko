@@ -153,6 +153,7 @@
 
   function approvalTime(t) { return eventTime(t.approvedAt) || eventTime(t.reviewedAt) || null; }
   function firstApprovedDeposit(p, jobs, txs) {
+    if(p && p.salesCommissionEligible===false)return null;
     var best = null, bestAt = null;
     depositsFor(p, jobs, txs).forEach(function (t) {
       if (t.status !== "approved") return;

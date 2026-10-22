@@ -120,3 +120,10 @@ test('canonical queue progress reaches scoped site visits and survives older wor
  assert.equal((await f.post(original)).status,200);assert.equal(f.read().appointments.find(a=>a.id==='v1').visitResult,'real');
  const duplicate=f.read();duplicate.appointments.push({id:'duplicate-visit',prospectId:'mine'});assert.equal((await f.post(duplicate)).status,409);
 });
+
+test('queue payment cannot be approved or duplicated through a general workspace save',async()=>{
+ for(const actor of [ops,lead,admin]){const f=fixture(actor),raw=f.read();raw.transactions=raw.transactions.filter(t=>t.direction!=='in');f.set(raw);const payment={id:'queue-first',readyCaseId:'mine',direction:'in',prospectId:'mine',amount:2000000,date:'2026-10-22',status:'pending',recordedAt:'2026-10-22T12:00:00Z'};f.photos.set('cases/mine',{contactId:'mine',ownerId:ops.id,firstPayment:payment});
+ const body=(await (await f.get()).json()).data;body.transactions.find(t=>t.id==='queue-first').status='approved';body.transactions.find(t=>t.id==='queue-first').approvedAt='2026-10-22T12:01:00Z';assert.equal((await f.post(body)).status,200);assert.equal(f.read().transactions.find(t=>t.id==='queue-first').status,'pending');
+ body.transactions.push({id:'duplicate-payment',direction:'in',prospectId:'mine',amount:2000000,status:'pending'});assert.equal((await f.post(body)).status,409);
+ }
+});

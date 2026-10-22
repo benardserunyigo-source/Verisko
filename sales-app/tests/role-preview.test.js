@@ -11,7 +11,7 @@ test('only Admin gets the preview launcher; preview roles cannot include Admin',
 });
 test('preview storage and changes stay in memory without a real session',async()=>{
  const a=api(),sales=a.create('sales','2026-10-22T12:00:00Z'),ops=a.create('operations');
- assert.equal(sales.user.role,'sales');assert.ok(sales.data.prospects.every(p=>p.createdByEmail===sales.user.email));assert.equal(sales.data.transactions.length,0);assert.equal(sales.data.jobs.length,0);assert.equal(ops.data.prospects.length,2);assert.equal(ops.data.transactions.length,2);
+ assert.equal(sales.user.role,'sales');assert.ok(sales.data.prospects.every(p=>p.createdByEmail===sales.user.email));assert.equal(sales.data.transactions.length,1);assert.equal(sales.data.jobs.length,0);assert.equal(ops.data.prospects.length,2);assert.equal(ops.data.transactions.length,3);
  sales.storage.setItem('test','draft');assert.equal(ops.storage.getItem('test'),null);assert.equal(a.create('sales').storage.getItem('test'),null);assert.equal(JSON.parse(sales.storage.getItem('verisko_sales_settings_v1')).auth.refresh_token,undefined);
  for(const path of ['/api/data','/api/auth','/api/installer','/api/receipt','https://example.invalid/api/auth'])assert.equal((await sales.fetch(path,{method:'POST',body:'{}'})).status,403);
  assert.equal((await sales.fetch('https://example.invalid/private')).status,403);
@@ -38,7 +38,7 @@ test('a blocked storage override cannot leave preview active with real storage',
 test('Team Lead preview shows shared sales and own saved contacts without finance or other private leads',async()=>{
  const a=api(),lead=a.create('teamlead');assert.equal(lead.user.role,'teamlead');assert.equal(lead.label,'Team Lead');
  assert.ok(lead.data.prospects.some(p=>p.createdByEmail==='sales@preview.invalid'));assert.ok(lead.data.prospects.some(p=>p.leadOnly&&p.createdByEmail===lead.user.email));assert.ok(!lead.data.prospects.some(p=>p.id==='preview-school'));
- assert.equal(lead.data.transactions.length,0);assert.equal(lead.data.jobs.length,0);assert.ok(lead.data.users.filter(u=>u.id!==lead.user.id).every(u=>!u.email));assert.equal((await lead.fetch('/api/data',{method:'POST'})).status,403);
+ assert.equal(lead.data.transactions.length,1);assert.equal(lead.data.jobs.length,0);assert.ok(lead.data.users.filter(u=>u.id!==lead.user.id).every(u=>!u.email));assert.equal((await lead.fetch('/api/data',{method:'POST'})).status,403);
 });
 test('Supervisor is not an available preview or staff role',()=>{const a=api();assert.equal(a.roles.supervisor,undefined);assert.throws(()=>a.create('supervisor'),/Choose a team role/);assert.ok(!a.create('operations').users.some(u=>u.role==='supervisor'));});
 
@@ -51,4 +51,7 @@ test('sample follow-ups and visits use the Uganda day at the evening UTC boundar
  const preview=api().create('operations','2026-10-22T22:30:00.000Z');
  assert.equal(preview.data.appointments[0].date,'2026-10-23');
  assert.ok(preview.data.prospects.every(p=>p.followUp==='2026-10-23'));
+});
+test('Sales preview links the approved client payment to exactly one 100,000 commission',async()=>{
+ await import('../commission.js');await import('../sales-pay-policy.js');const preview=api().create('sales','2026-10-22T12:00:00Z');assert.equal(globalThis.VeriskoSalesPay.calculate(preview.data,globalThis.VeriskoSalesPay.period('2026-10-22T12:00:00Z'),preview.user.email).total,100000);const queue=await(await preview.fetch('/api/ready-leads')).json(),paid=queue.items.find(c=>c.firstPayment);assert.equal(paid.firstPayment.status,'approved');assert.equal(paid.firstPayment.reference,undefined);assert.equal(paid.firstPayment.amount,undefined);
 });

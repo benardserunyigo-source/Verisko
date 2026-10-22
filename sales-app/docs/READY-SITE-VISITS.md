@@ -26,3 +26,15 @@ Sales sees all three steps and their dates in the queue. Sales cannot edit them.
 Queue visits are managed here. Their fields are restored from the authoritative queue record when older devices save the main workspace, so they cannot be silently undone. Duplicate new visits for the same queue contact are rejected. A new owner can continue the existing progress after an office handover. After confirmation, pass the job to another office person instead of returning it to prospecting.
 
 Job payments and later installation steps continue through their existing screens.
+
+## First client payment
+
+The current Operations or Team Lead owner selects **Record first payment**. Enter the amount received, date and method. The reference is optional. This records money already received; it does not charge the client.
+
+Sales sees **waiting for Admin approval** and **UGX 100,000 after approval**. Only Admin sees **Approve payment** and **Send payment back**. A returned payment needs a reason. The owner fixes the same payment record and submits it again.
+
+After approval, Sales sees **Payment approved** and **UGX 100,000 added once**. The existing Monday pay calculation includes the commission in the approval week. Recording alone earns no payment commission. Imported or office contacts do not create Sales payment commission. Later instalments do not add another UGX 100,000.
+
+The payment is the same record in Cash flow. Cash flow's approval action uses the queue's protected approval. Older workspace saves cannot approve, delete or overwrite it. A second first-payment submission is blocked. Existing legacy payments stay in Cash flow and appear in the queue without being copied.
+
+Sales gets payment status and commission progress, not the private payment reference or review notes. Sales cannot record or approve a client payment.

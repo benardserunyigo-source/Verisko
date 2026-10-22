@@ -1,3 +1,4 @@
+import {firstClientPayment,paymentView,validPaymentDay} from './ready-payments.mjs';
 import {loadReadyCases} from './ready-progress.mjs';
 const headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
 const json=(v,s=200)=>new Response(JSON.stringify(v),{status:s,headers});
@@ -7,7 +8,7 @@ const own=(p,u)=>!!u?.email&&String(p.createdByEmail||'').toLowerCase()===u.emai
 const valid=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(v);
 const text=(v,max=500)=>typeof v==='string'?v.trim().slice(0,max):'';
 export function legacyCase(p){return p?.leadOnly&&p.handoffAt&&['operations','manager'].includes(p.handoffTo)?{contactId:p.id,state:'queued',ownerId:null,previousOwnerId:null,version:0,readyAt:p.handoffAt,context:text(p.handoffNote),updatedAt:p.handoffAt,history:[{id:'legacy-'+p.id,type:'requested',at:p.handoffAt,by:null,name:p.handoffBy||p.createdBy||'Sales',toId:null,toName:'Shared queue',note:text(p.handoffNote)}]}:null;}
-export function transitionReady(old,body,me,p,users,at,appointments=[]){
+export function transitionReady(old,body,me,p,users,at,appointments=[],transactions=[],jobs=[]){
  if(!allowed(me))throw fail('Site visit access required.',403);
  const eventId=text(body.requestId,100);if(!/^[A-Za-z0-9-]{8,100}$/.test(eventId))throw fail('A unique request ID is required.');
  const repeat=old?.history?.find(e=>e.id===eventId);if(repeat){if(repeat.by!==me.id)throw fail('Request ID already in use.',409);return old;}
@@ -35,6 +36,26 @@ export function transitionReady(old,body,me,p,users,at,appointments=[]){
    if(target.id===c.ownerId)throw fail('This person already owns the lead.');
    if(c.previousOwnerId===target.id)throw fail('Use Send back and add a reason to return this lead.');
    c.previousOwnerId=c.ownerId||me.id;c.ownerId=target.id;c.state='assigned';toId=target.id;toName=target.name;type='assigned';
+  }else if(['record_payment','approve_payment','payment_query'].includes(action)){
+   if(action==='record_payment'){
+    if(c.ownerId!==me.id&&me.role!=='admin')throw fail('Only the current owner can record this payment.',403);
+    if(!c.visit&&p.leadOnly)throw fail('Confirm the visit before recording the payment.',409);
+    if(c.firstPayment&&c.firstPayment.status!=='query')throw fail('The first payment is already recorded. Refresh to see its status.',409);
+    if(!c.firstPayment&&firstClientPayment(p.id,transactions,jobs))throw fail('A client payment already exists. Review it in Cash flow instead of adding it again.',409);
+    const amount=Number(body.amount),day=body.date,method=text(body.method,30);
+    if(!Number.isSafeInteger(amount)||amount<=0||amount>1000000000000)throw fail('Enter the amount received in whole Uganda shillings.');
+    if(!validPaymentDay(day,at))throw fail('Choose the payment date, today or earlier.');
+    if(!['MTN MoMo','Airtel Money','Cash','Bank'].includes(method))throw fail('Choose a payment method.');
+    const prior=c.firstPayment;
+    c.firstPayment={id:prior?.id||'ready-payment-'+p.id,readyCaseId:p.id,direction:'in',prospectId:p.id,amount,date:day,method,reference:text(body.reference,100),category:'Customer deposit',note:'First client payment',proofId:'',preapproved:false,
+     createdAt:prior?.createdAt||at,recordedAt:prior?.recordedAt||at,createdBy:prior?.createdBy||me.name,createdByEmail:prior?.createdByEmail||me.email,status:'pending',reviewedBy:'',reviewedAt:'',reviewNote:'',approvedAt:'',commissionEligible:prior?.commissionEligible??(!p.imported&&!!creator&&['sales','teamlead'].includes(creator.role))};
+    type=prior?'payment_corrected':'payment_recorded';
+   }else{
+    if(me.role!=='admin')throw fail('Only Admin can approve or send back a payment.',403);
+    if(!c.firstPayment||c.firstPayment.status!=='pending')throw fail('There is no payment waiting for approval.',409);
+    if(action==='payment_query'&&note.length<3)throw fail('Add a reason before sending the payment back.');
+    c.firstPayment={...c.firstPayment,status:action==='approve_payment'?'approved':'query',reviewedBy:me.name,reviewedAt:at,reviewNote:action==='payment_query'?note:'',approvedAt:action==='approve_payment'?at:''};type=action==='approve_payment'?'payment_approved':'payment_queried';
+   }
   }else if(['confirm_visit','complete_visit','quote_sent'].includes(action)){
    if(!c.ownerId)throw fail('Take or assign this lead first.',409);
    if(c.ownerId!==me.id&&me.role!=='admin')throw fail('Only the current owner can update this visit.',403);
@@ -71,7 +92,7 @@ export function transitionReady(old,body,me,p,users,at,appointments=[]){
  }
  c.version++;c.updatedAt=at;c.history.push({id:eventId,type,at,by:me.id,name:me.name||'Staff',toId,toName,note,date:['confirm_visit','complete_visit','quote_sent'].includes(action)?body.date:undefined,time:action==='confirm_visit'?body.time:undefined});return c;
 }
-function view(c,p,users,me){const creator=users.find(u=>own(p,u));const safe=structuredClone(c);if(!office(me)){if(safe.quoteSent){delete safe.quoteSent.reference;delete safe.quoteSent.byEmail;}if(safe.visit){delete safe.visit.byEmail;delete safe.visit.doneByEmail;}}return {...safe,contact:{id:p.id,business:p.business||'',contact:p.contact||'',phone:p.phone||'',location:p.location||'',leadOnly:p.leadOnly===true,createdBy:p.createdBy||creator?.name||'Sales'},ownerName:users.find(u=>u.id===c.ownerId)?.name||(c.ownerId?'Former team member':'Unassigned'),creatorId:creator?.id||null};}
+function view(c,p,users,me,transactions=[],jobs=[]){const creator=users.find(u=>own(p,u));const safe=structuredClone(c);safe.firstPayment=paymentView(c,p,me,transactions,jobs);if(!office(me)){safe.history=safe.history.map(e=>e.type==='payment_queried'?{...e,note:''}:e);if(safe.quoteSent){delete safe.quoteSent.reference;delete safe.quoteSent.byEmail;}if(safe.visit){delete safe.visit.byEmail;delete safe.visit.doneByEmail;}}return {...safe,contact:{id:p.id,business:p.business||'',contact:p.contact||'',phone:p.phone||'',location:p.location||'',leadOnly:p.leadOnly===true,createdBy:p.createdBy||creator?.name||'Sales'},ownerName:users.find(u=>u.id===c.ownerId)?.name||(c.ownerId?'Former team member':'Unassigned'),creatorId:creator?.id||null};}
 export function createReadyHandler({store,authorize,now=()=>new Date().toISOString()}){return async request=>{try{
  const auth=await authorize(request),me=auth?.me;if(!allowed(me))return json({ok:false,error:'Site visit access required.'},auth?.status||403);
  if(request.headers.get('origin')&&request.headers.get('origin')!==new URL(request.url).origin)return json({ok:false,error:'Use this app to update the queue.'},403);
@@ -79,7 +100,7 @@ export function createReadyHandler({store,authorize,now=()=>new Date().toISOStri
  if(request.method==='GET'){
   const cases=new Map((await loadReadyCases(store)).map(c=>[c.contactId,c]));
   for(const p of prospects){if(!cases.has(p.id)){const c=legacyCase(p);if(c)cases.set(p.id,c);}}
-  const items=[];for(const c of cases.values()){const p=prospects.find(p=>p.id===c.contactId);if(p&&(office(me)||own(p,me)))items.push(view(c,p,users,me));}
+  const items=[];for(const c of cases.values()){const p=prospects.find(p=>p.id===c.contactId);if(p&&(office(me)||own(p,me)))items.push(view(c,p,users,me,auth.transactions||[],auth.jobs||[]));}
   items.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
   return json({ok:true,items,people:office(me)?users.filter(u=>['operations','teamlead'].includes(u.role)).map(u=>({id:u.id,name:u.name,role:u.role})):[]});
  }
@@ -89,7 +110,7 @@ export function createReadyHandler({store,authorize,now=()=>new Date().toISOStri
  const p=prospects.find(p=>p.id===body.contactId);if(!p||(!office(me)&&!own(p,me))||(me.role==='teamlead'&&body.action==='request'&&!own(p,me)))throw fail('Contact not found.',404);
  const key='cases/'+p.id,old=await store.getWithMetadata(key,{type:'json'}),previous=old?.data||legacyCase(p);
  if(me.role==='teamlead'&&!own(p,me)&&!previous)throw fail('Contact not found.',404);
- const next=transitionReady(previous,body,me,p,users,now(),auth.appointments||[]);
+ const next=transitionReady(previous,body,me,p,users,now(),auth.appointments||[],auth.transactions||[],auth.jobs||[]);
  if(next!==previous){const result=await store.setJSON(key,next,old?.etag?{onlyIfMatch:old.etag}:{onlyIfNew:true});if(!result?.modified)throw fail('Someone updated this lead first. Refresh the queue to see its owner.',409);}
- return json({ok:true,item:view(next,p,users,me)});
+ return json({ok:true,item:view(next,p,users,me,auth.transactions||[],auth.jobs||[])});
  }catch(e){return json({ok:false,error:e.status?e.message:'Could not load or save the site visit queue.'},e.status||500);}};}

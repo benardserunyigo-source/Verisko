@@ -13,3 +13,13 @@ test('completion feeds existing pay once and projection restores visit fields af
 test('quote progress does not downgrade accepted jobs or create payment commission',()=>{
  const b=base();b.prospects[0].stage='Won';const d=projectReady(b,[{...c,quoteSent:{at:'2026-10-22T12:00:00+03:00'}}]);assert.equal(d.prospects[0].stage,'Won');assert.equal(d.prospects[0].readyProgress,'Quote sent');assert.equal(d.transactions.length,0);
 });
+test('first-payment approval adds 100,000 once; pending, queried and later instalments do not add it again',()=>{
+ const week=globalThis.VeriskoSalesPay.period('2026-10-22T12:00:00Z'),payment={id:'first',direction:'in',prospectId:'contact',amount:2000000,date:'2026-10-21',recordedAt:'2026-10-21T10:00:00Z',status:'pending'},pc={...c,firstPayment:payment};let d=projectReady(base(),[pc]);assert.equal(globalThis.VeriskoSalesPay.calculate(d,week).total,0);
+ pc.firstPayment={...payment,status:'query'};assert.equal(globalThis.VeriskoSalesPay.calculate(projectReady(base(),[pc]),week).total,0);
+ pc.firstPayment={...payment,status:'approved',approvedAt:'2026-10-22T12:00:00Z'};d=projectReady(base(),[pc]);assert.equal(globalThis.VeriskoSalesPay.calculate(d,week).total,100000);d=projectReady(d,[pc]);assert.equal(d.transactions.length,1);assert.equal(globalThis.VeriskoSalesPay.calculate(d,week).total,100000);
+ d.transactions.push({...payment,id:'second',amount:300000,status:'approved',approvedAt:'2026-10-23T12:00:00Z'});assert.equal(globalThis.VeriskoSalesPay.calculate(d,week).total,100000);assert.equal(globalThis.VeriskoSalesPay.calculate(d,globalThis.VeriskoSalesPay.period('2026-10-29T12:00:00Z')).total,0);
+ d.transactions[0].status='pending';d.transactions[0].approvedAt='';d=projectReady(d,[pc]);assert.equal(d.transactions.find(t=>t.id==='first').status,'approved');d.prospects[0].imported=true;assert.equal(globalThis.VeriskoSalesPay.calculate(d,week).total,0);
+});
+test('office-created contacts cannot create Sales payment commission through the new workflow',()=>{
+ const d=projectReady(base(),[{...c,firstPayment:{id:'office-payment',direction:'in',prospectId:'contact',amount:2000000,status:'approved',approvedAt:'2026-10-22T12:00:00Z',commissionEligible:false}}]);assert.equal(d.prospects[0].salesCommissionEligible,false);const noVisit=projectReady(base(),[{contactId:'contact',firstPayment:{...d.transactions[0],commissionEligible:false}}]);assert.equal(noVisit.prospects[0].salesCommissionEligible,false);d.transactions.push({id:'later-instalment',direction:'in',prospectId:'contact',amount:300000,status:'approved',approvedAt:'2026-10-23T12:00:00Z'});assert.equal(globalThis.VeriskoSalesPay.calculate(d,globalThis.VeriskoSalesPay.period('2026-10-22T12:00:00Z')).total,0);
+});

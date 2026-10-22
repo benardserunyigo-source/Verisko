@@ -1,3 +1,4 @@
+import {firstClientPayment} from './lib/ready-payments.mjs';
 import {loadReadyCases,projectReady} from './lib/ready-progress.mjs';
 import {ROLES,guardRoster,visibleRoster,guardCash,checkPhotoLinks,safeUser} from './access.mjs';
 import '../../lead-pipeline.js';
@@ -122,6 +123,12 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
       const managedVisits=new Set(readyCases.filter(c=>c.visit).map(c=>c.contactId));
       const existingVisitIds=new Set(storedAppointments.map(a=>a.id));
       if(clean.appointments.some(a=>managedVisits.has(a.prospectId)&&!existingVisitIds.has(a.id)))return json({ok:false,error:'This contact already has a site visit. Open its site visit queue entry.'},409,headers);
+
+      const readyContactIds=new Set(readyCases.map(c=>c.contactId));
+      for(const t of clean.transactions){if(t.direction!=='in'||knownPayments.has(t.id))continue;
+        const pid=t.prospectId||storedJobs.find(j=>j.id===t.installId)?.prospectId;
+        if(readyContactIds.has(pid)&&firstClientPayment(pid,storedTx,storedJobs)?.status!=='approved')return json({ok:false,error:'Record the first payment in the site visit queue. Admin approves it there.'},409,headers);
+      }
 
       // Every role: call notes are never lost (append-only) and a phone with
       // an older copy can't overwrite a newer follow-up plan.
