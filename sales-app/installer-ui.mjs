@@ -1,5 +1,5 @@
-import {InstallerClient,cameraPhoto,requestId} from './installer-client.mjs?v=100';
-import {manager,TESTS,PARTS,reasons,readiness} from './installer-model.mjs?v=100';
+import {InstallerClient,cameraPhoto,requestId} from './installer-client.mjs?v=101';
+import {manager,TESTS,PARTS,reasons,readiness} from './installer-model.mjs?v=101';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels={live:'Live image',recording:'Recording',playback:'Playback of a newly recorded clip',coverage:'Coverage of agreed area',remote:'Customer remote access'};
 const checked=v=>v?' checked':'';
@@ -17,7 +17,7 @@ export async function mountInstaller(ctx){
 async function showDemo(role='operations'){
  if(!realContext||!manager(realContext.user))return;
  if(active?.client.queue.length){realContext.toast('Synchronize pending work before switching views.');return;}
- if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=100');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
+ if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=101');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
  if(active)active.stop();const actor=demoController.transport.actors[role==='installer'?1:0];
  active=new InstallerView({...realContext,user:actor,demo:true,demoRole:role,initialJobId:'demo-installation',fetcher:demoController.transport.fetcher(role),token:async()=>''});await active.start();
 }
@@ -40,7 +40,7 @@ class InstallerView {
  }
  upload(kind,label,cameraId=''){return (this.ctx.demo?button('data-iw-sample="'+kind+'" data-camera="'+esc(cameraId)+'"','Use sample '+kind+' photo'):'')+ '<label class="btn btn-ghost iw-upload">'+esc(label)+'<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" data-iw-upload="'+kind+'" data-camera="'+esc(cameraId)+'"></label>';}
  draw(){
-  if(!this.ctx.isCurrent())return;const cl=this.client,supervisor=manager(this.user),j=cl.local(this.jobId);
+  if(!this.ctx.isCurrent()||active!==this)return;const cl=this.client,supervisor=manager(this.user),j=cl.local(this.jobId);
   this.ctx.head('Installation quality',supervisor?'Installation review':'My installations','Assigned jobs, evidence and technical review. Never record customer or camera passwords.','',false);
   const pendingDecisions=cl.jobs.flatMap(j=>j.exceptions.filter(e=>e.status==='pending').map(e=>e.id));
   if(supervisor&&!cl.busy&&this.seenDecisions&&pendingDecisions.some(id=>!this.seenDecisions.includes(id)))this.ctx.toast('New installation exception needs a supervisor decision.');
