@@ -495,7 +495,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=96'), import('./field-shifts-ui.mjs?v=96'), import('./field-shifts-android.mjs?v=96')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=97'), import('./field-shifts-ui.mjs?v=97'), import('./field-shifts-android.mjs?v=97')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -1287,7 +1287,8 @@
     return signupsCard() + '<section class="card settings-card"><h2>Manage the team</h2>' +
       "<p>Add or remove salespeople and Operations, and switch their roles. Owner and Technical accounts are managed by the Owner in Settings. Removing someone revokes access immediately.</p>" +
       (users.length ? '<div class="account-list">' + rows + "</div>" : '<p class="settings-note">No sales or operations members yet — add the first one below.</p>') +
-      '<form id="addMemberForm" class="add-member">' +
+      phoneMemberForm() +
+      (isAdmin()?'<details class="email-member-option"><summary>Add by email instead</summary><form id="addMemberForm" class="add-member">' +
       '<div class="field"><label for="memberName">Name</label><input id="memberName" name="name" type="text" autocomplete="off" placeholder="e.g. Grace Namubiru" required></div>' +
       '<div class="field"><label for="memberEmail">Email</label><input id="memberEmail" name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" placeholder="grace@example.com" required></div>' +
       '<div class="field"><label for="memberRole">Role</label><select id="memberRole" name="role">' +
@@ -1295,8 +1296,7 @@
       '<option value="teamlead">Team lead — approves qualified prospects, records deposits</option>' +
       '<option value="operations">Operations — also Cash flow</option></select></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Add team member</button>' +
-      '<p class="settings-note" style="margin-top:10px">No email? Invite them on WhatsApp — they join with their phone number, a PIN and a selfie, and add their National ID within 5 days.</p>' +
-      '<button type="button" class="btn btn-primary btn-block" data-invite-staff style="margin-top:8px">Invite staff on WhatsApp</button></form></section>';
+      '</form></details>':'') + '</section>';
   }
 
   /* ------------------------------ INSTALLATIONS ----------------------------- */
@@ -2654,7 +2654,8 @@
       '<section class="card settings-card"><h2>Team members</h2>' +
       "<p><strong>Sales</strong> see only their own prospects and visits. <strong>Team leads</strong> see every rep's prospects, approve qualified ones and record client deposits. <strong>Operations</strong> also get the Cash flow tab. <strong>Technical</strong> can also open this Settings page. Removing someone revokes access immediately.</p>" +
       teamRows +
-      '<form id="addMemberForm" class="add-member">' +
+      phoneMemberForm() +
+      (isAdmin()?'<details class="email-member-option"><summary>Add by email instead</summary><form id="addMemberForm" class="add-member">' +
       '<div class="field"><label for="memberName">Name</label><input id="memberName" name="name" type="text" autocomplete="off" placeholder="e.g. Grace Namubiru" required></div>' +
       '<div class="field"><label for="memberEmail">Email</label><input id="memberEmail" name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" placeholder="grace@example.com" required></div>' +
       '<div class="field"><label for="memberRole">Role</label><select id="memberRole" name="role">' +
@@ -2663,12 +2664,10 @@
       '<option value="operations">Operations — also Cash flow</option>' +
       '<option value="admin">Technical — also Settings</option></select></div>' +
       '<button type="submit" class="btn btn-ghost btn-block">Add team member</button>' +
-      '<p class="settings-note" style="margin-top:10px">No email? Invite them on WhatsApp — they join with their phone number, a PIN and a selfie, and add their National ID within 5 days.</p>' +
-      '<button type="button" class="btn btn-primary btn-block" data-invite-staff style="margin-top:8px">Invite staff on WhatsApp</button>' +
-      "</form></section>" +
+      '</form></details>':'') + '</section>' +
 
       '<section class="card settings-card"><h2>Shared workspace</h2>' +
-      "<p>Everyone signs in with their own email, verified by Supabase. Records sync securely through Netlify.</p>" +
+      "<p>Staff sign in with their phone number and PIN. Existing email accounts can still use a secure sign-in link. Records sync securely.</p>" +
       '<div class="conn-status" data-state="' + connection.state + '"><span class="dot"></span><span class="conn-label">' + esc(connection.text) + "</span></div>" +
       '<div class="button-row"><button class="btn btn-ghost" data-sync>Refresh shared data</button></div></section>' +
 
@@ -4105,7 +4104,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v96";
+  var APP_VERSION = "v97";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4388,6 +4387,32 @@
     return true;
   }
 
+  function staffInviteRoles() {
+    return (settings.user||{}).role==='teamlead' ? [['sales','Sales']] : [['sales','Sales'],['teamlead','Team lead']].concat(isAdmin()?[['operations','Operations']]:[]);
+  }
+  function phoneMemberForm() {
+    return '<form id="addPhoneMemberForm" class="add-member">'+
+      '<div class="field"><label for="memberPhoneName">Name</label><input id="memberPhoneName" name="name" type="text" autocomplete="off" placeholder="e.g. Grace Namubiru" required></div>'+
+      '<div class="field"><label for="memberPhone">Phone number</label><input id="memberPhone" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="0772 123 456" required></div>'+
+      '<div class="field"><label for="memberPhoneRole">Role</label><select id="memberPhoneRole" name="role">'+staffInviteRoles().map(function(r){return '<option value="'+r[0]+'">'+r[1]+'</option>';}).join('')+'</select></div>'+
+      '<p class="settings-note">No email needed. Create a personal setup link, then share it with them. They choose their own 4-digit PIN. On a new phone, they enter their number and PIN; after that, just their PIN.</p>'+
+      '<p class="settings-note">First-time setup includes a selfie and National ID within 5 days. Staff appear in the team list after joining.</p>'+
+      '<p class="lock-error" role="alert" hidden></p><button type="submit" class="btn btn-primary btn-block">Add by phone · create setup link</button></form>';
+  }
+  async function addPhoneMember(form) {
+    if(!canApproveQual())return;
+    var phone=form.elements.phone.value,name=form.elements.name.value.trim(),role=form.elements.role.value;
+    var error=form.querySelector('[role="alert"]'),button=form.querySelector('[type="submit"]');
+    if(!waDigits(phone)){error.textContent='Enter a valid phone number, e.g. 0772 123 456.';error.hidden=false;return;}
+    if(!staffInviteRoles().some(function(r){return r[0]===role;})){error.textContent='You cannot invite this role.';error.hidden=false;return;}
+    button.disabled=true;button.textContent='Creating setup link…';error.hidden=true;
+    try {
+      var result=await authApi({action:'invite',phone:phone,name:name,role:role},true);
+      if(!result.ok)throw new Error(result.error||'Could not create the setup link.');
+      showStaffInvite(result,name,waDigits(phone));form.reset();
+    } catch(e){error.textContent=e.message||'Could not create the setup link.';error.hidden=false;}
+    finally{button.disabled=false;button.textContent='Add by phone · create setup link';}
+  }
   // Add a teammate by email with a role: sales, operations, or admin (Technical).
   function addMember(name, email, role) {
     if (!canReviewProspects()) return false;
@@ -4633,7 +4658,15 @@
       var roleVal = dlg.querySelector("#invRole").value, name = nameEl.value.trim();
       var r = await authApi({ action: "invite", phone: phoneEl.value, name: name, role: roleVal }, true);
       if (!r.ok) { this.disabled = false; this.textContent = "Create invite"; err.textContent = r.error || "Couldn't create the invite."; err.hidden = false; return; }
-      var label = (roles.find(function (o) { return o[0] === r.role; }) || [0, "Sales"])[1];
+      showStaffInvite(r,name,d);
+    });
+    dlg.showModal();
+    nameEl.focus();
+  }
+
+  function showStaffInvite(r,name,d) {
+    var dlg=document.getElementById('askDialog');
+      var label = (staffInviteRoles().find(function (o) { return o[0] === r.role; }) || [0, "Sales"])[1];
       var text = staffInviteText(name, location.origin + "/?invite=" + r.code, label);
       dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Send the invite' + (name ? " to " + esc(name) : "") + "</h2>" +
         '<p class="ask-body">Invite code <strong>' + esc(r.code) + "</strong> · joins as " + esc(label) + " · works until " + esc(dateLabel(String(r.expiresAt).slice(0, 10))) + ".</p></div>" +
@@ -4647,9 +4680,7 @@
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { toast("Couldn't copy — select the message and copy it"); });
         else toast("Select the message and copy it");
       });
-    });
-    dlg.showModal();
-    nameEl.focus();
+    if(!dlg.open)dlg.showModal();
   }
 
   // An email account (the Owner) can also sign in with phone + PIN, so it
@@ -4970,6 +5001,8 @@
   content.addEventListener("submit", function (e) {
     var pinForm = e.target.closest("#pinSetupForm");
     if (pinForm) { e.preventDefault(); savePinSetup(pinForm); return; }
+    var phoneMember=e.target.closest("#addPhoneMemberForm");
+    if(phoneMember){e.preventDefault();addPhoneMember(phoneMember);return;}
     var addForm = e.target.closest("#addMemberForm");
     if (addForm) {
       e.preventDefault();
