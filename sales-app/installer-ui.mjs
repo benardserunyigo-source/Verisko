@@ -1,5 +1,5 @@
-import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=110';
-import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady,installerPaymentSummary,PAYMENT_METHODS} from './installer-model.mjs?v=110';
+import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=111';
+import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady,installerPaymentSummary,PAYMENT_METHODS} from './installer-model.mjs?v=111';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>'UGX '+Number(v).toLocaleString('en-UG');
 const time=v=>new Date(v).toLocaleString('en-GB',{timeZone:'Africa/Kampala'});
@@ -20,7 +20,7 @@ export async function mountInstaller(ctx){
 async function showDemo(role='operations'){
  if(!realContext||!manager(realContext.user))return;
  if(active?.client.queue.length){realContext.toast('Send saved work before changing views.');return;}
- if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=110');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
+ if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=111');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
  if(active)active.stop();const actor=demoController.transport.actors[role==='installer'?1:0];
  active=new InstallerView({...realContext,user:actor,demo:true,demoRole:role,initialJobId:'demo-installation',fetcher:demoController.transport.fetcher(role),token:async()=>''});await active.start();
 }
@@ -219,7 +219,7 @@ class InstallerView {
   if(d.iwMaterialReceive){const b=materialBalance(item);this.modal('Receive at warehouse · '+item.name,'<p>Count what you have received. Damaged items stay out of good stock.</p>'+amount('good','Good amount received ('+item.unit+')',b.leftGood,item.unit)+amount('damaged','Damaged amount received ('+item.unit+')',b.leftDamaged,item.unit)+((item.missing||0)>0?check('acceptLoss','I reviewed the missing '+item.missing+' '+item.unit,false):'')+field('note','Warehouse note / missing item reason'),f=>send('materialReceive',{itemId:item.id,good:Number(f.get('good')),damaged:Number(f.get('damaged')),acceptLoss:f.has('acceptLoss'),note:f.get('note')}));return true;}
   return false;
  }
- reviewerChoices(selected=[]){const roles={admin:'Admin',operations:'Operations',teamlead:'Team Lead',supervisor:'Supervisor'};return '<fieldset><legend>Who is the site supervisor?</legend>'+this.client.reviewers.map(u=>check('supervisorIds',u.name+' · '+(roles[u.role]||'Supervisor')+(u.id===this.user.id?' (you)':''),selected.includes(u.id)).replace('name="supervisorIds"','name="supervisorIds" value="'+esc(u.id)+'"')).join('')+(this.client.reviewers.some(u=>u.id===this.user.id)?button('data-iw-supervise-me','Assign me as site supervisor'):'')+'<p>Select the person who will check this site. Operations, Team Leads and Admin can do this without changing their account role.</p></fieldset>';}
+ reviewerChoices(selected=[]){const roles={admin:'Admin',operations:'Operations',teamlead:'Team Lead'};return '<fieldset><legend>Who is the site supervisor?</legend>'+this.client.reviewers.map(u=>check('supervisorIds',u.name+' · '+(roles[u.role]||'Site supervisor')+(u.id===this.user.id?' (you)':''),selected.includes(u.id)).replace('name="supervisorIds"','name="supervisorIds" value="'+esc(u.id)+'"')).join('')+(this.client.reviewers.some(u=>u.id===this.user.id)?button('data-iw-supervise-me','Assign me as site supervisor'):'')+'<p>Select the person who will check this site. Operations, Team Leads and Admin can do this without changing their account role.</p></fieldset>';}
  staffChoices(selected=[]){return '<fieldset><legend>Choose installers</legend>'+this.client.staff.map(u=>check('assignees',u.name,selected.includes(u.id)).replace('name="assignees"','name="assignees" value="'+esc(u.id)+'"')).join('')+(!this.client.staff.length?'<p>Invite staff with the Installer role first.</p>':'')+'</fieldset>';}
  workLog(j,supervisor,locked){
   const logs=j.workLog||[],open=logs.find(x=>x.by===this.user.id&&!x.finish);

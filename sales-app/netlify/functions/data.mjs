@@ -45,7 +45,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
     if (idOverdue(me, Date.now())) return json({ ok: false, error: "id_overdue" }, 403, headers);
     if (!me && !bootstrap) return json({ ok: false, error: "not_authorized" }, 403, headers);
     if(me&&!ROLES.includes(me.role))return json({ok:false,error:'Role not allowed.'},403,headers);
-    if (me && ['installer','supervisor'].includes(me.role)) {
+    if (me && ['installer'].includes(me.role)) {
       if(request.method!=='GET')return json({ok:false,error:'Use the installation workspace.'},403,headers);
       return json({ok:true,data:{...EMPTY,users:[safeUser(me)]}},200,headers);
     }

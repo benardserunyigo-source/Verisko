@@ -3,7 +3,7 @@ import {ROLES} from '../access.mjs';
 const headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
 const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers});
 export function canReadReceipt(data,me,id,owner){
- if(!me||!ROLES.includes(me.role)||['installer','supervisor'].includes(me.role))return false;
+ if(!me||!ROLES.includes(me.role)||['installer'].includes(me.role))return false;
  if(me.role==='admin')return true;
  if(owner?.userId===me.id&&(me.role==='operations'||['sales','teamlead'].includes(owner.role)))return true;
  const prospects=(data.prospects||[]).filter(p=>me.role==='sales'?String(p.createdByEmail||'').toLowerCase()===String(me.email||'').toLowerCase():globalThis.VeriskoLeadPipeline.canSee(p,me));
@@ -13,7 +13,7 @@ export function canReadReceipt(data,me,id,owner){
 export function createReceiptHandler({store,authorize}){
  return async request=>{try{
   const auth=await authorize(request),me=auth?.me;
-  if(!me||!ROLES.includes(me.role)||['installer','supervisor'].includes(me.role))return json({ok:false,error:'not_authorized'},403);
+  if(!me||!ROLES.includes(me.role)||['installer'].includes(me.role))return json({ok:false,error:'not_authorized'},403);
   if(request.method==='POST'){
    const body=await request.json(),image=body?.image||'';
    if(typeof image!=='string'||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image)||image.length>3000000)return json({ok:false,error:'Use a JPEG, PNG or WebP image under 2 MB.'},400);

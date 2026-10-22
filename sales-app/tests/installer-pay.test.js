@@ -18,12 +18,12 @@ test('invalid, duplicate and unassigned payment amounts are rejected',()=>{
  assert.throws(()=>applyCommand(j,command([]),ops,now),/Enter the agreed/);
 });
 test('installers and supervisors cannot set rates; stale updates cannot overwrite newer rates',()=>{
- const j=make();for(const user of [one,{id:'sup',role:'supervisor'}])assert.throws(()=>applyCommand(j,command(rates()),user,now),e=>e.status===403);
+ const j=make();j.supervisorIds=['sup'];for(const user of [one,{id:'sup',role:'teamlead'}])assert.throws(()=>applyCommand(j,command(rates()),user,now),e=>e.status===403);
  assert.throws(()=>applyCommand(pay(j),command(rates()),ops,now),e=>e.status===409);
  const complete=pay(j);complete.status='Completed';assert.throws(()=>applyCommand(complete,command(rates(),1),ops,now),/read-only/);
 });
 test('each installer sees only their own amount and amount history; supervisor sees no pay values',()=>{
- const j=pay(make());const a=installerJobView(j,one),b=installerJobView(j,two),s=installerJobView(j,{role:'supervisor'});
+ const j=pay(make());const a=installerJobView(j,one),b=installerJobView(j,two),s=installerJobView(j,{role:'teamlead'});
  assert.deepEqual(Object.keys(a.installerPay),[one.id]);assert.deepEqual(Object.keys(b.installerPay),[two.id]);assert.deepEqual(Object.keys(a.payHistory[0].payments),[one.id]);assert.equal(a.payReady,true);
  assert.deepEqual(s.installerPay,{});assert.deepEqual(s.payHistory,[]);assert.equal(Object.keys(installerJobView(j,ops).installerPay).length,2);
  assert.equal(readiness(a).some(x=>x.includes('agreed pay')),false);
@@ -59,7 +59,7 @@ test('payment values, dates and references are checked, including duplicate tran
  assert.throws(()=>record(make()),/agreed pay/);
 });
 test('only Operations records or corrects payments, including after installation is complete',()=>{
- let j=pay(make());for(const user of [one,{id:'sup',role:'supervisor'}])assert.throws(()=>record(j,{},user),e=>e.status===403);
+ let j=pay(make());j.supervisorIds=['sup'];for(const user of [one,{id:'sup',role:'teamlead'}])assert.throws(()=>record(j,{},user),e=>e.status===403);
  j.status='Completed';j=record(j);assert.equal(j.installerPayments.length,1);assert.equal(j.status,'Completed');const id=j.installerPayments[0].id;j=cancel(j,id);assert.equal(j.installerPaymentVoids.length,1);assert.equal(j.installerPayments.length,1);
 });
 test('corrections keep the original payment, restore the balance and allow a corrected entry',async()=>{
@@ -74,7 +74,7 @@ test('rate edits cannot undercut paid totals and payment/rate writes share the s
 });
 test('API projections hide other installers payment references and correction notes',()=>{
  let j=record(pay(make()));j=record(j,{installerId:two.id,amount:25000,reference:'PRIVATE-SECOND-REF',note:'PRIVATE SECOND NOTE'});j=cancel(j,j.installerPayments[1].id,'PRIVATE SECOND CORRECTION');
- const a=installerJobView(j,one),b=installerJobView(j,two),s=installerJobView(j,{role:'supervisor'});
+ const a=installerJobView(j,one),b=installerJobView(j,two),s=installerJobView(j,{role:'teamlead'});
  assert.equal(a.installerPayments.length,1);assert.equal(a.installerPaymentVoids.length,0);assert.ok(!JSON.stringify(a).includes('PRIVATE-SECOND-REF'));assert.ok(!JSON.stringify(a).includes('PRIVATE SECOND CORRECTION'));
  assert.equal(b.installerPayments.length,1);assert.equal(b.installerPaymentVoids.length,1);assert.deepEqual(s.installerPayments,[]);assert.deepEqual(s.installerPaymentVoids,[]);
 });

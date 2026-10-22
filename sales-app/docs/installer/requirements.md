@@ -1,3 +1,5 @@
+> Current access update (v111): site supervisor is a job assignment for Operations and Team Leads. There is no separate Supervisor account role. See [ACCESS.md](../ACCESS.md).
+
 # Verisko Installer Module — First-Version Requirements
 
 ## Purpose

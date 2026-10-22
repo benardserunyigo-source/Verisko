@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {createDataHandler} from '../netlify/functions/data.mjs';
-import {guardRoster,guardCash,canManageMember,visibleRoster} from '../netlify/functions/access.mjs';
+import {ROLES,canAssignRole,guardRoster,guardCash,canManageMember,visibleRoster} from '../netlify/functions/access.mjs';
 import {canReadReceipt,createReceiptHandler} from '../netlify/functions/lib/receipt-core.mjs';
 import {createJob,applyCommand,canRead} from '../installer-model.mjs';
 const users=['admin','operations','teamlead','sales','installer','supervisor'].map((role,i)=>({id:'u'+i,name:role,email:role+'@test.invalid',role,authMethod:'email',internalSecret:'PRIVATE'}));
@@ -15,7 +15,7 @@ function fixture(actor=sales){
  return {get,post,read:()=>structuredClone(data),set:value=>data=value,photos};
 }
 test('each role receives only the main workspace data needed for its job',async()=>{
- for(const actor of users){const f=fixture(actor),r=await f.get(),b=await r.json();assert.equal(r.status,200);
+ for(const actor of users.filter(u=>u.role!=='supervisor')){const f=fixture(actor),r=await f.get(),b=await r.json();assert.equal(r.status,200);
   if(['installer','supervisor'].includes(actor.role)){assert.deepEqual(b.data.prospects,[]);assert.deepEqual(b.data.transactions,[]);assert.equal(b.data.users.length,1);assert.equal(b.pricing,undefined);}
   if(actor.role==='sales'){assert.deepEqual(b.data.prospects.map(p=>p.id),['mine']);assert.equal(b.data.transactions[0].direction,'in');assert.equal(b.data.quotes.length,0);assert.equal(b.pricing,undefined);assert.ok(!JSON.stringify(b).includes('PRIVATE'));}
   if(actor.role==='teamlead'){assert.deepEqual(b.data.prospects.map(p=>p.id),['mine','other']);assert.equal(b.data.transactions.some(t=>t.direction==='out'),false);assert.deepEqual(Object.keys(b.data.training),[lead.id]);assert.ok(!JSON.stringify(b).includes('PRIVATE'));}
@@ -25,7 +25,7 @@ test('each role receives only the main workspace data needed for its job',async(
  }
 });
 test('unknown roles fail closed; installer/supervisor cannot write the main workspace',async()=>{
- assert.equal((await fixture({id:'x',email:'x@test',role:'unknown'}).get()).status,403);
+ assert.equal((await fixture({id:'x',email:'x@test',role:'unknown'}).get()).status,403);assert.equal((await fixture(supervisor).get()).status,403);
  for(const actor of [installer,supervisor])assert.equal((await fixture(actor).post({users:[{id:actor.id,role:'admin'}]})).status,403);
 });
 test('Sales forged saves cannot alter other contacts, grant roles, change config or write cash/jobs',async()=>{
@@ -50,12 +50,12 @@ test('shared photos check record visibility, finance role and upload owner',asyn
  const data=fixture().read();assert.equal(canReadReceipt(data,sales,'mine-photo'),true);assert.equal(canReadReceipt(data,sales,'other-photo'),false);assert.equal(canReadReceipt(data,sales,'finance-photo'),false);assert.equal(canReadReceipt(data,lead,'other-photo'),true);assert.equal(canReadReceipt(data,ops,'finance-photo'),true);assert.equal(canReadReceipt(data,installer,'mine-photo'),false);assert.equal(canReadReceipt(data,sales,'unattached',{userId:sales.id,role:'sales'}),true);
  const map=new Map([['finance-photo','data:image/png;base64,iVBORw0KGgo=']]);const store={get:async k=>map.get(k),set:async(k,v)=>map.set(k,v),setJSON:async(k,v)=>map.set(k,v)};const h=createReceiptHandler({store,authorize:async()=>({me:sales,data})});assert.equal((await h(new Request('https://test/api/receipt?id=finance-photo'))).status,404);assert.equal((await h(new Request('https://test/api/receipt',{method:'POST',body:JSON.stringify({image:'data:image/svg+xml;base64,PGh0bWw+'})}))).status,400);
 });
-test('supervisors see only assigned reviews and cannot fill installer checks or set up jobs',()=>{
- const now='2026-10-22T12:00:00Z',j=createJob({id:'install',business:'TEST',siteStaff:{name:'Ops',phone:'000'},address:'TEST',scope:'TEST',equipment:'1 × Camera',locations:['Gate'],assignees:[installer.id],supervisorIds:[supervisor.id],scheduledDate:'2026-10-23'},ops,now,users);
- assert.equal(canRead(j,supervisor),true);assert.equal(canRead({...j,supervisorIds:[]},supervisor),false);assert.equal(canRead(j,sales),false);
- for(const actor of [ops,supervisor])assert.throws(()=>applyCommand(j,{action:'tests',requestId:'forged-check',cameraId:'camera-1',baseVersion:0,data:{}},actor,now),/assigned installer/);
- assert.throws(()=>applyCommand(j,{action:'plan',requestId:'forged-plan',baseVersion:0,data:{assignees:[installer.id],scheduledDate:'2026-10-23'}},supervisor,now),/Only Operations/);
- assert.throws(()=>createJob({},supervisor,now,users),/Only Operations/);
+test('Team Leads see only assigned reviews and cannot fill installer checks or set up jobs',()=>{
+ const now='2026-10-22T12:00:00Z',j=createJob({id:'install',business:'TEST',siteStaff:{name:'Ops',phone:'000'},address:'TEST',scope:'TEST',equipment:'1 × Camera',locations:['Gate'],assignees:[installer.id],supervisorIds:[lead.id],scheduledDate:'2026-10-23'},ops,now,users);
+ assert.equal(canRead(j,lead),true);assert.equal(canRead({...j,supervisorIds:[]},lead),false);assert.equal(canRead(j,sales),false);
+ for(const actor of [ops,lead])assert.throws(()=>applyCommand(j,{action:'tests',requestId:'forged-check',cameraId:'camera-1',baseVersion:0,data:{}},actor,now),/assigned installer/);
+ assert.throws(()=>applyCommand(j,{action:'plan',requestId:'forged-plan',baseVersion:0,data:{assignees:[installer.id],scheduledDate:'2026-10-23'}},lead,now),/Only Operations/);
+ assert.throws(()=>createJob({},lead,now,users),/Only Operations/);
 });
 
 test('live auth handler enforces identity, PIN reset and invitation privilege bounds',async()=>{
@@ -76,6 +76,7 @@ test('live auth handler enforces identity, PIN reset and invitation privilege bo
  assert.equal((await send({action:'record',id:admin.id})).status,403);assert.equal((await send({action:'record',id:supervisor.id})).status,403);
  assert.equal((await send({action:'record',id:sales.id})).status,200);
  for(const role of ['admin','operations','supervisor']){const r=await send({action:'invite',phone:'0772001234',role});assert.equal(r.status,403);}
+ actor=admin;assert.equal((await send({action:'invite',phone:'0772001234',role:'supervisor'})).status,403);
  actor=sales;assert.equal((await send({action:'record',id:ops.id})).status,403);assert.equal((await send({action:'invite',phone:'0772001234',role:'sales'})).status,403);
  actor={...ops,authMethod:'pin',idStatus:'needed',idDueAt:'2026-10-01T00:00:00Z'};assert.equal((await send({action:'invite',phone:'0772001234',role:'sales'})).status,403);
 });
@@ -91,4 +92,10 @@ test('photo uploads are owned by the current account and cannot be opened by ano
  const data=fixture().read(),map=new Map(),store={get:async k=>map.get(k),set:async(k,v)=>map.set(k,v),setJSON:async(k,v)=>map.set(k,v)};let actor=sales;
  const h=createReceiptHandler({store,authorize:async()=>({me:actor,data})});const r=await h(new Request('https://test/api/receipt',{method:'POST',body:JSON.stringify({image:'data:image/png;base64,iVBORw0KGgo='})}));const b=await r.json();assert.equal(r.status,200);assert.equal(map.get('owner/'+b.id).role,'sales');assert.equal((await h(new Request('https://test/api/receipt?id='+b.id))).status,200);
  actor=lead;assert.equal((await h(new Request('https://test/api/receipt?id='+b.id))).status,404);
+});
+
+test('retired Supervisor role cannot be granted or use installation access even with an old assignment',async()=>{
+ assert.ok(!ROLES.includes('supervisor'));assert.equal(canAssignRole(admin,'supervisor'),false);const j={supervisorIds:[supervisor.id],assignees:[]};assert.equal(canRead(j,supervisor),false);assert.equal(canReadReceipt(fixture().read(),supervisor,'mine-photo'),false);
+ const {createInstallerHandler}=await import('../netlify/functions/lib/installer-core.mjs');const handler=createInstallerHandler({store:{},authorize:async()=>({me:supervisor})});assert.equal((await handler(new Request('https://test/api/installer'))).status,403);
+ const incoming=[...users,{id:'retired-new',name:'Retired',email:'retired@test.invalid',role:'supervisor'}];assert.ok(!guardRoster(users,incoming,admin).some(u=>u.id==='retired-new'));
 });

@@ -43,7 +43,7 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
     j=createJob({...cmd.data,id:body.jobId},me,now(),auth.users);j.requests.push(cmd.requestId);j.history.push({id:cmd.requestId,action:'create',by:me.id,name:me.name,at:now()});
    }else{
     if(!old||!canRead(old.data,me)&&!(cmd.action==='superviseSelf'&&['admin','operations','teamlead'].includes(me.role)))throw fail('Job not found or no longer assigned.',404);
-    if(cmd.action==='plan'&&cmd.data?.supervisorIds!==undefined&&(!Array.isArray(cmd.data.supervisorIds)||cmd.data.supervisorIds.some(id=>!auth.users.some(u=>u.id===id&&canSuperviseSite(u)))))throw fail('Choose Operations, a Team Lead, Admin or a Supervisor for this site.');
+    if(cmd.action==='plan'&&cmd.data?.supervisorIds!==undefined&&(!Array.isArray(cmd.data.supervisorIds)||cmd.data.supervisorIds.some(id=>!auth.users.some(u=>u.id===id&&canSuperviseSite(u)))))throw fail('Choose Operations, a Team Lead or Admin for this site.');
     if(cmd.action==='plan'&&(!Array.isArray(cmd.data?.assignees)||cmd.data.assignees.some(id=>!auth.users.some(u=>u.id===id&&u.role==='installer'))))throw fail('Assign Installer accounts only.');
     if(cmd.action==='evidence'){
      if(!valid(cmd.data?.id))throw fail('Invalid evidence ID.');const image=imageData(cmd.data.image);

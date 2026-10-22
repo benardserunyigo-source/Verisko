@@ -1,6 +1,6 @@
 # Installer quality module · first pilot
 
-Use the live app's **Installer work** screen. Operations runs approvals. Admins and an optional dedicated Supervisor role can also review. Installer and Supervisor accounts sign in through the existing phone/PIN invite process.
+Use the live app's **Installer work** screen. Operations runs approvals. Team Leads can assign themselves as site supervisor and review those jobs. Admin can also review. Site supervision is a job duty, not a separate account role. Installers use phone/PIN invites.
 
 ## Operations setup
 
@@ -34,7 +34,7 @@ Operations’ Today screen and Installer work navigation show pending review cou
 - Progress and queued photo bytes are kept in IndexedDB under the signed-in account, not localStorage. Commands have stable request IDs, per-item versions and server compare-and-set writes. Network retries cannot duplicate events or photos; a stale item is held as a conflict rather than overwriting newer work.
 - Use the latest Chrome/Android app on HTTPS and one active tab. Browser Web Locks prevent competing tabs from overwriting the offline queue. The first connection must load the app and assigned records before offline use. Do not clear browser data or uninstall with pending work. Signing out warns before removing unsynchronized installer data.
 - A conflict keeps the pending change. Review the latest record; remove only that conflicting local command, then re-enter it. Photo evidence already on the server is preserved.
-- Assignment and media access are checked on every server request. Installer/Supervisor roles cannot access the sales/customer workspace or shared receipt endpoint. Offline records reflect the last authorized assignment; a disconnected phone cannot learn of a revocation until reconnecting. Secure the device and avoid shared logins.
+- Assignment and media access are checked on every server request. Installers cannot access the sales/customer workspace or shared receipt endpoint. Team Leads keep their normal sales access and can review only installation jobs they supervise. Offline records reflect the last authorized assignment; a disconnected phone cannot learn of a revocation until reconnecting. Secure the device and avoid shared logins.
 - Installation photos live in a private Blobs store and are returned only through the authenticated, job-scoped endpoint. Never store camera/customer account passwords in text or pictures.
 
 ## Pilot measures and inspection
@@ -77,14 +77,14 @@ Existing records are not given invented stock movements. Their materials log sta
 ## Agreed installer pay (v104)
 
 - Operations/admin opens the job and selects **Set / update agreed pay**. Enter each assigned installer's whole-job amount in UGX and optional payment notes. For example, notes can state whether transport/lunch are included and when payment is due. No real-job rate is guessed or filled automatically.
-- Each installer sees **Your agreed pay for this job**, their own amount, notes, date and the person who set it. The job list also shows their amount. Operations sees each amount and the total for the current crew. Supervisors do not receive pay values. The API filters payment fields and payment history for every list, single-job and mutation response, not just in the interface.
+- Each installer sees **Your agreed pay for this job**, their own amount, notes, date and the person who set it. The job list also shows their amount. Operations sees each amount and the total for the current crew. Team Leads supervising sites do not receive crew pay values. The API filters payment fields and payment history for every list, single-job and mutation response, not just in the interface.
 - New jobs require pay set for every assigned installer before submission. Starting a new work visit requires that installer's agreed rate; finishing an existing visit is not blocked by a missing old rate. Assigning a new installer requires setting their rate. Old completed records are not given invented prices.
 - Changes are saved online with per-field version checks, request IDs and amount history. Completed jobs are read-only. An agreed amount is not a payment transaction or confirmation of payment, and does not change the customer quote or automatically post to payroll/accounting. The training demo's UGX 350,000 is an example only.
 
 ## Installer payment record and balance (v105)
 
 - Operations/admin selects **Record payment** next to the installer. Enter money already paid, the payment date, method (mobile money, cash or bank), reference and optional note. Mobile money and bank payments require a reference. The balance is the agreed amount minus active payment entries. Partial payments are supported.
-- An installer sees only their own agreed pay, paid total, amount left and payment entries. Operations sees records for current and previously assigned installers. Supervisors cannot access payment values, references or correction notes. Records and cached copies come from the same role-filtered API projections as agreed rates.
+- An installer sees only their own agreed pay, paid total, amount left and payment entries. Operations sees records for current and previously assigned installers. Team Leads supervising sites cannot access crew payment values, references or correction notes. Records and cached copies come from the same role-filtered API projections as agreed rates.
 - Payment recording stays available after a job is completed, since payment may happen later. Entries are online-only, use stable request IDs, and share the rate-version check to prevent conflicting payment/rate updates. An entry cannot exceed the balance; an agreed rate cannot be lowered below recorded payments. Duplicate active references for the same installer/method/job are rejected.
 - Use **Correct this entry** only for an entry recorded by mistake. A reason is required. The correction cancels that entry in the total but keeps the original payment and correction visible. It does not reverse a bank/mobile-money transfer or initiate a refund. Record the correct amount as a new entry if needed.
 - The job record does not initiate transfers or automatically post to cash flow/accounting. The demo includes an explicitly fictional UGX 100,000 cash payment against UGX 350,000 agreed pay, leaving UGX 250,000.

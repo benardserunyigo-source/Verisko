@@ -145,10 +145,10 @@ test("a device can't add, change or clear an account's PIN phone", () => {
 
 test('installer roles can use phone invites without inheriting sales or admin permissions',()=>{
  assert.equal(canInviteRole('operations','installer'),true);
- assert.equal(canInviteRole('admin','supervisor'),true);
+ assert.equal(canInviteRole('admin','supervisor'),false);
  assert.equal(canInviteRole('teamlead','installer'),false);
  assert.equal(canInviteRole('installer','sales'),false);
  const person={id:'installer-1',name:'Installer',email:'256700000000@staff.verisko',authMethod:'pin',role:'installer'};
  assert.equal(protectPinUsers([person],[person])[0].role,'installer');
- assert.equal(protectPinUsers([person],[{...person,role:'supervisor'}])[0].role,'supervisor');
+ assert.equal(protectPinUsers([person],[{...person,role:'supervisor'}])[0].role,'installer');
 });

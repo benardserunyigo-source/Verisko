@@ -38,7 +38,7 @@ const DATA_STORE = "verisko-sales";
 const DATA_KEY = "app-data";
 const MAX_IMAGE = 1500000;
 const WRONG = "That phone number and PIN don't match.";
-const ROLE_LABEL = { sales: "Sales", teamlead: "Team lead", operations: "Operations", installer: "Installer", supervisor: "Supervisor" };
+const ROLE_LABEL = { sales: "Sales", teamlead: "Team lead", operations: "Operations", installer: "Installer" };
 const isImage = (v) => /^data:image\/(jpeg|png|webp);base64,/.test(String(v || ""));
 
 export function createAuthHandler({storeFor=getStore,identifyRequest=identify,clock=Date.now}={}){return async (request) => {
@@ -208,7 +208,7 @@ export function createAuthHandler({storeFor=getStore,identifyRequest=identify,cl
       if (!["admin", "operations", "teamlead"].includes(me.role)) return reply({ ok: false, error: "forbidden" }, 403);
       const phone = normalizePhone(body.phone);
       const role = body.role || "sales";
-      if(!["sales","teamlead","operations","installer","supervisor"].includes(role))return reply({ok:false,error:"This role cannot be granted through staff invites."},403);
+      if(!["sales","teamlead","operations","installer"].includes(role))return reply({ok:false,error:"This role cannot be granted through staff invites."},403);
       if (!phone) return reply({ ok: false, error: "Enter their WhatsApp number, e.g. 0772 123 456." }, 400);
       if (!canInviteRole(me.role, role)) return reply({ ok: false, error: me.role === "teamlead" ? "Team leads can invite Sales only." : "Only the Owner can invite someone as Operations." }, 403);
       if ((data.users || []).some((u) => String(u.email || "").toLowerCase() === phoneEmail(phone))) return reply({ ok: false, error: "That phone number is already on the team." }, 409);
@@ -255,7 +255,7 @@ export function createAuthHandler({storeFor=getStore,identifyRequest=identify,cl
       const r = await staff.get("staff/" + id, { type: "json" });
       if (!r || r.status !== "pending") return reply({ ok: false, error: "This sign-up was already handled." }, 409);
       const role = body.role || "sales";
-      if(!["sales","teamlead","operations","installer","supervisor"].includes(role))return reply({ok:false,error:"This role cannot be granted through staff invites."},403);
+      if(!["sales","teamlead","operations","installer"].includes(role))return reply({ok:false,error:"This role cannot be granted through staff invites."},403);
       if (!canInviteRole(me.role,role)) return reply({ ok: false, error: "Only Admin can approve that role." }, 403);
       const fresh = await loadData();
       const users = Array.isArray(fresh.users) ? fresh.users : [];

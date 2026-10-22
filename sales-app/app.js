@@ -450,21 +450,21 @@
   }
 
   var installerModule=null;
-  function installationRole(){return settings.user&&['installer','supervisor'].includes(settings.user.role);}
-  function canInstallWork(){return settings.user&&['admin','operations','teamlead','supervisor','installer'].includes(settings.user.role);}
+  function installationRole(){return settings.user&&['installer'].includes(settings.user.role);}
+  function canInstallWork(){return settings.user&&['admin','operations','teamlead','installer'].includes(settings.user.role);}
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=110');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=111');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=110');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=111');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
   }
   var installationAlerts={pendingIds:[],corrections:0,submitted:0},installationAlertUser='',installationAlertAt=0,installationAlertBusy=false,installationAlertKnown=false;
   function installationAlertHtml(){return '<section class="card iw-card" id="installationAlerts"><h2>Installer reviews</h2><p>'+installationAlerts.pendingIds.length+' need a decision · '+installationAlerts.corrections+' need correction · '+installationAlerts.submitted+' ready for review</p><button type="button" class="btn btn-ghost" data-installation-work>Open installer work</button></section>';}
   async function refreshInstallationAlerts(){
-    var user=settings.user;if(!user||!settings.auth||!['admin','operations','teamlead','supervisor'].includes(user.role)||document.hidden||installationAlertBusy)return;
+    var user=settings.user;if(!user||!settings.auth||!['admin','operations','teamlead'].includes(user.role)||document.hidden||installationAlertBusy)return;
     if(installationAlertUser!==user.id){installationAlertUser=user.id;installationAlertAt=0;installationAlertKnown=false;installationAlerts={pendingIds:[],corrections:0,submitted:0};}
     if(Date.now()-installationAlertAt<25000)return;installationAlertAt=Date.now();installationAlertBusy=true;
     try{var request=function(){return fetch('/api/installer?summary=1',{headers:{Authorization:'Bearer '+settings.auth.access_token}});};var res=await request();if(res.status===401&&await refreshSession())res=await request();if(!res.ok)return;var next=await res.json();if(!settings.user||settings.user.id!==user.id)return;
@@ -530,7 +530,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=110'), import('./field-shifts-ui.mjs?v=110'), import('./field-shifts-android.mjs?v=110')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=111'), import('./field-shifts-ui.mjs?v=111'), import('./field-shifts-android.mjs?v=111')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -1305,7 +1305,7 @@
     // are managed by the Owner in Settings, not shown here.
     var users = (state.users || []).filter(function (u) { return u.id !== ownerId() && u.role !== "admin"; });
     var manageableRoleOpts = function (sel) {
-      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"], ["installer", "Installer"], ["supervisor", "Supervisor"]].filter(function(o){return isAdmin()||["sales","teamlead","installer"].indexOf(o[0])>=0;}).map(function (o) {
+      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"], ["installer", "Installer"]].filter(function(o){return isAdmin()||["sales","teamlead","installer"].indexOf(o[0])>=0;}).map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === normRole(sel) ? " selected" : "") + ">" + o[1] + "</option>";
       }).join("");
     };
@@ -1321,7 +1321,7 @@
         (actions ? '<span class="row-actions">' + actions + "</span>" : "") + "</div>";
     }).join("");
     return signupsCard() + '<section class="card settings-card"><h2>Manage the team</h2>' +
-      "<p>Operations can manage Sales, Team leads and Installers. Admin manages Operations, Supervisors and Admin access. Removed accounts lose online access.</p>" +
+      "<p>Operations can manage Sales, Team leads and Installers. Admin manages Operations and Admin access. Removed accounts lose online access.</p>" +
       (users.length ? '<div class="account-list">' + rows + "</div>" : '<p class="settings-note">No sales or operations members yet — add the first one below.</p>') +
       phoneMemberForm() +
       (isAdmin()?'<details class="email-member-option"><summary>Add by email instead</summary><form id="addMemberForm" class="add-member">' +
@@ -2673,7 +2673,7 @@
     var me = settings.user || {};
     var ownId = ownerId();
     var roleOpts = function (sel) {
-      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"], ["installer", "Installer"], ["supervisor", "Supervisor"], ["admin", "Admin"]].map(function (o) {
+      return [["sales", "Sales"], ["teamlead", "Team lead"], ["operations", "Operations"], ["installer", "Installer"], ["admin", "Admin"]].map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === sel ? " selected" : "") + ">" + o[1] + "</option>";
       }).join("");
     };
@@ -2691,7 +2691,7 @@
         '<span class="who"><strong>' + esc(u.name) + " · " + esc(roleName(u)) + "</strong><span>" + esc(contactOf(u)) + "</span></span>" +
         (actions ? '<span class="row-actions">' + actions + "</span>" : "") + "</div>";
     }).join("") + "</div>" : '<p class="settings-note">No accounts yet.</p>';
-    content.innerHTML = '<div class="settings-grid"><section class="card settings-card"><h2>Preview a team role</h2><p>See the Sales, Team Lead, Operations, Installer and Supervisor screens with sample records. Your Admin account stays signed in.</p><button type="button" class="btn btn-primary" data-role-preview>Preview a team role</button></section>' + signupsCard() + pinSignInCard() +
+    content.innerHTML = '<div class="settings-grid"><section class="card settings-card"><h2>Preview a team role</h2><p>See the Sales, Team Lead, Operations and Installer screens with sample records. Your Admin account stays signed in.</p><button type="button" class="btn btn-primary" data-role-preview>Preview a team role</button></section>' + signupsCard() + pinSignInCard() +
       '<section class="card settings-card"><h2>Team members</h2>' +
       "<p><strong>Sales</strong> see only their own prospects and visits. <strong>Team leads</strong> see every rep's prospects, approve qualified ones and record client deposits. <strong>Operations</strong> also get the Cash flow tab. <strong>Technical</strong> can also open this Settings page. Removing someone revokes access immediately.</p>" +
       teamRows +
@@ -4158,7 +4158,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v110";
+  var APP_VERSION = "v111";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4344,7 +4344,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=110");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=111");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }
@@ -4441,18 +4441,16 @@
   function ownerId() { return (state.users && state.users[0]) ? state.users[0].id : null; }
   function roleName(u) {
     if(u.role==="installer")return "Installer";
-    if(u.role==="supervisor")return "Supervisor";
     if (u.id === ownerId()) return "Owner";
     if (u.role === "admin") return "Admin";
     if (u.role === "operations") return "Operations";
     if (u.role === "teamlead") return "Team lead";
     if (u.role === "installer") return "Installer";
-    if (u.role === "supervisor") return "Supervisor";
     return "Sales";
   }
 
   // Normalise a role input to one of: admin (Technical), operations, teamlead, sales.
-  function normRole(role) { return ["admin","operations","teamlead","installer","supervisor"].includes(role)?role:"sales"; }
+  function normRole(role) { return ["admin","operations","teamlead","installer"].includes(role)?role:"sales"; }
 
   // Who may manage the roster: admins (everyone) and Operations (non-admins only).
   // Operations can never touch the Owner, Technical accounts, or their own row,
@@ -4466,7 +4464,7 @@
   }
 
   function staffInviteRoles() {
-    return (settings.user||{}).role==='teamlead' ? [['sales','Sales']] : [['sales','Sales'],['teamlead','Team lead'],['installer','Installer']].concat(isAdmin()?[['operations','Operations'],['supervisor','Supervisor']]:[]);
+    return (settings.user||{}).role==='teamlead' ? [['sales','Sales']] : [['sales','Sales'],['teamlead','Team lead'],['installer','Installer']].concat(isAdmin()?[['operations','Operations']]:[]);
   }
   function phoneMemberForm() {
     return '<form id="addPhoneMemberForm" class="add-member">'+

@@ -1,5 +1,5 @@
 // Server-side role policy. Identity comes from the current roster, never a client claim.
-export const ROLES=['admin','operations','teamlead','sales','installer','supervisor'];
+export const ROLES=['admin','operations','teamlead','sales','installer'];
 export const managedRoles=['sales','teamlead','installer'];
 export const canManageMember=(actor,target,ownerId)=>!!actor&&!!target&&target.id!==ownerId&&target.id!==actor.id&&(actor.role==='admin'||actor.role==='operations'&&managedRoles.includes(target.role));
 export const canAssignRole=(actor,role)=>actor?.role==='admin'?ROLES.includes(role):actor?.role==='operations'&&managedRoles.includes(role);

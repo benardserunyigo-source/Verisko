@@ -3,11 +3,11 @@ export {materialBalance,materialProblems,stockManager,UNITS,initialMaterials} fr
 // Shared installation workflow. Server applies commands, never client snapshots.
 export const TESTS=['live','recording','playback','coverage','remote'];
 export const PARTS=['cable','mount','tests'];
-export const manager=u=>['admin','operations','teamlead','supervisor'].includes(u?.role);
+export const manager=u=>['admin','operations','teamlead'].includes(u?.role);
 export const allowed=u=>manager(u)||u?.role==='installer';
 // Site supervision is a job duty. Operations, Team Leads and Admin keep their normal role.
-export const canSuperviseSite=u=>['admin','operations','teamlead','supervisor'].includes(u?.role);
-export const canRead=(j,u)=>['admin','operations'].includes(u?.role)||(['teamlead','supervisor'].includes(u?.role)&&(j.supervisorIds||[]).includes(u.id))||(u?.role==='installer'&&j.assignees.includes(u.id));
+export const canSuperviseSite=u=>['admin','operations','teamlead'].includes(u?.role);
+export const canRead=(j,u)=>['admin','operations'].includes(u?.role)||(['teamlead'].includes(u?.role)&&(j.supervisorIds||[]).includes(u.id))||(u?.role==='installer'&&j.assignees.includes(u.id));
 export const reasons=['Obstruction','Damaged cable','Insufficient cable length','Changed route','Other'];
 export const JOB_NEEDS=['Outside view','Inside view','Gate view','Parking view','Video recording','Phone viewing'];
 export const MATERIALS=['4K bullet camera','4K dome camera','PTZ camera','NVR','Hard drive','Cat6 cable (metres)','RJ45 plug','Cable trunking (metres)','Junction box','Wall plugs and screws','UPS'];
@@ -64,7 +64,7 @@ export function createJob(input,user,now,staff=[]){
  if(locations.some(x=>/^Camera \d+ · name location$/.test(x)))throw fail('Replace each placeholder with the actual camera location.');
  if(!locations.length||locations.length>64)throw fail('Name between 1 and 64 camera locations.');
  const supervisorIds=Array.isArray(input.supervisorIds)?[...new Set(input.supervisorIds)]:[];
- if(supervisorIds.some(id=>!staff.some(u=>u.id===id&&canSuperviseSite(u))))throw fail('Choose Operations, a Team Lead, Admin or a Supervisor for this site.');
+ if(supervisorIds.some(id=>!staff.some(u=>u.id===id&&canSuperviseSite(u))))throw fail('Choose Operations, a Team Lead or Admin for this site.');
  const assignees=Array.isArray(input.assignees)?[...new Set(input.assignees)]:[];
  if(!assignees.length||assignees.some(id=>!staff.some(u=>u.id===id&&u.role==='installer')))throw fail('Assign at least one Installer account.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(input.scheduledDate||''))throw fail('Choose a scheduled date.');

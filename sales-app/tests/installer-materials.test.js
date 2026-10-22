@@ -35,7 +35,7 @@ test('damaged returns never enter good stock, and missing items need Operations 
 });
 test('only Operations sends and receives; assigned installer reports use; stale reports conflict',()=>{
  const j=issued(),id=j.materials.items[0].id;j.supervisorIds=['supervisor'];
- for(const user of [crew,{id:'supervisor',role:'supervisor'}])assert.throws(()=>cmd(j,'materialReceive',{itemId:id,good:0,damaged:0},user),/Only Operations/);
+ for(const user of [crew,{id:'supervisor',role:'teamlead'}])assert.throws(()=>cmd(j,'materialReceive',{itemId:id,good:0,damaged:0},user),/Only Operations/);
  assert.throws(()=>cmd(j,'materialReport',{itemId:id,used:1,damaged:0,missing:0},ops),/assigned installer/);
  assert.throws(()=>cmd(j,'materialReport',{itemId:id,used:1,damaged:0,missing:0},other),/not assigned/);
  assert.throws(()=>cmd(j,'materialReport',{itemId:id,used:1,damaged:0,missing:0},crew,{baseVersion:0}),e=>e.status===409);
