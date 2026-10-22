@@ -17,10 +17,11 @@ export function createAndroidShiftTracker({api,bridge,credentials,personId,onCha
   if(state.shift?.id===native.shiftId&&!state.sharing&&native.status&&native.status!=='active'&&(!freshServer||native.pendingAction))state.shift={...state.shift,status:native.status};
   if(native.tracking&&!native.serviceRunning)state.error='Android tracking was interrupted. Tap Continue sharing to restart it.';
  }
- async function refresh(){
+ async function refresh(forceSync=false){
   if(disposed)return;
   try{
    let native=await rpc('status',{userId:personId}),freshServer=false;
+   if(forceSync&&native.sameUser&&native.pending){const auth=credentials(),payload={userId:personId};if(auth.kind==='pin'&&auth.expires_at*1000>Date.now())Object.assign(payload,{token:auth.access_token,expiresAt:auth.expires_at*1000});native=await rpc('sync',payload);}
    try{const response=await api('GET');if(disposed)return;state.shift=response.shift;state.team=response.team||[];state.ready=true;state.error='';freshServer=true;
     if(native.tracking&&response.shift&&(response.shift.id!==native.shiftId||response.shift.status!=='active'||response.shift.segments.at(-1)?.id!==native.segmentId))native=await rpc('local-stop',{userId:personId});
    }
@@ -31,7 +32,7 @@ export function createAndroidShiftTracker({api,bridge,credentials,personId,onCha
  return {
   native:true,snapshot,
   async init(){await refresh();if(!disposed)poll=timers.setInterval(refresh,30000);},
-  refresh,
+  refresh:()=>refresh(true),
   async begin(action,area=''){
    if(state.busy||state.pending||disposed)return;state.busy=true;state.error='Starting Android tracking…';emit();
    try{const auth=credentials();if(auth.kind!=='pin')throw new Error('Use phone number and PIN sign-in for Android field tracking.');await rpc('begin',{userId:personId,token:auth.access_token,expiresAt:auth.expires_at*1000,shiftAction:action,shiftId:state.shift?.id||'',area,consent:true});await refresh();}

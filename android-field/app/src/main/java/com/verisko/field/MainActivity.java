@@ -43,6 +43,7 @@ public final class MainActivity extends Activity {
     }
     if("sync".equals(action)){
      if(!store.status(request.optString("userId")).optBoolean("sameUser"))throw new Exception("This shift belongs to another account.");
+     if(!request.optString("token").isEmpty()&&request.optLong("expiresAt")>System.currentTimeMillis())store.update(saved->{saved.put("token",request.getString("token"));saved.put("expiresAt",request.getLong("expiresAt"));});
      SyncEngine.WORKER.execute(()->{SyncEngine.flush(this);handler.post(()->{try{reply(reply,request,store.status(request.optString("userId")),null);}catch(Exception e){reply(reply,request,null,"Could not read shift status.");}});});return;
     }
     throw new Exception("Unsupported native request.");
