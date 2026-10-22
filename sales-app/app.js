@@ -453,10 +453,10 @@
   function canInstallWork(){return settings.user&&['admin','operations','teamlead','installer'].includes(settings.user.role);}
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=115');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=116');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=115');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=116');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
   }
@@ -532,7 +532,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=115'), import('./field-shifts-ui.mjs?v=115'), import('./field-shifts-android.mjs?v=115')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=116'), import('./field-shifts-ui.mjs?v=116'), import('./field-shifts-android.mjs?v=116')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -1028,7 +1028,7 @@
     var a = state.appointments.find(function (x) { return x.id === id; });
     if (!a || !canReviewProspects()) return;
     var p = prospect(a.prospectId);
-    confirmSheet("Customer confirmed by phone?", "Only tap Confirm if you called " + (p.contact || p.business || "the customer") + " from the office line and they said they expect our team. This counts toward the rep's Monday float.", "Confirm").then(function (ok) {
+    confirmSheet("Customer confirmed by phone?", "Only tap Confirm if you called " + (p.contact || p.business || "the customer") + " from the office line and they said they expect our team. This confirms the booking. Visit pay and the weekly bonus count only after the site visit happens.", "Confirm").then(function (ok) {
       if (!ok) return;
       a.callConfirmedAt = nowIso(); a.callConfirmedBy = (settings.user && settings.user.name) || ""; a.callConfirmedByEmail = ((settings.user && settings.user.email) || "").toLowerCase();
       saveData("Booking confirmed by phone");
@@ -1039,14 +1039,14 @@
     var a = state.appointments.find(function (x) { return x.id === id; });
     if (!a || !canReviewProspects()) return;
     var p = prospect(a.prospectId);
-    openSheet({ title: "Site visit at " + (p.business || "this site"), body: "Choose the first one if you were on site and the client let you look around to prepare a quote, whatever they decide. It pays the rep " + money(payOpts().perVisit) + " on Saturday.",
+    openSheet({ title: "Site visit at " + (p.business || "this site"), body: "Choose the first one if you were on site and the client let you look around to prepare a quote, whatever they decide. It pays the rep " + money(window.VeriskoSalesPay.active()?window.VeriskoSalesPay.POLICY.perVisit:payOpts().perVisit) + (window.VeriskoSalesPay.active()?" on Monday.":" on Saturday."),
       choices: [VISIT_DONE_LABEL, VISIT_FAILED_LABEL], requireChoice: true, confirmLabel: "Save" }).then(function (r) {
       if (!r) return;
       var stamp = function (result, reason, note) {
         a.visitResult = result; a.visitResultAt = nowIso(); a.visitResultBy = (settings.user && settings.user.name) || "";
         a.visitResultByEmail = ((settings.user && settings.user.email) || "").toLowerCase(); a.visitResultReason = reason || ""; a.visitResultNote = note || "";
         if (a.status !== "Cancelled") a.status = "Completed";
-        saveData(result === "real" ? "Visit done — the rep earns " + money(payOpts().perVisit) : "Marked: visit didn't happen");
+        saveData(result === "real" ? "Visit done — the rep earns " + money(window.VeriskoSalesPay.active()?window.VeriskoSalesPay.POLICY.perVisit:payOpts().perVisit) : "Marked: visit didn't happen");
         render();
       };
       if (r.choice === VISIT_DONE_LABEL) { stamp("real"); return; }
@@ -1119,8 +1119,22 @@
     return '<div class="metric-tile"><div class="metric-num">' + n + '</div><div class="metric-label">' + esc(label) + "</div></div>";
   }
   function renderDashboard() {
+    if(window.VeriskoSalesPay.active())return renderCurrentSalesPay();
     if (canReviewProspects() || isTeamLead()) return renderSalesConsole();  // Team lead/Operations/admins
     renderMyDashboard();                                    // Sales
+  }
+
+  function renderCurrentSalesPay(){
+    var P=window.VeriskoSalesPay,policy=P.POLICY,week=P.period(Date.now(),commWeekShift),office=canReviewProspects()||isTeamLead(),email=office?undefined:(settings.user.email||'').toLowerCase();
+    if(week.start<new Date(policy.effectiveFrom+'T00:00:00+03:00')){commWeekShift=0;week=P.period();}
+    var result=P.calculate(state,week,email),C=window.VeriskoCommission;
+    setHead('Monday pay',office?'Sales pay':'My pay','Completed visits, weekly bonus and confirmed client payments.','',false);
+    var label=function(d){return d.toLocaleDateString('en-GB',{timeZone:'Africa/Kampala',day:'numeric',month:'short'});};
+    var previous=P.period(Date.now(),commWeekShift-1).start>=new Date(policy.effectiveFrom+'T00:00:00+03:00');
+    var html='<section class="card"><div class="iw-row"><button type="button" class="btn btn-ghost btn-sm" data-pay-week="-1"'+(!previous?' hidden':'')+'>Previous week</button><strong>'+label(week.start)+' – '+label(new Date(week.end.getTime()-1))+'</strong><button type="button" class="btn btn-ghost btn-sm" data-pay-week="1"'+(commWeekShift>=0?' hidden':'')+'>Next week</button></div><p class="helper">Payday: Monday '+label(week.payday)+'. Uganda time.</p><p class="dash-big">'+money(result.total)+'</p><p class="helper">Earnings recorded so far. This is not confirmation that money has been sent.</p></section><section class="card current-pay-rules"><h2>The three pay amounts</h2><dl><div><dt>Each completed client visit</dt><dd>'+money(policy.perVisit)+'</dd></div><div><dt>Bonus at 3 completed visits in the week</dt><dd>'+money(policy.weeklyBonus)+'</dd></div><div><dt>Client’s first confirmed payment</dt><dd>'+money(policy.perDeposit)+'</dd></div></dl><p class="helper">Paid every Monday. Fewer than 3 visits: no weekly bonus. Three visits earn UGX 95,000 before payment commissions. Each client counts once for a completed visit and once for their first approved payment.</p></section><div class="list">';
+    html+=result.reps.map(function(r){return '<article class="card"><h2>'+esc(office?r.name:'Your breakdown')+'</h2><div class="item-line"><span>Completed client visits · '+r.visits.length+'</span><strong>'+money(r.visitAmount)+'</strong></div><div class="item-line"><span>Weekly bonus</span><strong>'+money(r.bonusAmount)+'</strong></div><div class="item-line"><span>First client payments · '+r.deposits.length+'</span><strong>'+money(r.depositAmount)+'</strong></div><div class="item-line pay-total"><span>Total earned</span><strong>'+money(r.total)+'</strong></div><p class="helper">'+(r.visitsNeeded?r.visitsNeeded+' more completed client visit'+(r.visitsNeeded===1?'':'s')+' needed for the weekly bonus.':'Weekly visit target reached.')+'</p><details class="pay-evidence"><summary>What earned this pay?</summary>'+(r.visits.map(v=>'<p>Visit: '+esc(v.business)+'</p>').join('')||'<p>No qualifying completed visits yet.</p>')+r.deposits.map(v=>'<p>First payment confirmed: '+esc(v.business)+'</p>').join('')+'</details></article>';}).join('');
+    html+='</div><details class="card pay-history-note"><summary>Earlier pay history</summary><p>This policy starts on 19 October 2026. Earlier records keep the previous rules. Operations must reconcile any earlier unpaid earnings before the first Monday payout. No payout record is created by this screen.</p></details>';
+    content.innerHTML='<div class="stack">'+html+'</div>';
   }
 
   // Commission is paid weekly, every Saturday at 12:00 noon Kampala time
@@ -2592,7 +2606,7 @@
     }
     var who = canApproveQual() ? "lead" : "sales";
     var faq = S.faq(Object.assign({ who: who, perQualified: money(commissionPerQualified()), perDeposit: money(commissionRate()) },
-      scheme4() ? { perVisit: money(payOpts().perVisit), floatAmount: money(payOpts().floatAmount), floatMinBookings: payOpts().floatMinBookings } : {}));
+      scheme4() ? { perVisit: money(window.VeriskoSalesPay.active()?window.VeriskoSalesPay.POLICY.perVisit:payOpts().perVisit), floatAmount: money(payOpts().floatAmount), floatMinBookings: payOpts().floatMinBookings } : {}));
     var help = '<section class="card settings-card"><h2>Quick help</h2>' + faq.map(function (x) {
       return '<details class="help-item"><summary>' + esc(x.q) + "</summary><p>" + esc(x.a) + "</p></details>";
     }).join("") + '<p class="settings-note" style="margin-top:12px">Still stuck? Write your question down and bring it to your immediate supervisor.</p></section>';
@@ -2775,7 +2789,7 @@
   function lastArea() { try { return localStorage.getItem("verisko_last_area") || ""; } catch (e) { return ""; } }
   function quickBookingHtml() {
     var B = window.VeriskoBooking;
-    return '<p class="helper full" style="grid-column:1/-1;margin:0 0 4px">Book a visit only for an owner who wants our team to come and look. You earn ' + money(payOpts().perVisit) + " when our team visits.</p>" +
+    return '<p class="helper full" style="grid-column:1/-1;margin:0 0 4px">Book a visit only for an owner who wants our team to come and look. You earn ' + money(window.VeriskoSalesPay.active()?window.VeriskoSalesPay.POLICY.perVisit:payOpts().perVisit) + " when our team visits.</p>" +
       field("business", "Business or home name", "text", "", { required: true, full: true, placeholder: "e.g. Samaries Boutique" }) +
       field("contact", "Owner's name", "text", "", { required: true, full: true, placeholder: "The person you talked to" }) +
       field("decides", "Is this the person who decides?", "segmented", "", { full: true, options: B.DECIDES.slice(0, 2).map(function (v) { return { value: v, label: v === B.DECIDES[0] ? "Yes" : "Decides with someone" }; }).concat([{ value: B.DECIDES[2], label: "No" }]) }) +
@@ -2829,7 +2843,7 @@
     state.appointments.push(Object.assign({ id: uid(), prospectId: pid, created: today, createdBy: me.name || "" }, v));
     try { localStorage.setItem("verisko_last_area", data.area || ""); } catch (e) {}
     hideFormError(); dialog.close();
-    saveData("Booked ✓ The office will call " + p.contact + " to confirm. You earn " + money(payOpts().perVisit) + " when our team visits.");
+    saveData("Booked ✓ The office will call " + p.contact + " to confirm. You earn " + money(window.VeriskoSalesPay.active()?window.VeriskoSalesPay.POLICY.perVisit:payOpts().perVisit) + " when our team visits.");
     render();
   }
 
@@ -4180,7 +4194,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v115";
+  var APP_VERSION = "v116";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4366,7 +4380,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=115");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=116");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }
@@ -4960,6 +4974,7 @@
   });
 
   content.addEventListener("click", function (e) {
+    var payWeekButton=e.target.closest('[data-pay-week]');if(payWeekButton){commWeekShift+=Number(payWeekButton.dataset.payWeek);render();return;}
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if(e.target.closest('[data-installation-work]')){e.stopPropagation();view='installwork';render();return;}
     var summaryOwner=e.target.closest('[data-lead-summary-owner]');
