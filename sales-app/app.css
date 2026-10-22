@@ -826,3 +826,5 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 /* Contact ownership and follow-up dates stay visible without expanding Details. */
 .lead-contact-summary{margin-top:12px;padding-top:12px;border-top:1px solid var(--fill);display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:1.5}
 .lead-contact-summary .k{min-width:108px}.lead-contact-summary .v{min-width:0;overflow-wrap:anywhere}
+
+.lead-toolbar{flex-wrap:wrap}.lead-toolbar .search{flex:1 1 250px}.lead-filter-row{display:flex;flex:1 1 500px;flex-wrap:wrap;gap:10px}.lead-filter-row .field-inline{flex:1 1 145px;min-width:0}

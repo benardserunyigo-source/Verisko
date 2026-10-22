@@ -200,7 +200,7 @@ new device's shift. A killed service needs explicit Continue sharing.
 Build/JUnit/lint checks do not prove phone battery behaviour. Pilot on one actual
 team phone before rollout, following `android-field/README.md`.
 
-## Prospecting contacts and Operations readiness (v94)
+## Prospecting contacts and Operations readiness (v95)
 
 Today → Save a lead, or More → My leads on a phone, saves contacts, notes,
 status and next follow-up without booking a visit. No GPS or qualification
@@ -228,3 +228,9 @@ Next follow-up without opening Details. Missing follow-ups/dates are explicit,
 and overdue dates are labelled. Latest follow-up is selected by its recorded
 timestamp, so a delayed older upload cannot replace a newer conversation.
 Follow-up timestamps on these summaries use Africa/Kampala time.
+
+Operations can combine Salesperson and Follow-ups filters (Due today, Overdue,
+Upcoming or Not scheduled) with search and the existing contact scope. These
+selections survive automatic refresh, reset on account changes and can be cleared
+without editing contact records. Due-date classification uses the current date
+in Africa/Kampala, including when midnight passes while the app stays open.

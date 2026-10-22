@@ -495,7 +495,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=94'), import('./field-shifts-ui.mjs?v=94'), import('./field-shifts-android.mjs?v=94')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=95'), import('./field-shifts-ui.mjs?v=95'), import('./field-shifts-android.mjs?v=95')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -612,36 +612,42 @@
   function visitAction(a) { return handoffCard(a); }
   /* ------------------------------- PROSPECTS --------------------------------- */
   /* Saved contacts stay separate from visit-ready prospects, without re-entry. */
-  var leadListMode = '', leadViewer = '';
+  var leadListMode = '', leadViewer = '', leadOwnerFilter = '', leadDueFilter = '', leadQuery = '';
   function leadTools() { return window.VeriskoLeadPipeline; }
   function renderLeads() {
     var manager = canReviewProspects();
-    var viewer=(settings.user||{}).email;if(viewer!==leadViewer){leadViewer=viewer;leadListMode=manager?'all':'mine';}
+    var viewer=(settings.user||{}).email;if(viewer!==leadViewer){leadViewer=viewer;leadListMode=manager?'all':'mine';leadOwnerFilter='';leadDueFilter='';leadQuery='';}
     if (!leadListMode) leadListMode = manager ? 'all' : 'mine';
     setHead('Sales contacts', manager ? 'Prospecting contacts' : 'My leads', 'Operations can see saved contacts while Sales follows up. Send to Operations when ready for the next step. No visit is booked automatically.', 'Save a lead', true);
-    content.innerHTML = '<section class="card"><div class="toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Search leads"></div><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="mine">My saved leads</option><option value="sent">My sent handovers</option>'+(manager?'<option value="all">All prospecting contacts</option><option value="inbox">Ready for Operations</option>':'')+'</select></div></div><p class="helper">Operations sees saved contacts automatically in the prospecting stage. Send to Operations flags readiness; it does not book a visit or create visit pay.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
+    var ownerOptions={};
+    if(manager)(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&leadTools().canManage(p,settings.user);}).forEach(function(p){ownerOptions[leadTools().ownerKey(p)]=p.createdBy||((state.users||[]).find(function(u){return u.email&&String(u.email).toLowerCase()===String(p.createdByEmail||'').toLowerCase();})||{}).name||'Not recorded';});
+    if(leadOwnerFilter&&!ownerOptions[leadOwnerFilter])leadOwnerFilter='';
+    if(!manager){leadOwnerFilter='';leadDueFilter='';}
+    var operationsFilters=manager?'<div class="field-inline"><label for="leadOwnerFilter">Salesperson</label><select id="leadOwnerFilter"><option value="">All salespeople</option>'+Object.keys(ownerOptions).sort(function(a,b){return ownerOptions[a].localeCompare(ownerOptions[b]);}).map(function(key){return '<option value="'+esc(key)+'">'+esc(ownerOptions[key])+'</option>';}).join('')+'</select></div><div class="field-inline"><label for="leadDueFilter">Follow-ups</label><select id="leadDueFilter"><option value="">All follow-ups</option><option value="today">Due today</option><option value="overdue">Overdue</option><option value="upcoming">Upcoming</option><option value="unscheduled">Not scheduled</option></select></div>':'';
+    content.innerHTML = '<section class="card"><div class="toolbar lead-toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Search leads" value="'+esc(leadQuery)+'"></div><div class="filter-row lead-filter-row"><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="mine">My saved leads</option><option value="sent">My sent handovers</option>'+(manager?'<option value="all">All prospecting contacts</option><option value="inbox">Ready for Operations</option>':'')+'</select></div>'+operationsFilters+'</div></div>'+(manager?'<button class="btn btn-ghost btn-sm" data-reset-lead-filters>Clear filters</button>':'')+'<p class="helper">Operations sees saved contacts automatically in the prospecting stage. Send to Operations flags readiness; it does not book a visit or create visit pay.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
     document.getElementById('leadMode').value = leadListMode;
+    if(manager){document.getElementById('leadOwnerFilter').value=leadOwnerFilter;document.getElementById('leadDueFilter').value=leadDueFilter;}
     updateLeadGrid();
   }
   function updateLeadGrid() {
-    var L=leadTools(), me=settings.user||{}, search=(document.getElementById('leadSearch').value||'').toLowerCase();
+    var L=leadTools(), me=settings.user||{}, search=(document.getElementById('leadSearch').value||'').toLowerCase(), dueToday=L.kampalaDay();
     var rows=(state.prospects||[]).filter(function(p){
       if(!L.isLead(p))return false;
       var inList=leadListMode==='all'?L.canManage(p,me):leadListMode==='inbox'?L.routed(p,me):L.own(p,me)&&(leadListMode==='sent'?!!p.handoffAt:!p.handoffAt);
-      return inList&&[p.business,p.contact,p.phone,p.location,p.createdBy,p.notes,p.nextAction].join(' ').toLowerCase().indexOf(search)!==-1;
+      return inList&&L.matchesFilters(p,{owner:leadOwnerFilter,due:leadDueFilter,today:dueToday})&&[p.business,p.contact,p.phone,p.location,p.createdBy,p.notes,p.nextAction].join(' ').toLowerCase().indexOf(search)!==-1;
     }).sort(function(a,b){return (a.followUp||'9999').localeCompare(b.followUp||'9999');});
     document.getElementById('leadCount').textContent=rows.length+' '+(rows.length===1?'contact':'contacts');
     document.getElementById('leadGrid').innerHTML=rows.length?rows.map(function(p){
-      var mine=L.own(p,me), receive=L.canManage(p,me);
-      return xCard({key:'l:'+p.id,cls:isOverdue(p.followUp)?'tone-amber':'tone-navy',title:esc(p.business),chip:chip(p.handoffAt?'Ready for Operations':'Prospecting',p.handoffAt?'cyan':'grey'),meta:esc([p.contact,p.location].filter(Boolean).join(' · ')),
-       next:{tone:isOverdue(p.followUp)?'amber':'muted',text:(p.followUp?'Follow up '+dateLabel(p.followUp)+' · ':'')+(p.nextAction||'Plan your next conversation')},
+      var mine=L.own(p,me), receive=L.canManage(p,me), overdue=L.followUpBucket(p,dueToday)==='overdue';
+      return xCard({key:'l:'+p.id,cls:overdue?'tone-amber':'tone-navy',title:esc(p.business),chip:chip(p.handoffAt?'Ready for Operations':'Prospecting',p.handoffAt?'cyan':'grey'),meta:esc([p.contact,p.location].filter(Boolean).join(' · ')),
+       next:{tone:overdue?'amber':'muted',text:(p.followUp?'Follow up '+dateLabel(p.followUp)+' · ':'')+(p.nextAction||'Plan your next conversation')},
        summary:leadContactSummary(p),
        quick:callBtn(p.phone)+'<button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button>',
        lines:line('Contact status',esc(p.leadStatus||'New contact'))+line('Phone',esc(p.phone))+line('Notes',esc(p.notes||'No notes yet'))+(p.handoffAt?line('Handover',esc((p.handoffBy||p.createdBy||'Sales')+' · '+dateLabel(p.handoffAt.slice(0,10))))+line('Request',esc(p.handoffNote||'Contact is ready for the team to follow up')):'')+followUpSummaryLine(p),
        more:(mine?'<button class="btn btn-sm btn-ghost" data-edit-lead="'+esc(p.id)+'">Edit contact</button>':'')+
         ((mine&&!canReviewProspects())?'<button class="btn btn-sm btn-primary" data-lead-send="operations" data-lead-id="'+esc(p.id)+'">Send to Operations</button>':'')+
         (receive?'<button class="btn btn-sm btn-ghost" data-lead-convert="'+esc(p.id)+'">Move to Prospects</button>':'')});
-    }).join(''):'<p class="helper">'+(leadListMode==='inbox'?'No contacts flagged ready for Operations.':leadListMode==='all'?'Saved contacts will appear here automatically as Sales adds them.':'No contacts here yet. Tap Save a lead to keep someone for follow-up.')+'</p>';
+    }).join(''):'<p class="helper">'+((leadQuery||leadOwnerFilter||leadDueFilter)?'No contacts match these filters.':leadListMode==='inbox'?'No contacts flagged ready for Operations.':leadListMode==='all'?'Saved contacts will appear here automatically as Sales adds them.':'No contacts here yet. Tap Save a lead to keep someone for follow-up.')+'</p>';
   }
   function leadContactSummary(p) {
     var recordedBy=p.createdBy || ((state.users||[]).find(function(u){return u.email && String(u.email).toLowerCase()===String(p.createdByEmail||'').toLowerCase();})||{}).name || 'Not recorded';
@@ -651,8 +657,9 @@
       var note=last.note||last.outcome||'';
       lastText=time+(last.by?' · '+last.by:'')+(note?' — '+(note.length>160?note.slice(0,160)+'…':note):'');
     }
-    var due=p.followUp?dateLabel(p.followUp)+(isOverdue(p.followUp)?' · overdue':isToday(p.followUp)?' · due today':''):'Not scheduled';
-    return '<div class="lead-contact-summary">'+line('Added by',esc(recordedBy))+line('Last follow-up',esc(lastText))+line('Next follow-up', '<span'+(isOverdue(p.followUp)?' style="color:var(--red);font-weight:600"':'')+'>'+esc(due)+'</span>')+'</div>';
+    var dueStatus=leadTools().followUpBucket(p);
+    var due=dueStatus==='unscheduled'?'Not scheduled':dateLabel(p.followUp)+(dueStatus==='overdue'?' · overdue':dueStatus==='today'?' · due today':'');
+    return '<div class="lead-contact-summary">'+line('Added by',esc(recordedBy))+line('Last follow-up',esc(lastText))+line('Next follow-up', '<span'+(dueStatus==='overdue'?' style="color:var(--red);font-weight:600"':'')+'>'+esc(due)+'</span>')+'</div>';
   }
   function leadFormHtml(p) {
     return '<p class="helper full">Keep this contact for follow-up. No site visit, GPS pin or qualification answers are required.</p>'+
@@ -3702,7 +3709,7 @@
     var active=document.activeElement;
     return !!settings.auth&&canReviewProspects()&&!document.hidden&&!document.body.classList.contains('locked')&&
       (view==='leads'||view==='today')&&connection.state==='connected'&&!dialog.open&&!document.getElementById('askDialog').open&&
-      !(active&&active.matches('input,textarea,select,[contenteditable="true"]'));
+      !(active&&active.matches('input,textarea,[contenteditable="true"]'));
   }
   async function refreshOperationsContacts(){
     if(refreshingContacts||!canRefreshContacts())return;
@@ -4094,7 +4101,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v94";
+  var APP_VERSION = "v95";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4867,10 +4874,12 @@
   });
 
   content.addEventListener("input", function (e) {
-    if (e.target.id === "leadSearch") updateLeadGrid();
+    if (e.target.id === "leadSearch") { leadQuery=e.target.value; updateLeadGrid(); }
     if (e.target.id === "search") updateProspectGrid();
   });
   content.addEventListener("change", function (e) {
+    if (e.target.id === "leadOwnerFilter") { leadOwnerFilter=e.target.value; updateLeadGrid(); }
+    if (e.target.id === "leadDueFilter") { leadDueFilter=e.target.value; updateLeadGrid(); }
     if (e.target.id === "leadMode") { leadListMode=e.target.value; updateLeadGrid(); }
     if (e.target.id === "stageFilter") updateProspectGrid();
     if (e.target.id === "visitFilter") updateVisitList();
@@ -4880,6 +4889,7 @@
   });
 
   content.addEventListener("click", function (e) {
+    if(e.target.closest('[data-reset-lead-filters]')){leadOwnerFilter='';leadDueFilter='';leadQuery='';renderLeads();return;}
     if(e.target.closest('[data-open-leads]')){view='leads';leadListMode='all';leadViewer=(settings.user||{}).email;render();return;}
     var leadEdit=e.target.closest('[data-edit-lead]');if(leadEdit){openForm('prospect',leadEdit.dataset.editLead);return;}
     var leadSave=e.target.closest('[data-save-lead]');if(leadSave){openForm('prospect',null,'__lead__');return;}

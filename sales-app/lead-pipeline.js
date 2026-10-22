@@ -10,6 +10,19 @@
  function latestFollowUp(p){
   return (Array.isArray(p?.followUps)?p.followUps:[]).filter(f=>f&&Number.isFinite(Date.parse(f.at))).reduce((latest,f)=>!latest||Date.parse(f.at)>=Date.parse(latest.at)?f:latest,null);
  }
+ const ownerKey=p=>lc(p?.createdByEmail)||(p?.createdBy?'name:'+lc(p.createdBy):'unknown');
+ function kampalaDay(now=Date.now()){
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Kampala',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(now));
+  const part=type=>parts.find(p=>p.type===type).value;return part('year')+'-'+part('month')+'-'+part('day');
+ }
+ function followUpBucket(p,today=kampalaDay()){
+  const due=String(p?.followUp||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(due)||!Number.isFinite(Date.parse(due+'T12:00:00Z')))return 'unscheduled';
+  return due===today?'today':due<today?'overdue':'upcoming';
+ }
+ function matchesFilters(p,{owner='',due='',today=kampalaDay()}={}){
+  return (!owner||ownerKey(p)===owner)&&(!due||followUpBucket(p,today)===due);
+ }
  const phoneKey=v=>{let d=String(v||'').replace(/\D/g,'');return d.length>=9?d.slice(-9):'';};
  function check(data,records,id){
   if(String(data.business||'').trim().length<2)return 'Add the business or contact name.';
@@ -56,5 +69,5 @@
   if(appointments.some(a=>leads.has(a.prospectId))||jobs.some(j=>leads.has(j.prospectId)))throw new Error('Move the saved lead to Prospects before creating a visit or quote.');
   return out;
  }
- root.VeriskoLeadPipeline={latestFollowUp,isLead,own,routed,canSee,canManage,phoneKey,check,guard,STATUSES:['New contact','Following up','Not ready','Not interested']};
+ root.VeriskoLeadPipeline={ownerKey,kampalaDay,followUpBucket,matchesFilters,latestFollowUp,isLead,own,routed,canSee,canManage,phoneKey,check,guard,STATUSES:['New contact','Following up','Not ready','Not interested']};
 })(typeof window!=='undefined'?window:globalThis);
