@@ -35,7 +35,7 @@ The installation demo uses fictional records in the browser. Its role preview do
 
 Automated tests cover all six roles, forged writes, staff privilege escalation, photo access, hidden lead references, supervisor assignments, payment privacy and account/session boundaries. Browser checks use fictional Sales, Operations and Supervisor accounts. No real staff account is changed for testing.
 
-## Admin screen preview (v107)
+## Admin screen preview (v108)
 
 Admin can open **Account menu → Preview a team role**, or use the same button in **Settings**. Choose Sales, Operations or Installer. Select **Back to Admin** to return to the same account and page.
 
