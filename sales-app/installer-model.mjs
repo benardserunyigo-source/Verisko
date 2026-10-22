@@ -1,3 +1,5 @@
+import {initialMaterials,applyMaterialCommand,materialProblems,updateMaterialPlan} from './installer-materials.mjs';
+export {materialBalance,materialProblems,stockManager,UNITS,initialMaterials} from './installer-materials.mjs';
 // Shared installation workflow. Server applies commands, never client snapshots.
 export const TESTS=['live','recording','playback','coverage','remote'];
 export const PARTS=['cable','mount','tests'];
@@ -13,7 +15,7 @@ const requireText=(v,label)=>{const out=text(v);if(!out)throw fail(label+' is re
 const has=(j,id,kind,cameraId)=>j.evidence.some(e=>e.id===id&&e.kind===kind&&e.cameraId===(cameraId||''));
 const evidence=(j,ids,kind,cameraId)=>Array.isArray(ids)&&ids.length>0&&ids.every(id=>has(j,id,kind,cameraId));
 export function readiness(j){
- const missing=[];
+ const missing=materialProblems(j);
  if(!j.pilot?.confirmed||!j.pilot.cableMethods||!j.pilot.weather||!j.pilot.mounting||!j.pilot.approvalCover||!j.pilot.backup)missing.push('Operations must confirm the work rules and who can approve changes.');
  if(!j.evidence.some(e=>e.kind==='reference'))missing.push('Operations must add a photo showing good mounting and cable work.');
  if(j.workLogRequired&&(!j.siteStaff?.name||!j.siteStaff?.phone))missing.push('Operations must add the Verisko staff name and phone for this site.');
@@ -42,7 +44,7 @@ export function createJob(input,user,now,staff=[]){
  const assignees=Array.isArray(input.assignees)?[...new Set(input.assignees)]:[];
  if(!assignees.length||assignees.some(id=>!staff.some(u=>u.id===id&&u.role==='installer')))throw fail('Assign at least one Installer account.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(input.scheduledDate||''))throw fail('Choose a scheduled date.');
- return {id:input.id,sourceId:text(input.sourceId,100),business:requireText(input.business,'Customer'),siteStaff:{name:requireText(input.siteStaff?.name,'Verisko staff name'),phone:requireText(input.siteStaff?.phone,'Verisko staff phone')},workLogRequired:true,workLog:[],address:requireText(input.address,'Site address'),scope:requireText(input.scope,'Scope'),equipment:requireText(input.equipment,'Equipment list'),instructions:text(input.instructions),remoteIncluded:input.remoteIncluded===true,assignees,scheduledDate:input.scheduledDate,status:'In progress',createdAt:now,createdBy:user.id,updatedAt:now,pilot:{approvalCover:'Operations'},cameras:[...new Set(locations)].map((name,i)=>({id:'camera-'+(i+1),name,versions:{},corrections:{}})),exceptions:[],evidence:[],handover:{},versions:{},history:[],requests:[],metrics:[]};
+ return {id:input.id,sourceId:text(input.sourceId,100),business:requireText(input.business,'Customer'),siteStaff:{name:requireText(input.siteStaff?.name,'Verisko staff name'),phone:requireText(input.siteStaff?.phone,'Verisko staff phone')},workLogRequired:true,workLog:[],address:requireText(input.address,'Site address'),scope:requireText(input.scope,'Scope'),equipment:requireText(input.equipment,'Equipment list'),materials:initialMaterials(input.equipment),instructions:text(input.instructions),remoteIncluded:input.remoteIncluded===true,assignees,scheduledDate:input.scheduledDate,status:'In progress',createdAt:now,createdBy:user.id,updatedAt:now,pilot:{approvalCover:'Operations'},cameras:[...new Set(locations)].map((name,i)=>({id:'camera-'+(i+1),name,versions:{},corrections:{}})),exceptions:[],evidence:[],handover:{},versions:{},history:[],requests:[],metrics:[]};
 }
 export function applyCommand(previous,cmd,user,now){
  if(!canRead(previous,user))throw fail('This installation is not assigned to you.',403);
@@ -52,9 +54,11 @@ export function applyCommand(previous,cmd,user,now){
  const supervisorActions=['plan','pilot','decision','return','complete','metric'];
  if(supervisorActions.includes(cmd.action)&&!supervisor)throw fail('Supervisor access required.',403);
  if(j.status==='Completed'&&!['metric','workFinish'].includes(cmd.action))throw fail('Completed installation records are read-only.',409);
- if(j.status==='Submitted'&&!['return','complete','metric','decision','workFinish'].includes(cmd.action))throw fail('Supervisor review is pending. Return an item before editing.',409);
+ if(j.status==='Submitted'&&!['return','complete','metric','decision','workFinish','materialReceive','materialReturn'].includes(cmd.action))throw fail('Supervisor review is pending. Return an item before editing.',409);
  const checkVersion=(obj,key)=>{if(cmd.baseVersion!==(obj.versions?.[key]||0))throw fail('This item changed on another device. Review the latest record before retrying.',409);obj.versions[key]=(obj.versions[key]||0)+1;};
- if(cmd.action==='workStart'||cmd.action==='workFinish'){
+ if(String(cmd.action||'').startsWith('material')){
+  checkVersion(j,'materials');applyMaterialCommand(j,cmd,user,now);
+ }else if(cmd.action==='workStart'||cmd.action==='workFinish'){
   if(user.role!=='installer'||!j.assignees.includes(user.id))throw fail('Only an assigned installer can start or finish work.',403);
   const point=data.location||{},at=Date.parse(data.capturedAt),received=Date.parse(now);
   if(typeof point.lat!=='number'||!Number.isFinite(point.lat)||Math.abs(point.lat)>90||typeof point.lng!=='number'||!Number.isFinite(point.lng)||Math.abs(point.lng)>180||typeof point.accuracy!=='number'||!Number.isFinite(point.accuracy)||point.accuracy<0||point.accuracy>1000||!Number.isFinite(at)||at>received+300000||received-at>30*86400000)throw fail('Get a fresh location. Move outside if the GPS signal is weak.');
@@ -66,7 +70,7 @@ export function applyCommand(previous,cmd,user,now){
  }else if(cmd.action==='pilot'){
   checkVersion(j,'pilot');j.pilot={cableMethods:requireText(data.cableMethods,'Acceptable cable methods'),weather:requireText(data.weather,'Weather protection'),mounting:requireText(data.mounting,'Mounting guidance'),approvalCover:requireText(data.approvalCover,'Approval cover'),backup:requireText(data.backup,'Backup approval cover'),confirmed:data.confirmed===true,by:user.id,at:now};
  }else if(cmd.action==='plan'){
-  checkVersion(j,'plan');if(!Array.isArray(data.assignees)||!data.assignees.length)throw fail('Assign installers.');if(!/^\d{4}-\d{2}-\d{2}$/.test(data.scheduledDate||''))throw fail('Choose a scheduled date.');if((j.workLog||[]).some(x=>!x.finish&&!data.assignees.includes(x.by)))throw fail('Let the installer finish work before removing them from this job.',409);j.assignees=[...new Set(data.assignees)];j.scheduledDate=requireText(data.scheduledDate,'Scheduled date');j.instructions=text(data.instructions);if(data.siteStaff)j.siteStaff={name:requireText(data.siteStaff.name,'Verisko staff name'),phone:requireText(data.siteStaff.phone,'Verisko staff phone')};if(data.scope!==undefined)j.scope=requireText(data.scope,'Job needs');if(data.equipment!==undefined)j.equipment=requireText(data.equipment,'Materials');j.workLogRequired=true;
+  checkVersion(j,'plan');if(!Array.isArray(data.assignees)||!data.assignees.length)throw fail('Assign installers.');if(!/^\d{4}-\d{2}-\d{2}$/.test(data.scheduledDate||''))throw fail('Choose a scheduled date.');if((j.workLog||[]).some(x=>!x.finish&&!data.assignees.includes(x.by)))throw fail('Let the installer finish work before removing them from this job.',409);j.assignees=[...new Set(data.assignees)];j.scheduledDate=requireText(data.scheduledDate,'Scheduled date');j.instructions=text(data.instructions);if(data.siteStaff)j.siteStaff={name:requireText(data.siteStaff.name,'Verisko staff name'),phone:requireText(data.siteStaff.phone,'Verisko staff phone')};if(data.scope!==undefined)j.scope=requireText(data.scope,'Job needs');if(data.equipment!==undefined){j.equipment=requireText(data.equipment,'Materials');updateMaterialPlan(j,j.equipment);}j.workLogRequired=true;
  }else if(cmd.action==='evidence'){
   // The endpoint validates and stores bytes first. Photos are append-only.
   const e={...data,cameraId:cmd.cameraId||''};if(!['route','mount','fixings','entry','view','exception','resolution','reference','demo','ack'].includes(e.kind)||!e.id||!e.hash)throw fail('Invalid evidence.');
@@ -115,7 +119,7 @@ export function applyCommand(previous,cmd,user,now){
   checkVersion(j,'handover');j.handover={demonstration:requireText(data.demonstration,'Site staff demonstration'),photos:data.photos||[],issues:requireText(data.issues,'Problems left, or None'),acknowledged:data.acknowledged===true,customerName:text(data.customerName,100),reason:text(data.reason),at:now,by:user.id};
   if(j.handover.acknowledged&&!j.handover.customerName)throw fail('Record who acknowledged the handover.');
  }else if(cmd.action==='submit'||cmd.action==='complete'){
-  const missing=readiness(j);if(missing.length)throw fail(missing.join('\n'));
+  const missing=[...readiness(j),...(cmd.action==='complete'?materialProblems(j,true):[])];if(missing.length)throw fail(missing.join('\n'));
   if(cmd.action==='complete'&&j.status!=='Submitted')throw fail('The job must be submitted for technical review first.');
   j.status=cmd.action==='submit'?'Submitted':'Completed';j[cmd.action==='submit'?'submittedAt':'completedAt']=now;
   if(cmd.action==='complete')j.approval={by:user.id,at:now,comment:requireText(data.comment,'Technical review comment')};

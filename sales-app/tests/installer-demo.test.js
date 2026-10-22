@@ -25,6 +25,7 @@ test('full demo uses the real evidence gates, then installer submission and Oper
  j=await f.send('installer','evidence',{id:'demo-handover',kind:'demo',image});
  j=await f.send('installer','handover',{demonstration:'Demo live view and playback',issues:'None',acknowledged:true,customerName:'Demo customer'},{baseVersion:0});
  await f.send('installer','workStart',{capturedAt:now,location:{lat:0,lng:0,accuracy:10}});await f.send('installer','workFinish',{capturedAt:now,location:{lat:0,lng:0,accuracy:10}});
+ for(const item of j.materials.items)j=await f.send('installer','materialReport',{itemId:item.id,used:item.issued,damaged:0,missing:0},{baseVersion:j.versions.materials||0});
  j=await f.send('installer','submit');assert.equal(j.status,'Submitted');await assert.rejects(()=>f.send('installer','complete',{comment:'Done'}),/Supervisor/);
  j=await f.send('operations','complete',{comment:'Demo technical review complete'});assert.equal(j.status,'Completed');assert.equal(j.evidence.length,12);
 });

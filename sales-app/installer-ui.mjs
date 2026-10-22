@@ -1,5 +1,5 @@
-import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=102';
-import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS} from './installer-model.mjs?v=102';
+import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=103';
+import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials} from './installer-model.mjs?v=103';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const time=v=>new Date(v).toLocaleString('en-GB',{timeZone:'Africa/Kampala'});
 const pick=(key,label,values,value='')=>'<label>'+esc(label)+'<input name="'+key+'" list="iw-'+key+'" value="'+esc(value)+'"><datalist id="iw-'+key+'">'+options(values)+'</datalist></label><p class="helper">Choose from the list, or type another answer.</p>';
@@ -19,7 +19,7 @@ export async function mountInstaller(ctx){
 async function showDemo(role='operations'){
  if(!realContext||!manager(realContext.user))return;
  if(active?.client.queue.length){realContext.toast('Send saved work before changing views.');return;}
- if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=102');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
+ if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=103');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
  if(active)active.stop();const actor=demoController.transport.actors[role==='installer'?1:0];
  active=new InstallerView({...realContext,user:actor,demo:true,demoRole:role,initialJobId:'demo-installation',fetcher:demoController.transport.fetcher(role),token:async()=>''});await active.start();
 }
@@ -49,7 +49,7 @@ class InstallerView {
   if(!cl.busy)this.seenDecisions=pendingDecisions;
   let demoBanner='';
   if(this.ctx.demo){
-   const job=cl.jobs[0],step=!job?.assignees.length?'1. Operations: open Edit job setup and select DEMO Installer.':job.status==='Submitted'?'3. Switch to Operations, review the evidence and approve or return an item.':job.status==='Completed'?'Demo complete. Reset it to try again.':'2. Switch to Installer. Start work, check both cameras, add photos, show the work, finish work and send it to Operations.';
+   const job=cl.jobs[0],step=!job?.assignees.length?'1. Operations: open Edit job setup and select DEMO Installer.':job.status==='Submitted'?'3. Switch to Operations, review the evidence and approve or return an item.':job.status==='Completed'?'Demo complete. Reset it to try again.':'2. Switch to Installer. Start work, check cameras, add photos, count materials left, finish work and send to Operations.';
    demoBanner='<section class="iw-demo"><strong>DEMO INSTALLATION · viewing as '+esc(this.ctx.demoRole==='installer'?'Installer':'Operations')+'</strong><p>Fictional customer and crew. Saved on this browser only; real jobs and approvals are unaffected.</p><p>'+esc(step)+'</p><div class="iw-row">'+button('data-iw-demo-role="operations"','View as Operations',this.ctx.demoRole==='operations')+button('data-iw-demo-role="installer"','View as Installer',this.ctx.demoRole==='installer')+button('data-iw-demo-reset','Reset demo')+button('data-iw-demo-exit','Exit demo')+'</div></section>';
   }else if(supervisor)demoBanner='<section class="card iw-card"><h2>Try a demo installation</h2><p>Practice assignment, installer checks, sample photos and final approval without changing real jobs.</p>'+button('data-iw-demo','Open demo installation',true)+'</section>';
   let html=demoBanner+'<div class="iw-sync" role="status"><strong>'+esc(cl.message||'Saved on this phone')+'</strong><span>'+cl.queue.length+' changes waiting to send · '+cl.queue.filter(q=>q.command.action==='evidence').length+' photos waiting to send</span>'+button('data-iw-sync','Send saved work')+'</div>';
@@ -57,12 +57,13 @@ class InstallerView {
   if(!j){
    this.jobId='';
    if(supervisor)html+='<p class="iw-rule">'+pendingDecisions.length+' cable requests need a decision · '+cl.jobs.filter(j=>j.status==='Submitted').length+' jobs ready for review</p>';html+='<section class="card iw-card"><div class="iw-row"><h2>'+ (supervisor?'Jobs to check':'Assigned work')+'</h2>'+(supervisor&&!this.ctx.demo?button('data-iw-create','Set up installation',true):'')+'</div>';
-   if(supervisor)html+='<label>Show <select id="iwQueue">'+options([['all','All installations'],['decision','Needs a decision'],['correction','Needs correction'],['review','Ready for review'],['completed','Completed']],this.queueFilter)+'</select></label>';
+   if(supervisor)html+='<label>Show <select id="iwQueue">'+options([['all','All installations'],['decision','Needs a decision'],['correction','Needs correction'],['review','Ready for review'],['completed','Completed'],['materials','Materials and returns']],this.queueFilter)+'</select></label>';
    const jobs=cl.jobs.map(x=>cl.local(x.id));let items=[];
    for(const job of jobs){
     const details=[];
     if(this.queueFilter==='decision')job.exceptions.filter(e=>e.status==='pending').forEach(e=>details.push({camera:job.cameras.find(c=>c.id===e.cameraId)?.name,who:this.name(e.requestedBy),issue:e.reason+': '+e.description,at:e.waitingSince||e.requestedAt}));
     else if(this.queueFilter==='correction'){job.exceptions.filter(e=>e.status==='correction').forEach(e=>details.push({camera:job.cameras.find(c=>c.id===e.cameraId)?.name,who:this.name(e.requestedBy),issue:e.decisions.at(-1)?.comment,at:e.decisions.at(-1)?.at}));job.cameras.forEach(c=>Object.entries(c.corrections||{}).filter(([,v])=>v.status==='open').forEach(([k,v])=>details.push({camera:c.name,who:job.assignees.map(id=>this.name(id)).join(', '),issue:k+': '+v.comment,at:v.at})));}
+    else if(this.queueFilter==='materials'){const items=job.materials?.items||[];const needs=items.filter(item=>{const b=materialBalance(item);return item.issued>0&&(!b.checked||b.leftGood>0||b.leftDamaged>0||(item.missing||0)>0&&item.lossAccepted!==item.missing);});if(needs.length||job.materials?.required&&!job.materials.confirmed)details.push({camera:'Materials and returns',who:job.assignees.map(id=>this.name(id)).join(', '),issue:needs.length+' items to check · '+(job.materials?.confirmed?'site list checked':'check full site list'),at:job.updatedAt});}
     else if(this.queueFilter==='review'&&job.status!=='Submitted'||this.queueFilter==='completed'&&job.status!=='Completed')continue;
     else details.push({camera:['review','completed'].includes(this.queueFilter)?job.cameras.map(c=>c.name).join(' · '):job.cameras.length+' cameras',who:job.assignees.map(id=>this.name(id)).join(', '),issue:job.status,at:job.submittedAt||job.updatedAt});
     details.forEach(d=>items.push('<article class="iw-job"><h3>'+esc(job.business)+' · '+esc(d.camera)+'</h3><p>'+esc(d.who)+' · '+esc(d.issue)+'</p><p class="helper">Waiting '+esc(waiting(d.at))+' · scheduled '+esc(job.scheduledDate)+'</p>'+button('data-iw-open="'+esc(job.id)+'"','Open installation')+'</article>'));
@@ -86,6 +87,7 @@ class InstallerView {
   if(supervisor&&!locked)html+=button('data-iw-plan','Edit job setup')+button('data-iw-pilot','Work rules and who can approve');
   html+='<details><summary>Work rules '+(j.pilot.confirmed?'· confirmed':'· Operations must check')+'</summary><p class="iw-pre">Cable methods: '+esc(j.pilot.cableMethods||'Not defined')+'\nWeather protection: '+esc(j.pilot.weather||'Not defined')+'\nMounting: '+esc(j.pilot.mounting||'Not defined')+'\nApprovals: '+esc(j.pilot.approvalCover||'Operations')+'\nBackup: '+esc(j.pilot.backup||'Not defined')+'</p>'+this.evidence(j,'reference')+(supervisor&&!locked?this.upload('reference','Add approved mounting / finishing example'):'')+'</details></section>';
   html+=this.workLog(j,supervisor,locked);
+  html+=this.materialsView(j,locked);
   html+='<section class="card iw-card"><h2>Camera locations</h2><div class="iw-row">'+j.cameras.map(x=>button('data-iw-camera="'+x.id+'"',x.name,x.id===this.cameraId)).join('')+'</div></section>';
   if(c){
    html+='<section class="card iw-card"><h2>'+esc(c.name)+'</h2><p class="iw-rule">Use one full cable. Ask Operations before joining cables.</p>';
@@ -111,7 +113,7 @@ class InstallerView {
   const h=j.handover;html+='<section class="card iw-card"><form data-iw-form="handover"><h2>Show the finished work</h2>'+pick('demonstration','What did you show the Verisko site staff?',['Live view, recording and playback','Live view, recording, playback and phone viewing'],h.demonstration||'')+this.evidence(j,'demo')+(!locked?this.upload('demo','Take a photo of the handover'):'')+pick('issues','Any problems left?',['None','Phone viewing needs internet','Waiting for a part','Operations needs to check'],h.issues||'')+check('acknowledged','Verisko site staff checked the work',h.acknowledged)+field('customerName','Name of staff who checked',h.customerName||j.siteStaff?.name||'')+field('reason','If no one checked, say why',h.reason)+(!locked?'<button class="btn btn-primary">Save final checks</button>':'')+'</form><p class="helper">Operations must still check and approve the work.</p></section>';
   html+='<section class="card iw-card"><h2>Ready for Operations?</h2>'+(missing.length?'<ul>'+missing.map(m=>'<li>'+esc(j.assignees.reduce((value,id)=>value.replace('Installer '+id+':',this.name(id)+':'),m))+'</li>').join('')+'</ul>':'<p>All required checks and photos are saved.</p>');
   if(!locked)html+='<button type="button" class="btn btn-primary" data-iw-submit'+(missing.length||pending||cl.busy?' disabled':'')+'>Send to Operations</button>';
-  if(supervisor&&j.status==='Submitted')html+=button('data-iw-complete','Approve and finish job',true);
+  if(supervisor&&j.status==='Submitted'){const stockMissing=materialProblems(j,true);html+=stockMissing.length?'<p class="iw-alert">'+stockMissing.map(esc).join('<br>')+'</p>':button('data-iw-complete','Approve and finish job',true);}
   html+='<p class="helper">Only Operations or a supervisor can approve the job. Send all saved photos first.</p></section>';
   html+='<section class="card iw-card"><h2>Return visits and repairs</h2><p>Return visits: '+j.metrics.filter(m=>m.type==='Return visit').reduce((a,m)=>a+m.value,0)+' · Cable replacements: '+j.metrics.filter(m=>m.type==='Cable replacement').reduce((a,m)=>a+m.value,0)+' · Correction requests: '+j.history.filter(h=>h.action==='return'||h.action==='decision'&&h.decision==='correction').length+'</p>'+j.metrics.map(m=>'<p>'+esc(m.type)+': '+m.value+' · '+esc(m.note)+'</p>').join('')+(supervisor?button('data-iw-metric','Add a return visit or repair'):'')+'</section>';
   html+='<section class="card iw-card"><details><summary>Job history · '+j.history.length+' events</summary>'+j.history.map(h=>'<p>'+esc(h.at)+' · '+esc(h.name||this.name(h.by))+' · '+esc(h.action)+' '+esc(j.cameras.find(c=>c.id===h.cameraId)?.name||'')+'<br>'+esc(h.detail)+'</p>').join('')+'</details></section>';return html;
@@ -127,6 +129,7 @@ class InstallerView {
   if(d.iwSample){await this.samplePhoto(d.iwSample,d.camera||'');return;}
 
   if(d.iwWork){b.disabled=true;try{const location=this.ctx.demo?{lat:0,lng:0,accuracy:0}:await captureWorkLocation();await this.client.save(j.id,{action:d.iwWork,data:{location,capturedAt:new Date().toISOString()}});this.ctx.toast(this.ctx.demo?'Demo time and sample location saved.':this.client.message);}finally{b.disabled=false;}return;}
+  if(j&&this.materialActions(d,j))return;
   if('iwSync'in d){await this.client.sync();this.client.cachePhotos();}
   if('iwBack'in d){this.jobId='';this.draw();}
   if(d.iwOpen){this.jobId=d.iwOpen;this.cameraId='';this.draw();}
@@ -145,6 +148,46 @@ class InstallerView {
   if('iwComplete'in d)this.modal('Final technical approval',field('comment','Technical review notes','','textarea'),f=>this.client.online(j.id,{action:'complete',data:{comment:f.get('comment')}}));
   if('iwMetric'in d)this.modal('Pilot observation','<label>Measure<select name="type">'+options(['Return visit','Cable replacement','On-site inspection','Completion time (minutes)'])+'</select></label>'+field('value','Quantity / minutes','1','number')+field('note','Observation / outcome','','textarea'),f=>this.client.online(j.id,{action:'metric',data:Object.fromEntries(f)}));
  }catch(error){this.ctx.toast(error.message);}}
+ materialsView(j,locked){
+  const m=j.materials||initialMaterials(j.equipment),ops=stockManager(this.user),installer=this.user.role==='installer';
+  let html='<section class="card iw-card"><h2>Site materials and tools</h2><p>Operations records what goes to the site. The installer records what was used and what is left. Operations checks what comes back.</p>';
+  if(!j.materials)html+='<p>Old job: no stock moves have been recorded. Start this list with the actual amounts.</p>';
+  html+='<p><strong>Site list: '+(m.confirmed?'checked by Operations':'Operations must check')+'</strong></p>';
+  if(ops&&!locked)html+=button('data-iw-material-add','Add an item')+button('data-iw-material-confirm','Confirm full site list');
+  m.items.forEach(item=>{const b=materialBalance(item),unit=esc(item.unit);
+   html+='<article class="iw-job"><h3>'+esc(item.name)+(item.kind==='tool'?' · tool to return':'')+'</h3><p>Needed: '+item.needed+' '+unit+' · Taken to site: <strong>'+item.issued+' '+unit+'</strong></p>';
+   if(item.correction)html+='<p class="iw-alert">Operations: '+esc(item.correction.note)+'</p>';
+   if(item.issued){html+='<p>Used / fitted: '+(item.used??'Not saved')+' · Good left: '+(b.checked?b.leftGood:'Not checked')+' · Damaged left: '+(b.checked?b.leftDamaged:'Not checked')+' · Missing: '+(item.missing??'Not saved')+'</p><p><strong>Warehouse received:</strong> '+item.returnedGood+' good · '+item.returnedDamaged+' damaged ('+unit+')</p>';
+    if(b.checked)html+='<p class="'+(b.leftGood||b.leftDamaged?'iw-alert':'helper')+'">'+(b.leftGood||b.leftDamaged?'Still to return: '+b.leftGood+' good + '+b.leftDamaged+' damaged '+unit:'Nothing left to return.')+'</p>';
+    else html+='<p class="iw-alert">Installer: check and save the amounts for this item.</p>';
+    if(ops&&j.status!=='Completed')html+=button('data-iw-material-return="'+esc(item.id)+'"','Ask installer to check amounts');
+    if(installer&&!locked)html+=button('data-iw-material-report="'+esc(item.id)+'"','Record use and what is left');
+    if(ops&&j.status!=='Completed'&&b.checked&&(b.leftGood||b.leftDamaged||(item.missing||0)>0&&item.lossAccepted!==item.missing))html+=button('data-iw-material-receive="'+esc(item.id)+'"','Receive at warehouse');
+   }
+   if(ops&&!locked)html+=button('data-iw-material-issue="'+esc(item.id)+'"',item.issued?'Send more to site':'Record taken to site');
+   html+='</article>';
+  });
+  if(!m.items.length)html+='<p>Add cameras, cable, plugs, trunking, screws, tools and any other items needed at the site. Choose metres for cable.</p>';
+  html+='<p class="helper">Damaged items stay separate from good stock. A return is not confirmed until Operations receives it.</p><details><summary>Materials history</summary>'+m.movements.map(x=>'<p>'+esc(time(x.at))+' · '+esc(this.name(x.by))+' · '+esc(({materialAdd:'Added item',materialIssue:'Sent to site',materialReport:'Installer counted',materialReceive:'Warehouse received',materialConfirm:'Checked full site list',materialReturn:'Asked installer to check amounts'})[x.action]||x.action)+' · '+esc(x.name||'')+'<br>'+esc(x.action==='materialIssue'?x.quantity+' '+x.unit:x.action==='materialReport'?'Used '+x.used+' · Left '+x.leftGood+' · Damaged '+x.damaged+' · Missing '+x.missing:x.action==='materialReceive'?'Good '+x.good+' · Damaged '+x.damaged+' · Missing reviewed '+x.acceptedMissing:'')+' '+esc(x.note||'')+'</p>').join('')+'</details></section>';return html;
+ }
+ materialActions(d,j){
+  const m=j.materials||initialMaterials(j.equipment),item=m.items.find(x=>x.id===(d.iwMaterialIssue||d.iwMaterialReport||d.iwMaterialReceive||d.iwMaterialReturn)),version=j.versions.materials||0;
+  const send=(action,data,offline=false)=>this.client[offline?'save':'online'](j.id,{action,baseVersion:version,data});
+  const amount=(key,label,value='',unit='pieces')=>field(key,label,value,'number').replace('type="number"','type="number" min="0" step="'+(unit==='metres'?'0.01':'1')+'" required');
+  if('iwMaterialAdd'in d){const dialog=this.modal('Add a site item',pick('itemName','Item',MATERIALS.map(x=>x.replace(' (metres)','')))+ '<label>Unit<select name="unit">'+options(UNITS,'pieces')+'</select></label><label>Type<select name="kind">'+options([['material','Material / fitted item'],['tool','Tool · must come back']])+'</select></label>'+amount('needed','Amount needed')+'<p>Cable and trunking: choose metres. Add each item once.</p>',f=>send('materialAdd',{name:f.get('itemName'),unit:f.get('unit'),kind:f.get('kind'),needed:Number(f.get('needed'))}));
+   dialog.querySelector('[name="itemName"]').onchange=e=>{const unit=dialog.querySelector('[name="unit"]');if(/cable|trunking/i.test(e.target.value))unit.value='metres';else if(MATERIALS.includes(e.target.value))unit.value='pieces';dialog.querySelector('[name="needed"]').step=unit.value==='metres'?'0.01':'1';};dialog.querySelector('[name="unit"]').onchange=e=>{dialog.querySelector('[name="needed"]').step=e.target.value==='metres'?'0.01':'1';};return true;}
+  if('iwMaterialConfirm'in d){this.modal('Check the full site list','<p>Check that every item needed at the site is listed, including tools and small parts.</p>'+check('confirmed','I have checked the full site list',false),f=>{if(!f.has('confirmed'))throw new Error('Tick the box after you check the list.');return send('materialConfirm',{});});return true;}
+  if(!item)return false;
+  if(d.iwMaterialReturn){this.modal('Ask installer to check amounts',field('note','What should the installer check?'),f=>send('materialReturn',{itemId:item.id,note:f.get('note')}));return true;}
+  if(d.iwMaterialIssue){this.modal('Taken to site · '+item.name,amount('quantity','Amount going to site ('+item.unit+')',Math.max(0,item.needed-item.issued)||'',item.unit)+field('note','Extra note (optional)')+'<p>This adds to the amount already sent. Do not enter the same delivery twice.</p>',f=>send('materialIssue',{itemId:item.id,quantity:Number(f.get('quantity')),note:f.get('note')}));return true;}
+  if(d.iwMaterialReport){
+   const html='<p>Taken to site: '+item.issued+' '+esc(item.unit)+'. Enter the total for the whole job so far.</p>'+(item.kind==='tool'?'<p>This is a tool. It must come back unless damaged or missing.</p><input type="hidden" name="used" value="0">':amount('used','Used / fitted ('+item.unit+')',item.used??'',item.unit))+amount('damaged','Damaged ('+item.unit+')',item.damaged??0,item.unit)+amount('missing','Missing ('+item.unit+')',item.missing??0,item.unit)+'<p data-material-left></p>'+field('note','If damaged or missing, what happened?');
+   const dialog=this.modal('Record use · '+item.name,html,f=>send('materialReport',{itemId:item.id,used:Number(f.get('used')),damaged:Number(f.get('damaged')),missing:Number(f.get('missing')),note:f.get('note')},true));
+   const show=()=>{const f=new FormData(dialog.querySelector('form')),left=Math.round((item.issued-Number(f.get('used'))-Number(f.get('damaged'))-Number(f.get('missing'))-item.returnedGood)*100)/100;dialog.querySelector('[data-material-left]').textContent='Good items left to return: '+left+' '+item.unit+'. Damaged items must also come back.';};dialog.oninput=show;show();return true;
+  }
+  if(d.iwMaterialReceive){const b=materialBalance(item);this.modal('Receive at warehouse · '+item.name,'<p>Count what you have received. Damaged items stay out of good stock.</p>'+amount('good','Good amount received ('+item.unit+')',b.leftGood,item.unit)+amount('damaged','Damaged amount received ('+item.unit+')',b.leftDamaged,item.unit)+((item.missing||0)>0?check('acceptLoss','I reviewed the missing '+item.missing+' '+item.unit,false):'')+field('note','Warehouse note / missing item reason'),f=>send('materialReceive',{itemId:item.id,good:Number(f.get('good')),damaged:Number(f.get('damaged')),acceptLoss:f.has('acceptLoss'),note:f.get('note')}));return true;}
+  return false;
+ }
  staffChoices(selected=[]){return '<fieldset><legend>Choose installers</legend>'+this.client.staff.map(u=>check('assignees',u.name,selected.includes(u.id)).replace('name="assignees"','name="assignees" value="'+esc(u.id)+'"')).join('')+(!this.client.staff.length?'<p>Invite staff with the Installer role first.</p>':'')+'</fieldset>';}
  workLog(j,supervisor,locked){
   const logs=j.workLog||[],open=logs.find(x=>x.by===this.user.id&&!x.finish);
@@ -184,4 +227,3 @@ class InstallerView {
 document.addEventListener('change',e=>{if(e.target.closest('#iwDialog')&&e.target.dataset.iwUpload&&active)active.uploadFile(e.target);});
 
 document.addEventListener('click',e=>{const button=e.target.closest('#iwDialog [data-iw-sample]');if(button&&active?.ctx.demo)active.samplePhoto(button.dataset.iwSample,button.dataset.camera||'').catch(error=>active.ctx.toast(error.message));});
-

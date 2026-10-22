@@ -1,6 +1,6 @@
 // Interactive training data stays on this browser. This transport never calls fetch.
-import {createJob,applyCommand,canRead,manager} from './installer-model.mjs?v=102';
-import {openOfflineStore,records} from './installer-client.mjs?v=102';
+import {createJob,applyCommand,canRead,manager} from './installer-model.mjs?v=103';
+import {openOfflineStore,records} from './installer-client.mjs?v=103';
 export const DEMO_JOB_ID='demo-installation';
 export function demoActors(ownerId){return [{id:'demo-ops-'+ownerId,name:'DEMO Operations',role:'operations'},{id:'demo-installer-'+ownerId,name:'DEMO Installer',role:'installer'}];}
 export function sampleDemoImage(kind='reference'){
@@ -14,7 +14,9 @@ export function sampleDemoImage(kind='reference'){
 }
 export function seedDemo(ownerId,image,now=new Date().toISOString()){
  const [ops,installer]=demoActors(ownerId),date=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Kampala',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now));
- let job=createJob({id:DEMO_JOB_ID,business:'DEMO · Kampala Shop',siteStaff:{name:'DEMO Verisko staff',phone:'DEMO · no phone call'},address:'DEMO · Ntinda, Kampala (fictional site)',scope:'Two cameras: front gate and reception. Demonstrate live image, recording, playback, coverage and remote access.',equipment:'DEMO: 2 × 4K PoE cameras, 8-channel NVR, hard drive, continuous cable runs, fixings.',instructions:'TRAINING ONLY. Operations assigns the job first. Installer captures evidence and submits. Operations performs the final technical review.',assignees:[installer.id],scheduledDate:date,locations:['Front gate','Reception'],remoteIncluded:true},ops,now,[ops,installer]);
+ let job=createJob({id:DEMO_JOB_ID,business:'DEMO · Kampala Shop',siteStaff:{name:'DEMO Verisko staff',phone:'DEMO · no phone call'},address:'DEMO · Ntinda, Kampala (fictional site)',scope:'Two cameras: front gate and reception. Demonstrate live image, recording, playback, coverage and remote access.',equipment:'2 × 4K bullet camera\n1 × NVR\n100 × Cat6 cable (metres)',instructions:'TRAINING ONLY. Operations assigns the job first. Installer captures evidence and submits. Operations performs the final technical review.',assignees:[installer.id],scheduledDate:date,locations:['Front gate','Reception'],remoteIncluded:true},ops,now,[ops,installer]);
+ for(const item of job.materials.items)job=applyCommand(job,{action:'materialIssue',requestId:'demo-issue-'+item.id,baseVersion:job.versions.materials||0,data:{itemId:item.id,quantity:item.needed,note:'DEMO dispatch only'}},ops,now);
+ job=applyCommand(job,{action:'materialConfirm',requestId:'demo-materials-confirm',baseVersion:job.versions.materials||0},ops,now);
  job.assignees=[]; // Assignment is the first interactive step; no real crew accounts are created.
  job=applyCommand(job,{action:'pilot',requestId:'demo-pilot-seed',baseVersion:0,data:{cableMethods:'DEMO: continuous runs; request approval for any join. Training example only.',weather:'DEMO placeholder. Real jobs require Operations-approved weather protection.',mounting:'DEMO placeholder. Real jobs require surface-appropriate fixings and manufacturer guidance.',approvalCover:'DEMO Operations',backup:'DEMO Operations',confirmed:true}},ops,now);
  job=applyCommand(job,{action:'evidence',requestId:'demo-reference-seed',data:{id:'demo-reference',kind:'reference',hash:'demo-reference-placeholder'}},ops,now);
@@ -49,6 +51,6 @@ export function createDemoTransport({ownerId,load,save,image,lock=fn=>fn(),now=(
  };
 }
 export async function browserDemo(ownerId){
- const db=await openOfflineStore(),key='demo-server/'+ownerId;
+ const db=await openOfflineStore(),key='demo-server-materials/'+ownerId;
  return createDemoTransport({ownerId,image:sampleDemoImage(),load:()=>records(db,key),save:value=>records(db,key,value),lock:fn=>navigator.locks.request(key,fn)});
 }
