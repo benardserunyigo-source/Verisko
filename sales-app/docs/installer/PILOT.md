@@ -73,3 +73,10 @@ The demo reuses the production workflow model and UI, but replaces network calls
 6. **Show → Materials and returns** finds jobs with unchecked lists, counts or returns. Movements record who, when, item, unit, quantity and note. This is a job-specific dispatch/receipt log in the existing private installation store; it does not post quantities to an external inventory spreadsheet or general warehouse balance.
 
 Existing records are not given invented stock movements. Their materials log starts when Operations adds/checks it. Existing structured quantity lines can be suggested as needed amounts; free-text notes must be converted to named items by Operations. The updated browser-only demo starts with 2 cameras, 1 NVR and 100 metres of cable dispatched so the crew/warehouse workflow can be tried safely.
+
+## Agreed installer pay (v104)
+
+- Operations/admin opens the job and selects **Set / update agreed pay**. Enter each assigned installer's whole-job amount in UGX and optional payment notes. For example, notes can state whether transport/lunch are included and when payment is due. No real-job rate is guessed or filled automatically.
+- Each installer sees **Your agreed pay for this job**, their own amount, notes, date and the person who set it. The job list also shows their amount. Operations sees each amount and the total for the current crew. Supervisors do not receive pay values. The API filters payment fields and payment history for every list, single-job and mutation response, not just in the interface.
+- New jobs require pay set for every assigned installer before submission. Starting a new work visit requires that installer's agreed rate; finishing an existing visit is not blocked by a missing old rate. Assigning a new installer requires setting their rate. Old completed records are not given invented prices.
+- Changes are saved online with per-field version checks, request IDs and amount history. Completed jobs are read-only. An agreed amount is not a payment transaction or confirmation of payment, and does not change the customer quote or automatically post to payroll/accounting. The training demo's UGX 350,000 is an example only.

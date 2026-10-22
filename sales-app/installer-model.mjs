@@ -12,10 +12,22 @@ export const MATERIALS=['4K bullet camera','4K dome camera','PTZ camera','NVR','
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 const text=(v,max=2000)=>String(v||'').trim().slice(0,max);
 const requireText=(v,label)=>{const out=text(v);if(!out)throw fail(label+' is required.');return out;};
+export const payReady=j=>j.assignees.length>0&&j.assignees.every(id=>Number.isSafeInteger(j.installerPay?.[id]?.amount)&&j.installerPay[id].amount>0);
+export const crewPay=j=>j.assignees.reduce((sum,id)=>sum+(j.installerPay?.[id]?.amount||0),0);
+// Use the same projection for list, single-job and mutation responses.
+export function installerJobView(j,user){
+ const out=structuredClone(j);delete out.contact;delete out.phone;out.payReady=payReady(j);
+ if(!['admin','operations'].includes(user.role)){
+  out.installerPay=user.role==='installer'&&out.installerPay?.[user.id]?{[user.id]:out.installerPay[user.id]}:{};
+  out.payHistory=(out.payHistory||[]).flatMap(h=>user.role==='installer'&&h.payments[user.id]?[{...h,payments:{[user.id]:h.payments[user.id]}}]:[]);
+ }
+ return out;
+}
 const has=(j,id,kind,cameraId)=>j.evidence.some(e=>e.id===id&&e.kind===kind&&e.cameraId===(cameraId||''));
 const evidence=(j,ids,kind,cameraId)=>Array.isArray(ids)&&ids.length>0&&ids.every(id=>has(j,id,kind,cameraId));
 export function readiness(j){
  const missing=materialProblems(j);
+ if(j.payRequired&&!(typeof j.payReady==='boolean'?j.payReady:payReady(j)))missing.push('Operations must set the agreed pay for each installer.');
  if(!j.pilot?.confirmed||!j.pilot.cableMethods||!j.pilot.weather||!j.pilot.mounting||!j.pilot.approvalCover||!j.pilot.backup)missing.push('Operations must confirm the work rules and who can approve changes.');
  if(!j.evidence.some(e=>e.kind==='reference'))missing.push('Operations must add a photo showing good mounting and cable work.');
  if(j.workLogRequired&&(!j.siteStaff?.name||!j.siteStaff?.phone))missing.push('Operations must add the Verisko staff name and phone for this site.');
@@ -44,7 +56,7 @@ export function createJob(input,user,now,staff=[]){
  const assignees=Array.isArray(input.assignees)?[...new Set(input.assignees)]:[];
  if(!assignees.length||assignees.some(id=>!staff.some(u=>u.id===id&&u.role==='installer')))throw fail('Assign at least one Installer account.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(input.scheduledDate||''))throw fail('Choose a scheduled date.');
- return {id:input.id,sourceId:text(input.sourceId,100),business:requireText(input.business,'Customer'),siteStaff:{name:requireText(input.siteStaff?.name,'Verisko staff name'),phone:requireText(input.siteStaff?.phone,'Verisko staff phone')},workLogRequired:true,workLog:[],address:requireText(input.address,'Site address'),scope:requireText(input.scope,'Scope'),equipment:requireText(input.equipment,'Equipment list'),materials:initialMaterials(input.equipment),instructions:text(input.instructions),remoteIncluded:input.remoteIncluded===true,assignees,scheduledDate:input.scheduledDate,status:'In progress',createdAt:now,createdBy:user.id,updatedAt:now,pilot:{approvalCover:'Operations'},cameras:[...new Set(locations)].map((name,i)=>({id:'camera-'+(i+1),name,versions:{},corrections:{}})),exceptions:[],evidence:[],handover:{},versions:{},history:[],requests:[],metrics:[]};
+ return {id:input.id,sourceId:text(input.sourceId,100),business:requireText(input.business,'Customer'),siteStaff:{name:requireText(input.siteStaff?.name,'Verisko staff name'),phone:requireText(input.siteStaff?.phone,'Verisko staff phone')},workLogRequired:true,workLog:[],payRequired:true,installerPay:{},payHistory:[],address:requireText(input.address,'Site address'),scope:requireText(input.scope,'Scope'),equipment:requireText(input.equipment,'Equipment list'),materials:initialMaterials(input.equipment),instructions:text(input.instructions),remoteIncluded:input.remoteIncluded===true,assignees,scheduledDate:input.scheduledDate,status:'In progress',createdAt:now,createdBy:user.id,updatedAt:now,pilot:{approvalCover:'Operations'},cameras:[...new Set(locations)].map((name,i)=>({id:'camera-'+(i+1),name,versions:{},corrections:{}})),exceptions:[],evidence:[],handover:{},versions:{},history:[],requests:[],metrics:[]};
 }
 export function applyCommand(previous,cmd,user,now){
  if(!canRead(previous,user))throw fail('This installation is not assigned to you.',403);
@@ -54,9 +66,19 @@ export function applyCommand(previous,cmd,user,now){
  const supervisorActions=['plan','pilot','decision','return','complete','metric'];
  if(supervisorActions.includes(cmd.action)&&!supervisor)throw fail('Supervisor access required.',403);
  if(j.status==='Completed'&&!['metric','workFinish'].includes(cmd.action))throw fail('Completed installation records are read-only.',409);
- if(j.status==='Submitted'&&!['return','complete','metric','decision','workFinish','materialReceive','materialReturn'].includes(cmd.action))throw fail('Supervisor review is pending. Return an item before editing.',409);
+ if(j.status==='Submitted'&&!['return','complete','metric','decision','workFinish','materialReceive','materialReturn','installerPay'].includes(cmd.action))throw fail('Supervisor review is pending. Return an item before editing.',409);
  const checkVersion=(obj,key)=>{if(cmd.baseVersion!==(obj.versions?.[key]||0))throw fail('This item changed on another device. Review the latest record before retrying.',409);obj.versions[key]=(obj.versions[key]||0)+1;};
- if(String(cmd.action||'').startsWith('material')){
+ if(cmd.action==='installerPay'){
+  if(!['admin','operations'].includes(user.role))throw fail('Only Operations can set installer pay.',403);
+  checkVersion(j,'installerPay');
+  if(!Array.isArray(data.payments)||!data.payments.length)throw fail('Enter the agreed pay for the installer.');
+  const payments={};for(const p of data.payments){
+   if(!j.assignees.includes(p.installerId)||Object.hasOwn(payments,p.installerId))throw fail('Choose each assigned installer once.');
+   if(typeof p.amount!=='number'||!Number.isSafeInteger(p.amount)||p.amount<=0||p.amount>100000000)throw fail('Enter a whole UGX amount above zero, up to 100,000,000.');
+   payments[p.installerId]={amount:p.amount,currency:'UGX',note:text(p.note),by:user.id,at:now};
+  }
+  j.installerPay={...(j.installerPay||{}),...payments};j.payHistory=[...(j.payHistory||[]),{id:cmd.requestId,by:user.id,at:now,payments}];j.payRequired=true;delete j.payReady;
+ }else if(String(cmd.action||'').startsWith('material')){
   checkVersion(j,'materials');applyMaterialCommand(j,cmd,user,now);
  }else if(cmd.action==='workStart'||cmd.action==='workFinish'){
   if(user.role!=='installer'||!j.assignees.includes(user.id))throw fail('Only an assigned installer can start or finish work.',403);
@@ -64,13 +86,13 @@ export function applyCommand(previous,cmd,user,now){
   if(typeof point.lat!=='number'||!Number.isFinite(point.lat)||Math.abs(point.lat)>90||typeof point.lng!=='number'||!Number.isFinite(point.lng)||Math.abs(point.lng)>180||typeof point.accuracy!=='number'||!Number.isFinite(point.accuracy)||point.accuracy<0||point.accuracy>1000||!Number.isFinite(at)||at>received+300000||received-at>30*86400000)throw fail('Get a fresh location. Move outside if the GPS signal is weak.');
   j.workLog||=[];const open=j.workLog.find(x=>x.by===user.id&&!x.finish);
   const mark={location:{lat:point.lat,lng:point.lng,accuracy:point.accuracy},capturedAt:new Date(at).toISOString(),receivedAt:now};
-  if(cmd.action==='workStart'){if(open)throw fail('You have already started work.',409);j.workLog.push({id:cmd.requestId,by:user.id,name:user.name,start:mark});}
+  if(cmd.action==='workStart'){if(!j.installerPay?.[user.id]?.amount)throw fail('Operations must set your agreed pay before you start work.');if(open)throw fail('You have already started work.',409);j.workLog.push({id:cmd.requestId,by:user.id,name:user.name,start:mark});}
   else {if(!open)throw fail('Start work before you finish.',409);if(at<Date.parse(open.start.capturedAt))throw fail('Finish time must be after start time.');open.finish=mark;}
   j.workLogRequired=true;
  }else if(cmd.action==='pilot'){
   checkVersion(j,'pilot');j.pilot={cableMethods:requireText(data.cableMethods,'Acceptable cable methods'),weather:requireText(data.weather,'Weather protection'),mounting:requireText(data.mounting,'Mounting guidance'),approvalCover:requireText(data.approvalCover,'Approval cover'),backup:requireText(data.backup,'Backup approval cover'),confirmed:data.confirmed===true,by:user.id,at:now};
  }else if(cmd.action==='plan'){
-  checkVersion(j,'plan');if(!Array.isArray(data.assignees)||!data.assignees.length)throw fail('Assign installers.');if(!/^\d{4}-\d{2}-\d{2}$/.test(data.scheduledDate||''))throw fail('Choose a scheduled date.');if((j.workLog||[]).some(x=>!x.finish&&!data.assignees.includes(x.by)))throw fail('Let the installer finish work before removing them from this job.',409);j.assignees=[...new Set(data.assignees)];j.scheduledDate=requireText(data.scheduledDate,'Scheduled date');j.instructions=text(data.instructions);if(data.siteStaff)j.siteStaff={name:requireText(data.siteStaff.name,'Verisko staff name'),phone:requireText(data.siteStaff.phone,'Verisko staff phone')};if(data.scope!==undefined)j.scope=requireText(data.scope,'Job needs');if(data.equipment!==undefined){j.equipment=requireText(data.equipment,'Materials');updateMaterialPlan(j,j.equipment);}j.workLogRequired=true;
+  checkVersion(j,'plan');if(!Array.isArray(data.assignees)||!data.assignees.length)throw fail('Assign installers.');if(!/^\d{4}-\d{2}-\d{2}$/.test(data.scheduledDate||''))throw fail('Choose a scheduled date.');if((j.workLog||[]).some(x=>!x.finish&&!data.assignees.includes(x.by)))throw fail('Let the installer finish work before removing them from this job.',409);j.assignees=[...new Set(data.assignees)];j.scheduledDate=requireText(data.scheduledDate,'Scheduled date');j.instructions=text(data.instructions);if(data.siteStaff)j.siteStaff={name:requireText(data.siteStaff.name,'Verisko staff name'),phone:requireText(data.siteStaff.phone,'Verisko staff phone')};if(data.scope!==undefined)j.scope=requireText(data.scope,'Job needs');if(data.equipment!==undefined){j.equipment=requireText(data.equipment,'Materials');updateMaterialPlan(j,j.equipment);}j.workLogRequired=true;j.payRequired=true;
  }else if(cmd.action==='evidence'){
   // The endpoint validates and stores bytes first. Photos are append-only.
   const e={...data,cameraId:cmd.cameraId||''};if(!['route','mount','fixings','entry','view','exception','resolution','reference','demo','ack'].includes(e.kind)||!e.id||!e.hash)throw fail('Invalid evidence.');

@@ -1,6 +1,6 @@
 // Interactive training data stays on this browser. This transport never calls fetch.
-import {createJob,applyCommand,canRead,manager} from './installer-model.mjs?v=103';
-import {openOfflineStore,records} from './installer-client.mjs?v=103';
+import {createJob,applyCommand,canRead,manager,installerJobView} from './installer-model.mjs?v=104';
+import {openOfflineStore,records} from './installer-client.mjs?v=104';
 export const DEMO_JOB_ID='demo-installation';
 export function demoActors(ownerId){return [{id:'demo-ops-'+ownerId,name:'DEMO Operations',role:'operations'},{id:'demo-installer-'+ownerId,name:'DEMO Installer',role:'installer'}];}
 export function sampleDemoImage(kind='reference'){
@@ -17,6 +17,7 @@ export function seedDemo(ownerId,image,now=new Date().toISOString()){
  let job=createJob({id:DEMO_JOB_ID,business:'DEMO · Kampala Shop',siteStaff:{name:'DEMO Verisko staff',phone:'DEMO · no phone call'},address:'DEMO · Ntinda, Kampala (fictional site)',scope:'Two cameras: front gate and reception. Demonstrate live image, recording, playback, coverage and remote access.',equipment:'2 × 4K bullet camera\n1 × NVR\n100 × Cat6 cable (metres)',instructions:'TRAINING ONLY. Operations assigns the job first. Installer captures evidence and submits. Operations performs the final technical review.',assignees:[installer.id],scheduledDate:date,locations:['Front gate','Reception'],remoteIncluded:true},ops,now,[ops,installer]);
  for(const item of job.materials.items)job=applyCommand(job,{action:'materialIssue',requestId:'demo-issue-'+item.id,baseVersion:job.versions.materials||0,data:{itemId:item.id,quantity:item.needed,note:'DEMO dispatch only'}},ops,now);
  job=applyCommand(job,{action:'materialConfirm',requestId:'demo-materials-confirm',baseVersion:job.versions.materials||0},ops,now);
+ job=applyCommand(job,{action:'installerPay',requestId:'demo-pay-seed',baseVersion:0,data:{payments:[{installerId:installer.id,amount:350000,note:'DEMO example only. Agreed total for this installation.'}]}},ops,now);
  job.assignees=[]; // Assignment is the first interactive step; no real crew accounts are created.
  job=applyCommand(job,{action:'pilot',requestId:'demo-pilot-seed',baseVersion:0,data:{cableMethods:'DEMO: continuous runs; request approval for any join. Training example only.',weather:'DEMO placeholder. Real jobs require Operations-approved weather protection.',mounting:'DEMO placeholder. Real jobs require surface-appropriate fixings and manufacturer guidance.',approvalCover:'DEMO Operations',backup:'DEMO Operations',confirmed:true}},ops,now);
  job=applyCommand(job,{action:'evidence',requestId:'demo-reference-seed',data:{id:'demo-reference',kind:'reference',hash:'demo-reference-placeholder'}},ops,now);
@@ -35,7 +36,7 @@ export function createDemoTransport({ownerId,load,save,image,lock=fn=>fn(),now=(
    if(url.pathname!=='/api/installer')return response({error:'Demo requests stay in the demo.'},400);
    if(!options.body){
     if(url.searchParams.has('photo')){const id=url.searchParams.get('photo');if(!canRead(s.job,actor)||!s.job.evidence.some(e=>e.id===id))return response({error:'Not assigned.'},403);const value=s.photos[id];if(!value)return response({error:'Sample photo unavailable.'},404);const bytes=Uint8Array.from(atob(value.split(',')[1]),x=>x.charCodeAt(0));return new Response(bytes,{headers:{'Content-Type':'image/jpeg'}});}
-    return response({ok:true,jobs:canRead(s.job,actor)?[s.job]:[],staff:manager(actor)?[actors[1]]:[],people:actors.map(({id,name})=>({id,name})),sourceJobs:[]});
+    return response({ok:true,jobs:canRead(s.job,actor)?[installerJobView(s.job,actor)]:[],staff:manager(actor)?[actors[1]]:[],people:actors.map(({id,name})=>({id,name})),sourceJobs:[]});
    }
    const body=JSON.parse(options.body),command=body.command;
    if(body.jobId!==DEMO_JOB_ID||command.action==='create')return response({error:'Use the supplied demo installation.'},400);
@@ -46,11 +47,11 @@ export function createDemoTransport({ownerId,load,save,image,lock=fn=>fn(),now=(
     const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(photo)))).map(x=>x.toString(16).padStart(2,'0')).join('');
     command.data={...command.data,hash};delete command.data.image;
    }
-   s.job=applyCommand(s.job,command,actor,now());if(photo)s.photos[command.data.id]=photo;await save(s);return response({ok:true,job:s.job});
+   s.job=applyCommand(s.job,command,actor,now());if(photo)s.photos[command.data.id]=photo;await save(s);return response({ok:true,job:installerJobView(s.job,actor)});
   }catch(e){return response({ok:false,error:e.message},e.status||400);}});}
  };
 }
 export async function browserDemo(ownerId){
- const db=await openOfflineStore(),key='demo-server-materials/'+ownerId;
+ const db=await openOfflineStore(),key='demo-server-pay/'+ownerId;
  return createDemoTransport({ownerId,image:sampleDemoImage(),load:()=>records(db,key),save:value=>records(db,key,value),lock:fn=>navigator.locks.request(key,fn)});
 }

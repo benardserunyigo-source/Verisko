@@ -1,6 +1,7 @@
-import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=103';
-import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials} from './installer-model.mjs?v=103';
+import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=104';
+import {manager,TESTS,PARTS,reasons,readiness,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady} from './installer-model.mjs?v=104';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=v=>'UGX '+Number(v).toLocaleString('en-UG');
 const time=v=>new Date(v).toLocaleString('en-GB',{timeZone:'Africa/Kampala'});
 const pick=(key,label,values,value='')=>'<label>'+esc(label)+'<input name="'+key+'" list="iw-'+key+'" value="'+esc(value)+'"><datalist id="iw-'+key+'">'+options(values)+'</datalist></label><p class="helper">Choose from the list, or type another answer.</p>';
 const labels={live:'Live image',recording:'Recording',playback:'Play a new recording',coverage:'Shows the right area',remote:'Phone viewing'};
@@ -19,7 +20,7 @@ export async function mountInstaller(ctx){
 async function showDemo(role='operations'){
  if(!realContext||!manager(realContext.user))return;
  if(active?.client.queue.length){realContext.toast('Send saved work before changing views.');return;}
- if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=103');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
+ if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=104');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
  if(active)active.stop();const actor=demoController.transport.actors[role==='installer'?1:0];
  active=new InstallerView({...realContext,user:actor,demo:true,demoRole:role,initialJobId:'demo-installation',fetcher:demoController.transport.fetcher(role),token:async()=>''});await active.start();
 }
@@ -65,7 +66,7 @@ class InstallerView {
     else if(this.queueFilter==='correction'){job.exceptions.filter(e=>e.status==='correction').forEach(e=>details.push({camera:job.cameras.find(c=>c.id===e.cameraId)?.name,who:this.name(e.requestedBy),issue:e.decisions.at(-1)?.comment,at:e.decisions.at(-1)?.at}));job.cameras.forEach(c=>Object.entries(c.corrections||{}).filter(([,v])=>v.status==='open').forEach(([k,v])=>details.push({camera:c.name,who:job.assignees.map(id=>this.name(id)).join(', '),issue:k+': '+v.comment,at:v.at})));}
     else if(this.queueFilter==='materials'){const items=job.materials?.items||[];const needs=items.filter(item=>{const b=materialBalance(item);return item.issued>0&&(!b.checked||b.leftGood>0||b.leftDamaged>0||(item.missing||0)>0&&item.lossAccepted!==item.missing);});if(needs.length||job.materials?.required&&!job.materials.confirmed)details.push({camera:'Materials and returns',who:job.assignees.map(id=>this.name(id)).join(', '),issue:needs.length+' items to check · '+(job.materials?.confirmed?'site list checked':'check full site list'),at:job.updatedAt});}
     else if(this.queueFilter==='review'&&job.status!=='Submitted'||this.queueFilter==='completed'&&job.status!=='Completed')continue;
-    else details.push({camera:['review','completed'].includes(this.queueFilter)?job.cameras.map(c=>c.name).join(' · '):job.cameras.length+' cameras',who:job.assignees.map(id=>this.name(id)).join(', '),issue:job.status,at:job.submittedAt||job.updatedAt});
+    else details.push({camera:['review','completed'].includes(this.queueFilter)?job.cameras.map(c=>c.name).join(' · '):job.cameras.length+' cameras',who:job.assignees.map(id=>this.name(id)).join(', '),issue:job.status+(stockManager(this.user)?' · Crew pay: '+(payReady(job)?money(crewPay(job)):'Set agreed pay'):this.user.role==='installer'?' · Your pay: '+(job.installerPay?.[this.user.id]?money(job.installerPay[this.user.id].amount):'Operations must set'):' '),at:job.submittedAt||job.updatedAt});
     details.forEach(d=>items.push('<article class="iw-job"><h3>'+esc(job.business)+' · '+esc(d.camera)+'</h3><p>'+esc(d.who)+' · '+esc(d.issue)+'</p><p class="helper">Waiting '+esc(waiting(d.at))+' · scheduled '+esc(job.scheduledDate)+'</p>'+button('data-iw-open="'+esc(job.id)+'"','Open installation')+'</article>'));
    }
    html+=items.join('')||'<p>No installations in this queue.</p>';html+='</section>';
@@ -86,6 +87,7 @@ class InstallerView {
   if(j.status==='Completed')html+='<p>Technical approval: '+esc(this.name(j.approval.by))+' · '+esc(j.approval.at)+' · '+esc(j.approval.comment)+'</p>';
   if(supervisor&&!locked)html+=button('data-iw-plan','Edit job setup')+button('data-iw-pilot','Work rules and who can approve');
   html+='<details><summary>Work rules '+(j.pilot.confirmed?'· confirmed':'· Operations must check')+'</summary><p class="iw-pre">Cable methods: '+esc(j.pilot.cableMethods||'Not defined')+'\nWeather protection: '+esc(j.pilot.weather||'Not defined')+'\nMounting: '+esc(j.pilot.mounting||'Not defined')+'\nApprovals: '+esc(j.pilot.approvalCover||'Operations')+'\nBackup: '+esc(j.pilot.backup||'Not defined')+'</p>'+this.evidence(j,'reference')+(supervisor&&!locked?this.upload('reference','Add approved mounting / finishing example'):'')+'</details></section>';
+  html+=this.paymentView(j);
   html+=this.workLog(j,supervisor,locked);
   html+=this.materialsView(j,locked);
   html+='<section class="card iw-card"><h2>Camera locations</h2><div class="iw-row">'+j.cameras.map(x=>button('data-iw-camera="'+x.id+'"',x.name,x.id===this.cameraId)).join('')+'</div></section>';
@@ -129,6 +131,7 @@ class InstallerView {
   if(d.iwSample){await this.samplePhoto(d.iwSample,d.camera||'');return;}
 
   if(d.iwWork){b.disabled=true;try{const location=this.ctx.demo?{lat:0,lng:0,accuracy:0}:await captureWorkLocation();await this.client.save(j.id,{action:d.iwWork,data:{location,capturedAt:new Date().toISOString()}});this.ctx.toast(this.ctx.demo?'Demo time and sample location saved.':this.client.message);}finally{b.disabled=false;}return;}
+  if(j&&'iwPay'in d){this.modal('Set agreed installer pay','<p>Enter each person’s total pay for this job. Each installer sees their own amount.</p>'+j.assignees.map((id,i)=>field('pay'+i,this.name(id)+' · agreed pay (UGX)',j.installerPay?.[id]?.amount??'','number').replace('type="number"','type="number" min="1" max="100000000" step="1" required')+field('payNote'+i,'Payment notes for '+this.name(id),j.installerPay?.[id]?.note||'','textarea')).join(''),f=>this.client.online(j.id,{action:'installerPay',baseVersion:j.versions.installerPay||0,data:{payments:j.assignees.map((id,i)=>({installerId:id,amount:Number(f.get('pay'+i)),note:f.get('payNote'+i)}))}}));return;}
   if(j&&this.materialActions(d,j))return;
   if('iwSync'in d){await this.client.sync();this.client.cachePhotos();}
   if('iwBack'in d){this.jobId='';this.draw();}
@@ -148,6 +151,16 @@ class InstallerView {
   if('iwComplete'in d)this.modal('Final technical approval',field('comment','Technical review notes','','textarea'),f=>this.client.online(j.id,{action:'complete',data:{comment:f.get('comment')}}));
   if('iwMetric'in d)this.modal('Pilot observation','<label>Measure<select name="type">'+options(['Return visit','Cable replacement','On-site inspection','Completion time (minutes)'])+'</select></label>'+field('value','Quantity / minutes','1','number')+field('note','Observation / outcome','','textarea'),f=>this.client.online(j.id,{action:'metric',data:Object.fromEntries(f)}));
  }catch(error){this.ctx.toast(error.message);}}
+ paymentView(j){
+  const ops=stockManager(this.user),own=j.installerPay?.[this.user.id];
+  if(!ops&&this.user.role!=='installer')return '';
+  let html='<section class="card iw-card"><h2>'+ (ops?'Agreed installer pay':'Your agreed pay for this job')+'</h2>';
+  const show=(id,p)=>'<article class="iw-job">'+(ops?'<h3>'+esc(this.name(id))+'</h3>':'')+'<h2>'+esc(p?money(p.amount):'Operations has not set the amount yet')+'</h2>'+(p?'<p>This is your total pay for this job.</p><p class="iw-pre">'+esc(p.note||'No extra payment notes.')+'</p><p class="helper">Set by '+esc(this.name(p.by))+' · '+esc(time(p.at))+' (Uganda time)</p>':'')+'</article>';
+  if(ops){html+='<p>Set the agreed amount for each installer before work starts.</p>'+j.assignees.map(id=>show(id,j.installerPay?.[id])).join('');if(j.assignees.length)html+='<p><strong>Total crew pay: '+(payReady(j)?esc(money(crewPay(j))):'Set the amount for every installer')+'</strong></p>';else html+='<p>Assign an installer first.</p>';if(j.status!=='Completed'&&j.assignees.length)html+=button('data-iw-pay','Set / update agreed pay',true);}
+  else html+=show(this.user.id,own);
+  if(j.payHistory?.length)html+='<details><summary>Payment amount history</summary>'+j.payHistory.map(h=>'<p>'+esc(time(h.at))+' · '+esc(this.name(h.by))+'</p>'+Object.entries(h.payments).map(([id,p])=>'<p>'+esc(this.name(id))+' · '+esc(money(p.amount))+'<br>'+esc(p.note)+'</p>').join('')).join('')+'</details>';
+  return html+'<p class="helper">This records the agreed amount. It does not mark the money as paid.</p></section>';
+ }
  materialsView(j,locked){
   const m=j.materials||initialMaterials(j.equipment),ops=stockManager(this.user),installer=this.user.role==='installer';
   let html='<section class="card iw-card"><h2>Site materials and tools</h2><p>Operations records what goes to the site. The installer records what was used and what is left. Operations checks what comes back.</p>';
