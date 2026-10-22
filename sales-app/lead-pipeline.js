@@ -3,9 +3,9 @@
  'use strict';
  const lc=v=>String(v||'').toLowerCase(), isLead=p=>!!p&&p.leadOnly===true;
  const own=(p,u)=>!!u?.email&&lc(p?.createdByEmail)===lc(u.email);
- const routed=(p,u)=>!!p?.handoffAt&&(u?.role==='admin'||(p.handoffTo==='manager'&&u?.role==='teamlead')||(p.handoffTo==='operations'&&u?.role==='operations'));
- const canSee=(p,u)=>!isLead(p)||own(p,u)||u?.role==='admin'||routed(p,u);
- const canManage=(p,u)=>isLead(p)&&(u?.role==='admin'||routed(p,u));
+ const routed=(p,u)=>!!p?.handoffAt&&['admin','operations'].includes(u?.role);
+ const canSee=(p,u)=>!isLead(p)||own(p,u)||['admin','operations'].includes(u?.role);
+ const canManage=(p,u)=>isLead(p)&&['admin','operations'].includes(u?.role);
  const phoneKey=v=>{let d=String(v||'').replace(/\D/g,'');return d.length>=9?d.slice(-9):'';};
  function check(data,records,id){
   if(String(data.business||'').trim().length<2)return 'Add the business or contact name.';
@@ -13,7 +13,7 @@
   if((records||[]).some(p=>p.id!==id&&phoneKey(p.phone)===phoneKey(data.phone)))return 'This phone number is already saved. Open the existing contact instead.';
   return '';
  }
- // Hidden drafts survive whole-workspace writes from older Operations clients.
+ // Other reps' saved contacts survive older or scoped workspace writes.
  // Handovers are monotonic so an older phone cannot withdraw or undo routing.
  function guard(stored,incoming,user,appointments=[],jobs=[],now=new Date().toISOString()){
   const byId=new Map((stored||[]).map(p=>[p.id,p]));
@@ -31,8 +31,10 @@
      const duplicate=(stored||[]).some(x=>x.id!==next.id&&phoneKey(x.phone)===phoneKey(next.phone));
      const error=check(next,[],next.id);if(error||duplicate)throw new Error(duplicate?'This phone is already recorded. Ask your manager to check the existing contact.':error);
     }
-    if(next.handoffTo&&!['manager','operations'].includes(next.handoffTo))throw new Error('Choose Team lead or Operations for handover.');
-    const changed=next.handoffTo!==prev?.handoffTo||next.handoffAt!==prev?.handoffAt;
+    const legacyManager=next.handoffTo==='manager'&&prev?.handoffTo==='manager';
+    if(legacyManager)next.handoffTo='operations';
+    if(next.handoffTo&&next.handoffTo!=='operations')throw new Error('Send handovers to Operations only.');
+    const changed=(!legacyManager&&next.handoffTo!==prev?.handoffTo)||next.handoffAt!==prev?.handoffAt;
     if(!changed&&prev?.handoffAt)next={...next,handoffBy:prev.handoffBy,handoffByEmail:prev.handoffByEmail};
     if(changed&&next.handoffTo){
      if(prev&&!own(prev,user)&&!canManage(prev,user))throw new Error('Only the lead owner or receiving team can hand it over.');
@@ -43,7 +45,7 @@
    return next;
   });
   const ids=new Set(out.map(p=>p.id));
-  (stored||[]).forEach(p=>{if(!ids.has(p.id)&&isLead(p)&&(!canSee(p,user)||p.handoffAt))out.push(p);});
+  (stored||[]).forEach(p=>{if(!ids.has(p.id)&&isLead(p)&&(!own(p,user)||p.handoffAt))out.push(p);});
   const changed=out.filter(p=>isLead(p)&&(!byId.has(p.id)||phoneKey(byId.get(p.id).phone)!==phoneKey(p.phone)));
   if(changed.some(p=>out.some(x=>x.id!==p.id&&phoneKey(x.phone)===phoneKey(p.phone))))throw new Error('This phone is already recorded. Open the existing contact instead.');
   const leads=new Set(out.filter(isLead).map(p=>p.id));

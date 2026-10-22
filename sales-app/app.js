@@ -495,7 +495,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=91'), import('./field-shifts-ui.mjs?v=91'), import('./field-shifts-android.mjs?v=91')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=92'), import('./field-shifts-ui.mjs?v=92'), import('./field-shifts-android.mjs?v=92')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -574,8 +574,8 @@
     var leadDue=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&ownProspect(p)&&(isToday(p.followUp)||isOverdue(p.followUp));});
     var sections = '<section class="card"><h2>Keep contacts for later</h2><p class="helper">Not ready for a site visit? Save their details and follow up first.</p><button class="btn btn-ghost" data-save-lead>Save a lead</button>'+(leadDue.length?'<p class="helper">'+leadDue.length+' saved-contact follow-ups due.</p>'+leadDue.map(function(p){return '<p><strong>'+esc(p.business)+'</strong> · '+dateLabel(p.followUp)+' <button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button></p>';}).join(''):'')+'</section>';
 
-    var receivedLeads=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&leadTools().routed(p,settings.user);});
-    if(receivedLeads.length)sections+='<section class="card"><h2>'+receivedLeads.length+' lead handover'+(receivedLeads.length===1?'':'s')+' waiting</h2><p class="helper">Sales has sent contacts to your team for the next step. No visits are booked yet.</p><button class="btn btn-primary" data-open-leads>Review handovers</button></section>';
+    var receivedLeads=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&leadTools().canManage(p,settings.user);});
+    if(receivedLeads.length)sections+='<section class="card"><h2>'+receivedLeads.length+' prospecting contact'+(receivedLeads.length===1?'':'s')+'</h2><p class="helper">Saved contacts are visible to Operations while Sales follows up. No visits are booked yet.</p><button class="btn btn-primary" data-open-leads>View prospecting contacts</button></section>';
     sections += section("Overdue follow-ups", overdue.length, "alert",
       overdue.sort(function (a, b) { return (a.followUp || "").localeCompare(b.followUp || ""); })
         .map(function (p) { return prospectAction(p, "red"); }).join(""),
@@ -615,11 +615,11 @@
   var leadListMode = '', leadViewer = '';
   function leadTools() { return window.VeriskoLeadPipeline; }
   function renderLeads() {
-    var manager = canReviewProspects() || isTeamLead();
-    var viewer=(settings.user||{}).email;if(viewer!==leadViewer){leadViewer=viewer;leadListMode=manager?'inbox':'mine';}
-    if (!leadListMode) leadListMode = manager ? 'inbox' : 'mine';
-    setHead('Sales contacts', manager ? 'Leads & handovers' : 'My leads', 'Save contacts, plan follow-ups, then hand over when they are ready. Saving a lead does not book a visit.', 'Save a lead', true);
-    content.innerHTML = '<section class="card"><div class="toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Search leads"></div><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="mine">My saved leads</option><option value="sent">My sent handovers</option>'+(manager?'<option value="inbox">Received handovers</option>':'')+'</select></div></div><p class="helper">Saved leads stay with the salesperson. Team lead and Operations receive only contacts explicitly sent to them. No visit or visit pay is created here.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
+    var manager = canReviewProspects();
+    var viewer=(settings.user||{}).email;if(viewer!==leadViewer){leadViewer=viewer;leadListMode=manager?'all':'mine';}
+    if (!leadListMode) leadListMode = manager ? 'all' : 'mine';
+    setHead('Sales contacts', manager ? 'Prospecting contacts' : 'My leads', 'Operations can see saved contacts while Sales follows up. Send to Operations when ready for the next step. No visit is booked automatically.', 'Save a lead', true);
+    content.innerHTML = '<section class="card"><div class="toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Search leads"></div><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="mine">My saved leads</option><option value="sent">My sent handovers</option>'+(manager?'<option value="all">All prospecting contacts</option><option value="inbox">Ready for Operations</option>':'')+'</select></div></div><p class="helper">Operations sees saved contacts automatically in the prospecting stage. Send to Operations flags readiness; it does not book a visit or create visit pay.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
     document.getElementById('leadMode').value = leadListMode;
     updateLeadGrid();
   }
@@ -627,20 +627,20 @@
     var L=leadTools(), me=settings.user||{}, search=(document.getElementById('leadSearch').value||'').toLowerCase();
     var rows=(state.prospects||[]).filter(function(p){
       if(!L.isLead(p))return false;
-      var inList=leadListMode==='inbox'?L.routed(p,me):L.own(p,me)&&(leadListMode==='sent'?!!p.handoffAt:!p.handoffAt);
+      var inList=leadListMode==='all'?L.canManage(p,me):leadListMode==='inbox'?L.routed(p,me):L.own(p,me)&&(leadListMode==='sent'?!!p.handoffAt:!p.handoffAt);
       return inList&&[p.business,p.contact,p.phone,p.location,p.notes,p.nextAction].join(' ').toLowerCase().indexOf(search)!==-1;
     }).sort(function(a,b){return (a.followUp||'9999').localeCompare(b.followUp||'9999');});
     document.getElementById('leadCount').textContent=rows.length+' '+(rows.length===1?'contact':'contacts');
     document.getElementById('leadGrid').innerHTML=rows.length?rows.map(function(p){
-      var mine=L.own(p,me), receive=L.canManage(p,me), target=p.handoffTo==='manager'?'Team lead':'Operations';
-      return xCard({key:'l:'+p.id,cls:isOverdue(p.followUp)?'tone-amber':'tone-navy',title:esc(p.business),chip:chip(p.handoffAt?'Sent to '+target:(p.leadStatus||'New contact'),p.handoffAt?'cyan':'grey'),meta:esc([p.contact,p.location].filter(Boolean).join(' · ')),
+      var mine=L.own(p,me), receive=L.canManage(p,me);
+      return xCard({key:'l:'+p.id,cls:isOverdue(p.followUp)?'tone-amber':'tone-navy',title:esc(p.business),chip:chip(p.handoffAt?'Ready for Operations':'Prospecting',p.handoffAt?'cyan':'grey'),meta:esc([p.contact,p.location].filter(Boolean).join(' · ')),
        next:{tone:isOverdue(p.followUp)?'amber':'muted',text:(p.followUp?'Follow up '+dateLabel(p.followUp)+' · ':'')+(p.nextAction||'Plan your next conversation')},
        quick:callBtn(p.phone)+'<button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button>',
-       lines:line('Phone',esc(p.phone))+line('Notes',esc(p.notes||'No notes yet'))+(p.handoffAt?line('Handover',esc((p.handoffBy||p.createdBy||'Sales')+' · '+dateLabel(p.handoffAt.slice(0,10))))+line('Request',esc(p.handoffNote||'Contact is ready for the team to follow up')):'')+followUpSummaryLine(p),
+       lines:line('Contact status',esc(p.leadStatus||'New contact'))+line('Phone',esc(p.phone))+line('Notes',esc(p.notes||'No notes yet'))+(p.handoffAt?line('Handover',esc((p.handoffBy||p.createdBy||'Sales')+' · '+dateLabel(p.handoffAt.slice(0,10))))+line('Request',esc(p.handoffNote||'Contact is ready for the team to follow up')):'')+followUpSummaryLine(p),
        more:(mine?'<button class="btn btn-sm btn-ghost" data-edit-lead="'+esc(p.id)+'">Edit contact</button>':'')+
-        ((mine||receive)?'<button class="btn btn-sm btn-ghost" data-lead-send="manager" data-lead-id="'+esc(p.id)+'">Send to Team lead</button><button class="btn btn-sm btn-primary" data-lead-send="operations" data-lead-id="'+esc(p.id)+'">Send to Operations</button>':'')+
+        ((mine&&!canReviewProspects())?'<button class="btn btn-sm btn-primary" data-lead-send="operations" data-lead-id="'+esc(p.id)+'">Send to Operations</button>':'')+
         (receive?'<button class="btn btn-sm btn-ghost" data-lead-convert="'+esc(p.id)+'">Move to Prospects</button>':'')});
-    }).join(''):'<p class="helper">'+(leadListMode==='inbox'?'No handovers waiting for this team.':'No contacts here yet. Tap Save a lead to keep someone for follow-up.')+'</p>';
+    }).join(''):'<p class="helper">'+(leadListMode==='inbox'?'No contacts flagged ready for Operations.':leadListMode==='all'?'Saved contacts will appear here automatically as Sales adds them.':'No contacts here yet. Tap Save a lead to keep someone for follow-up.')+'</p>';
   }
   function leadFormHtml(p) {
     return '<p class="helper full">Keep this contact for follow-up. No site visit, GPS pin or qualification answers are required.</p>'+
@@ -663,8 +663,9 @@
     dialog.close();saveData('Lead saved for follow-up. No visit booked.');view='leads';render();
   }
   async function sendLead(id,target) {
+    if(target!=='operations')return;
     var p=prospect(id),L=leadTools();if(!L.isLead(p)||(!ownProspect(p)&&!L.canManage(p,settings.user)))return;
-    var answer=await openSheet({title:'Send to '+(target==='manager'?'Team lead':'Operations'),body:'What should the team help with? Sending does not book a visit.',input:{placeholder:'Client is ready for a call about a site visit',value:p.handoffNote||''},requireValue:true,confirmLabel:'Send handover'});
+    var answer=await openSheet({title:'Send to Operations',body:'What should the team help with? Sending does not book a visit.',input:{placeholder:'Client is ready for a call about a site visit',value:p.handoffNote||''},requireValue:true,confirmLabel:'Send handover'});
     if(answer===null)return;var note=answer.text;
     p.handoffTo=target;p.handoffAt=nowIso();p.handoffBy=(settings.user||{}).name||'';p.handoffByEmail=(settings.user||{}).email||'';p.handoffNote=note;
     var saved=await saveData();toast(saved?'Handover sent. No visit booked yet.':'Handover saved on this phone; it will send when sync succeeds.');render();
@@ -4061,7 +4062,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v91";
+  var APP_VERSION = "v92";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4847,7 +4848,7 @@
   });
 
   content.addEventListener("click", function (e) {
-    if(e.target.closest('[data-open-leads]')){view='leads';leadListMode='inbox';leadViewer=(settings.user||{}).email;render();return;}
+    if(e.target.closest('[data-open-leads]')){view='leads';leadListMode='all';leadViewer=(settings.user||{}).email;render();return;}
     var leadEdit=e.target.closest('[data-edit-lead]');if(leadEdit){openForm('prospect',leadEdit.dataset.editLead);return;}
     var leadSave=e.target.closest('[data-save-lead]');if(leadSave){openForm('prospect',null,'__lead__');return;}
     var leadSend=e.target.closest('[data-lead-send]');if(leadSend){sendLead(leadSend.dataset.leadId,leadSend.dataset.leadSend);return;}
