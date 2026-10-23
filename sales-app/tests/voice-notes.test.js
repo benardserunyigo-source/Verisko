@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';
+import fs from 'node:fs';import test from 'node:test';import assert from 'node:assert/strict';
 import {createVoiceHandler,canUseVoice,decodeVoice,projectVoice,loadVoiceNotes} from '../netlify/functions/lib/voice-notes-core.mjs';
 import {VoiceRecorder} from '../voice-recorder.mjs';
 import {FieldMemoryStore} from './helpers/field-fixture.mjs';
@@ -45,3 +45,7 @@ test('closing during recording or a pending microphone request releases tracks a
  let resolve,stopped=0;const r=new VoiceRecorder({devices:{getUserMedia:()=>new Promise(ok=>resolve=ok)},Recorder:class{}});const pending=r.start();r.dispose();resolve({getTracks:()=>[{stop(){stopped++;}}]});await pending;assert.equal(stopped,1);
 });
 test('microphone denial gives a clear retry message',async()=>{const r=new VoiceRecorder({devices:{getUserMedia:async()=>{throw Object.assign(new Error('denied'),{name:'NotAllowedError'});}},Recorder:class{}});await assert.rejects(()=>r.start(),/Allow the microphone/);});
+
+test('voice endpoint rewrite precedes the website fallback',()=>{
+ const routes=fs.readFileSync(new URL('../_redirects',import.meta.url),'utf8').split('\n');const route=routes.indexOf('/api/voice-notes /.netlify/functions/voice-notes 200');assert.ok(route>=0&&route<routes.findIndex(s=>s.startsWith('/* ')));
+});
