@@ -1,5 +1,5 @@
-import {initialMaterials,applyMaterialCommand,materialProblems,updateMaterialPlan} from './installer-materials.mjs?v=122';
-export {materialBalance,materialProblems,stockManager,UNITS,initialMaterials} from './installer-materials.mjs?v=122';
+import {initialMaterials,applyMaterialCommand,materialProblems,updateMaterialPlan} from './installer-materials.mjs?v=123';
+export {materialBalance,materialProblems,stockManager,UNITS,initialMaterials} from './installer-materials.mjs?v=123';
 // Shared installation workflow. Server applies commands, never client snapshots.
 export const TESTS=['live','recording','playback','coverage','remote'];
 export const PARTS=['cable','mount','tests'];
@@ -37,6 +37,7 @@ const has=(j,id,kind,cameraId)=>j.evidence.some(e=>e.id===id&&e.kind===kind&&e.c
 const evidence=(j,ids,kind,cameraId)=>Array.isArray(ids)&&ids.length>0&&ids.every(id=>has(j,id,kind,cameraId));
 export function readiness(j){
  const missing=materialProblems(j);
+ if(j.readyContactId&&(j.materials?.items||[]).some(i=>i.needed>0&&i.issued===0))missing.push('Operations must record what was taken to the site for each planned item.');
  if(j.assignment&&j.assignment.status!=='accepted')missing.push('The installer must accept this job before work can be submitted.');
  if(j.payRequired&&!(typeof j.payReady==='boolean'?j.payReady:payReady(j)))missing.push('Operations must set the agreed pay for each installer.');
  if(!j.pilot?.confirmed||!j.pilot.cableMethods||!j.pilot.weather||!j.pilot.mounting||!j.pilot.approvalCover||!j.pilot.backup)missing.push('Operations must confirm the work rules and who can approve changes.');
@@ -58,6 +59,11 @@ export function readiness(j){
  if(!j.handover?.issues)missing.push('List any problems left, or choose None.');
  if(!j.handover?.acknowledged&&!j.handover?.reason)missing.push('Record who checked the work, or say why no one could check it.');
  return missing;
+}
+// A small shared summary for the phone workflow and Operations review.
+export function installationProgress(j){
+ const missing=readiness(j),items=(j.materials?.items||[]).filter(i=>i.issued>0);
+ return {missing,camerasDone:j.cameras.filter(c=>!missing.some(m=>m.startsWith(c.name+':'))).length,camerasTotal:j.cameras.length,materialsDone:items.filter(i=>materialProblems({...j,materials:{...j.materials,confirmed:true,items:[i]}}).length===0).length,materialsTotal:items.length};
 }
 export function createJob(input,user,now,staff=[]){
  if(!['admin','operations'].includes(user?.role))throw fail('Only Operations can create a job.',403);

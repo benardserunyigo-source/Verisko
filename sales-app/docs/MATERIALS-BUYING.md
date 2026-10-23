@@ -28,3 +28,17 @@ Accepting opens the normal work checks. Pending or declined offers cannot record
 The offer keeps the same client ID and materials-plan ID. Repeated sends reuse one installation record. Stale updates are rejected. Once site materials, work times or installer evidence are recorded, Operations must use the existing installation rather than replace the job. Editing the procurement list is blocked while an offer is pending or accepted. Supplier prices, quote links and client payment details are not copied to the installer.
 
 Offers and replies need a connection. Existing saved work checks retain the app’s offline workflow.
+
+## Installer finishes and sends back the same job
+
+After accepting the offer, the installer opens **Jobs → Installations**:
+
+1. **Camera checks:** choose each camera, save cable and mounting checks, add photos, and test live view, recording, playback, coverage and phone viewing.
+2. **Materials left:** record the amount used, damaged or missing for each issued item. The app works out what is left. For example, 100 metres sent minus 85 used leaves 15 metres to return.
+3. **Finish & send:** finish the site visit, show the work to the Verisko staff member, save the handover checks, and tap **Send to Operations**.
+
+The app lists missing checks and waits for all saved photos to reach the server before sending. The submitted record stays on the same installation ID and becomes read-only for the installer.
+
+Operations opens **Jobs → Installations → Ready for review**, checks the photos and tests, and receives leftover stock in **Materials & returns**. Operations can approve the job or return a camera check with a reason. The installer fixes the returned item, adds the required new photo, and sends the same job again. A job cannot be approved while required checks or warehouse returns are still outstanding.
+
+Camera capture, gallery choice and GPS should also be checked on the actual Android phones during the pilot. Automated API tests use fictional jobs and images, not real site evidence.
