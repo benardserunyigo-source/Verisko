@@ -49,3 +49,21 @@ test('microphone denial gives a clear retry message',async()=>{const r=new Voice
 test('voice endpoint rewrite precedes the website fallback',()=>{
  const routes=fs.readFileSync(new URL('../_redirects',import.meta.url),'utf8').split('\n');const route=routes.indexOf('/api/voice-notes /.netlify/functions/voice-notes 200');assert.ok(route>=0&&route<routes.findIndex(s=>s.startsWith('/* ')));
 });
+
+
+test('a lost save response can be retried without duplicating the Sales note',async()=>{
+ const f=fixture(),write=f.store.setJSON.bind(f.store);let dropped=false;
+ f.store.setJSON=async(key,...args)=>{const result=await write(key,...args);if(key==='contacts/client'&&!dropped){dropped=true;throw new Error('TEST lost response after commit');}return result;};
+ const requestId='sales-lost-response';assert.equal((await f.call('sales',{requestId})).status,500);assert.equal((await f.call('sales',{requestId})).status,200);f.cases.push({contactId:'client'});
+ for(const role of ['sales','teamlead','operations']){const list=await(await f.call(role)).json();assert.equal(list.notes.length,1);assert.equal(list.notes[0].id,requestId);const r=await f.call(role,null,'?contactId=client&id='+requestId);assert.equal(r.status,200);assert.equal(Buffer.from(await r.arrayBuffer()).toString('base64'),audio);}
+});
+
+
+test('a Sales recording follows one contact into the shared queue for Team Lead and Operations',async()=>{
+ const f=await journeyFixture();assert.equal((await f.save('sales',d=>d.prospects.push({...p,followUps:[]}))).status,200);
+ const call=(role,body,query='?contactId=client')=>f.handlers.voice(new Request('https://test.local/api/voice-notes'+query,{method:body?'POST':'GET',headers:{authorization:role},...(body?{body:JSON.stringify(body)}:{})}));
+ const body={contactId:'client',requestId:'sales-shared-client-note',audio,mimeType:'audio/webm',durationSeconds:5,caption:'TEST Friday visit'};assert.equal((await call('sales',body)).status,200);assert.equal((await call('teamlead')).status,404);
+ const shared=await f.api('ready','sales',{action:'request',contactId:'client',baseVersion:0,requestId:'share-contact-with-voice',note:'TEST Ready for site visit'});assert.equal(shared.status,200,shared.error);
+ for(const role of ['sales','teamlead','operations']){const response=await call(role),list=await response.json();assert.equal(response.status,200,role+': '+JSON.stringify(list));assert.equal(list.notes.length,1);assert.equal(list.notes[0].id,body.requestId);const r=await call(role,null,'?contactId=client&id='+body.requestId);assert.equal(r.status,200);assert.equal(Buffer.from(await r.arrayBuffer()).toString('base64'),audio);const queue=await f.ok('ready',role);assert.equal(queue.items.filter(c=>c.contactId==='client').length,1);const d=await f.workspace(role),contact=d.prospects.find(p=>p.id==='client');if(contact)assert.equal(contact.followUps.filter(n=>n.voiceNoteId===body.requestId).length,1);else assert.equal(role,'teamlead');}
+ assert.equal((await f.raw()).prospects.filter(p=>p.id==='client').length,1);assert.equal((await call('other-sales')).status,404);assert.equal((await call('installer')).status,403);
+});
