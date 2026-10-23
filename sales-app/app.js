@@ -454,10 +454,10 @@
   var pendingInstallationId='';
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=124');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=125');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=124');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=125');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({initialJobId:pendingInstallationId,previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
       pendingInstallationId='';
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
@@ -525,11 +525,11 @@
   }
   async function renderReadyQueue(){
     var id=settings.user.id;setHead('Contacts','Ready for site visit','Loading the shared queue…','',false);content.innerHTML='<p role="status">Loading queue…</p>';
-    try{var m=await import('./ready-leads-ui.mjs?v=124');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
+    try{var m=await import('./ready-leads-ui.mjs?v=125');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
   }
   async function renderMaterials(){
     var id=settings.user.id;setHead('Jobs','Materials & buying','Use the paid client’s details. Plan, request buying, then record orders and deliveries.','',false);content.innerHTML='<p role="status">Loading paid jobs…</p>';
-    try{var m=await import('./materials-ui.mjs?v=124');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
+    try{var m=await import('./materials-ui.mjs?v=125');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
   }
   setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
@@ -563,7 +563,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=124'), import('./field-shifts-ui.mjs?v=124'), import('./field-shifts-android.mjs?v=124')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=125'), import('./field-shifts-ui.mjs?v=125'), import('./field-shifts-android.mjs?v=125')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -740,7 +740,7 @@
       return xCard({key:'l:'+p.id,cls:overdue?'tone-amber':'tone-navy',title:esc(p.business),chip:chip(queueItem?(queueItem.state==='returned'?'Sent back':'Site visit requested'):p.handoffAt?'Site visit requested':'Prospecting',queueItem||p.handoffAt?'cyan':'grey'),meta:esc([p.contact,p.location].filter(Boolean).join(' · ')),
        next:{tone:overdue?'amber':'muted',text:(p.followUp?'Follow up '+dateLabel(p.followUp)+' · ':'')+(p.nextAction||'Plan your next conversation')},
        summary:leadContactSummary(p),
-       quick:callBtn(p.phone)+'<button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button>',
+       quick:callBtn(p.phone)+voiceButton(p.id)+'<button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button>',
        lines:line('Contact status',esc(p.leadStatus||'New contact'))+line('Phone',esc(p.phone))+line('Notes',esc(p.notes||'No notes yet'))+(p.handoffAt?line('Handover',esc((p.handoffBy||p.createdBy||'Sales')+' · '+dateLabel(p.handoffAt.slice(0,10))))+line('Request',esc(p.handoffNote||'Contact is ready for the team to follow up')):'')+followUpSummaryLine(p),
        more:(mine?'<button class="btn btn-sm btn-ghost" data-edit-lead="'+esc(p.id)+'">Edit contact</button>':'')+
         ((mine&&(!queueItem||queueItem.state==='returned'))?'<button class="btn btn-sm btn-primary" data-lead-send="operations" data-lead-id="'+esc(p.id)+'">Ready for site visit</button>':'')+
@@ -783,7 +783,7 @@
   async function sendLead(id,target) {
     var userId=settings.user?.id;try{
       if(localUnsynced&&!(await pushShared()))throw new Error('Sync this contact before sending it to the site visit queue.');
-      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=124');if(settings.user?.id!==userId)return;
+      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=125');if(settings.user?.id!==userId)return;
       m.openReadyRequest({api:readyApi,user:settings.user,contacts:state.prospects||[],selectedId:id,items:readyData.items,esc:esc,isCurrent:function(){return settings.user?.id===userId&&!document.body.classList.contains('locked');},onSaved:function(item){updateReadyData({items:[item].concat(readyData.items.filter(function(c){return c.contactId!==item.contactId;})),people:readyData.people});toast('Sent to Team Lead and Operations.');if(view==='leads')updateLeadGrid();}});
     }catch(e){toast(e.message);}
   }
@@ -881,7 +881,7 @@
     return xCard({ key: "r:" + p.id, cls: "tone-navy", title: esc(p.business), chip: stageChip(p.stage),
       meta: esc([p.createdBy || "Rep", areaOf(p.location)].filter(Boolean).join(" · ")),
       next: appt ? { tone: "muted", text: "Site visit " + relDay(appt.date) + " · " + (appt.status || "") } : { tone: "amber", text: "No site visit booked yet" },
-      quick: callBtn(p.phone) + main,
+      quick: callBtn(p.phone) + main + voiceButton(p.id),
       lines: line("Contact", esc([p.contact, p.phone].filter(Boolean).join(" · ") || "—")) + line("Location", esc(p.location || "—")) +
         (p.imported ? line("Lead", "Imported" + (p.source ? " · " + esc(p.source) : "") + " · no commission")
           : line("Approved", esc((p.qualApprovedBy || "Team lead") + (p.qualApprovedAt ? " · " + C.label(C.eventTime(p.qualApprovedAt), true) : "")))),
@@ -934,7 +934,7 @@
     var area = areaOf(p.location);
     return xCard({ key: "p:" + p.id, cls: "tone-" + tone, title: esc(p.business), chip: stageChip(p.stage),
       meta: esc([p.contact, area].filter(Boolean).join(" · ") || p.vertical || ""),
-      next: prospectNext(p, appt), quick: callBtn(p.phone) + main,
+      next: prospectNext(p, appt), quick: callBtn(p.phone) + main + voiceButton(p.id),
       lines: (extraChips ? lineHtml("Status", extraChips) : "") +
         line("Business", esc(p.vertical || "—")) +
         line("Contact", esc(p.contact || "Unknown")) +
@@ -1020,7 +1020,7 @@
     return xCard({ key: "v:" + a.id, cls: a.status === "Confirmed" ? "handoff" : "tone-amber",
       title: esc(p.business || "Unknown prospect"), chip: apptChip(a.status),
       meta: "<strong>" + esc(relDay(a.date)) + "</strong> · " + esc(a.time || "no time") + (area ? " · " + esc(area) : ""),
-      next: visitNextStep(a, gaps), quick: callBtn(p.phone) + main,
+      next: visitNextStep(a, gaps), quick: callBtn(p.phone) + main + voiceButton(p.id),
       lines: line("When", esc(dateLabel(a.date)) + (a.time ? " at " + esc(a.time) : "")) +
         line("Purpose", esc(a.purpose || "Site visit")) +
         line("Contact", esc(p.contact || "Unknown")) +
@@ -3498,14 +3498,29 @@
     b.hidden = n === 0;
   }
 
+  function voiceButton(id){return '<button type="button" class="btn btn-sm btn-ghost" data-client-voice="'+esc(id)+'">Voice notes</button>';}
+  async function voiceApi(method,body,query,kind){
+    var id=settings.user?.id,generation=sessionGeneration;if(!id||!settings.auth)throw new Error('Sign in again.');
+    if(settings.auth.expires_at&&settings.auth.expires_at*1000-Date.now()<60000)await refreshSession();
+    async function request(){if(settings.user?.id!==id||generation!==sessionGeneration)throw new Error('Account changed. Open the contact again.');return fetch('/api/voice-notes'+(query||''),{method:method,headers:{Authorization:'Bearer '+settings.auth.access_token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000)});}
+    var r=await request();if(r.status===401&&await refreshSession())r=await request();
+    if(settings.user?.id!==id||generation!==sessionGeneration)throw new Error('Account changed. Open the contact again.');
+    if(!r.ok){var err=await r.json().catch(function(){return {};});throw new Error(err.error||'Could not connect. Try again when online.');}return kind==='audio'?r.blob():r.json();
+  }
+  async function openContactVoice(id){
+    var userId=settings.user?.id,voiceGeneration=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
+    if(!p||!['sales','teamlead','operations','admin'].includes(settings.user?.role))return;
+    try{var m=await import('./voice-notes-ui.mjs?v=125');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
+  }
+  document.addEventListener('click',function(e){var b=e.target.closest('[data-client-voice]');if(b){e.preventDefault();e.stopPropagation();openContactVoice(b.dataset.clientVoice);}},true);
   function followUpHistory(p) {
-    var fs = (p.followUps || []).slice().reverse();
-    if (!fs.length) return '<p class="rev-petty">No follow-ups logged yet. Use “Log follow-up” on the prospect to record one.</p>';
-    return '<div class="followup-list">' + fs.map(function (f) {
+    var voice=voiceButton(p.id),fs = (p.followUps || []).slice().reverse();
+    if (!fs.length) return voice+'<p class="rev-petty">No follow-ups logged yet. Use “Log follow-up” on the prospect to record one.</p>';
+    return voice+'<div class="followup-list">' + fs.map(function (f) {
       var office = f.role && f.role !== "Sales";
       return '<div class="followup-item"><div class="followup-meta">' + esc(dateTimeLabel(f.at)) + " · " + esc(f.by || "—") + (office ? " (" + esc(f.role) + ")" : "") +
-        (f.geo ? " · " + mapLink(f.geo) : office ? "" : " · <span class=\"nogeo\">no location</span>") + (f.next ? " · next " + esc(dateLabel(f.next)) : "") + "</div>" +
-        '<div class="followup-note">' + esc(f.note || "") + "</div></div>";
+        (f.geo ? " · " + mapLink(f.geo) : f.voiceNoteId||office ? "" : " · <span class=\"nogeo\">no location</span>") + (f.next ? " · next " + esc(dateLabel(f.next)) : "") + "</div>" +
+        '<div class="followup-note">' + esc(f.note || "") + (f.voiceNoteId?voiceButton(p.id):'')+"</div></div>";
     }).join("") + "</div>";
   }
 
@@ -3525,7 +3540,7 @@
     dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Follow-up</h2><p class="ask-body">' + esc(p.business) + (p.contact ? " · " + esc(p.contact) : "") +
       (p.phone ? ' · <a class="telink" href="' + esc(telHref(p.phone)) + '">' + esc(p.phone) + "</a>" : "") + "</p></div>" +
       (recent.length ? '<div class="followup-list" style="max-height:150px;overflow:auto;margin-bottom:10px">' + recent.map(function (f) {
-        return '<div class="followup-item"><div class="followup-meta">' + esc(dateTimeLabel(f.at)) + " · " + esc(f.by || "—") + '</div><div class="followup-note">' + esc(f.note || "") + "</div></div>";
+        return '<div class="followup-item"><div class="followup-meta">' + esc(dateTimeLabel(f.at)) + " · " + esc(f.by || "—") + '</div><div class="followup-note">' + esc(f.note || "") + (f.voiceNoteId?voiceButton(p.id):'')+"</div></div>";
       }).join("") + "</div>" : "") +
       (tries >= 2 && canDisqualify(p) ? '<p class="ask-body" style="color:var(--red)">' + tries + " unanswered calls so far — you can disqualify this lead from its card.</p>" : "") +
       '<div class="ask-choices" role="group" aria-label="What happened">' + FOLLOW_OUTCOMES.map(function (c) { return '<button type="button" class="ask-chip" data-choice="' + esc(c) + '">' + esc(c) + "</button>"; }).join("") + "</div>" +
@@ -4429,7 +4444,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=124");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=125");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }

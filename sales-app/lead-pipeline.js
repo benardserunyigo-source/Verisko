@@ -47,7 +47,7 @@
     if(!row&&!f.byEmail&&f.by){const matches=[...rows.values()].filter(r=>lc(r.name)===lc(f.by));if(matches.length===1)row=matches[0];}
     if(!row&&f.role&&!['sales','teamlead'].includes(f.role))return;
     if(!row)row=ensure(key,f.by);
-    const signature=JSON.stringify([f.at,key,f.note||'',f.outcome||'']);
+    const signature=JSON.stringify([f.at,key,f.note||'',f.outcome||'',f.voiceNoteId||'']);
     if(seen.has(signature))return;seen.add(signature);row.followUps++;
    });
   });

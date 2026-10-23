@@ -64,4 +64,15 @@ Gaps fixed during the check:
 - Recording a quote as sent reuses a quote saved for that client. A single saved quote fills in automatically; several quotes require a choice. A quote from another client is rejected. External quote references remain available when there is no saved app quote.
 - Materials changes check the role before checking assignment locks, so Sales and Team Lead receive the proper access denial.
 
-All five roles are checked through the server handlers, including forged actions and unassigned installer access. Local browser checks cover Sales progress and Operations navigation with fictional accounts. Screen previews remain view-only. Android camera/gallery, GPS, offline recovery on the actual phone and production PIN login still require a real-device pilot; this automated run does not establish those results. Voice-note recording is not part of the current typed follow-up workflow and was not tested as a working feature.
+All five roles are checked through the server handlers, including forged actions and unassigned installer access. Local browser checks cover Sales progress and Operations navigation with fictional accounts. Screen previews remain view-only. Android camera/gallery, GPS, offline recovery on the actual phone and production PIN login still require a real-device pilot; this automated run does not establish those results. Voice notes were added in v125, as described below.
+
+
+## Client voice notes (v125)
+
+Open the saved contact or site-visit request and tap **Voice notes → Record voice note**. Allow the microphone, record your update, then tap **Stop recording**. Listen, add a short note if useful, and tap **Save voice note**. Notes can be up to two minutes. Record your own update after the conversation.
+
+Sales can record and listen on their own contacts. Operations and Admin can access all contacts. Team Lead can access their own contacts and contacts shared through the site-visit workflow. Installers and unrelated Sales staff cannot access the recordings. Saved notes show the staff name and Uganda time on the same contact, and count as follow-up interactions. They do not create another contact. Recordings have no public link; listening requires a current permitted session.
+
+Saving needs an internet connection. If saving fails, keep the window open and tap Save again. The draft stays only in this open window; closing or signing out discards it. Recording stops when the window closes, the app goes into the background, or two minutes pass. Role previews show sample notes with recording and playback turned off.
+
+Automated tests cover access, attribution, retry/concurrent saves, stale contact saves and microphone cleanup. A local browser check recorded a generated test tone through MediaRecorder, saved it and played it back. It used no microphone and no real client data. Test microphone permission, voice clarity and playback on an actual staff Android before rollout. The installed wrapper needs the 0.3.0 pilot APK; Android Chrome can use the website directly.

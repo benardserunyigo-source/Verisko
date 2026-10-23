@@ -1,3 +1,4 @@
+import {loadVoiceNotes,projectVoice,stripVoice} from './lib/voice-notes-core.mjs';
 import {loadInstallationProgress} from './lib/installation-progress.mjs';
 import {firstClientPayment} from './lib/ready-payments.mjs';
 import {loadReadyCases,projectReady} from './lib/ready-progress.mjs';
@@ -54,7 +55,8 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
     }
     const readyCases=await loadReadyCases(storeFor({name:'verisko-ready-cases',consistency:'strong'}));
     const installationProgress=await loadInstallationProgress(storeFor({name:'verisko-installations',consistency:'strong'}));
-    data=projectReady(data,readyCases,installationProgress);
+    const voiceNotes=await loadVoiceNotes(storeFor({name:'verisko-voice-notes',consistency:'strong'}));
+    data=projectVoice(projectReady(data,readyCases,installationProgress),voiceNotes);
     const isAdmin = bootstrap || (me && me.role === "admin");
     const isTeamLead = !bootstrap && !!me && me.role === "teamlead";
     const isSales = !bootstrap && !!me && me.role !== "admin" && me.role !== "operations" && me.role !== "teamlead";
@@ -80,7 +82,8 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
     if (request.method === "POST") {
       const payload = await request.json().catch(() => ({}));
       if (!payload || !payload.data) throw new Error("Missing application data.");
-      const incoming = payload.data;
+      const incoming = stripVoice(payload.data);
+      data=stripVoice(data);
       const storedTx = Array.isArray(data.transactions) ? data.transactions : [];
       const storedProspects = Array.isArray(data.prospects) ? data.prospects : [];
       const storedAppointments = Array.isArray(data.appointments) ? data.appointments : [];
@@ -220,7 +223,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
         const ready=await storeFor({name:'verisko-ready-cases',consistency:'strong'}).get('cases/'+oldContact.id,{type:'json'});
         if(ready?.contactId===oldContact.id)return json({ok:false,error:'This contact has site visit history. Keep the contact record.'},409,headers);
       }}
-      await store.setJSON(KEY, projectReady(clean,readyCases,installationProgress));
+      await store.setJSON(KEY, projectVoice(projectReady(clean,readyCases,installationProgress),voiceNotes));
       return json({ ok: true, ...(canReview ? { jobs: clean.jobs } : {}) }, 200, headers);
     }
 

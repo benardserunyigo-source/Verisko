@@ -23,7 +23,7 @@ const QUAL_STATUSES = ["", "pending", "approved", "query", "disqualified"];
 // The planned next follow-up. Whoever changes it stamps followUpPlannedAt, so
 // a phone holding an older copy can't overwrite a newer plan.
 const PLAN_FIELDS = ["followUp", "nextAction", "followUpPlannedBy", "followUpPlannedByEmail", "followUpPlannedAt"];
-const followKey = (f) => [f && f.at, lc(f && f.byEmail), f && f.note].join("|");
+const followKey = (f) => f?.voiceNoteId?'voice/'+f.voiceNoteId:[f && f.at, lc(f && f.byEmail), f && f.note].join("|");
 
 const jobStub = (j) => ({ id: j.id, ref: j.ref, prospectId: j.prospectId, stage: j.stage, createdAt: j.createdAt });
 // Client money in that isn't sent back — what earns deposit commission.

@@ -73,3 +73,12 @@ The app stops the continuous location watch first. An explicit check-out then re
 The website supplies the check-in reminder checklist and Support link, and thanks staff after check-out. It says hours are recorded only when the server confirms the end; offline work is labelled waiting to sync. Install the 0.2.0 pilot APK to get the native finish-location capture. Older APKs can still stop shifts but do not capture that separate finish point.
 
 Repeat the real-phone trial above for both in-app and notification check-out, including a paused shift, location disabled, and no data. A successful CI build is not evidence of locked-screen behaviour on a staff phone.
+
+
+## Client voice notes · 0.3.0 pilot
+
+This pilot adds microphone support for client voice notes. Tap **Voice notes → Record voice note** on the Verisko website inside the app, then allow Android microphone permission. Record, stop, listen and save. It does not record automatically. Saving requires data. Switching away stops the recording; closing discards an unsaved draft.
+
+The WebView grants audio capture only to the exact Verisko production HTTPS origin while this Activity is in the foreground. Other origins, camera requests and background requests are denied. An in-flight microphone request is denied when the Activity pauses. The page is told to stop recording when the app leaves the foreground. This microphone change does not change the location service.
+
+Install the new pilot APK for microphone support in the wrapper. Android Chrome can also use the website directly. Before staff rollout, test permission denial/retry, record/stop/save/playback, app switch and lock-screen stop, and sign-out with a draft on an actual Android phone. A successful CI build and synthetic browser audio test do not establish those real-device results.

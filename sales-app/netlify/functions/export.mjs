@@ -1,3 +1,4 @@
+import {loadVoiceNotes,projectVoice} from './lib/voice-notes-core.mjs';
 import {loadReadyCases,projectReady} from './lib/ready-progress.mjs';
 // Verisko Uganda Operations — read-only data export for spreadsheets.
 //
@@ -44,7 +45,7 @@ export default async (request) => {
       return json({ ok: true, table: "diagnostics", rows }, 200);
     }
 
-    data=projectReady(data,await loadReadyCases(getStore({name:'verisko-ready-cases',consistency:'strong'})));
+    data=projectVoice(projectReady(data,await loadReadyCases(getStore({name:'verisko-ready-cases',consistency:'strong'}))),await loadVoiceNotes(getStore({name:'verisko-voice-notes',consistency:'strong'})));
     const base = `${url.origin}/api/export?key=${encodeURIComponent(given)}`;
     const tables = buildTables(data, base);
     const table = (url.searchParams.get("table") || "").toLowerCase();

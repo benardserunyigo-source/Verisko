@@ -14,7 +14,7 @@ import java.util.*;
 /** Native capabilities are exposed only to the exact production HTTPS origin and top frame. */
 public final class MainActivity extends Activity {
  private WebView web;private final Handler handler=new Handler(Looper.getMainLooper());private SecureState store;
- private JSONObject pendingBegin;private JavaScriptReplyProxy pendingReply;private GeolocationPermissions.Callback geoReply;private String geoOrigin;private ValueCallback<Uri[]> fileReply;private boolean resumed=false;
+ private JSONObject pendingBegin;private JavaScriptReplyProxy pendingReply;private GeolocationPermissions.Callback geoReply;private String geoOrigin;private ValueCallback<Uri[]> fileReply;private PermissionRequest pendingAudio;private boolean resumed=false;
  @Override public void onCreate(Bundle state){
   super.onCreate(state);store=new SecureState(this);web=new WebView(this);setContentView(web);
   web.setOnApplyWindowInsetsListener((v,insets)->{if(Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars());v.setPadding(bars.left,bars.top,bars.right,bars.bottom);}else{v.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());}return insets;});
@@ -62,6 +62,9 @@ public final class MainActivity extends Activity {
    @Override public void onReceivedSslError(WebView view,android.webkit.SslErrorHandler h,android.net.http.SslError e){h.cancel();}
   });
   web.setWebChromeClient(new WebChromeClient(){
+   @Override public void onPermissionRequest(PermissionRequest request){runOnUiThread(()->{String[] resources=request.getResources();boolean onlyAudio=resources.length==1&&PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resources[0]);if(pendingAudio!=null||!Rules.mayRecord(request.getOrigin().toString(),web.getUrl(),resumed,onlyAudio)){request.deny();return;}if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED){request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});return;}pendingAudio=request;requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},44);});}
+   @Override public void onPermissionRequestCanceled(PermissionRequest request){if(pendingAudio==request)pendingAudio=null;}
+
    @Override public void onGeolocationPermissionsShowPrompt(String origin,GeolocationPermissions.Callback callback){if(!Rules.trusted(origin)){callback.invoke(origin,false,false);return;}if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED){callback.invoke(origin,true,false);return;}geoReply=callback;geoOrigin=origin;requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION},41);}
    @Override public boolean onShowFileChooser(WebView view,ValueCallback<Uri[]> callback,FileChooserParams params){if(fileReply!=null)fileReply.onReceiveValue(null);fileReply=callback;try{startActivityForResult(params.createIntent(),43);}catch(Exception e){fileReply.onReceiveValue(null);fileReply=null;}return true;}
   });
@@ -83,10 +86,10 @@ public final class MainActivity extends Activity {
   }catch(Exception e){reply(reply,request,null,"Could not start the Android tracking service.");pendingBegin=null;pendingReply=null;}
  }
  private void reply(JavaScriptReplyProxy proxy,JSONObject request,JSONObject result,String error){try{JSONObject out=new JSONObject().put("id",request.optString("id")).put("ok",error==null);if(error!=null)out.put("error",error);if(result!=null)out.put("status",result);proxy.postMessage(out.toString());}catch(Exception ignored){}}
- @Override public void onRequestPermissionsResult(int code,String[] p,int[] r){super.onRequestPermissionsResult(code,p,r);if(code==42)launchBegin();if(code==41&&geoReply!=null){geoReply.invoke(geoOrigin,checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED,false);geoReply=null;}}
+ @Override public void onRequestPermissionsResult(int code,String[] p,int[] r){super.onRequestPermissionsResult(code,p,r);if(code==44&&pendingAudio!=null){PermissionRequest audio=pendingAudio;pendingAudio=null;if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED&&Rules.mayRecord(audio.getOrigin().toString(),web.getUrl(),resumed,true))audio.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});else audio.deny();}if(code==42)launchBegin();if(code==41&&geoReply!=null){geoReply.invoke(geoOrigin,checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED,false);geoReply=null;}}
  @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==43&&fileReply!=null){fileReply.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result,data));fileReply=null;}}
  @Override protected void onResume(){super.onResume();resumed=true;if(web!=null)web.onResume();}
- @Override protected void onPause(){resumed=false;if(web!=null)web.onPause();super.onPause();}
+ @Override protected void onPause(){resumed=false;if(pendingAudio!=null){pendingAudio.deny();pendingAudio=null;}if(web!=null){web.evaluateJavascript("window.dispatchEvent(new Event('verisko-voice-stop'))",null);web.onPause();}super.onPause();}
  @Override public void onBackPressed(){if(web.canGoBack())web.goBack();else super.onBackPressed();}
  @Override protected void onDestroy(){if(fileReply!=null)fileReply.onReceiveValue(null);if(web!=null)web.destroy();handler.removeCallbacksAndMessages(null);super.onDestroy();}
 }
