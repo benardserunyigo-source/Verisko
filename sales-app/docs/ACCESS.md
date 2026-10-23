@@ -51,3 +51,17 @@ Use **Installer work** to choose a site. Operations and Admin can open any job a
 Self-assignment is an online, audited command. It adds only the signed-in person, preserves current supervisors, and does not change their account role. Team Leads gain review access to that job, not crew payment, stock, job setup or pricing rights. Installers and Sales cannot self-assign as supervisors. Completed jobs cannot be claimed or reassigned. Version checks protect against stale setup saves.
 
 The separate Supervisor account role and preview were removed in v111. Active account roles are Admin, Operations, Team Lead, Sales and Installer. Live roster inspection found no Supervisor accounts needing migration. Historical site assignments and review history are retained.
+
+## Full journey check, 22 October 2026
+
+The integrated test creates a fictional contact through the main data API, routes it through the shared queue, confirms/completes a visit, saves a priced quote, records and approves payment, orders/receives materials, assigns the installer, uploads photos, submits checks and material counts, receives returns and approves the installation. It calls the real handlers against in-memory stores; it does not write real customer data or test real staff credentials.
+
+The run checks one client, one visit, one first payment, one quote, one materials plan and one installation after retries and another Sales save. It also checks shared follow-up notes, duplicate-phone rejection, ownership/send-back reasons, incomplete-material and unaccepted-offer gates, return balances and final approval. A separate three-client run verifies UGX 45,000 visit pay + UGX 50,000 weekly bonus + UGX 100,000 first-payment commission = UGX 195,000.
+
+Gaps fixed during the check:
+
+- Sales and Team Lead now see a small installation-status summary on the existing client. Status reaches **Installation approved**. Crew pay, photos, supplier information and GPS stay in the installation workspace under the existing access rules.
+- Recording a quote as sent reuses a quote saved for that client. A single saved quote fills in automatically; several quotes require a choice. A quote from another client is rejected. External quote references remain available when there is no saved app quote.
+- Materials changes check the role before checking assignment locks, so Sales and Team Lead receive the proper access denial.
+
+All five roles are checked through the server handlers, including forged actions and unassigned installer access. Local browser checks cover Sales progress and Operations navigation with fictional accounts. Screen previews remain view-only. Android camera/gallery, GPS, offline recovery on the actual phone and production PIN login still require a real-device pilot; this automated run does not establish those results. Voice-note recording is not part of the current typed follow-up workflow and was not tested as a working feature.

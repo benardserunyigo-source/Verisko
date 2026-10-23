@@ -1,3 +1,4 @@
+import {contactInstallations} from './installation-progress.mjs';
 import {applyMaterials,paidWork,materialsSummary} from './materials-core.mjs';
 import {firstClientPayment,paymentView,validPaymentDay} from './ready-payments.mjs';
 import {loadReadyCases} from './ready-progress.mjs';
@@ -81,7 +82,9 @@ export function transitionReady(old,body,me,p,users,at,appointments=[],transacti
     if(!c.visit?.doneAt)throw fail('Mark the site visit done before recording the quote.',409);
     if(c.quoteSent)throw fail('The quote is already recorded as sent.',409);
     if(day>today||day<c.visit.doneAt.slice(0,10))throw fail('Choose a quote date from the completed visit through today.');
-    c.quoteSent={at:day+'T12:00:00+03:00',byName:me.name,byEmail:me.email,reference:text(body.reference,100)};type='quote_sent';
+    const quotes=jobs.filter(j=>j.prospectId===p.id&&!['Draft','Cancelled','Rejected'].includes(j.stage)),quote=body.quoteId?quotes.find(j=>j.id===body.quoteId):quotes.length===1?quotes[0]:null;
+    if(body.quoteId&&!quote||quotes.length>1&&!quote)throw fail('Choose the saved quote for this client.');
+    c.quoteSent={sourceId:quote?.id||'',at:day+'T12:00:00+03:00',byName:me.name,byEmail:me.email,reference:quote?.ref||text(body.reference,100)};type='quote_sent';
    }
   }else if(action==='return'){
    if(c.ownerId!==me.id&&me.role!=='admin')throw fail('Only the current owner can send this lead back.',403);
@@ -95,7 +98,7 @@ export function transitionReady(old,body,me,p,users,at,appointments=[],transacti
  }
  c.version++;c.updatedAt=at;c.history.push({id:eventId,type,at,by:me.id,name:me.name||'Staff',toId,toName,note,date:['confirm_visit','complete_visit','quote_sent'].includes(action)?body.date:undefined,time:action==='confirm_visit'?body.time:undefined});return c;
 }
-function view(c,p,users,me,transactions=[],jobs=[]){const creator=users.find(u=>own(p,u));const safe=structuredClone(c);safe.firstPayment=paymentView(c,p,me,transactions,jobs);safe.materialsStatus=materialsSummary(c.materialPlans);if(['admin','operations'].includes(me.role))safe.paidWork=paidWork(p,transactions,jobs,c);else delete safe.materialPlans;if(!office(me)){safe.history=safe.history.map(e=>e.type==='payment_queried'?{...e,note:''}:e);if(safe.quoteSent){delete safe.quoteSent.reference;delete safe.quoteSent.byEmail;}if(safe.visit){delete safe.visit.byEmail;delete safe.visit.doneByEmail;}}return {...safe,contact:{id:p.id,business:p.business||'',contact:p.contact||'',phone:p.phone||'',location:p.location||'',leadOnly:p.leadOnly===true,createdBy:p.createdBy||creator?.name||'Sales'},ownerName:users.find(u=>u.id===c.ownerId)?.name||(c.ownerId?'Former team member':'Unassigned'),creatorId:creator?.id||null};}
+function view(c,p,users,me,transactions=[],jobs=[],installations=[]){const creator=users.find(u=>own(p,u));const safe=structuredClone(c);safe.firstPayment=paymentView(c,p,me,transactions,jobs);safe.materialsStatus=materialsSummary(c.materialPlans);safe.installationProgress=contactInstallations(p.id,jobs,installations);if(office(me))safe.availableQuotes=jobs.filter(j=>j.prospectId===p.id&&!['Draft','Cancelled','Rejected'].includes(j.stage)).map(j=>({id:j.id,ref:j.ref||'Saved quote'}));if(['admin','operations'].includes(me.role))safe.paidWork=paidWork(p,transactions,jobs,c);else delete safe.materialPlans;if(!office(me)){safe.history=safe.history.map(e=>e.type==='payment_queried'?{...e,note:''}:e);if(safe.quoteSent){delete safe.quoteSent.reference;delete safe.quoteSent.byEmail;}if(safe.visit){delete safe.visit.byEmail;delete safe.visit.doneByEmail;}}return {...safe,contact:{id:p.id,business:p.business||'',contact:p.contact||'',phone:p.phone||'',location:p.location||'',leadOnly:p.leadOnly===true,createdBy:p.createdBy||creator?.name||'Sales'},ownerName:users.find(u=>u.id===c.ownerId)?.name||(c.ownerId?'Former team member':'Unassigned'),creatorId:creator?.id||null};}
 export function createReadyHandler({store,authorize,now=()=>new Date().toISOString()}){return async request=>{try{
  const auth=await authorize(request),me=auth?.me;if(!allowed(me))return json({ok:false,error:'Site visit access required.'},auth?.status||403);
  if(request.headers.get('origin')&&request.headers.get('origin')!==new URL(request.url).origin)return json({ok:false,error:'Use this app to update the queue.'},403);
@@ -105,7 +108,7 @@ export function createReadyHandler({store,authorize,now=()=>new Date().toISOStri
   for(const p of prospects){if(!cases.has(p.id)){const c=legacyCase(p);if(c)cases.set(p.id,c);}}
   const materials=new URL(request.url).searchParams.get('materials')==='1';
   if(materials){if(!['admin','operations'].includes(me.role))throw fail('Only Operations can open materials and buying.',403);for(const p of prospects){if(!cases.has(p.id)&&paidWork(p,auth.transactions,auth.jobs).length)cases.set(p.id,{contactId:p.id,state:'assigned',ownerId:null,version:0,history:[]});}}
-  const items=[];for(const c of cases.values()){const p=prospects.find(p=>p.id===c.contactId);if(p&&(office(me)||own(p,me))&&(!materials||paidWork(p,auth.transactions,auth.jobs,c).length))items.push(view(c,p,users,me,auth.transactions||[],auth.jobs||[]));}
+  const items=[];for(const c of cases.values()){const p=prospects.find(p=>p.id===c.contactId);if(p&&(office(me)||own(p,me))&&(!materials||paidWork(p,auth.transactions,auth.jobs,c).length))items.push(view(c,p,users,me,auth.transactions||[],auth.jobs||[],auth.installationProgress||[]));}
   items.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
   return json({ok:true,items,people:office(me)?users.filter(u=>['operations','teamlead'].includes(u.role)).map(u=>({id:u.id,name:u.name,role:u.role})):[]});
  }
@@ -116,9 +119,10 @@ export function createReadyHandler({store,authorize,now=()=>new Date().toISOStri
  const key='cases/'+p.id,old=await store.getWithMetadata(key,{type:'json'}),previous=old?.data||legacyCase(p);
  if(me.role==='teamlead'&&!own(p,me)&&!previous)throw fail('Contact not found.',404);
  const materialAction=['plan_materials','request_procurement','order_material','receive_material'].includes(body.action);
+ if(materialAction&&!['admin','operations'].includes(me.role))throw fail('Only Operations can manage materials and buying.',403);
  const initial=previous||(materialAction&&['admin','operations'].includes(me.role)&&paidWork(p,auth.transactions,auth.jobs).length?{contactId:p.id,state:'assigned',ownerId:me.id,version:0,history:[]}:null);
  if(body.action==='plan_materials'&&(auth.materialLocks||[]).some(x=>x.contactId===p.id&&x.sourceId===body.sourceId))throw fail('An installer already has this materials list. Use the existing installation; declined offers can be changed here.',409);
  const next=transitionReady(initial,body,me,p,users,now(),auth.appointments||[],auth.transactions||[],auth.jobs||[]);
  if(next!==initial){const result=await store.setJSON(key,next,old?.etag?{onlyIfMatch:old.etag}:{onlyIfNew:true});if(!result?.modified)throw fail('Someone updated this lead first. Refresh the queue to see its owner.',409);}
- return json({ok:true,item:view(next,p,users,me,auth.transactions||[],auth.jobs||[])});
+ return json({ok:true,item:view(next,p,users,me,auth.transactions||[],auth.jobs||[],auth.installationProgress||[])});
  }catch(e){return json({ok:false,error:e.status?e.message:'Could not load or save the site visit queue.'},e.status||500);}};}

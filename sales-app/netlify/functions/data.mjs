@@ -1,3 +1,4 @@
+import {loadInstallationProgress} from './lib/installation-progress.mjs';
 import {firstClientPayment} from './lib/ready-payments.mjs';
 import {loadReadyCases,projectReady} from './lib/ready-progress.mjs';
 import {ROLES,guardRoster,visibleRoster,guardCash,checkPhotoLinks,safeUser} from './access.mjs';
@@ -52,7 +53,8 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
       return json({ok:true,data:{...EMPTY,users:[safeUser(me)]}},200,headers);
     }
     const readyCases=await loadReadyCases(storeFor({name:'verisko-ready-cases',consistency:'strong'}));
-    data=projectReady(data,readyCases);
+    const installationProgress=await loadInstallationProgress(storeFor({name:'verisko-installations',consistency:'strong'}));
+    data=projectReady(data,readyCases,installationProgress);
     const isAdmin = bootstrap || (me && me.role === "admin");
     const isTeamLead = !bootstrap && !!me && me.role === "teamlead";
     const isSales = !bootstrap && !!me && me.role !== "admin" && me.role !== "operations" && me.role !== "teamlead";
@@ -218,7 +220,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
         const ready=await storeFor({name:'verisko-ready-cases',consistency:'strong'}).get('cases/'+oldContact.id,{type:'json'});
         if(ready?.contactId===oldContact.id)return json({ok:false,error:'This contact has site visit history. Keep the contact record.'},409,headers);
       }}
-      await store.setJSON(KEY, projectReady(clean,readyCases));
+      await store.setJSON(KEY, projectReady(clean,readyCases,installationProgress));
       return json({ ok: true, ...(canReview ? { jobs: clean.jobs } : {}) }, 200, headers);
     }
 

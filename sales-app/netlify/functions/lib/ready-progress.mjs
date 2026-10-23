@@ -1,6 +1,7 @@
+import {contactInstallations} from './installation-progress.mjs';
 // Queue progress is authoritative. Project it into the existing visit/pay screens.
 export async function loadReadyCases(store){const out=[];for await(const page of store.list({prefix:'cases/',paginate:true})){for(const b of page.blobs){const c=await store.get(b.key,{type:'json'});if(c)out.push(c);}}return out;}
-export function projectReady(data,cases){
+export function projectReady(data,cases,installations=[]){
  const out={...data,prospects:[...(data.prospects||[])],appointments:[...(data.appointments||[])],transactions:[...(data.transactions||[])]};
  for(const c of cases){if(c.firstPayment&&(data.prospects||[]).some(p=>p.id===c.contactId)){out.transactions=out.transactions.filter(t=>t.id!==c.firstPayment.id);out.transactions.push({...c.firstPayment,readyCaseId:c.contactId,prospectId:c.contactId});if(typeof c.firstPayment.commissionEligible==='boolean')out.prospects=out.prospects.map(p=>p.id===c.contactId?{...p,salesCommissionEligible:c.firstPayment.commissionEligible}:p);}if(!c.visit)continue;const index=out.prospects.findIndex(p=>p.id===c.contactId);if(index<0)continue;
  const p=out.prospects[index],v=c.visit,advanced=/^(Quoted|Won|Lost|Installed|Installation|Payment|Closed)/i.test(p.stage||'');
@@ -10,5 +11,6 @@ export function projectReady(data,cases){
  visitResult:v.doneAt?'real':'',visitResultAt:v.doneAt||'',visitResultBy:v.doneByName||'',visitResultByEmail:v.doneByEmail||'',visitResultReason:'',visitResultNote:v.doneNote||''};
  out.appointments=out.appointments.filter(a=>a.id!==v.id);out.appointments.push(appointment);
  }
+ out.prospects=out.prospects.map(p=>{const next={...p};delete next.installationProgress;const progress=contactInstallations(p.id,data.jobs||[],installations);if(progress.length){next.installationProgress=progress;next.readyProgress=progress.length===1?progress[0].stage:progress.length+' installations';}return next;});
  return out;
 }

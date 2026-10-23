@@ -75,3 +75,9 @@ test('existing direct and job-linked payments are shown instead of recorded twic
  for(const linked of [false,true]){const f=await paymentFixture();f.jobs.push({id:'job',prospectId:'contact'});f.transactions.push({id:'existing-payment',direction:'in',amount:500000,status:'pending',date:'2026-10-22',...(linked?{installId:'job'}:{prospectId:'contact'})});const r=await f.call('ops','record_payment',pay);assert.equal(r.status,409);assert.equal((await f.call('sales')).items[0].firstPayment.legacy,true);f.transactions[0].status='approved';f.transactions[0].approvedAt='2026-10-22T12:00:00Z';assert.equal((await f.call('sales')).items[0].firstPayment.status,'approved');}
  const f=await paymentFixture();f.prospects[0].imported=true;await f.call('ops','record_payment',pay);await f.call('admin','approve_payment',{baseVersion:4});assert.equal((await f.call('sales')).items[0].firstPayment.commissionEligible,false);
 });
+test('quote tracking reuses the saved quote and never links another client’s quote',async()=>{
+ const f=fixture();await f.call('sales','request');await f.call('ops','take',{baseVersion:1});await f.call('ops','confirm_visit',{baseVersion:2,date:'2026-10-22',time:'10:00'});await f.call('ops','complete_visit',{baseVersion:3,date:'2026-10-22'});
+ f.jobs.push({id:'q1',prospectId:'contact',ref:'TEST-001',stage:'Sent'},{id:'q2',prospectId:'contact',ref:'TEST-002',stage:'Sent'},{id:'foreign',prospectId:'private',ref:'PRIVATE',stage:'Sent'});
+ assert.equal((await f.call('ops','quote_sent',{baseVersion:4,date:'2026-10-22'})).status,400);assert.equal((await f.call('ops','quote_sent',{baseVersion:4,date:'2026-10-22',quoteId:'foreign'})).status,400);
+ const r=await f.call('ops','quote_sent',{baseVersion:4,date:'2026-10-22',quoteId:'q2',reference:'FORGED'});assert.equal(r.item.quoteSent.sourceId,'q2');assert.equal(r.item.quoteSent.reference,'TEST-002');assert.equal((await f.call('sales')).items[0].availableQuotes,undefined);
+});
