@@ -1,3 +1,4 @@
+import {activeWork} from './active-work.mjs';
 import {createHash} from 'node:crypto';
 import {canUseVoice} from './voice-notes-core.mjs';
 import {cleanPosition} from './field-shifts-core.mjs';
@@ -5,12 +6,13 @@ const json=(v,status=200)=>new Response(JSON.stringify(v),{status,headers:{'Cont
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 const key=id=>'people/'+createHash('sha256').update(String(id)).digest('hex');
 const valid=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(v);
-export function createClientWorkHandler({store,authorize,now=()=>Date.now()}){return async request=>{try{
+export function createClientWorkHandler({store,installationStore,authorize,now=()=>Date.now()}){return async request=>{try{
  const auth=await authorize(request),me=auth?.me;if(!me)return json({ok:false,error:'Sign in again.'},auth?.status||401);
  if(!['admin','operations','teamlead','sales'].includes(me.role))throw fail('Client visit access required.',403);
  const url=new URL(request.url);if(request.headers.get('origin')&&request.headers.get('origin')!==url.origin)throw fail('Open this visit in the app.',403);
  const manager=['admin','operations'].includes(me.role),prospects=auth.prospects||[],can=id=>canUseVoice(prospects.find(p=>p.id===id),me,auth.cases),ownKey=key(me.id);
  if(request.method==='GET'){
+ if(url.searchParams.get('dashboard')==='1'){if(!manager)throw fail('Only Operations and Admin can see who is on a job.',403);return json(await activeWork({visitStore:store,installationStore,prospects,users:auth.users||[],now:now()}));}
  const contactId=url.searchParams.get('contactId');if(contactId&&!can(contactId))throw fail('Contact not found or not shared with you.',404);
  const mine=await store.get(ownKey,{type:'json'})||{sessions:[]},current=mine.sessions.find(s=>!s.finish)||null;let sessions=mine.sessions;
  if(manager){sessions=[];for await(const page of store.list({prefix:'people/',paginate:true}))for(const b of page.blobs){const row=await store.get(b.key,{type:'json'});sessions.push(...(row?.sessions||[]));}}

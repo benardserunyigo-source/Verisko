@@ -68,3 +68,6 @@ test('voice previews show sample metadata and cannot save recordings',async()=>{
 
 
 test('visit time previews have no running real visit and reject writes',async()=>{for(const role of ['sales','teamlead','operations']){const p=api().create(role),r=await p.fetch('/api/client-work?contactId=preview-shop'),d=await r.json();assert.equal(r.status,200);assert.equal(d.current,null);assert.equal(d.sessions.length,1);assert.equal(d.sessions[0].durationSeconds,2100);assert.equal((await p.fetch('/api/client-work',{method:'POST',body:'{}'})).status,403);}assert.equal((await api().create('installer').fetch('/api/client-work')).status,403);});
+
+
+test('Operations active-job preview covers Sales, Team Lead and installers without granting other roles access',async()=>{const p=api().create('operations'),r=await p.fetch('/api/client-work?dashboard=1'),d=await r.json();assert.equal(r.status,200);assert.equal(d.rows.length,3);assert.deepEqual([...d.rows.map(r=>r.role)].sort(),['installer','sales','teamlead']);assert.equal(d.counts.people,3);for(const role of ['sales','teamlead','installer'])assert.equal((await api().create(role).fetch('/api/client-work?dashboard=1')).status,403);assert.equal((await p.fetch('/api/client-work?dashboard=1',{method:'POST',body:'{}'})).status,403);});

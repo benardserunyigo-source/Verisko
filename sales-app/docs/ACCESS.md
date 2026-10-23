@@ -89,3 +89,12 @@ Start requires a fresh GPS position with accuracy within 150 metres. If GPS is u
 Installers keep the existing assigned-job Start/Finish and offline queue. The buttons now say **Start job** and **Finish job**. Jobs show each session's time and the person's total; Operations sees total crew time, summed across people rather than claiming it is wall-clock job duration. Locations are saved at the two taps only. Closing a work session does not submit or approve the installation.
 
 Verification uses real handlers with fictional accounts and in-memory stores, plus local browser checks with sample GPS. Actual Android location permissions, accuracy, connectivity and the installed wrapper still require a phone check; no real staff location was collected during development.
+
+
+## Operations active jobs (v127)
+
+Open **Home → Today → Who is on a job?**. Operations and Admin see all open client visits and installer work sessions together. Each card shows the staff name and role, client, start time, start-location map and GPS accuracy, and elapsed time. Use **Show** to filter by role. Counts cover everyone; the list follows the filter. The dashboard refreshes from the server every 30 seconds while visible; elapsed labels update every second. Refresh checks immediately. A failed refresh is labelled, so old rows are not presented as freshly confirmed.
+
+Rows come from the same client-visit and installation work logs. Finish removes that session on the next refresh. Each installer session is a separate card; the people count counts each person once. Old open sessions and completed installations with a missing Finish are flagged for Operations to check, not silently closed. Start location is where work began, not a live position or proof that the person remains there. Pending offline installer starts/finishes cannot appear until synced.
+
+The dashboard is a minimal server projection. It does not send crew pay, client payments, evidence photos, notes or route histories. Sales, Team Lead and Installer accounts cannot call the team-dashboard endpoint. These roles keep their existing personal/assigned work views. Sample previews have fictional names and locations, with the read-only filter and Refresh available. Tests check mixed-role aggregation, unique people counts, missing GPS, access denial, and real Start/Finish commands entering/leaving the combined view.

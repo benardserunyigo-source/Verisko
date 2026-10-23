@@ -454,10 +454,10 @@
   var pendingInstallationId='';
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=126');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=127');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=126');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=127');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({initialJobId:pendingInstallationId,previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
       pendingInstallationId='';
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
@@ -475,7 +475,9 @@
     }catch(e){}finally{installationAlertBusy=false;}
   }
   setInterval(refreshInstallationAlerts,30000);
+  var activeWorkMounted=null;
   function render() {
+    if(activeWorkMounted){activeWorkMounted.stop();activeWorkMounted=null;}
     if(readyMounted){readyMounted.stop();readyMounted=null;}
     today=window.VeriskoLeadPipeline.kampalaDay();
     if(!navigation.allowed((settings.user||{}).role,view))view=navigation.first((settings.user||{}).role,'home')||'today';
@@ -504,6 +506,7 @@
     else if (view === "prices") renderPackagePrices();
     else if (view === "applications") renderApplications();
     else if (view === "field") renderFieldShifts();
+    if(view==='today'&&['admin','operations'].includes(settings.user?.role))mountTeamWork();
     if (view !== 'field' && fieldTracker && fieldUI) updateFieldUI();
     if(view!=='ready'&&view!=='materials'&&!installationRole())refreshReadySummary();
   }
@@ -525,11 +528,11 @@
   }
   async function renderReadyQueue(){
     var id=settings.user.id;setHead('Contacts','Ready for site visit','Loading the shared queue…','',false);content.innerHTML='<p role="status">Loading queue…</p>';
-    try{var m=await import('./ready-leads-ui.mjs?v=126');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
+    try{var m=await import('./ready-leads-ui.mjs?v=127');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
   }
   async function renderMaterials(){
     var id=settings.user.id;setHead('Jobs','Materials & buying','Use the paid client’s details. Plan, request buying, then record orders and deliveries.','',false);content.innerHTML='<p role="status">Loading paid jobs…</p>';
-    try{var m=await import('./materials-ui.mjs?v=126');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
+    try{var m=await import('./materials-ui.mjs?v=127');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
   }
   setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
@@ -564,7 +567,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=126'), import('./field-shifts-ui.mjs?v=126'), import('./field-shifts-android.mjs?v=126')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=127'), import('./field-shifts-ui.mjs?v=127'), import('./field-shifts-android.mjs?v=127')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -643,6 +646,11 @@
     content.innerHTML='<section class="card"><h2>Ask before you change the plan</h2><p>Open your job and contact the Verisko staff member on site. Ask Operations about your agreed pay, payments or missing materials.</p><button type="button" class="btn btn-primary" data-nav-view="installwork">Open my jobs</button></section>';
   }
 
+  async function mountTeamWork(){
+    var host=document.getElementById('activeWorkDashboard'),person=settings.user?.id,generation=sessionGeneration;if(!host)return;
+    var current=function(){return settings.user?.id===person&&sessionGeneration===generation&&view==='today'&&host.isConnected&&!document.body.classList.contains('locked');};
+    try{var m=await import('./active-work-ui.mjs?v=127');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
+  }
   /* --------------------------------- TODAY ---------------------------------- */
   function renderToday() {
     setHead("Home", canReviewProspects() ? "Team work today" : "Your work today", canReviewProspects() ? "Follow up with the team and keep jobs moving." : "Your contacts, follow-ups and site visits in one place.", "", false);
@@ -667,6 +675,7 @@
     var manager=canReviewProspects(),receivedLeads=(state.prospects||[]).filter(function(p){return leadTools().isLead(p)&&leadTools().canManage(p,settings.user);});
     var priorityStats='<div class="home-priorities" aria-label="Today at a glance"><div><strong>'+ (overdue.length+leadDue.filter(function(p){return isOverdue(p.followUp);}).length)+'</strong><span>Overdue follow-ups</span></div><div><strong>'+ (dueToday.length+leadDue.filter(function(p){return isToday(p.followUp);}).length)+'</strong><span>Follow-ups today</span></div><div><strong>'+confirmed.filter(function(a){return isToday(a.date);}).length+'</strong><span>Site visits today</span></div></div>';
     var homeStart='<section class="card staff-start"><div><p class="workspace-label">'+(manager?'OPERATIONS':'SALES')+'</p><h2>'+(manager?'Keep the team moving':'Start with a contact')+'</h2><p>'+(manager?'Review contacts, plan site visits and check the installation work.':'Save who you meet. Follow up, then send ready contacts to the shared site visit queue.')+'</p><div class="staff-start-actions">'+(manager?'<button type="button" class="btn btn-primary" data-nav-view="installwork">Open installations</button><button type="button" class="btn btn-ghost" data-nav-view="ready">Site visit queue</button>':'<button type="button" class="btn btn-primary" data-save-lead>Save a contact</button><button type="button" class="btn btn-ghost" data-nav-view="ready">' +(isTeamLead()?'Shared site visit queue':'My site visit requests')+'</button>')+'</div></div>'+priorityStats+'</section>';
+    var activeWorkSection=['admin','operations'].includes(settings.user?.role)?'<section class="card active-work-dashboard" id="activeWorkDashboard"></section>':'';
     var sections=(manager?installationAlertHtml():'');
     if(leadDue.length)sections+='<section class="card"><h2>Contacts to follow up</h2><div class="home-followups">'+leadDue.map(function(p){return '<div><div><strong>'+esc(p.business)+'</strong><span>'+dateLabel(p.followUp)+'</span></div><button type="button" class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow up</button></div>';}).join('')+'</div></section>';
     sections += section("Overdue follow-ups", overdue.length, "alert",
@@ -691,7 +700,7 @@
       sections += emptyState(ICON_CALENDAR, "You're all caught up", "No overdue follow-ups, nothing due today, and no visits waiting. Add a prospect to keep the pipeline moving.", "Add prospect", 'data-new="prospect"');
     }
 
-    content.innerHTML = idNotice() + idCheckNotice() + signupNotice() + certNotice() + '<div class="staff-home stack">' + homeStart + sections + (trainingNudge()?'<details class="home-training"><summary>Training & support</summary>'+trainingNudge()+'</details>':'') + "</div>";
+    content.innerHTML = idNotice() + idCheckNotice() + signupNotice() + certNotice() + '<div class="staff-home stack">' + activeWorkSection + homeStart + sections + (trainingNudge()?'<details class="home-training"><summary>Training & support</summary>'+trainingNudge()+'</details>':'') + "</div>";
   }
 
   function section(title, count, cls, body) {
@@ -784,7 +793,7 @@
   async function sendLead(id,target) {
     var userId=settings.user?.id;try{
       if(localUnsynced&&!(await pushShared()))throw new Error('Sync this contact before sending it to the site visit queue.');
-      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=126');if(settings.user?.id!==userId)return;
+      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=127');if(settings.user?.id!==userId)return;
       m.openReadyRequest({api:readyApi,user:settings.user,contacts:state.prospects||[],selectedId:id,items:readyData.items,esc:esc,isCurrent:function(){return settings.user?.id===userId&&!document.body.classList.contains('locked');},onSaved:function(item){updateReadyData({items:[item].concat(readyData.items.filter(function(c){return c.contactId!==item.contactId;})),people:readyData.people});toast('Sent to Team Lead and Operations.');if(view==='leads')updateLeadGrid();}});
     }catch(e){toast(e.message);}
   }
@@ -3511,13 +3520,13 @@
   async function openContactVoice(id){
     var userId=settings.user?.id,voiceGeneration=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!p||!['sales','teamlead','operations','admin'].includes(settings.user?.role))return;
-    try{var m=await import('./voice-notes-ui.mjs?v=126');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
+    try{var m=await import('./voice-notes-ui.mjs?v=127');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-voice]');if(b){e.preventDefault();e.stopPropagation();openContactVoice(b.dataset.clientVoice);}},true);
   async function openContactWork(id){
     var userId=settings.user?.id,generation=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!['sales','teamlead','operations','admin'].includes(settings.user?.role)||id&&!p)return;
-    try{var m=await import('./client-work-ui.mjs?v=126');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
+    try{var m=await import('./client-work-ui.mjs?v=127');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-work],[data-client-work-all]');if(b){e.preventDefault();e.stopPropagation();openContactWork(b.dataset.clientWork||'');}},true);
   function followUpHistory(p) {
@@ -4451,7 +4460,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=126");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=127");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }
