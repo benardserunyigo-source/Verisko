@@ -76,3 +76,16 @@ Sales can record and listen on their own contacts. Operations and Admin can acce
 Saving needs an internet connection. If saving fails, keep the window open and tap Save again. The draft stays only in this open window; closing or signing out discards it. Recording stops when the window closes, the app goes into the background, or two minutes pass. Role previews show sample notes with recording and playback turned off.
 
 Automated tests cover access, attribution, retry/concurrent saves, stale contact saves and microphone cleanup. A local browser check recorded a generated test tone through MediaRecorder, saved it and played it back. It used no microphone and no real client data. Test microphone permission, voice clarity and playback on an actual staff Android before rollout. The installed wrapper needs the 0.3.0 pilot APK; Android Chrome can use the website directly.
+
+
+## Visit and installation time (v126)
+
+Sales, Team Lead and Operations open an existing client and tap **Start / finish visit → Start visit** on arrival. Tap **Finish visit** before leaving. The same client is reused. The server saves start/finish time, staff name and the location from each tap. There is no continuous route tracking from this timer. The timer continues after closing the app because elapsed time is calculated from saved timestamps. Starting and finishing require a connection. If saving is not confirmed, keep the window open and retry or Refresh before leaving.
+
+Start requires a fresh GPS position with accuracy within 150 metres. If GPS is unavailable at Finish, staff can explicitly choose **Finish without location**. That finish is marked missing GPS and never receives a made-up location. One person can have only one running client visit. Each person starts/finishes their own visit; Operations cannot end a colleague's timer. Staff can finish their own running visit after contact reassignment from **Home → Client visit times**.
+
+**Home → Client visit times** shows the history. Operations and Admin can review visits on existing contacts. Sales and Team Lead see their own visit history; Team Lead can start visits on their own or shared contacts. Installers use their assigned installation job instead. The visit API verifies these rules for every request, and retries do not duplicate a start or finish. Precise visit locations are not projected into the general contact data or Sales' view of colleagues. Timer records do not change commissions, payment, visit completion or approval. The existing Sales field shift remains separate and still uses its existing check-in, pause and check-out route tracking.
+
+Installers keep the existing assigned-job Start/Finish and offline queue. The buttons now say **Start job** and **Finish job**. Jobs show each session's time and the person's total; Operations sees total crew time, summed across people rather than claiming it is wall-clock job duration. Locations are saved at the two taps only. Closing a work session does not submit or approve the installation.
+
+Verification uses real handlers with fictional accounts and in-memory stores, plus local browser checks with sample GPS. Actual Android location permissions, accuracy, connectivity and the installed wrapper still require a phone check; no real staff location was collected during development.

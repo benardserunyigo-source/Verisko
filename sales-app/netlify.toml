@@ -3,6 +3,11 @@
   functions = "netlify/functions"
 
 [[redirects]]
+  from = "/api/client-work"
+  to = "/.netlify/functions/client-work"
+  status = 200
+
+[[redirects]]
   from = "/api/voice-notes"
   to = "/.netlify/functions/voice-notes"
   status = 200

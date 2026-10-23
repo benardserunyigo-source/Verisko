@@ -1,3 +1,4 @@
+/api/client-work /.netlify/functions/client-work 200
 /api/voice-notes /.netlify/functions/voice-notes 200
 /api/ready-leads /.netlify/functions/ready-leads 200
 /api/installer /.netlify/functions/installer 200

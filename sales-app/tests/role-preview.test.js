@@ -65,3 +65,6 @@ test('voice previews show sample metadata and cannot save recordings',async()=>{
  for(const role of ['sales','operations','teamlead']){const preview=api().create(role),r=await preview.fetch('/api/voice-notes?contactId=preview-shop'),body=await r.json();assert.equal(r.status,200);assert.equal(body.notes.length,1);assert.ok(!JSON.stringify(body).includes('base64'));assert.equal((await preview.fetch('/api/voice-notes',{method:'POST',body:'{}'})).status,403);}
  assert.equal((await api().create('installer').fetch('/api/voice-notes?contactId=preview-shop')).status,403);
 });
+
+
+test('visit time previews have no running real visit and reject writes',async()=>{for(const role of ['sales','teamlead','operations']){const p=api().create(role),r=await p.fetch('/api/client-work?contactId=preview-shop'),d=await r.json();assert.equal(r.status,200);assert.equal(d.current,null);assert.equal(d.sessions.length,1);assert.equal(d.sessions[0].durationSeconds,2100);assert.equal((await p.fetch('/api/client-work',{method:'POST',body:'{}'})).status,403);}assert.equal((await api().create('installer').fetch('/api/client-work')).status,403);});

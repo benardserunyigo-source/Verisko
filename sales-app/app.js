@@ -454,10 +454,10 @@
   var pendingInstallationId='';
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=125');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=126');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=125');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=126');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({initialJobId:pendingInstallationId,previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
       pendingInstallationId='';
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
@@ -525,11 +525,11 @@
   }
   async function renderReadyQueue(){
     var id=settings.user.id;setHead('Contacts','Ready for site visit','Loading the shared queue…','',false);content.innerHTML='<p role="status">Loading queue…</p>';
-    try{var m=await import('./ready-leads-ui.mjs?v=125');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
+    try{var m=await import('./ready-leads-ui.mjs?v=126');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
   }
   async function renderMaterials(){
     var id=settings.user.id;setHead('Jobs','Materials & buying','Use the paid client’s details. Plan, request buying, then record orders and deliveries.','',false);content.innerHTML='<p role="status">Loading paid jobs…</p>';
-    try{var m=await import('./materials-ui.mjs?v=125');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
+    try{var m=await import('./materials-ui.mjs?v=126');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
   }
   setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
@@ -553,6 +553,7 @@
     if(installationRole()){document.getElementById("fieldShiftBanner").innerHTML="";return;}
     if (!fieldTracker || !fieldUI || !settings.user || document.body.classList.contains('locked')) return;
     fieldUI.renderShiftBanner(document.getElementById('fieldShiftBanner'), fieldTracker, function () { view = 'field'; render(); document.getElementById('main').focus(); }, {person:settings.user,today:view==='today'});
+    var workBanner=document.getElementById('fieldShiftBanner');if(workBanner&&!workBanner.hidden&&['admin','operations','sales','teamlead'].includes(settings.user?.role)){workBanner.insertAdjacentHTML('beforeend','<button type="button" class="btn btn-ghost btn-sm" data-client-work-all>Client visit times</button>');}
     if (view === 'field') fieldUI.renderShiftPage(content, {tracker:fieldTracker,api:fieldApi,person:settings.user,esc:esc,onSupport:function(){view='support';render();}});
   }
   async function ensureFieldShifts() {
@@ -563,7 +564,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=125'), import('./field-shifts-ui.mjs?v=125'), import('./field-shifts-android.mjs?v=125')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=126'), import('./field-shifts-ui.mjs?v=126'), import('./field-shifts-android.mjs?v=126')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -783,7 +784,7 @@
   async function sendLead(id,target) {
     var userId=settings.user?.id;try{
       if(localUnsynced&&!(await pushShared()))throw new Error('Sync this contact before sending it to the site visit queue.');
-      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=125');if(settings.user?.id!==userId)return;
+      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=126');if(settings.user?.id!==userId)return;
       m.openReadyRequest({api:readyApi,user:settings.user,contacts:state.prospects||[],selectedId:id,items:readyData.items,esc:esc,isCurrent:function(){return settings.user?.id===userId&&!document.body.classList.contains('locked');},onSaved:function(item){updateReadyData({items:[item].concat(readyData.items.filter(function(c){return c.contactId!==item.contactId;})),people:readyData.people});toast('Sent to Team Lead and Operations.');if(view==='leads')updateLeadGrid();}});
     }catch(e){toast(e.message);}
   }
@@ -3498,21 +3499,27 @@
     b.hidden = n === 0;
   }
 
-  function voiceButton(id){return '<button type="button" class="btn btn-sm btn-ghost" data-client-voice="'+esc(id)+'">Voice notes</button>';}
-  async function voiceApi(method,body,query,kind){
+  function voiceButton(id){return '<button type="button" class="btn btn-sm btn-ghost" data-client-work="'+esc(id)+'">Start / finish visit</button>'+ '<button type="button" class="btn btn-sm btn-ghost" data-client-voice="'+esc(id)+'">Voice notes</button>';}
+  async function voiceApi(method,body,query,kind,endpoint){
     var id=settings.user?.id,generation=sessionGeneration;if(!id||!settings.auth)throw new Error('Sign in again.');
     if(settings.auth.expires_at&&settings.auth.expires_at*1000-Date.now()<60000)await refreshSession();
-    async function request(){if(settings.user?.id!==id||generation!==sessionGeneration)throw new Error('Account changed. Open the contact again.');return fetch('/api/voice-notes'+(query||''),{method:method,headers:{Authorization:'Bearer '+settings.auth.access_token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000)});}
+    async function request(){if(settings.user?.id!==id||generation!==sessionGeneration)throw new Error('Account changed. Open the contact again.');return fetch((endpoint||'/api/voice-notes')+(query||''),{method:method,headers:{Authorization:'Bearer '+settings.auth.access_token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000)});}
     var r=await request();if(r.status===401&&await refreshSession())r=await request();
     if(settings.user?.id!==id||generation!==sessionGeneration)throw new Error('Account changed. Open the contact again.');
-    if(!r.ok){var err=await r.json().catch(function(){return {};});throw new Error(err.error||'Could not connect. Try again when online.');}return kind==='audio'?r.blob():r.json();
+    if(!r.ok){var err=await r.json().catch(function(){return {};});throw Object.assign(new Error(err.error||'Could not connect. Try again when online.'),{status:r.status});}return kind==='audio'?r.blob():r.json();
   }
   async function openContactVoice(id){
     var userId=settings.user?.id,voiceGeneration=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!p||!['sales','teamlead','operations','admin'].includes(settings.user?.role))return;
-    try{var m=await import('./voice-notes-ui.mjs?v=125');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
+    try{var m=await import('./voice-notes-ui.mjs?v=126');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-voice]');if(b){e.preventDefault();e.stopPropagation();openContactVoice(b.dataset.clientVoice);}},true);
+  async function openContactWork(id){
+    var userId=settings.user?.id,generation=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
+    if(!['sales','teamlead','operations','admin'].includes(settings.user?.role)||id&&!p)return;
+    try{var m=await import('./client-work-ui.mjs?v=126');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
+  }
+  document.addEventListener('click',function(e){var b=e.target.closest('[data-client-work],[data-client-work-all]');if(b){e.preventDefault();e.stopPropagation();openContactWork(b.dataset.clientWork||'');}},true);
   function followUpHistory(p) {
     var voice=voiceButton(p.id),fs = (p.followUps || []).slice().reverse();
     if (!fs.length) return voice+'<p class="rev-petty">No follow-ups logged yet. Use “Log follow-up” on the prospect to record one.</p>';
@@ -4444,7 +4451,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=125");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=126");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }

@@ -1,3 +1,4 @@
+import {createClientWorkHandler} from '../../netlify/functions/lib/client-work-core.mjs';
 import {createVoiceHandler} from '../../netlify/functions/lib/voice-notes-core.mjs';
 import {loadInstallationProgress} from '../../netlify/functions/lib/installation-progress.mjs';
 // Fictional workspace using the real HTTP handlers and in-memory stores only.
@@ -17,7 +18,7 @@ export async function journeyFixture(){
  const identifyRequest=async req=>{const d=await raw(),me=d.users.find(u=>u.id===req.headers.get('authorization')?.replace(/^Bearer /,''));return me?{me,email:me.email}:{error:'Not signed in',status:401};};
  const authorize=async req=>{const who=await identifyRequest(req);if(who.error)return {status:who.status};const d=await raw(),cases=await loadReadyCases(ready),linked=[...install.rows.values()].map(v=>v.data);
  return {cases,installationProgress:await loadInstallationProgress(install),me:who.me,users:d.users,prospects:d.prospects,appointments:d.appointments,transactions:d.transactions,jobs:d.jobs,sourceJobs:d.jobs,readySources:readyInstallationSources(d,cases),materialLocks:linked.filter(j=>j.readyContactId&&j.assignment?.status!=='declined').map(j=>({contactId:j.readyContactId,sourceId:j.materialSourceId}))};};
- const handlers={voice:createVoiceHandler({store:storeFor('verisko-voice-notes'),authorize,now}),data:createDataHandler({storeFor,identifyRequest}),ready:createReadyHandler({store:ready,authorize,now}),installer:createInstallerHandler({store:install,authorize,now})};let n=0;
+ const handlers={work:createClientWorkHandler({store:storeFor('verisko-client-work'),authorize,now:()=>Date.parse(now())}),voice:createVoiceHandler({store:storeFor('verisko-voice-notes'),authorize,now}),data:createDataHandler({storeFor,identifyRequest}),ready:createReadyHandler({store:ready,authorize,now}),installer:createInstallerHandler({store:install,authorize,now})};let n=0;
  async function api(route,role='sales',body,query=''){const r=await handlers[route](new Request('https://test.local/api/'+route+query,{method:body?'POST':'GET',headers:{authorization:role},...(body?{body:JSON.stringify(body)}:{})}));let value=await r.json();return {status:r.status,...value};}
  async function ok(...args){const r=await api(...args);if(r.status!==200)throw new Error(JSON.stringify(r));return r;}
  async function workspace(role){return (await ok('data',role)).data;}
