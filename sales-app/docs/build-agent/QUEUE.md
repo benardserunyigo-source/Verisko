@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | Simple Operations and Team Lead visit requests | working | New requests first, one-tap take, clear confirm/return actions, required return reason and preserved later workflow; verify both roles on phone widths. |
 | 0 | Simple Sales workspace and return to Sales | done | v132: 519 tests passed; one-tap send/return/reason/follow-up/resend browser journey retained one contact/case. Clear four-button Sales view and 320/390px checks. e9d77cd ready; see `../qa/2026-10-24-simple-sales-workspace.md`. |
 | 0 | Assigned site supervisor and client handover | done | v131: 507 tests passed; assigned supervisor and client dual confirmation/signature, same-job fix/repair/re-review, phone browser acceptance/reload, privacy and financial preservation verified. Release be987e3 ready; see `../qa/2026-10-24-joint-client-handover.md`. |
 | 0 | Full accessibility, simple-use and client handover audit | done | v130: 501 tests passed; source workflow through named client acceptance, server gates, stale saves, contrast/keyboard/320px phone fixes and local browser handover/reload verified. See `../qa/2026-10-24-accessibility-and-client-handover.md`. Real Android/TalkBack and media-content acceptance remain separate. |

@@ -28,3 +28,8 @@ test('only Operations and Admin have the materials and buying page',()=>{for(con
 test('Sales has direct entries for saved contacts, sent contacts and pay while other roles keep their normal layout',()=>{
  assert.equal(nav.first('sales','contacts'),'leads');assert.equal(nav.first('sales','work'),'ready');assert.equal(nav.first('sales','more'),'dashboard');assert.equal(nav.group('sales','dashboard'),'more');assert.equal(nav.group('sales','ready'),'work');assert.equal(nav.group('operations','ready'),'contacts');
 });
+
+test('Operations and Team Lead open visit requests first under Contacts, with no expanded privileges',()=>{
+ for(const role of ['operations','teamlead']){assert.equal(nav.first(role,'contacts'),'ready');assert.equal(nav.views(role,'contacts').find(p=>p.id==='ready').label,'Visit requests');assert.equal(nav.allowed(role,'settings'),false);}
+ assert.equal(nav.allowed('teamlead','cashflow'),false);assert.equal(nav.allowed('teamlead','materials'),false);assert.equal(nav.allowed('operations','materials'),true);
+});

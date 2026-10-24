@@ -984,3 +984,29 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 .sales-workspace .field-shift-banner{flex-wrap:wrap;justify-content:flex-start}
 .sales-workspace .field-shift-banner>span:first-child{flex:1 1 100%;font-size:13px}
 .sales-workspace .field-shift-banner .btn{min-height:44px}
+
+/* Visit team: new requests first, one next action per contact. */
+.visit-team-home,.visit-team-tools,.visit-team-card,.visit-team-empty{max-width:960px;width:100%;margin-inline:auto}
+.visit-home-counts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.visit-home-count{display:flex;flex-direction:column;align-items:flex-start;gap:8px;text-align:left;border:1px solid var(--line);cursor:pointer;margin:0}
+.visit-home-count:first-child{background:#eef3ff}
+.visit-home-count strong{font-size:2rem;color:var(--navy)}
+.visit-home-count span{font-size:1.1rem;font-weight:700}.visit-home-count small{color:var(--muted)}
+.visit-team-filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.visit-team-filters .btn{min-height:46px;flex:1 1 auto;justify-content:center}
+.visit-team-filters .is-selected{background:var(--navy);color:white}
+.visit-team-filters strong{margin-left:6px}
+.visit-team-refresh{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.visit-team-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.visit-team-heading h2{margin:0;font-size:1.25rem}
+.visit-team-note{border-left:3px solid #bed0eb;padding-left:12px}
+.visit-team-date{padding:12px;background:#eef7f2;border-radius:8px}
+.visit-team-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}
+.visit-team-actions .btn-primary{flex-basis:100%}.visit-team-actions .btn{min-height:46px}
+.visit-team-more{border-top:1px solid var(--line);padding-top:12px}
+.visit-team-history{padding-left:22px}.visit-team-history li{padding:8px 0}.visit-team-history small{display:block;color:var(--muted)}
+.visit-team-workspace .field-shift-banner{flex-wrap:wrap;justify-content:flex-start}
+.visit-team-workspace .field-shift-banner>span:first-child{flex:1 1 100%}
+@media(max-width:520px){.visit-home-counts{gap:10px}.visit-home-count{padding:16px}.visit-home-count small{font-size:.8rem}.visit-team-heading h2{width:100%}.visit-team-card{overflow-wrap:anywhere}.visit-team-actions .btn{flex:1 1 auto}}
+.visit-team-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.visit-team-filters .btn{min-width:0;white-space:normal;font-size:13px;padding:10px 6px}
