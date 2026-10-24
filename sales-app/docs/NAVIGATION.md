@@ -13,3 +13,7 @@ The four main sections stay in the same order on phones and computers. Sales cal
 Sales Home uses a short contact-first layout with earned pay, returned reasons and due follow-ups. Operations and Team Lead Home put visit requests first; other operational work and installation reviews are expandable. Training stays available in an expandable section. Operations' salesperson summary uses a table on larger screens and individual cards on phones; tapping a name keeps the same contact filter behaviour. Package inclusions expand separately so prices and instalments are easier to reach. Home dates and preview examples use Uganda time.
 
 Visit requests (v133): New requests / With me / All count filters; one visible next action per request. Take contact → Confirm visit or Send back to Sales with a reason. Later quote/payment, assignment, voice notes and full history stay under More details. Existing commands and server access rules are unchanged.
+
+## Job summaries (v136)
+
+Operations and Admin open **Jobs → Job summaries** first. Search and open a saved job for progress, client receipts, installer balance and next steps. Details expand below; action buttons reuse the same linked installation/materials/job records. Sales, Team Lead and Installer navigation is unchanged and does not expose this finance summary.

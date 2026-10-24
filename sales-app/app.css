@@ -1010,3 +1010,18 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 @media(max-width:520px){.visit-home-counts{gap:10px}.visit-home-count{padding:16px}.visit-home-count small{font-size:.8rem}.visit-team-heading h2{width:100%}.visit-team-card{overflow-wrap:anywhere}.visit-team-actions .btn{flex:1 1 auto}}
 .visit-team-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
 .visit-team-filters .btn{min-width:0;white-space:normal;font-size:13px;padding:10px 6px}
+
+/* Operations: one saved job, one clear summary. */
+.job-summary-workspace{max-width:1000px;margin-inline:auto}
+.job-summary-card{max-width:680px;margin-inline:auto;width:100%;min-width:0}
+.job-summary-card header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}
+.job-summary-card h2{font-size:23px;margin:0 0 5px}.job-summary-card h3{font-size:17px;margin:0 0 10px}
+.job-summary-card section{padding:16px 0;border-bottom:1px solid var(--line,#dce1e9)}
+.summary-money{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:8px 0;font-size:15px;overflow-wrap:anywhere}
+.summary-money strong{text-align:right;flex:0 1 auto}.summary-clear{color:#205d43}
+.job-summary-card .summary-next{padding:16px;background:#fff7e5;border:1px solid #d8c99f;border-radius:12px;margin:16px 0}
+.summary-next ul{padding-left:19px;margin:0}.summary-next li{margin:9px 0;line-height:1.5}
+.job-summary-card details{padding:8px 0;overflow-wrap:anywhere}.job-summary-card summary{padding:12px 0;min-height:48px;cursor:pointer;font-weight:650}
+.summary-journey{list-style:none;padding-left:0}.summary-journey li{margin:10px 0}.summary-journey span{font-weight:700;color:#205d43}
+.summary-search{width:100%;min-height:48px;padding:12px;border:1px solid #78818e;border-radius:10px;font:inherit;background:white}
+@media(max-width:480px){.job-summary-card{padding:16px}.summary-money{font-size:14px;gap:8px}.job-summary-card header{display:block}.job-summary-card .iw-status{display:inline-block;margin-top:8px}.job-summary-card .ready-actions>*{flex:1 1 140px;min-height:46px}}

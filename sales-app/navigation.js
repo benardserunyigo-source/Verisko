@@ -11,6 +11,7 @@
   {id:'ready',section:'contacts',label:'Site visit queue',roles:staff,badge:'readyBadge'},
   {id:'prospects',section:'contacts',label:'Prospects',roles:staff,badge:'prospectBadge'},
   {id:'prices',section:'contacts',label:'Package prices',roles:staff},
+  {id:'jobsummary',section:'work',label:'Job summaries',roles:office},
   {id:'visits',section:'work',label:'Site visits',roles:staff},
   {id:'installwork',section:'work',label:'Installations',roles:['admin','operations','teamlead','installer'],badge:'installerBadge'},
   {id:'materials',section:'work',label:'Materials & buying',roles:office},

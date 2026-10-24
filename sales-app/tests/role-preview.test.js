@@ -79,3 +79,5 @@ test('preview Home request shortcuts navigate while Take contact remains disable
  assert.equal(nav.disabled,false);assert.equal(salesFilter.disabled,false);assert.equal(write.disabled,true);
  let blocked=0;const event=target=>({target,preventDefault(){blocked++;},stopImmediatePropagation(){blocked++;}});listeners.click(event(nav));assert.equal(blocked,0);listeners.click(event(write));assert.equal(blocked,2);
 });
+
+test('Operations job summary preview joins a fictional client payment to the same fully paid installation',async()=>{const ctx=api().create('operations'),data=(await(await ctx.fetch('/api/data')).json()).data,cases=(await(await ctx.fetch('/api/ready-leads')).json()).items,jobs=(await(await ctx.fetch('/api/installer')).json()).jobs;const {buildJobSummaries}=await import('../job-summary.mjs');const rows=buildJobSummaries({user:ctx.user,data,cases,installations:jobs});const paid=rows.find(r=>r.installations.length);assert.equal(paid.paid,2000000);assert.equal(paid.crewPaid,350000);assert.equal(paid.crewBalance,0);assert.equal(paid.signed,true);assert.equal((await ctx.fetch('/api/installer',{method:'POST'})).status,403);});

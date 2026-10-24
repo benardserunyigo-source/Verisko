@@ -33,3 +33,5 @@ test('Operations and Team Lead open visit requests first under Contacts, with no
  for(const role of ['operations','teamlead']){assert.equal(nav.first(role,'contacts'),'ready');assert.equal(nav.views(role,'contacts').find(p=>p.id==='ready').label,'Visit requests');assert.equal(nav.allowed(role,'settings'),false);}
  assert.equal(nav.allowed('teamlead','cashflow'),false);assert.equal(nav.allowed('teamlead','materials'),false);assert.equal(nav.allowed('operations','materials'),true);
 });
+
+test('job summaries are Operations/Admin only and keep the four main buttons',()=>{for(const role of ['operations','admin']){assert.equal(nav.first(role,'work'),'jobsummary');assert.equal(nav.allowed(role,'jobsummary'),true);}for(const role of ['sales','teamlead','installer'])assert.equal(nav.allowed(role,'jobsummary'),false);});

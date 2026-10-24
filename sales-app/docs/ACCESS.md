@@ -112,3 +112,7 @@ Saved signature strokes, typed signature and handover history are returned only 
 ## Return to Sales and resend (v132)
 
 Sales has one-tap sending from its own saved contacts. An office owner (Operations or Team Lead) or Admin can explicitly Send back to Sales with a reason, independently of office-to-office ownership returns. Only the original active salesperson/Team Lead receives it. Existing visit IDs, history, original creator and earned pay are preserved. An upcoming visit is removed from the active schedule while returned, and the office must confirm it again after resend. Completed visits remain completed. The original salesperson can resend even after conversion from a saved contact; the same request/visit IDs remain. Received money, buying or an installed job block return to prospecting. Sales cannot take or return office-owned requests. Normal Sales navigation and language are simpler; server scopes and older supported routes remain unchanged.
+
+## Operations job summaries (v136)
+
+Operations/Admin can read joined summaries using their existing authenticated workspace, ready-case and installation endpoints. No new data privilege or backend write route was added. The screen refuses other roles before fetching; existing server projections continue to protect private costs, payments and media. No new browser persistence is added. Leaving the page or switching accounts discards its loaded summary state.
