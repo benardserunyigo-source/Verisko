@@ -1,6 +1,6 @@
 # Contact to installation audit
 
-Checked 24 October 2026, Uganda time. Release candidate v128.
+Checked 24 October 2026, Uganda time. Released v128, source commit `4d7d1e2239b83b331ad14ca94d7d75a34a13b4a9`.
 
 ## Result and fix
 
@@ -42,3 +42,7 @@ Screenshots: `/Users/ben/Verisko/output/audits/full-app-20261024/` (`change-visi
 ## Remaining acceptance
 
 Actual Android handset acceptance remains pending: real permission prompts, locked-screen shift tracking, offline reconnection, microphone/speaker and camera/gallery. Production authenticated cross-device use is a separate check; this audit does not impersonate real staff or create production test accounts. Recording payments and buying activity in the app does not make bank transfers, order goods or notify clients automatically.
+
+## Deployment readback
+
+Netlify reported ready for the exact release commit. Deployed `app.js` and `ready-leads-ui.mjs` hashes matched tested local files; HTML referenced v128. The hosting service inserts its own comment into HTML. All five checked workflow APIs returned JSON 401 without a session. The production Operations sample preview loaded without console errors. This verifies publication and public authentication boundaries, not authenticated production staff acceptance.
