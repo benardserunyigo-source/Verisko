@@ -4,7 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
-| 0 | Operations job summaries | working | Every saved job and linked contact/installation has one read-only summary; approved/pending client receipts, installer net payments, progress, material returns and clear next steps. Phone and role checks; no duplicate money across jobs. |
+| 0 | Operations job summaries | done | v137 source1b45b3a ready;540 tests passed. One summary per saved source/client/installation, no repeated cash across jobs, pending/unknown balances explicit, net installer pay and returns. Local phone links, unchanged-record readback and live preview verified; see `../qa/2026-10-24-operations-job-summaries.md`. |
 | 0 | Simple Operations and Team Lead visit requests | done | v135: 527 tests passed; both roles took, confirmed and reason-returned the same request in local phone browser checks. Clean Home/count filters/card; live preview navigation works with writes blocked. f87ac88 ready; see `../qa/2026-10-24-simple-visit-team.md`. |
 | 0 | Simple Sales workspace and return to Sales | done | v132: 519 tests passed; one-tap send/return/reason/follow-up/resend browser journey retained one contact/case. Clear four-button Sales view and 320/390px checks. e9d77cd ready; see `../qa/2026-10-24-simple-sales-workspace.md`. |
 | 0 | Assigned site supervisor and client handover | done | v131: 507 tests passed; assigned supervisor and client dual confirmation/signature, same-job fix/repair/re-review, phone browser acceptance/reload, privacy and financial preservation verified. Release be987e3 ready; see `../qa/2026-10-24-joint-client-handover.md`. |

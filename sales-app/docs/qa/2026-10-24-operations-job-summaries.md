@@ -16,4 +16,4 @@ Joins records using IDs, never client names. Multiple jobs remain separate. An u
 - Read-only comparison: workspace data, case records and installation records match the snapshots from before implementation exactly. No new demo records, client payments, installer payments, signatures, privileges or staff messages.
 - Evidence: `output/audits/operations-job-summaries-20261024/` from repository root.
 
-Release evidence will be added after exact-source Netlify verification. Authenticated production and physical Android remain separate from fictional local and public-preview checks.
+Released v137, source `1b45b3acc7678e514381276a69fcfab67aa1fbf7`, Netlify deploy `6add159a0fca4fde9c5962d8` ready. Seven affected assets match the tested local hashes, HTML loads v137, and six private API routes return JSON401 without a session. Live public Operations preview opened/searchable summaries and showed its fictional approved2m receipt and settled350k crew pay, with no console errors. Readback: `release-readback.json` in the evidence folder. Authenticated production and physical Android remain separate from fictional local and public-preview checks.
