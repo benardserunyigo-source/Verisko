@@ -6,7 +6,7 @@ const valid=id=>typeof id==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(id);
 const office=me=>['admin','operations'].includes(me?.role);
 const won=j=>['Accepted','Scheduled','In progress','Installed','Handed over'].includes(j.stage);
 const hash=s=>createHash('sha256').update(s).digest('hex');
-const fingerprint=j=>hash(JSON.stringify([COMMERCIAL.map(k=>j[k]??null),j.quoteSnapshot,j.quotedTotal,j.quotedAt,j.validUntil,j.scheduledDate,won(j)]));
+const fingerprint=j=>hash(JSON.stringify([j.id,j.prospectId,j.business,j.ref,COMMERCIAL.map(k=>j[k]??null),j.quoteSnapshot,j.quotedTotal,j.quotedAt,j.validUntil,j.scheduledDate,won(j)]));
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'}});
 function current(record,j,now){return !!j&&!['Cancelled','Rejected'].includes(j.stage)&&!record.revokedAt&&Date.parse(record.expiresAt)>Date.parse(now)&&record.fingerprint===fingerprint(j);}
 function status(record,j,now){return {jobId:record.jobId,createdAt:record.createdAt,expiresAt:record.expiresAt,current:current(record,j,now),revoked:!!record.revokedAt,choice:record.choice||null};}

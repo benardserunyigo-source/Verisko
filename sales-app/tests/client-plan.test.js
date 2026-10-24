@@ -81,3 +81,6 @@ test('recording the sharing attempt from Draft to Sent preserves the same offere
  assert.equal((await f.save('operations',d=>{d.jobs[0].stage='Sent';d.jobs[0].quoteSharedAt=f.now();})).status,200);
  assert.equal((await f.api({action:'view',jobId,token})).status,200);
 });
+test('a link cannot follow a source job moved to a different client',async()=>{
+ const f=await fixture();await f.api({action:'create',jobId,token},'operations');const raw=await f.raw();raw.jobs[0].prospectId='other-client';await f.main.setJSON('app-data',raw);assert.equal((await f.api({action:'view',jobId,token})).status,410);
+});
