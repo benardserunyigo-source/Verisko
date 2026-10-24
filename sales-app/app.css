@@ -1028,3 +1028,27 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 
 /* Client quote link: one short, phone-sized sheet. */
 .record-dialog[open]{display:flex;flex-direction:column}.record-dialog .dialog-body{padding:18px;overflow:auto;min-height:0}.record-dialog .dialog-foot{padding:14px 18px;border-top:1px solid var(--hair);display:flex}.record-dialog .dialog-foot .btn{width:100%}.record-dialog .dialog-body p{margin:0 0 14px}.record-dialog .dialog-body input{width:100%;min-height:48px}.record-dialog .dialog-body>.btn{margin:8px 0;min-height:48px}
+/* Internal sample comparison. No quote selection or financial writes. */
+.draft-plans{display:grid;gap:16px;max-width:1100px;margin:auto}
+.draft-plans-notice{padding:16px 20px;background:#fff4d6;border:1px solid #c99b35;border-radius:14px;color:#523b0b}
+.draft-plans-notice p{margin:6px 0 0}
+.draft-plans-scope p{margin:8px 0}
+.draft-plan-quick{padding:16px;min-width:0}
+.draft-plan-quick table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px}
+.draft-plan-quick caption{text-align:left;margin:8px 0;color:#555}
+.draft-plan-quick th,.draft-plan-quick td{padding:12px 6px;border-bottom:1px solid #e0e3e9;text-align:right;white-space:nowrap}
+.draft-plan-quick th:first-child{text-align:left}
+.draft-plan-quick thead{color:#17264d;background:#edf2fa}
+@media(max-width:440px){.draft-plan-quick table{font-size:12px}.draft-plan-quick th,.draft-plan-quick td{padding:12px 2px}}
+.draft-plans-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.draft-plan{min-width:0;padding:20px}
+.draft-plan-label{font-size:13px;font-weight:700;color:#555;margin:0 0 8px}
+.draft-plan h2{font-size:22px;margin:0 0 16px}
+.draft-plan dl{margin:0}
+.draft-plan dl>div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 0;border-top:1px solid #e0e3e9}
+.draft-plan dt{font-size:14px;flex:1}
+.draft-plan dd{margin:0;font-size:15px;font-weight:700;text-align:right;max-width:55%;overflow-wrap:anywhere}
+.draft-plan .draft-plan-total{background:#edf2fa;padding:14px 10px;border-radius:8px;color:#17264d}
+.draft-plan-total dd{font-size:19px}
+.draft-plan-review summary{padding:8px 0;min-height:44px;cursor:pointer;font-weight:700}
+@media(max-width:600px){.draft-plans-grid{grid-template-columns:1fr}.draft-plan{padding:16px}.draft-plan h2{font-size:21px}.draft-plan-total dd{font-size:18px}.draft-plans-notice{padding:16px}}

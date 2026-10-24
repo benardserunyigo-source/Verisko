@@ -17,3 +17,8 @@ Visit requests (v133): New requests / With me / All count filters; one visible n
 ## Job summaries (v137)
 
 Operations and Admin open **Jobs → Job summaries** first. Search and open a saved job for progress, client receipts, installer balance and next steps. Details expand below; action buttons reuse the same linked installation/materials/job records. Sales, Team Lead and Installer navigation is unchanged and does not expose this finance summary.
+
+
+## Draft payment comparison (v140)
+
+Operations and Admin: More → Draft payment options. Four-camera sample only; cash,12monthly payments,24monthly payments and ongoing rental. A compact comparison table plus plain-language cards show upfront, monthly and total amounts. Rental total is explicitly first12months and equipment stays withVerisko. No selection/save/send action, no private budget or client data, and no connection to current pricing/quote/PDF/client-link functions. Sales/TeamLead/Installer navigation excludes this review page. Sample prices are not confidential; the role guard is for workflow separation, not a claim that public static assets are private. Profit remains unconfirmed until costs and terms are checked.

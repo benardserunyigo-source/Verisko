@@ -17,6 +17,7 @@
   {id:'materials',section:'work',label:'Materials & buying',roles:office},
   {id:'jobs',section:'work',label:'Job records',roles:office},
   {id:'more',section:'more',label:'Tools & help',roles:staff.concat('installer')},
+  {id:'draftplans',section:'more',label:'Draft payment options',roles:office},
   {id:'support',section:'more',label:'Support videos',roles:staff},
   {id:'cashflow',section:'more',label:'Payments',roles:office,badge:'cashBadge'},
   {id:'applications',section:'more',label:'Applications',roles:office},

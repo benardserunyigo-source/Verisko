@@ -1,6 +1,6 @@
 // Interactive training data stays on this browser. This transport never calls fetch.
-import {createJob,applyCommand,canRead,manager,installerJobView} from './installer-model.mjs?v=139';
-import {openOfflineStore,records} from './installer-client.mjs?v=139';
+import {createJob,applyCommand,canRead,manager,installerJobView} from './installer-model.mjs?v=140';
+import {openOfflineStore,records} from './installer-client.mjs?v=140';
 export const DEMO_JOB_ID='demo-installation';
 export function demoActors(ownerId){return [{id:'demo-ops-'+ownerId,name:'DEMO Operations',role:'operations'},{id:'demo-installer-'+ownerId,name:'DEMO Installer',role:'installer'}];}
 export function sampleDemoImage(kind='reference'){
