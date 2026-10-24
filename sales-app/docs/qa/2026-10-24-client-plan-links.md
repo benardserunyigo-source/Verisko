@@ -6,7 +6,7 @@ Operations/Admin: Jobs → Job records → Share via WhatsApp → Create client 
 
 ## Tests
 
-555 tests passed after the final version update. Tests cover checked two-plan offers, client-field whitelist/privacy, all issuing/list role denials, invalid token/job, mandatory choice/name/Yes, immutable replay, simultaneous replies, expiry/revocation/replacement, changed/cancelled/deleted source, accepted-plan restriction, creation retry/history protection, cross-origin/malformed bodies, fragment/no-third-party/no-cache page and both API route configurations.
+556 tests passed after the final version update. Tests cover checked two-plan offers, client-field whitelist/privacy, all issuing/list role denials, invalid token/job, mandatory choice/name/Yes, immutable replay, simultaneous replies, expiry/revocation/replacement, changed/cancelled/deleted source, accepted-plan restriction, creation retry/history protection, cross-origin/malformed bodies, fragment/no-third-party/no-cache page and both API route configurations.
 
 Local real-handler QA uses an isolated fictional DEMO Payment Plan Shop at4411, keeping the earlier Kato4406 demo intact. Operations created a link through actual UI; anonymous client page offered3-month40/30/30 and60/40 choices. Client selected3months, named DEMO Client, confirmed, and Operations reopened the same job to read the saved plan/name/time. No WhatsApp link was sent. Existing main job/payment/funding/commission records are untouched by the choice endpoint (asserted in tests); same source ID retained. Customer success page fits390px. Operations responsive DOM had no horizontal overflow at390px; the iframe phone view showed its reply and controls, while native capture of an iframe top-layer dialog produced a gray image, so retain the readable desktop screenshot instead of calling that gray capture visual evidence. Frame screenshots for the non-modal client page are readable. No handset acceptance claim.
 
@@ -14,4 +14,4 @@ Evidence: `output/audits/client-plan-links-20261024/`: client-options-phone.png 
 
 ## Release
 
-Frontendv139 and service-worker shellv5 prepared; deployment verification pending. No real client, account or financial records modified and no external messages sent.
+Frontendv139 and service-worker shellv5 released. Final source0c8c194 (identity-binding hardening), deploy6add1c7629c2fc8fb03c4567 ready. Nine served frontend hashes match; no-store/no-referrer/noindex customer headers, seven staff APIs JSON401, invalid public token JSON404 after final deploy. The summary Client payment plan button was also checked through the local browser after final event wiring. No real client, account or financial records modified and no external messages sent.
