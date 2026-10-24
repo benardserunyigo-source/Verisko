@@ -71,3 +71,11 @@ test('visit time previews have no running real visit and reject writes',async()=
 
 
 test('Operations active-job preview covers Sales, Team Lead and installers without granting other roles access',async()=>{const p=api().create('operations'),r=await p.fetch('/api/client-work?dashboard=1'),d=await r.json();assert.equal(r.status,200);assert.equal(d.rows.length,3);assert.deepEqual([...d.rows.map(r=>r.role)].sort(),['installer','sales','teamlead']);assert.equal(d.counts.people,3);for(const role of ['sales','teamlead','installer'])assert.equal((await api().create(role).fetch('/api/client-work?dashboard=1')).status,403);assert.equal((await p.fetch('/api/client-work?dashboard=1',{method:'POST',body:'{}'})).status,403);});
+
+test('preview Home request shortcuts navigate while Take contact remains disabled and blocked',()=>{
+ const listeners={},button=attribute=>({disabled:false,matches(selector){return selector==='button'||selector.split(',').some(s=>s==='['+attribute+']');},closest(selector){return selector==='button,a,input,select,textarea'?this:null;}}),nav=button('data-open-request-filter'),salesFilter=button('data-sales-filter'),write=button('data-ready-action');
+ const document={body:{prepend(){},classList:{add(){}}},addEventListener(type,fn){listeners[type]=fn;},querySelectorAll(){return [nav,salesFilter,write];},createElement(){return {setAttribute(){}};}};
+ const win={location:{search:'?rolePreview=operations'},document};const context={window:win,document,URLSearchParams,URL,Response,Map,MutationObserver:class{constructor(fn){this.fn=fn;}observe(){this.fn();}}};vm.createContext(context);vm.runInContext(source,context);
+ assert.equal(nav.disabled,false);assert.equal(salesFilter.disabled,false);assert.equal(write.disabled,true);
+ let blocked=0;const event=target=>({target,preventDefault(){blocked++;},stopImmediatePropagation(){blocked++;}});listeners.click(event(nav));assert.equal(blocked,0);listeners.click(event(write));assert.equal(blocked,2);
+});

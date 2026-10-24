@@ -1,4 +1,4 @@
-import {shiftPrompt,checkoutMessage} from './field-shift-prompts.mjs?v=133';
+import {shiftPrompt,checkoutMessage} from './field-shift-prompts.mjs?v=134';
 export const isFieldManager=u=>['admin','operations'].includes(u?.role);
 const time=iso=>iso?new Date(iso).toLocaleTimeString('en-GB',{timeZone:'Africa/Kampala',hour:'2-digit',minute:'2-digit'}):'—';
 const date=iso=>iso?new Date(iso).toLocaleDateString('en-GB',{timeZone:'Africa/Kampala',day:'numeric',month:'short'}):'—';
