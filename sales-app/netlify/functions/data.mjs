@@ -223,8 +223,9 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
         const ready=await storeFor({name:'verisko-ready-cases',consistency:'strong'}).get('cases/'+oldContact.id,{type:'json'});
         if(ready?.contactId===oldContact.id)return json({ok:false,error:'This contact has site visit history. Keep the contact record.'},409,headers);
       }}
-      await store.setJSON(KEY, projectVoice(projectReady(clean,readyCases,installationProgress),voiceNotes));
-      return json({ ok: true, ...(canReview ? { jobs: clean.jobs } : {}) }, 200, headers);
+      const saved=projectVoice(projectReady(clean,readyCases,installationProgress),voiceNotes);
+      await store.setJSON(KEY, saved);
+      return json({ ok: true, ...(canReview ? { jobs: saved.jobs } : {}) }, 200, headers);
     }
 
     return json({ ok: false, error: "method_not_allowed" }, 405, headers);

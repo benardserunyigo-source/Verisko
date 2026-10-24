@@ -23,3 +23,11 @@ test('first-payment approval adds 100,000 once; pending, queried and later insta
 test('office-created contacts cannot create Sales payment commission through the new workflow',()=>{
  const d=projectReady(base(),[{...c,firstPayment:{id:'office-payment',direction:'in',prospectId:'contact',amount:2000000,status:'approved',approvedAt:'2026-10-22T12:00:00Z',commissionEligible:false}}]);assert.equal(d.prospects[0].salesCommissionEligible,false);const noVisit=projectReady(base(),[{contactId:'contact',firstPayment:{...d.transactions[0],commissionEligible:false}}]);assert.equal(noVisit.prospects[0].salesCommissionEligible,false);d.transactions.push({id:'later-instalment',direction:'in',prospectId:'contact',amount:300000,status:'approved',approvedAt:'2026-10-23T12:00:00Z'});assert.equal(globalThis.VeriskoSalesPay.calculate(d,globalThis.VeriskoSalesPay.period('2026-10-22T12:00:00Z')).total,0);
 });
+test('the existing first payment is linked only to the saved quote selected for the same client',()=>{
+ const b=base();b.jobs=[{id:'chosen',prospectId:'contact'},{id:'other',prospectId:'contact'},{id:'foreign',prospectId:'someone-else'}];
+ const payment={id:'payment',amount:2000000,direction:'in',status:'approved'},c={contactId:'contact',quoteSent:{sourceId:'chosen'},firstPayment:payment};
+ const d=projectReady(b,[c]);assert.deepEqual(d.transactions,[{...payment,readyCaseId:'contact',prospectId:'contact',installId:'chosen'}]);assert.equal(projectReady(d,[c]).transactions.length,1);
+ assert.equal(projectReady(b,[{...c,quoteSent:{sourceId:'foreign'}}]).transactions[0].installId,undefined);
+ assert.equal(projectReady(b,[{...c,quoteSent:{}}]).transactions[0].installId,undefined);
+ assert.equal(projectReady(b,[{...c,firstPayment:{...payment,installId:'other'}}]).transactions[0].installId,'other');
+});

@@ -32,7 +32,7 @@ export async function planAndAssign(f){
  const pending=(await f.ok('installer','installer')).jobs[0];assert.deepEqual(pending.materials.items.map(i=>[i.id,i.needed,i.issued]),[['camera',4,0],['cable',200,0]]);assert.equal((await f.installCmd('installer','workStart',{})).status,409);
  good(await f.installCmd('installer','assignmentResponse',{status:'accepted'},{baseVersion:pending.versions.assignment}));assert.equal((await f.workspace('sales')).prospects[0].readyProgress,'Installer assigned');return pending.id;
 }
-export async function finish(f){
+export async function finish(f,{approve=true}={}){
  let job=()=>f.install.get('jobs/'+[...f.install.rows.values()][0].data.id);const version=async k=>({baseVersion:(await job()).versions[k]||0});
  for(const i of (await job()).materials.items)good(await f.installCmd('operations','materialIssue',{itemId:i.id,quantity:i.needed},await version('materials')));good(await f.installCmd('operations','materialConfirm',{},await version('materials')));
  good(await f.installCmd('operations','pilot',{cableMethods:'One full cable per camera.',weather:'Sealed entries.',mounting:'Correct fixings.',approvalCover:'Operations',backup:'Operations',confirmed:true},await version('pilot')));
@@ -42,5 +42,5 @@ export async function finish(f){
  good(await f.installCmd('installer','materialReport',{itemId:'camera',used:4,damaged:0,missing:0},await version('materials')));good(await f.installCmd('installer','materialReport',{itemId:'cable',used:180,damaged:0,missing:0},await version('materials')));await photo('demo');
  good(await f.installCmd('installer','handover',{demonstration:'Live view, playback and phone viewing.',issues:'None',acknowledged:true,customerName:'TEST Operations'},await version('handover')));good(await f.installCmd('installer','workFinish',{location,capturedAt:f.now()}));good(await f.installCmd('installer','submit'));assert.equal((await f.workspace('sales')).prospects[0].readyProgress,'Waiting for installation approval');
  assert.equal((await f.installCmd('installer','complete',{comment:'FORGED'})).status,403);assert.equal((await f.installCmd('operations','complete',{comment:'Before returns'})).status,400);
- good(await f.installCmd('operations','materialReceive',{itemId:'cable',good:20,damaged:0},await version('materials')));good(await f.installCmd('operations','complete',{comment:'Photos, tests and stock returns checked.'}));return job();
+ good(await f.installCmd('operations','materialReceive',{itemId:'cable',good:20,damaged:0},await version('materials')));if(approve)good(await f.installCmd('operations','complete',{comment:'Photos, tests and stock returns checked.'}));return job();
 }
