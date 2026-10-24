@@ -76,3 +76,10 @@
   for = "/sw.js"
   [headers.values]
     Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/downloads/*.apk"
+  [headers.values]
+    Content-Type = "application/vnd.android.package-archive"
+    Content-Disposition = "attachment"
+    Cache-Control = "public, max-age=3600"

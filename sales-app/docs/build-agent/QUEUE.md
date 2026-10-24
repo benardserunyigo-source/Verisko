@@ -14,3 +14,5 @@ Device checks can wait while other work progresses. If only device checks remain
 Audit evidence: `../qa/2026-10-24-full-journey-audit.md`. Full suite: 492 passed. Local phone checks covered Sales contact submission, Operations visit rescheduling and Installer job/material screens at 390 × 844. Actual Android and authenticated production cross-device acceptance remain separate.
 
 Job-record approval sync resolved in v129. Evidence: `../qa/2026-10-24-job-approval-sync.md`; 496 tests passed, browser approval → Job records → Installed filter → reload checked. Existing price/payment/funding fields were preserved.
+
+Android pilot distribution: direct HTTPS download requested by owner on 24 October. Publish the existing checksum-verified 0.3.0 APK; handset acceptance remains pending.
