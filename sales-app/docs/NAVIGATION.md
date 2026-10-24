@@ -14,6 +14,6 @@ Sales Home uses a short contact-first layout with earned pay, returned reasons a
 
 Visit requests (v133): New requests / With me / All count filters; one visible next action per request. Take contact → Confirm visit or Send back to Sales with a reason. Later quote/payment, assignment, voice notes and full history stay under More details. Existing commands and server access rules are unchanged.
 
-## Job summaries (v136)
+## Job summaries (v137)
 
 Operations and Admin open **Jobs → Job summaries** first. Search and open a saved job for progress, client receipts, installer balance and next steps. Details expand below; action buttons reuse the same linked installation/materials/job records. Sales, Team Lead and Installer navigation is unchanged and does not expose this finance summary.
