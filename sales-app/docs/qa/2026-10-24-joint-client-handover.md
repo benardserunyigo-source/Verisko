@@ -23,3 +23,7 @@ Evidence (repository root): `output/audits/joint-client-handover-20261024/` cont
 ## Acceptance boundaries
 
 In-person signature capture is not remote identity verification. Real Android finger input, TalkBack, authenticated production cross-device use and the existing locked-screen field pilot remain device checks. Browser drawing used actual pointer input with fictional data. No client message was sent and no real signature was supplied.
+
+## Release
+
+v131 source `be987e31d1d0ac7da0ee2e1897ac426025208ec5` reached Netlify ready. Six affected frontend hashes matched; HTML referenced v131. Data, ready-leads, installer, voice-notes, client-work and field-shifts endpoints returned JSON 401 without authentication. Readback is saved with the fictional evidence. This verifies release and endpoint routing, not a real authenticated production handover.
