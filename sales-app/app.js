@@ -454,10 +454,10 @@
   var pendingInstallationId='';
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=137');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=138');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=137');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=138');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({initialJobId:pendingInstallationId,previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
       pendingInstallationId='';
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
@@ -529,15 +529,15 @@
   }
   async function renderReadyQueue(){
     var id=settings.user.id;setHead('Contacts','Visit requests','Loading contacts…','',false);content.innerHTML='<p role="status">Loading contacts…</p>';
-    try{var m=await import('./ready-leads-ui.mjs?v=137');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,initialFilter:pendingReadyFilter||undefined,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});pendingReadyFilter='';}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
+    try{var m=await import('./ready-leads-ui.mjs?v=138');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,initialFilter:pendingReadyFilter||undefined,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});pendingReadyFilter='';}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
   }
   async function renderJobSummaries(){
     var id=settings.user.id;setHead('Jobs','Job summaries','Progress, payments and what is left to do.','',false);content.innerHTML='<p role="status">Loading job summaries…</p>';
-    try{var m=await import('./job-summary.mjs?v=137');if(view!=='jobsummary'||settings.user?.id!==id)return;readyMounted=m.mountJobSummaries({host:content,user:settings.user,api:readyApi,isCurrent:function(){return view==='jobsummary'&&settings.user?.id===id&&!document.body.classList.contains('locked');},quoteValue:jobValue,onInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},onRecord:function(jobId){openForm('job',jobId);},onMaterials:function(choice){pendingMaterialChoice=choice;view='materials';render();}});}catch(e){if(view==='jobsummary'&&settings.user?.id===id)content.innerHTML='<p role="alert">'+esc(e.message)+'</p>';}
+    try{var m=await import('./job-summary.mjs?v=138');if(view!=='jobsummary'||settings.user?.id!==id)return;readyMounted=m.mountJobSummaries({host:content,user:settings.user,api:readyApi,isCurrent:function(){return view==='jobsummary'&&settings.user?.id===id&&!document.body.classList.contains('locked');},quoteValue:jobValue,onInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},onRecord:function(jobId){openForm('job',jobId);},onMaterials:function(choice){pendingMaterialChoice=choice;view='materials';render();}});}catch(e){if(view==='jobsummary'&&settings.user?.id===id)content.innerHTML='<p role="alert">'+esc(e.message)+'</p>';}
   }
   async function renderMaterials(){
     var id=settings.user.id;setHead('Jobs','Materials & buying','Use the paid client’s details. Plan, request buying, then record orders and deliveries.','',false);content.innerHTML='<p role="status">Loading paid jobs…</p>';
-    try{var m=await import('./materials-ui.mjs?v=137');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,initialSelected:pendingMaterialChoice,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});pendingMaterialChoice=null;}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
+    try{var m=await import('./materials-ui.mjs?v=138');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,initialSelected:pendingMaterialChoice,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});pendingMaterialChoice=null;}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
   }
   setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
@@ -572,7 +572,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=137'), import('./field-shifts-ui.mjs?v=137'), import('./field-shifts-android.mjs?v=137')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=138'), import('./field-shifts-ui.mjs?v=138'), import('./field-shifts-android.mjs?v=138')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -657,7 +657,7 @@
   async function mountTeamWork(){
     var host=document.getElementById('activeWorkDashboard'),person=settings.user?.id,generation=sessionGeneration;if(!host)return;
     var current=function(){return settings.user?.id===person&&sessionGeneration===generation&&view==='today'&&host.isConnected&&!document.body.classList.contains('locked');};
-    try{var m=await import('./active-work-ui.mjs?v=137');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
+    try{var m=await import('./active-work-ui.mjs?v=138');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
   }
   /* --------------------------------- TODAY ---------------------------------- */
   function renderToday() {
@@ -1753,11 +1753,19 @@
     return { business: (job && job.business) || "", contact: (job && job.contact) || "", phone: (job && job.phone) || "", location: (job && job.location) || "", prospect: null };
   }
 
-  // Job money — all recorded through the cash-flow float, linked by installId
-  // (the field name is kept; it now points to a job id).
-  function jobPayments(jobId) { return (state.transactions || []).filter(function (t) { return t.installId === jobId; }); }
+  // Reuse earlier client receipts without editing or copying the cash ledger.
+  function jobReceiptAttribution(jobId) {
+    return window.VeriskoJobFinance.receiptsForJob(job(jobId)||{id:jobId},state.transactions,state.jobs);
+  }
+  function jobPayments(jobId) {
+    return jobReceiptAttribution(jobId).receipts.concat((state.transactions||[]).filter(function(t){return t.installId===jobId && t.direction==='out';}));
+  }
+  function unassignedReceiptHint(jobId) {
+    var n=jobReceiptAttribution(jobId).unassignedClientMoney;
+    return n?'<p class="helper">'+money(n)+' client money is not linked to one job. Check Payments before collecting.</p>':'';
+  }
   function paidForJob(jobId) { return jobPayments(jobId).filter(function (t) { return t.direction === "in" && t.status === "approved"; }).reduce(function (s, t) { return s + Number(t.amount || 0); }, 0); }
-  function pendingInForJob(jobId) { return jobPayments(jobId).filter(function (t) { return t.direction === "in" && t.status !== "approved"; }).reduce(function (s, t) { return s + Number(t.amount || 0); }, 0); }
+  function pendingInForJob(jobId) { return jobPayments(jobId).filter(function (t) { return t.direction === "in" && !["approved","query","rejected","void"].includes(t.status); }).reduce(function (s, t) { return s + Number(t.amount || 0); }, 0); }
   function spendForJob(jobId) { return jobPayments(jobId).filter(function (t) { return t.direction === "out" && t.status === "approved"; }).reduce(function (s, t) { return s + Number(t.amount || 0); }, 0); }
 
   // Payments panel shown when editing a saved job.
@@ -1774,7 +1782,7 @@
       (pend > 0 ? '<div class="pay-line"><span>Awaiting approval</span><strong class="amber">' + money(pend) + "</strong></div>" : "") +
       (quote > 0 ? '<div class="pay-line"><span>Balance due</span><strong>' + money(Math.max(0, quote - paid)) + "</strong></div>" : "") +
       (spend > 0 ? '<div class="pay-line"><span>Materials/labour out</span><strong class="neg">' + money(spend) + "</strong></div>" : "") +
-      "</div>" +
+      "</div>" + unassignedReceiptHint(job.id) +
       '<div class="pay-list">' + rows + "</div>" +
       '<button type="button" class="btn btn-primary btn-block" data-job-pay="' + esc(job.id) + '" style="margin-top:10px">Record a client payment</button>' +
       (materialsTotal(job) > 0 ? '<button type="button" class="btn btn-ghost btn-block" data-job-spend="' + esc(job.id) + '" style="margin-top:8px">Record materials spend (' + money(materialsTotal(job)) + ")</button>" : "") +
@@ -1921,12 +1929,12 @@
 
   function fundingOverviewHtml(jobs) {
     var tracked=jobs.filter(function(j){return jobIsWon(j) && j.paymentSchedule && j.paymentSchedule.length;}), outstanding=0, overdue=0;
-    tracked.forEach(function(j){var r=window.VeriskoJobFinance.review(j,state.transactions,today);outstanding+=r.outstanding;overdue+=r.overdue;});
+    tracked.forEach(function(j){var r=window.VeriskoJobFinance.review(j,state.transactions,today,state.jobs);outstanding+=r.outstanding;overdue+=r.overdue;});
     return '<section class="card"><h2>Installments and funding</h2><div class="pay-line"><span>Outstanding on scheduled jobs</span><strong>'+money(outstanding)+'</strong></div><div class="pay-line"><span>Overdue</span><strong>'+money(overdue)+'</strong></div><p class="helper">'+tracked.length+' jobs with an agreed schedule. Approved receipts only. Older jobs without schedules are excluded. Review available cash and procurement commitments before approving the next financed job.</p></section>';
   }
   function installmentScheduleHtml(j) {
     if(!j.paymentSchedule || !j.paymentSchedule.length)return '';
-    var r=window.VeriskoJobFinance.review(j,state.transactions,today);
+    var r=window.VeriskoJobFinance.review(j,state.transactions,today,state.jobs);
     return '<section class="card"><h3>Agreed payment schedule</h3>'+r.rows.map(function(x){return '<div class="item-line"><span class="k">'+esc(x.label)+' · '+esc(x.due)+'</span><span class="v">'+money(x.balance)+' remaining'+(x.overdue?' · overdue':'')+'</span></div>';}).join('')+'<p class="helper">Approved receipts: '+money(r.paid)+'. Scheduled dates remain tied to the accepted agreement.</p></section>';
   }
 
@@ -1952,7 +1960,7 @@
       (approvedInstall ? '<div class="item-line"><span class="k">Install</span><span class="v">'+(approvedInstall.scheduledDate?dateLabel(approvedInstall.scheduledDate)+' · ':'')+'Installation approved</span></div>' : delivery ? '<div class="item-line"><span class="k">Install</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Date not set") + " · " + (tech ? esc(tech.name) : '<span style="color:var(--amber)">no technician</span>') + "</span></div>" : "") +
       ((delivery && (val > 0 || paidForJob(j.id) > 0)) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (val > 0 ? " · " + money(Math.max(0, val - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
       (j.stage === "Handed over" || (/progress|installed/i.test(j.stage || "") && checklistDone(j) > 0) ? '<div class="item-line"><span class="k">Checklist</span><span class="v">' + checklistDone(j) + " / " + INSTALL_CHECKLIST.length + (checklistComplete(j.checklist) ? " · done" : "") + "</span></div>" : "") +
-      "</div>" + '<button type="button" class="btn btn-ghost" data-edit="job" data-id="'+esc(j.id)+'">Edit job</button>' + (j.stage==='Installed'?'<p class="helper">Next: show the client the system and record their sign-off.</p><button type="button" class="btn btn-primary" data-client-handover="'+esc(j.id)+'">Client sign-off</button>':clientHandoverSummary(j)) + '<button type="button" class="btn btn-ghost" data-installation-work="'+esc(linkedInstallation?.id||'')+'">Open installation checks</button>' + quoteActionsHtml(j.id) + "</article>";
+      "</div>" + unassignedReceiptHint(j.id) + '<button type="button" class="btn btn-ghost" data-edit="job" data-id="'+esc(j.id)+'">Edit job</button>' + (j.stage==='Installed'?'<p class="helper">Next: show the client the system and record their sign-off.</p><button type="button" class="btn btn-primary" data-client-handover="'+esc(j.id)+'">Client sign-off</button>':clientHandoverSummary(j)) + '<button type="button" class="btn btn-ghost" data-installation-work="'+esc(linkedInstallation?.id||'')+'">Open installation checks</button>' + quoteActionsHtml(j.id) + "</article>";
   }
 
   // Onboard/manage technicians (Operations + admin).
@@ -3590,13 +3598,13 @@
   async function openContactVoice(id){
     var userId=settings.user?.id,voiceGeneration=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!p||!['sales','teamlead','operations','admin'].includes(settings.user?.role))return;
-    try{var m=await import('./voice-notes-ui.mjs?v=137');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
+    try{var m=await import('./voice-notes-ui.mjs?v=138');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-voice]');if(b){e.preventDefault();e.stopPropagation();openContactVoice(b.dataset.clientVoice);}},true);
   async function openContactWork(id){
     var userId=settings.user?.id,generation=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!['sales','teamlead','operations','admin'].includes(settings.user?.role)||id&&!p)return;
-    try{var m=await import('./client-work-ui.mjs?v=137');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
+    try{var m=await import('./client-work-ui.mjs?v=138');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-work],[data-client-work-all]');if(b){e.preventDefault();e.stopPropagation();openContactWork(b.dataset.clientWork||'');}},true);
   function followUpHistory(p) {
@@ -4550,7 +4558,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=137");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=138");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }

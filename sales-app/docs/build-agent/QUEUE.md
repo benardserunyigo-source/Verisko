@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | Earlier client receipt in Job records finance | working | Demo added a priced source to an already paid client. Job summaries correctly allocates the sole unlinked client receipt, but Job records uses installId-only finance and shows 0 received. Reproduce; share safe once-only attribution for a unique source, flag ambiguity for multiple jobs; preserve approved receipts, pricing and schedules. |
 | 0 | Operations job summaries | done | v137 source1b45b3a ready;540 tests passed. One summary per saved source/client/installation, no repeated cash across jobs, pending/unknown balances explicit, net installer pay and returns. Local phone links, unchanged-record readback and live preview verified; see `../qa/2026-10-24-operations-job-summaries.md`. |
 | 0 | Simple Operations and Team Lead visit requests | done | v135: 527 tests passed; both roles took, confirmed and reason-returned the same request in local phone browser checks. Clean Home/count filters/card; live preview navigation works with writes blocked. f87ac88 ready; see `../qa/2026-10-24-simple-visit-team.md`. |
 | 0 | Simple Sales workspace and return to Sales | done | v132: 519 tests passed; one-tap send/return/reason/follow-up/resend browser journey retained one contact/case. Clear four-button Sales view and 320/390px checks. e9d77cd ready; see `../qa/2026-10-24-simple-sales-workspace.md`. |

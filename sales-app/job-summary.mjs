@@ -1,11 +1,11 @@
-import {installerPaymentSummary} from './installer-model.mjs?v=137';
-import {materialBalance} from './installer-materials.mjs?v=137';
+import './job-finance.js?v=138';
+import {installerPaymentSummary} from './installer-model.mjs?v=138';
+import {materialBalance} from './installer-materials.mjs?v=138';
 const office=u=>['admin','operations'].includes(u?.role);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>'UGX '+Number(n).toLocaleString('en-UG');
 const sum=(a,f)=>a.reduce((n,x)=>n+(Number(f(x))||0),0);
 const date=v=>/^\d{4}-\d{2}-\d{2}/.test(v||'')?new Date(v.slice(0,10)+'T12:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Africa/Kampala'}):'Date not saved';
-const receipt=t=>t.direction==='in'&&Number(t.amount)>0;
 export function buildJobSummaries({user,data={},cases=[],installations=[],quoteValue,today=new Date().toISOString().slice(0,10)}){
  if(!office(user))return [];
  const rows=[],bySource=new Map(),prospects=data.prospects||[],sources=data.jobs||[];
@@ -28,11 +28,8 @@ export function buildJobSummaries({user,data={},cases=[],installations=[],quoteV
  return rows.map(r=>{
   const c=r.case,p=prospects.find(p=>p.id===r.contactId)||c?.contact||{},s=r.source,js=r.installations;
   r.business=p.business||s?.business||js[0]?.business||'Saved job';r.location=p.location||s?.location||js[0]?.address||'';r.reference=s?.ref||r.plans[0]?.label||'';
-  const tx=[...uniqueTx.values()].filter(receipt);
-  const direct=tx.filter(t=>r.aliases.has(t.installId));
-  const unlinked=tx.filter(t=>!t.installId&&t.prospectId===r.contactId);
-  const shared=forContact(r.contactId).length>1;
-  r.receipts=direct.concat(shared?[]:unlinked);r.unassignedClientMoney=shared?sum(unlinked,t=>t.status==='approved'?t.amount:0):0;
+  const attribution=globalThis.VeriskoJobFinance.receiptsForJob({id:r.id,prospectId:r.contactId},[...uniqueTx.values()],rows.map(x=>({id:x.id,prospectId:x.contactId})),[...r.aliases]);
+  r.receipts=attribution.receipts;r.unassignedClientMoney=attribution.unassignedClientMoney;
   r.paid=sum(r.receipts.filter(t=>t.status==='approved'),t=>t.amount);r.pending=sum(r.receipts.filter(t=>!['approved','query','rejected','void'].includes(t.status)),t=>t.amount);
   const stored=s?.quotedTotal??s?.quoteSnapshot?.cash;
   let total=stored!=null&&Number(stored)>0?Number(stored):null;
