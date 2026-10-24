@@ -454,24 +454,24 @@
   var pendingInstallationId='';
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=130');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=131');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=130');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=131');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({initialJobId:pendingInstallationId,previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
       pendingInstallationId='';
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
   }
-  var installationAlerts={pendingIds:[],corrections:0,submitted:0},installationAlertUser='',installationAlertAt=0,installationAlertBusy=false,installationAlertKnown=false;
-  function installationAlertHtml(){return '<section class="card review-overview" id="installationAlerts"><div class="workspace-section-head"><h2>Installation reviews</h2><p>Help the crew keep work moving.</p></div><div class="review-totals"><div><strong>'+installationAlerts.pendingIds.length+'</strong><span>Need a decision</span></div><div><strong>'+installationAlerts.corrections+'</strong><span>Need a fix</span></div><div><strong>'+installationAlerts.submitted+'</strong><span>Ready to review</span></div></div><button type="button" class="btn btn-ghost" data-installation-work>Open installations</button></section>';}
+  var installationAlerts={pendingIds:[],corrections:0,submitted:0,handover:0},installationAlertUser='',installationAlertAt=0,installationAlertBusy=false,installationAlertKnown=false;
+  function installationAlertHtml(){return '<section class="card review-overview" id="installationAlerts"><div class="workspace-section-head"><h2>Installation reviews</h2><p>Help the crew keep work moving.</p></div><div class="review-totals"><div><strong>'+installationAlerts.pendingIds.length+'</strong><span>Need a decision</span></div><div><strong>'+installationAlerts.corrections+'</strong><span>Need a fix</span></div><div><strong>'+installationAlerts.submitted+'</strong><span>Ready to review</span></div><div><strong>'+(installationAlerts.handover||0)+'</strong><span>Client handover</span></div></div><button type="button" class="btn btn-ghost" data-installation-work>Open installations</button></section>';}
   async function refreshInstallationAlerts(){
     var user=settings.user;if(!user||!settings.auth||!['admin','operations','teamlead'].includes(user.role)||document.hidden||installationAlertBusy)return;
-    if(installationAlertUser!==user.id){installationAlertUser=user.id;installationAlertAt=0;installationAlertKnown=false;installationAlerts={pendingIds:[],corrections:0,submitted:0};}
+    if(installationAlertUser!==user.id){installationAlertUser=user.id;installationAlertAt=0;installationAlertKnown=false;installationAlerts={pendingIds:[],corrections:0,submitted:0,handover:0};}
     if(Date.now()-installationAlertAt<25000)return;installationAlertAt=Date.now();installationAlertBusy=true;
     try{var request=function(){return fetch('/api/installer?summary=1',{headers:{Authorization:'Bearer '+settings.auth.access_token}});};var res=await request();if(res.status===401&&await refreshSession())res=await request();if(!res.ok)return;var next=await res.json();if(!settings.user||settings.user.id!==user.id)return;
       if(installationAlertKnown&&next.pendingIds.some(id=>!installationAlerts.pendingIds.includes(id)))toast('New installer request needs your review.');installationAlerts=next;installationAlertKnown=true;
-      var badge=document.getElementById('installerBadge'),count=next.pendingIds.length+next.submitted;if(badge){badge.textContent=count;badge.hidden=!count;}
-      var block=document.getElementById('installationAlerts');if(block&&view==='today'){block.outerHTML=installationAlertHtml();var empty=content.querySelector('.empty');if(empty&&next.pendingIds.length+next.corrections+next.submitted)empty.hidden=true;}
+      var badge=document.getElementById('installerBadge'),count=next.pendingIds.length+next.submitted+(next.handover||0);if(badge){badge.textContent=count;badge.hidden=!count;}
+      var block=document.getElementById('installationAlerts');if(block&&view==='today'){block.outerHTML=installationAlertHtml();var empty=content.querySelector('.empty');if(empty&&next.pendingIds.length+next.corrections+next.submitted+(next.handover||0))empty.hidden=true;}
     }catch(e){}finally{installationAlertBusy=false;}
   }
   setInterval(refreshInstallationAlerts,30000);
@@ -528,11 +528,11 @@
   }
   async function renderReadyQueue(){
     var id=settings.user.id;setHead('Contacts','Ready for site visit','Loading the shared queue…','',false);content.innerHTML='<p role="status">Loading queue…</p>';
-    try{var m=await import('./ready-leads-ui.mjs?v=130');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
+    try{var m=await import('./ready-leads-ui.mjs?v=131');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
   }
   async function renderMaterials(){
     var id=settings.user.id;setHead('Jobs','Materials & buying','Use the paid client’s details. Plan, request buying, then record orders and deliveries.','',false);content.innerHTML='<p role="status">Loading paid jobs…</p>';
-    try{var m=await import('./materials-ui.mjs?v=130');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
+    try{var m=await import('./materials-ui.mjs?v=131');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
   }
   setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
@@ -567,7 +567,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=130'), import('./field-shifts-ui.mjs?v=130'), import('./field-shifts-android.mjs?v=130')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=131'), import('./field-shifts-ui.mjs?v=131'), import('./field-shifts-android.mjs?v=131')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -624,7 +624,7 @@
     });
     var sub=document.getElementById('sectionNav');sub.setAttribute('aria-label',(visible.find(function(s){return s.id===section;})||{label:'Work'}).label+' pages');
     sub.innerHTML=navigation.views(role,section).map(function(p){return '<button type="button" class="section-tab'+(view===p.id?' is-active':'')+'" data-nav-view="'+p.id+'"'+(view===p.id?' aria-current="page"':'')+'>'+esc(p.label)+(p.badge?'<span class="section-count" id="'+p.badge+'" hidden></span>':'')+'</button>';}).join('');
-    var ib=document.getElementById('installerBadge'),count=installationAlerts.pendingIds.length+installationAlerts.submitted;
+    var ib=document.getElementById('installerBadge'),count=installationAlerts.pendingIds.length+installationAlerts.submitted+(installationAlerts.handover||0);
     if(ib){ib.hidden=!count;ib.textContent=count;}
     var readyBadge=document.getElementById('readyBadge');if(readyBadge&&readyUser===settings.user?.id){var readyCount=readyData.items.filter(function(c){return !c.ownerId&&c.state!=='returned';}).length;readyBadge.textContent=readyCount;readyBadge.hidden=!readyCount;}
   }
@@ -649,7 +649,7 @@
   async function mountTeamWork(){
     var host=document.getElementById('activeWorkDashboard'),person=settings.user?.id,generation=sessionGeneration;if(!host)return;
     var current=function(){return settings.user?.id===person&&sessionGeneration===generation&&view==='today'&&host.isConnected&&!document.body.classList.contains('locked');};
-    try{var m=await import('./active-work-ui.mjs?v=130');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
+    try{var m=await import('./active-work-ui.mjs?v=131');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
   }
   /* --------------------------------- TODAY ---------------------------------- */
   function renderToday() {
@@ -695,7 +695,7 @@
     sections += section("Confirmed site visits", confirmed.length, "",
       confirmed.map(function (a) { return handoffCard(a, true); }).join(""));
 
-    var anything = overdue.length + dueToday.length + toSchedule.length + awaiting.length + confirmed.length + (canInstalls()?installationAlerts.pendingIds.length+installationAlerts.corrections+installationAlerts.submitted:0);
+    var anything = overdue.length + dueToday.length + toSchedule.length + awaiting.length + confirmed.length + (canInstalls()?installationAlerts.pendingIds.length+installationAlerts.corrections+installationAlerts.submitted+(installationAlerts.handover||0):0);
     if (!anything && !leadDue.length && !receivedLeads.length) {
       sections += emptyState(ICON_CALENDAR, "You're all caught up", "No overdue follow-ups, nothing due today, and no visits waiting. Add a prospect to keep the pipeline moving.", "Add prospect", 'data-new="prospect"');
     }
@@ -793,7 +793,7 @@
   async function sendLead(id,target) {
     var userId=settings.user?.id;try{
       if(localUnsynced&&!(await pushShared()))throw new Error('Sync this contact before sending it to the site visit queue.');
-      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=130');if(settings.user?.id!==userId)return;
+      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=131');if(settings.user?.id!==userId)return;
       m.openReadyRequest({api:readyApi,user:settings.user,contacts:state.prospects||[],selectedId:id,items:readyData.items,esc:esc,isCurrent:function(){return settings.user?.id===userId&&!document.body.classList.contains('locked');},onSaved:function(item){updateReadyData({items:[item].concat(readyData.items.filter(function(c){return c.contactId!==item.contactId;})),people:readyData.people});toast('Sent to Team Lead and Operations.');if(view==='leads')updateLeadGrid();}});
     }catch(e){toast(e.message);}
   }
@@ -1493,42 +1493,16 @@
     if(source.servicePolicyVersion!==window.VeriskoCare.VERSION)return '';
     return '<div class="field full"><h3>Included care: activation and handover</h3><p class="helper">Mini PC and care stay inside the existing callback allowance. Monitor health/status only, without access to footage. Record the actual activation test; this form does not turn on monitoring or send alerts.</p>'+field('serviceStartDate','Actual installation / care start date','date',source.serviceStartDate||'')+field('monitoringMiniPcRef','On-site mini PC reference','text',source.monitoringMiniPcRef||'')+field('monitoringTestEvidence','Offline-alert test evidence / reference','textarea',source.monitoringTestEvidence||'',{full:true})+'<label class="chk-item"><input id="f_monitoringCommissioned" type="checkbox"'+(source.monitoringCommissioned?' checked':'')+'><span>Mini PC installed; camera-offline and site-reporting alerts tested; monitoring has no footage access.</span></label></div>';
   }
-  function clientHandoverFields(j,prefix,required) {
-    var h=j.clientHandover||{},client=jobClient(j),req=required?' required':'';
-    function input(name,label,value,type,options){
-      var id=prefix+'_'+name,control=options?'<select id="'+id+'" name="'+name+'"'+req+'><option value="">Choose</option>'+options.map(function(x){return '<option'+(x===value?' selected':'')+'>'+esc(x)+'</option>';}).join('')+'</select>':'<input id="'+id+'" name="'+name+'" type="'+(type||'text')+'" value="'+esc(value||'')+'"'+req+' maxlength="1000">';
-      return '<div class="field"><label for="'+id+'">'+label+'</label>'+control+'</div>';
-    }
-    return '<h3>Client sign-off</h3><p class="helper">Record the client’s agreement after showing them the system. Verisko staff approval is separate. Do not save passwords here.</p>'+input('clientName','Client or representative name',h.name||client.contact)+input('clientRole','Their role',h.role||'','text',['Client / owner','Authorised representative'])+input('clientDate','Date they agreed',h.date||today,'date')+input('clientMethod','How did they agree?',h.method||'','text',window.VeriskoHandover.METHODS)+input('clientReference','Signed form, client message or meeting reference',h.reference||'')+'<label class="chk-item"><input name="clientConfirmed" type="checkbox"'+(h.confirmed?' checked':'')+'><span>The client agreed the work is complete.</span></label>';
-  }
-  function clientHandoverFromForm(form) {
-    var f=new FormData(form);return {name:f.get('clientName')||'',role:f.get('clientRole')||'',date:f.get('clientDate')||'',method:f.get('clientMethod')||'',reference:f.get('clientReference')||'',confirmed:f.has('clientConfirmed')};
-  }
   function clientHandoverSummary(j){
     var h=j.clientHandover;if(!h?.recordedAt)return '';
     return '<p><strong>Client signed off</strong><br>'+esc(h.name)+' · '+esc(h.role)+' · '+esc(h.date)+'</p><p class="helper">'+esc(h.method)+' · '+esc(h.reference)+'<br>Recorded by '+esc(h.recordedBy)+'</p>';
   }
   function openClientHandover(id) {
-    var j=job(id);if(!canInstalls()||!j||j.stage!=='Installed')return;
-    var handoverGeneration=sessionGeneration;
-    var dlg=document.getElementById('askDialog');
-    function input(name,label,value,type){return '<div class="field"><label for="h_'+name+'">'+label+'</label><input id="h_'+name+'" name="'+name+'" type="'+(type||'text')+'" value="'+esc(value||'')+'" required></div>';}
-    var care=j.servicePolicyVersion===window.VeriskoCare.VERSION;
-    dlg.innerHTML='<form id="clientHandoverForm"><h2 id="askTitle">Finish client handover</h2><p>'+esc(jobClient(j).business)+' · '+esc(j.ref)+'</p><p class="helper">Use the same job. This records client sign-off; it does not record a payment.</p><fieldset><legend>Show the client</legend>'+INSTALL_CHECKLIST.map(function(i){return '<label class="chk-item"><input name="check_'+i.key+'" type="checkbox"'+(j.checklist?.[i.key]?' checked':'')+'><span>'+esc(i.label)+'</span></label>';}).join('')+'</fieldset>'+clientHandoverFields(j,'h',true)+(care?'<fieldset><legend>Included care</legend>'+input('serviceStartDate','Actual installation / care start date',j.serviceStartDate,'date')+input('monitoringMiniPcRef','On-site mini PC reference',j.monitoringMiniPcRef)+input('monitoringTestEvidence','Offline-alert test reference',j.monitoringTestEvidence)+'<label class="chk-item"><input name="monitoringCommissioned" type="checkbox"'+(j.monitoringCommissioned?' checked':'')+'><span>Mini PC installed; offline alerts tested. No footage access.</span></label></fieldset>':'')+'<p role="alert" class="form-error" hidden></p><div class="ask-actions"><button class="btn btn-ghost" type="button" data-handover-cancel>Cancel</button><button class="btn btn-primary" type="submit">Save client sign-off</button></div></form>';
-    var form=dlg.querySelector('form');dlg.querySelector('[data-handover-cancel]').onclick=function(){dlg.close();};
-    form.onsubmit=async function(e){
-      e.preventDefault();if(handoverGeneration!==sessionGeneration||!canInstalls()){dlg.close();return;}var f=new FormData(form),checks={};INSTALL_CHECKLIST.forEach(function(i){checks[i.key]=f.has('check_'+i.key);});
-      var fields={stage:'Handed over',checklist:checks,clientHandover:clientHandoverFromForm(form)};
-      if(care){['serviceStartDate','monitoringMiniPcRef','monitoringTestEvidence'].forEach(function(k){fields[k]=f.get(k)||'';});fields.monitoringCommissioned=f.has('monitoringCommissioned');}
-      var next=Object.assign({},j,fields),errors=window.VeriskoHandover.errors(next,today).concat(window.VeriskoCare.handoverErrors(next));
-      var error=form.querySelector('[role="alert"]');if(errors.length){error.textContent=errors.join(' ');error.hidden=false;error.tabIndex=-1;error.focus();return;}
-      var b=form.querySelector('[type="submit"]');b.disabled=true;
-      state.jobs=state.jobs.map(function(x){return x.id===id?next:x;});
-      try{var saved=await saveData();if(handoverGeneration!==sessionGeneration)return;if(saved){toast('Client sign-off saved');dlg.close();render();}else{error.textContent='Sign-off is not confirmed. Check your connection and retry.';error.hidden=false;b.disabled=false;}}catch(ex){error.textContent=ex.message;error.hidden=false;b.disabled=false;}
-    };
-    dlg.showModal();
+    var j=job(id);if(!canInstalls()||!j)return;
+    var p=prospect(j.prospectId),linked=(p.installationProgress||[]).find(function(i){return i.sourceId===id;});
+    if(!linked){toast('Open the installation and assign a site supervisor first.');return;}
+    pendingInstallationId=linked.id;view='installwork';render();
   }
-
   function careScheduleHtml(j) {
     var c=window.VeriskoCare.schedule(j);if(!c)return '';
     return '<section class="card"><h3>Included care and warranty</h3><p>'+esc(window.VeriskoCare.summary)+'</p><p class="helper">Faults only. Accidental damage and power-surge damage are excluded. No footage access through monitoring.</p><div class="item-line"><span class="k">Monitoring</span><span class="v">'+esc(c.monitoringStatus)+'</span></div>'+(c.start?'<div class="item-line"><span class="k">Care start</span><span class="v">'+esc(c.start)+'</span></div><div class="item-line"><span class="k">Callbacks / monitoring end</span><span class="v">'+esc(c.callbackEnd)+'</span></div><div class="item-line"><span class="k">Camera / cable warranty end</span><span class="v">'+esc(c.warrantyEnd)+'</span></div>':'<p class="helper">Record the actual installation date to set coverage dates.</p>')+'</section>';
@@ -1668,11 +1642,8 @@
     if (r.needsApproval && !isAdmin() && (!r.pricingVersion || data.stage !== 'Draft')) { showFormError("Save a draft and ask the Owner to approve the cost or discount before quoting."); return; }
     var stage = JOB_STAGES.indexOf(data.stage) >= 0 ? data.stage : "Draft";
     var checklist = collectChecklist();
-    if(stage==='Handed over' && (existing.stage!=='Handed over'||existing.clientHandover?.recordedAt)){
-      inputs.clientHandover=existing.clientHandover?.recordedAt?existing.clientHandover:clientHandoverFromForm(document.getElementById('recordForm'));
-      var handoverErrors=window.VeriskoHandover.errors(Object.assign({},inputs,{checklist:checklist}),today);
-      if(handoverErrors.length){showFormError(handoverErrors.join(' '));return;}
-    }
+    if(stage==='Handed over'&&existing.stage!=='Handed over') { showFormError('The assigned site supervisor and client must sign off together in Installations.'); return; }
+    if(existing.clientHandover?.recordedAt)inputs.clientHandover=existing.clientHandover;
     if(stage==='Handed over' && window.VeriskoCare.handoverErrors(inputs).length) { showFormError(window.VeriskoCare.handoverErrors(inputs).join(' ')); return; }
     if (stage === "Handed over" && !checklistComplete(checklist)) {
       var missing = INSTALL_CHECKLIST.filter(function (i) { return !checklist[i.key]; }).map(function (i) { return i.label.toLowerCase(); });
@@ -3197,7 +3168,7 @@
         '</fieldset>' + (lockedPricing?'</details>':'') +
         (id && lockedPricing ? '<div class="field full"><label>Agreed quotation</label>'+quoteActionsHtml(id)+'</div>' : '') +
         // ---- Stage ----
-        field("stage", "Stage", "select", jobStage, { options: JOB_STAGES, full: true }) +
+        field("stage", "Stage", "select", jobStage, { options: JOB_STAGES.filter(function(s){return s!=='Handed over'||jobStage==='Handed over';}), full: true }) +
         // ---- Delivery (revealed once Accepted) ----
         '<div id="deliveryFields"' + (jobIsDelivery(jobStage) ? "" : " hidden") + ">" +
         field("scheduledDate", "Install date", "date", source.scheduledDate || "") +
@@ -3216,7 +3187,7 @@
         '<div class="field full" id="chkField"' + ((jobStage === "Handed over") ? "" : " hidden") + '><label>Completion checklist <span class="optional-tag">tick before handover</span></label>' +
         '<div class="chk-list" id="chkList">' + INSTALL_CHECKLIST.map(function (i) {
           return '<label class="chk-item"><input type="checkbox" data-check="' + esc(i.key) + '"' + ((source.checklist && source.checklist[i.key]) ? " checked" : "") + "><span>" + esc(i.label) + "</span></label>";
-        }).join("") + "</div>" + (source.clientHandover?.recordedAt?clientHandoverSummary(source):clientHandoverFields(source,'f'))+"</div>" +
+        }).join("") + "</div>" + (source.clientHandover?.recordedAt?clientHandoverSummary(source):'<p class="helper">The assigned site supervisor and client complete sign-off together in Installations.</p>')+"</div>" +
         ((id && jobIsDelivery(jobStage)) ? installmentScheduleHtml(source)+careScheduleHtml(source)+jobPaymentsSection(source) : "") +
         field("notes", "Notes", "textarea", source.notes, { full: true, optional: true, placeholder: "Anything the customer or Ben should know." });
     }
@@ -3573,13 +3544,13 @@
   async function openContactVoice(id){
     var userId=settings.user?.id,voiceGeneration=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!p||!['sales','teamlead','operations','admin'].includes(settings.user?.role))return;
-    try{var m=await import('./voice-notes-ui.mjs?v=130');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
+    try{var m=await import('./voice-notes-ui.mjs?v=131');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-voice]');if(b){e.preventDefault();e.stopPropagation();openContactVoice(b.dataset.clientVoice);}},true);
   async function openContactWork(id){
     var userId=settings.user?.id,generation=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!['sales','teamlead','operations','admin'].includes(settings.user?.role)||id&&!p)return;
-    try{var m=await import('./client-work-ui.mjs?v=130');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
+    try{var m=await import('./client-work-ui.mjs?v=131');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-work],[data-client-work-all]');if(b){e.preventDefault();e.stopPropagation();openContactWork(b.dataset.clientWork||'');}},true);
   function followUpHistory(p) {
@@ -4532,7 +4503,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=130");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=131");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }

@@ -952,3 +952,11 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 /* Long photo/check labels must wrap within even a 320px phone. */
 .iw-card .btn,.iw-dialog .btn{white-space:normal;max-width:100%;height:auto;padding-block:12px;text-align:center;overflow-wrap:anywhere}
 .iw-card form,.iw-dialog form{min-width:0}
+
+/* Joint client handover: accessible names and a finger-signature alternative. */
+.review-field{display:block;margin:16px 0;line-height:1.5}
+.review-field input,.review-field select,.review-field textarea{display:block;width:100%;min-height:46px;margin:6px 0;font-size:16px;padding:10px;border-radius:10px}
+.client-signature{display:block;width:100%;height:160px;max-width:100%;background:#fff;border:2px solid #5d6673;border-radius:10px;touch-action:none}
+.iw-dialog fieldset{min-width:0}.client-review-panel p{margin-block:10px}
+
+.saved-client-signature{display:block;width:100%;max-width:360px;height:130px;border:1px solid #7b8593;background:#fff;border-radius:10px}

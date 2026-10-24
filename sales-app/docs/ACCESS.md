@@ -48,7 +48,7 @@ Team Lead samples show shared sales prospects and their own saved contact, with 
 
 Use **Installer work** to choose a site. Operations and Admin can open any job and select **Assign me as site supervisor**. A Team Lead sees **Choose a site to supervise**, then selects the same button. The job shows the named site supervisors. Operations can also choose them under **Edit job setup** or when creating a job. The setup form has an **Assign me** shortcut; press **Save** to keep that selection.
 
-Self-assignment is an online, audited command. It adds only the signed-in person, preserves current supervisors, and does not change their account role. Team Leads gain review access to that job, not crew payment, stock, job setup or pricing rights. Installers and Sales cannot self-assign as supervisors. Completed jobs cannot be claimed or reassigned. Version checks protect against stale setup saves.
+Self-assignment is an online, audited command. It adds only the signed-in person, preserves current supervisors, and does not change their account role. Team Leads gain review access to that job, not crew payment, stock, job setup or pricing rights. Installers and Sales cannot self-assign as supervisors. Technically completed jobs cannot be claimed through the active-site list. Operations/Admin can use **Choose site supervisor** on a completed installation awaiting client handover; this audited assignment preserves the crew, pay, materials and checks. Accepted client handovers cannot be reassigned. Version checks protect against stale setup saves.
 
 The separate Supervisor account role and preview were removed in v111. Active account roles are Admin, Operations, Team Lead, Sales and Installer. Live roster inspection found no Supervisor accounts needing migration. Historical site assignments and review history are retained.
 
@@ -98,3 +98,13 @@ Open **Home → Today → Who is on a job?**. Operations and Admin see all open 
 Rows come from the same client-visit and installation work logs. Finish removes that session on the next refresh. Each installer session is a separate card; the people count counts each person once. Old open sessions and completed installations with a missing Finish are flagged for Operations to check, not silently closed. Start location is where work began, not a live position or proof that the person remains there. Pending offline installer starts/finishes cannot appear until synced.
 
 The dashboard is a minimal server projection. It does not send crew pay, client payments, evidence photos, notes or route histories. Sales, Team Lead and Installer accounts cannot call the team-dashboard endpoint. These roles keep their existing personal/assigned work views. Sample previews have fictional names and locations, with the read-only filter and Refresh available. Tests check mixed-role aggregation, unique people counts, missing GPS, access denial, and real Start/Finish commands entering/leaving the combined view.
+
+## Joint client handover (v131)
+
+Technical approval and client handover are separate. Only a site supervisor named on the installation can record client handover, including Operations, Team Lead or an explicitly assigned Admin. A global review role does not bypass that assignment. Installers submit to Verisko staff and cannot sign for the client.
+
+The named supervisor meets the client at the site, checks the five handover items, and lets the client draw a signature or type their full name on the same phone. The client accepts and the signed-in supervisor confirms. This is an in-person record, not remote identity verification. Saving requires a connection. Only accepted joint handover closes the linked commercial job.
+
+**Fix needed** requires a reason and next action, returns the same installation for correction and leaves its commercial job In progress. The installer records a new repair visit, note and new photo, then resubmits. Technical checks must be approved again before the next client meeting. **Client not available** records why and the next step; the commercial job stays Installed, awaiting sign-off.
+
+Saved signature strokes, typed signature and handover history are returned only to assigned site supervisors. Other authorized installation readers see the result and required next step, not the signature. Sales sees progress only. The source job stores signature-recorded metadata, not signature strokes. Existing historical handovers retain their original records and terms. Version checks and request IDs prevent duplicate or competing acceptance.

@@ -42,3 +42,11 @@ The app lists missing checks and waits for all saved photos to reach the server 
 Operations opens **Jobs → Installations → Ready for review**, checks the photos and tests, and receives leftover stock in **Materials & returns**. Operations can approve the job or return a camera check with a reason. The installer fixes the returned item, adds the required new photo, and sends the same job again. A job cannot be approved while required checks or warehouse returns are still outstanding.
 
 Camera capture, gallery choice and GPS should also be checked on the actual Android phones during the pilot. Automated API tests use fictional jobs and images, not real site evidence.
+
+## Finish with the client
+
+Installer: finish the checks, count materials left, show the work to Verisko staff and send the job for review. This does not close the client job.
+
+Assigned site supervisor: approve the installation checks, then tap **Meet client & sign off**. Check the system together. The client signs and accepts; the supervisor confirms. The same client and materials stay linked.
+
+If work needs fixing, choose **Fix needed**, say what must change and the next step. The job stays open. The installer saves a new repair visit, fix note and photo, then sends it back for review. Meet the client again after the checks pass. If the client is away, save **Client not available** with the next step.

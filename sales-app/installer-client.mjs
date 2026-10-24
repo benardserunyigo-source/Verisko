@@ -1,4 +1,4 @@
-import {applyCommand} from './installer-model.mjs?v=130';
+import {applyCommand} from './installer-model.mjs?v=131';
 export const requestId=()=>crypto.randomUUID();
 // One durable store. Every key is partitioned by the signed-in account.
 export function openOfflineStore(factory=indexedDB){
@@ -36,7 +36,7 @@ export class InstallerClient {
  async onlineLocked(jobId,command){
   if(this.queue.length)throw new Error('Send all saved work and photos first.');
   if(this.busy)throw new Error('Please wait while we send your work.');
-  const result=await this.api({jobId,command:{...command,requestId:requestId()}});
+  const result=await this.api({jobId,command:{...command,requestId:command.requestId||requestId()}});
   const index=this.jobs.findIndex(j=>j.id===result.job.id);if(index<0)this.jobs.push(result.job);else this.jobs[index]=result.job;
   this.availableJobs=this.availableJobs.filter(j=>j.id!==result.job.id);
   await this.persist();this.message='All work sent';this.onChange();return result.job;

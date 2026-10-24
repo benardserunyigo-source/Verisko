@@ -1,5 +1,6 @@
-import {initialMaterials,applyMaterialCommand,materialProblems,updateMaterialPlan} from './installer-materials.mjs?v=130';
-export {materialBalance,materialProblems,stockManager,UNITS,initialMaterials} from './installer-materials.mjs?v=130';
+import {canReviewClient,makeClientReview} from './client-review.mjs?v=131';
+import {initialMaterials,applyMaterialCommand,materialProblems,updateMaterialPlan} from './installer-materials.mjs?v=131';
+export {materialBalance,materialProblems,stockManager,UNITS,initialMaterials} from './installer-materials.mjs?v=131';
 // Shared installation workflow. Server applies commands, never client snapshots.
 export const TESTS=['live','recording','playback','coverage','remote'];
 export const PARTS=['cable','mount','tests'];
@@ -24,7 +25,12 @@ export function installerPaymentSummary(j,id){
 }
 // Use the same projection for list, single-job and mutation responses.
 export function installerJobView(j,user){
- const out=structuredClone(j);delete out.contact;delete out.phone;out.payReady=payReady(j);
+ const out=structuredClone(j);
+ if(!canReviewClient(j,user)){
+  if(out.clientReview)out.clientReview={outcome:out.clientReview.outcome,issue:out.clientReview.issue||'',nextAction:out.clientReview.nextAction||'',at:out.clientReview.at,byName:out.clientReview.byName,evidenceBefore:out.clientReview.evidenceBefore||[],workBefore:out.clientReview.workBefore||[]};
+  delete out.clientReviewHistory;
+ }
+ delete out.contact;delete out.phone;out.payReady=payReady(j);
  if(!['admin','operations'].includes(user.role)){
   out.installerPay=user.role==='installer'&&out.installerPay?.[user.id]?{[user.id]:out.installerPay[user.id]}:{};
   out.installerPayments=(out.installerPayments||[]).filter(p=>user.role==='installer'&&p.installerId===user.id);
@@ -37,6 +43,7 @@ const has=(j,id,kind,cameraId)=>j.evidence.some(e=>e.id===id&&e.kind===kind&&e.c
 const evidence=(j,ids,kind,cameraId)=>Array.isArray(ids)&&ids.length>0&&ids.every(id=>has(j,id,kind,cameraId));
 export function readiness(j){
  const missing=materialProblems(j);
+ if(j.clientReview?.outcome==='fixes'&&j.clientFix?.reviewAt!==j.clientReview.at)missing.push('Save the client fix and a new photo before sending the job back.');
  if(j.readyContactId&&(j.materials?.items||[]).some(i=>i.needed>0&&i.issued===0))missing.push('Operations must record what was taken to the site for each planned item.');
  if(j.assignment&&j.assignment.status!=='accepted')missing.push('The installer must accept this job before work can be submitted.');
  if(j.payRequired&&!(typeof j.payReady==='boolean'?j.payReady:payReady(j)))missing.push('Operations must set the agreed pay for each installer.');
@@ -77,21 +84,38 @@ export function createJob(input,user,now,staff=[]){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(input.scheduledDate||''))throw fail('Choose a scheduled date.');
  return {id:input.id,sourceId:text(input.sourceId,100),business:requireText(input.business,'Customer'),siteStaff:{name:requireText(input.siteStaff?.name,'Verisko staff name'),phone:requireText(input.siteStaff?.phone,'Verisko staff phone')},workLogRequired:true,workLog:[],payRequired:true,installerPay:{},payHistory:[],installerPayments:[],installerPaymentVoids:[],address:requireText(input.address,'Site address'),scope:requireText(input.scope,'Scope'),equipment:requireText(input.equipment,'Equipment list'),materials:initialMaterials(input.equipment),instructions:text(input.instructions),remoteIncluded:input.remoteIncluded===true,assignees,supervisorIds,scheduledDate:input.scheduledDate,status:'In progress',createdAt:now,createdBy:user.id,updatedAt:now,pilot:{approvalCover:'Operations'},cameras:[...new Set(locations)].map((name,i)=>({id:'camera-'+(i+1),name,versions:{},corrections:{}})),exceptions:[],evidence:[],handover:{},versions:{},history:[],requests:[],metrics:[]};
 }
-export function applyCommand(previous,cmd,user,now){
+export function applyCommand(previous,cmd,user,now,source={}){
+ if(cmd.action==='clientReview'&&!canReviewClient(previous,user))throw fail('Only an assigned site supervisor can record client sign-off.',403);
  const selfAssign=cmd.action==='superviseSelf'&&['admin','operations','teamlead'].includes(user?.role);
  if(!canRead(previous,user)&&!selfAssign)throw fail('This installation is not assigned to you.',403);
  if(!/^[a-zA-Z0-9-]{8,100}$/.test(cmd.requestId||''))throw fail('A unique request ID is required.');
  if(previous.requests.includes(cmd.requestId)){if(selfAssign&&(!(previous.supervisorIds||[]).includes(user.id)||!previous.history.some(h=>h.id===cmd.requestId&&h.by===user.id&&h.action==='superviseSelf')))throw fail('This request ID is already in use. Refresh and try again.',409);return previous;}
  const j=structuredClone(previous),supervisor=manager(user),c=j.cameras.find(x=>x.id===cmd.cameraId),data=cmd.data||{};
  if(['plan','pilot'].includes(cmd.action)&&!['admin','operations'].includes(user.role))throw fail('Supervisor access does not include job setup. Only Operations can change it.',403);
- if(['cable','mount','tests','exception','revise','resolve','handover','submit'].includes(cmd.action)&&user.role!=='installer')throw fail('Only an assigned installer can save work checks.',403);
+ if(['cable','mount','tests','exception','revise','resolve','handover','submit','clientFix'].includes(cmd.action)&&user.role!=='installer')throw fail('Only an assigned installer can save work checks.',403);
  const supervisorActions=['plan','pilot','decision','return','complete','metric'];
  if(supervisorActions.includes(cmd.action)&&!supervisor)throw fail('Supervisor access required.',403);
- if(j.status==='Completed'&&!['metric','workFinish','installerPayment','installerPaymentVoid'].includes(cmd.action))throw fail('Completed installation records are read-only.',409);
+ if(j.status==='Completed'&&!['metric','workFinish','installerPayment','installerPaymentVoid','clientReview','handoverSupervisor'].includes(cmd.action))throw fail('Completed installation records are read-only.',409);
  if(j.status==='Submitted'&&!['superviseSelf','return','complete','metric','decision','workFinish','materialReceive','materialReturn','installerPay','installerPayment','installerPaymentVoid'].includes(cmd.action))throw fail('Supervisor review is pending. Return an item before editing.',409);
  if(user.role==='installer'&&j.assignment&&j.assignment.status!=='accepted'&&cmd.action!=='assignmentResponse')throw fail('Accept this job before recording work.',409);
  const checkVersion=(obj,key)=>{if(cmd.baseVersion!==(obj.versions?.[key]||0))throw fail('This item changed on another device. Review the latest record before retrying.',409);obj.versions[key]=(obj.versions[key]||0)+1;};
- if(cmd.action==='assignmentResponse'){
+ if(cmd.action==='clientReview'){
+  checkVersion(j,'clientReview');const review=makeClientReview(j,data,user,now,source);
+  if(review.outcome==='fixes'){review.evidenceBefore=j.evidence.map(e=>e.id);review.workBefore=(j.workLog||[]).map(w=>w.id);}
+  j.clientReviewHistory||=[];j.clientReviewHistory.push(review);j.clientReview=review;
+  if(review.outcome==='fixes')j.status='Needs correction';
+ }else if(cmd.action==='handoverSupervisor'){
+  if(!['admin','operations'].includes(user.role))throw fail('Only Operations can assign the site supervisor.',403);
+  if(j.clientReview?.outcome==='accepted')throw fail('This client handover is already signed.',409);
+  checkVersion(j,'plan');if(!data.supervisorId)throw fail('Choose the site supervisor.');
+  j.supervisorIds=[...new Set([...(j.supervisorIds||[]),data.supervisorId])];
+ }else if(cmd.action==='clientFix'){
+  if(j.status!=='Needs correction'||j.clientReview?.outcome!=='fixes')throw fail('There is no open client fix.',409);
+  checkVersion(j,'clientFix');
+  if(!evidence(j,data.photos,'demo')||data.photos.some(id=>(j.clientReview.evidenceBefore||[]).includes(id)||j.evidence.find(e=>e.id===id)?.at<j.clientReview.at))throw fail('Add a new photo of the client fix.');
+  if(j.workLogRequired&&!(j.workLog||[]).some(w=>w.by===user.id&&w.finish&&!(j.clientReview.workBefore||[]).includes(w.id)))throw fail('Start and finish the fix visit before saving the client fix.');
+  j.clientFix={note:requireText(data.note,'What you fixed'),photos:data.photos,reviewAt:j.clientReview.at,by:user.id,at:now};
+ }else if(cmd.action==='assignmentResponse'){
   if(user.role!=='installer'||j.assignment?.installerId!==user.id)throw fail('Only the offered installer can reply.',403);
   if(j.assignment.status!=='pending')throw fail('You have already replied to this job.',409);
   if(!['accepted','declined'].includes(data.status))throw fail('Choose Accept or Decline.');

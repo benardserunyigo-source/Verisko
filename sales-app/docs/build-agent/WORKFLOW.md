@@ -20,7 +20,8 @@ Autonomy covers scoped source changes, tests, documentation, commits and release
 | Materials | Operations | Plan quantities for the same paid job, request buying, record supplier quotes/orders and arrivals. |
 | Offer installation | Operations | Materials ready, site staff contact, agreed crew fee and existing materials list. Installer accepts or declines. |
 | Do installation | Assigned installer | Start with location, complete checks, add photos, record used/left/damaged/missing stock, finish with location and submit for review. |
-| Review and return stock | Operations; assigned Team Lead site reviewer within policy | Approve or return with reason, confirm warehouse returns, track installer payments and balance. |
+| Review and return stock | Operations; assigned Team Lead site reviewer within policy | Approve installation checks or return with reason, confirm warehouse returns, track installer payments and balance. |
+| Client handover | Assigned site supervisor and client together | Check the finished system; client signs and accepts, supervisor confirms. Fixes keep the same job open for repair and re-review. Client unavailable also stays open. |
 
 Client IDs link all stages. Never ask staff to re-enter the same contact or copy a materials list. Interactions and authorized voice notes remain on the same client. Sales sees progress, not internal costs.
 

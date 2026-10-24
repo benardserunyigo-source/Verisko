@@ -12,6 +12,6 @@ export default async request=>createInstallerHandler({
   if(who.error||!who.me||idOverdue(who.me,Date.now()))return {status:who.status||403};
   const ops=['admin','operations'].includes(who.me.role);
   const readySources=ops?readyInstallationSources(data,await loadReadyCases(getStore({name:'verisko-ready-cases',consistency:'strong'}))):[];
-  return {me:who.me,users:data.users,readySources,sourceJobs:(data.jobs||[]).map(j=>{const p=(data.prospects||[]).find(p=>p.id===j.prospectId)||j;return {id:j.id,ref:j.ref||'',business:p.business||'',address:p.location||'',cameraCount:j.cameraCount||0,scheduledDate:j.scheduledDate||'',instructions:j.siteNotes||''};})};
+  return {me:who.me,users:data.users,readySources,sourceJobs:(data.jobs||[]).map(j=>{const p=(data.prospects||[]).find(p=>p.id===j.prospectId)||j;return {id:j.id,ref:j.ref||'',business:p.business||'',clientName:p.contact||'',address:p.location||'',cameraCount:j.cameraCount||0,scheduledDate:j.scheduledDate||'',instructions:j.siteNotes||'',servicePolicyVersion:j.servicePolicyVersion||'',serviceStartDate:j.serviceStartDate||'',monitoringMiniPcRef:j.monitoringMiniPcRef||'',monitoringTestEvidence:j.monitoringTestEvidence||'',monitoringCommissioned:!!j.monitoringCommissioned};})};
  }
 })(request);
