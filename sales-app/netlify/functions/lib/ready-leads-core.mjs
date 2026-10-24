@@ -23,7 +23,7 @@ export function transitionReady(old,body,me,p,users,at,appointments=[],transacti
   applyMaterials(c,body,me,p,transactions,jobs,at);type=action;note='';
  }else if(action==='request'){
   if(!own(p,me)&&!['admin','operations'].includes(me.role))throw fail('Only the contact creator or Operations can send it.',403);
-  if(p.leadOnly!==true)throw fail('This contact already has a visit. Open its queue entry.',409);
+  if(p.leadOnly!==true&&old?.state!=='returned')throw fail('This contact already has a visit. Open its queue entry.',409);
   if(old&&old.state!=='returned')throw fail('This contact is already in the site visit queue.',409);
   c.state='queued';c.ownerId=null;c.previousOwnerId=null;c.readyAt=at;c.context=note;type=old?'resent':'requested';toName='Shared queue';
  }else{
@@ -68,14 +68,16 @@ export function transitionReady(old,body,me,p,users,at,appointments=[],transacti
    if(action==='confirm_visit'||action==='reschedule_visit'){
     const reschedule=action==='reschedule_visit';
     if(reschedule){if(!c.visit)throw fail('Confirm the visit first.',409);if(c.visit.doneAt||c.quoteSent)throw fail('This visit is already done. Its time cannot be changed.',409);if(note.length<3)throw fail('Add a reason for changing the visit time.');}
-    if(!reschedule&&c.visit)throw fail('This visit is already confirmed.',409);
+    if(!reschedule&&c.visit&&!c.visit.onHoldAt)throw fail('This visit is already confirmed.',409);
     if(day<today)throw fail('Choose today or a future visit date.');
     const time=String(body.time||'');if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw fail('Choose a valid visit time.');
     if(reschedule){if(day===c.visit.date&&time===c.visit.time)throw fail('Choose a different visit date or time.');c.visit={...c.visit,date:day,time,rescheduledAt:at};type='visit_rescheduled';}
     else{const existing=appointments.filter(a=>a.prospectId===p.id&&a.status!=='Cancelled');
     if(existing.length>1||existing.some(a=>a.visitResult))throw fail('This contact already has visits. Ask Operations to check them before confirming.',409);
-    c.visit={id:existing[0]?.id||'ready-visit-'+p.id,date:day,time,confirmedAt:at,byName:me.name,byEmail:me.email};type='visit_confirmed';}
+    c.visit={id:c.visit?.id||existing[0]?.id||'ready-visit-'+p.id,date:day,time,confirmedAt:at,byName:me.name,byEmail:me.email};type='visit_confirmed';}
+    delete c.visit.onHoldAt;delete c.visit.onHoldReason;
    }else if(action==='complete_visit'){
+    if(c.visit?.onHoldAt)throw fail('This visit is on hold. Confirm the day and time with the client first.',409);
     if(!c.visit)throw fail('Confirm the visit first.',409);
     if(c.visit.doneAt)throw fail('This visit is already marked done.',409);
     if(day>today)throw fail('A completed visit cannot be in the future.');
@@ -89,6 +91,14 @@ export function transitionReady(old,body,me,p,users,at,appointments=[],transacti
     if(body.quoteId&&!quote||quotes.length>1&&!quote)throw fail('Choose the saved quote for this client.');
     c.quoteSent={sourceId:quote?.id||'',at:day+'T12:00:00+03:00',byName:me.name,byEmail:me.email,reference:quote?.ref||text(body.reference,100)};type='quote_sent';
    }
+  }else if(action==='return_sales'){
+   if(c.ownerId!==me.id&&me.role!=='admin')throw fail('Only the person handling this contact can send it back.',403);
+   if(!c.ownerId)throw fail('Take this contact first.',409);
+   if(note.length<3)throw fail('Say why this contact needs more follow-up.');
+   if(c.firstPayment||firstClientPayment(p.id,transactions,jobs)||c.materialPlans?.length||jobs.some(j=>j.prospectId===p.id&&['Installed','Handed over'].includes(j.stage)))throw fail('This client has moved on to payment or installation. Keep working on the same job.',409);
+   if(!creator||!['sales','teamlead'].includes(creator.role))throw fail('The original salesperson is not active. Ask Admin to choose who will follow up.');
+   if(c.visit&&!c.visit.doneAt)c.visit={...c.visit,onHoldAt:at,onHoldReason:note};
+   c.previousOwnerId=c.ownerId;c.ownerId=creator.id;c.state='returned';toId=creator.id;toName=creator.name;type='returned_to_sales';
   }else if(action==='return'){
    if(c.ownerId!==me.id&&me.role!=='admin')throw fail('Only the current owner can send this lead back.',403);
    if(!c.ownerId)throw fail('Take this lead before sending it back.',409);

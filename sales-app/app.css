@@ -960,3 +960,27 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 .iw-dialog fieldset{min-width:0}.client-review-panel p{margin-block:10px}
 
 .saved-client-signature{display:block;width:100%;max-width:360px;height:130px;border:1px solid #7b8593;background:#fff;border-radius:10px}
+
+/* Sales: one visible next action, short cards and enough room for a thumb. */
+.sales-home,.sales-contact-list{max-width:900px;margin-inline:auto}
+.sales-start h2,.sales-pay-glance h2,.sales-contact h2{margin:0 0 12px;font-size:1.25rem}
+.sales-start{display:flex;flex-wrap:wrap;gap:12px}.sales-start h2{width:100%}
+.sales-pay-glance{display:flex;align-items:center;justify-content:space-between;gap:16px;background:#eef3ff}
+.sales-pay-glance strong{font-size:1.9rem;color:var(--navy)}
+.sales-pay-glance p,.sales-home-row p{margin:6px 0;color:var(--muted)}
+.sales-contact-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sales-status{font-size:.85rem;color:#174478;background:#e8f2fb;padding:6px 10px;border-radius:8px}
+.sales-status.needs-followup{background:#fff1d8;color:#704500}
+.sales-return-reason{padding:12px;background:#fff6e6;border-left:3px solid #b57610;border-radius:6px}
+.sales-contact-actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.sales-contact-actions .btn-primary{flex-basis:100%}
+.sales-contact details{border-top:1px solid var(--line);padding-top:12px}
+.sales-contact-tools{display:flex;flex-wrap:wrap;gap:12px}.sales-contact-tools label{flex:1;min-width:min(100%,220px)}
+.sales-contact-tools input,.sales-contact-tools select{width:100%;margin-top:6px;min-height:46px}
+.sales-home-row{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}
+.sales-home-row>div{min-width:0;overflow-wrap:anywhere}.sales-home-row .btn{flex-shrink:0}
+.sales-home .card,.sales-contact{overflow-wrap:anywhere}
+@media(max-width:520px){.sales-pay-glance{align-items:flex-start;flex-direction:column}.sales-home-row{flex-wrap:wrap}.sales-contact-actions .btn{min-height:44px}.sales-contact-head h2{width:100%}}
+.sales-workspace .field-shift-banner{flex-wrap:wrap;justify-content:flex-start}
+.sales-workspace .field-shift-banner>span:first-child{flex:1 1 100%;font-size:13px}
+.sales-workspace .field-shift-banner .btn{min-height:44px}

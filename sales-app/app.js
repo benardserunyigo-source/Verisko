@@ -454,10 +454,10 @@
   var pendingInstallationId='';
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=131');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=132');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=131');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=132');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({initialJobId:pendingInstallationId,previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
       pendingInstallationId='';
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
@@ -524,15 +524,15 @@
   async function refreshReadySummary(force){
     var id=settings.user?.id;if(!id||installationRole()||readyLoading||(!force&&readyUser===id&&Date.now()-readyLoadedAt<30000))return;
     if(readyUser!==id){readyData={items:[],people:[]};readyUser=id;}
-    readyLoading=true;try{var data=await readyApi('GET');if(settings.user?.id!==id)return;updateReadyData(data);if(view==='leads'&&document.getElementById('leadGrid'))updateLeadGrid();}catch(e){}finally{readyLoading=false;}
+    readyLoading=true;try{var data=await readyApi('GET');if(settings.user?.id!==id)return;updateReadyData(data);if(view==='leads'&&document.getElementById('leadGrid'))updateLeadGrid();if(view==='today'&&settings.user?.role==='sales'&&!content.querySelector('input:focus,textarea:focus,details[open]'))renderSalesHome();}catch(e){}finally{readyLoading=false;}
   }
   async function renderReadyQueue(){
     var id=settings.user.id;setHead('Contacts','Ready for site visit','Loading the shared queue…','',false);content.innerHTML='<p role="status">Loading queue…</p>';
-    try{var m=await import('./ready-leads-ui.mjs?v=131');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
+    try{var m=await import('./ready-leads-ui.mjs?v=132');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
   }
   async function renderMaterials(){
     var id=settings.user.id;setHead('Jobs','Materials & buying','Use the paid client’s details. Plan, request buying, then record orders and deliveries.','',false);content.innerHTML='<p role="status">Loading paid jobs…</p>';
-    try{var m=await import('./materials-ui.mjs?v=131');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
+    try{var m=await import('./materials-ui.mjs?v=132');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
   }
   setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
@@ -567,7 +567,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=131'), import('./field-shifts-ui.mjs?v=131'), import('./field-shifts-android.mjs?v=131')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=132'), import('./field-shifts-ui.mjs?v=132'), import('./field-shifts-android.mjs?v=132')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -616,19 +616,22 @@
   }
   // Primary sections stay the same on a phone and a computer.
   function updateNavActive() {
-    var role=(settings.user||{}).role,section=navigation.group(role,view),visible=navigation.sections(role);
+    var role=(settings.user||{}).role,section=navigation.group(role,view),visible=navigation.sections(role);document.body.classList.toggle('sales-workspace',role==='sales');
     document.querySelectorAll('.mainnav [data-section]').forEach(function(b){
       b.hidden=!visible.some(function(s){return s.id===b.dataset.section;});
+      var navLabel=(visible.find(function(s){return s.id===b.dataset.section;})||{}).label;if(navLabel){b.setAttribute('aria-label',navLabel);b.querySelector('.nav-label').textContent=navLabel;}
       var active=b.dataset.section===section;b.classList.toggle('is-active',active);
       if(active)b.setAttribute('aria-current','true');else b.removeAttribute('aria-current');
     });
     var sub=document.getElementById('sectionNav');sub.setAttribute('aria-label',(visible.find(function(s){return s.id===section;})||{label:'Work'}).label+' pages');
-    sub.innerHTML=navigation.views(role,section).map(function(p){return '<button type="button" class="section-tab'+(view===p.id?' is-active':'')+'" data-nav-view="'+p.id+'"'+(view===p.id?' aria-current="page"':'')+'>'+esc(p.label)+(p.badge?'<span class="section-count" id="'+p.badge+'" hidden></span>':'')+'</button>';}).join('');
+    var subPages=navigation.views(role,section).filter(function(p){return role!=='sales'||{home:['today'],contacts:['leads'],work:['ready','field'],more:['dashboard','more']}[section]?.includes(p.id);});sub.hidden=subPages.length<2;
+    sub.innerHTML=subPages.map(function(p){return '<button type="button" class="section-tab'+(view===p.id?' is-active':'')+'" data-nav-view="'+p.id+'"'+(view===p.id?' aria-current="page"':'')+'>'+esc(p.label)+(p.badge?'<span class="section-count" id="'+p.badge+'" hidden></span>':'')+'</button>';}).join('');
     var ib=document.getElementById('installerBadge'),count=installationAlerts.pendingIds.length+installationAlerts.submitted+(installationAlerts.handover||0);
     if(ib){ib.hidden=!count;ib.textContent=count;}
     var readyBadge=document.getElementById('readyBadge');if(readyBadge&&readyUser===settings.user?.id){var readyCount=readyData.items.filter(function(c){return !c.ownerId&&c.state!=='returned';}).length;readyBadge.textContent=readyCount;readyBadge.hidden=!readyCount;}
   }
   function renderMoreHome(){
+    if(settings.user?.role==='sales'){setHead('Help','Help & prices','Choose what you need.','',false);content.innerHTML='<div class="nav-tool-grid"><button type="button" class="nav-tool" data-nav-view="support"><strong>Help videos</strong><span>Watch a short lesson.</span></button><button type="button" class="nav-tool" data-nav-view="prices"><strong>Camera prices</strong><span>Show a client our packages.</span></button></div>';return;}
     setHead('More','Tools & help','Choose what you need.','',false);
     var pages=navigation.views((settings.user||{}).role,'more').filter(function(p){return p.id!=='more';});
     var notes={support:'Watch training videos and find quick answers.',cashflow:'Review money in, money out and balances.',applications:'Review people who want to join the team.',settings:'Manage team access and app settings.',installerhelp:'Get help with your assigned installation.'};
@@ -649,10 +652,11 @@
   async function mountTeamWork(){
     var host=document.getElementById('activeWorkDashboard'),person=settings.user?.id,generation=sessionGeneration;if(!host)return;
     var current=function(){return settings.user?.id===person&&sessionGeneration===generation&&view==='today'&&host.isConnected&&!document.body.classList.contains('locked');};
-    try{var m=await import('./active-work-ui.mjs?v=131');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
+    try{var m=await import('./active-work-ui.mjs?v=132');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
   }
   /* --------------------------------- TODAY ---------------------------------- */
   function renderToday() {
+    if(settings.user?.role==='sales')return renderSalesHome();
     setHead("Home", canReviewProspects() ? "Team work today" : "Your work today", canReviewProspects() ? "Follow up with the team and keep jobs moving." : "Your contacts, follow-ups and site visits in one place.", "", false);
 
     var active = visibleProspects().filter(function (p) { return !isClosed(p.stage); });
@@ -703,6 +707,14 @@
     content.innerHTML = idNotice() + idCheckNotice() + signupNotice() + certNotice() + '<div class="staff-home stack">' + activeWorkSection + homeStart + sections + (trainingNudge()?'<details class="home-training"><summary>Training & support</summary>'+trainingNudge()+'</details>':'') + "</div>";
   }
 
+  function renderSalesHome(){
+    setHead('Sales','Your day','Save contacts. Follow up. Send them when ready.','',false);
+    var S=window.VeriskoSalesWorkspace,me=settings.user,contacts=(state.prospects||[]).filter(function(p){return S.own(p,me);}),items=readyUser===me.id?readyData.items:[],day=leadTools().kampalaDay();
+    var returned=items.filter(S.returned),due=contacts.filter(function(p){return !isClosed(p.stage)&&p.followUp&&p.followUp<=day&&!items.some(function(c){return c.contactId===p.id&&S.returned(c);});}).sort(function(a,b){return a.followUp.localeCompare(b.followUp);});
+    var P=window.VeriskoSalesPay,week=P.period(),pay=P.calculate(state,week,me.email.toLowerCase()),rep=pay.reps.find(function(r){return r.email===me.email.toLowerCase();});
+    var payday=week.payday.toLocaleDateString('en-GB',{timeZone:'Africa/Kampala',day:'numeric',month:'short'});
+    content.innerHTML=idNotice()+idCheckNotice()+signupNotice()+'<div class="stack sales-home"><section class="card sales-start"><h2>Who did you meet?</h2><button type="button" class="btn btn-primary" data-save-lead>Save a contact</button><button type="button" class="btn btn-ghost" data-nav-view="leads">My contacts · '+contacts.length+'</button></section><section class="card sales-pay-glance"><div><h2>My pay this week</h2><strong>'+money(pay.total)+'</strong><p>Due Monday '+esc(payday)+'. Earned so far. Ask Operations about payment.</p></div><button type="button" class="btn btn-ghost" data-nav-view="dashboard">See my pay</button></section>'+(returned.length?'<section class="card"><h2>Back for follow-up · '+returned.length+'</h2>'+returned.slice(0,3).map(function(c){return '<div class="sales-home-row"><div><strong>'+esc(c.contact.business)+'</strong><p>'+esc(S.returnReason(c))+'</p></div></div>';}).join('')+'<button type="button" class="btn btn-ghost" data-sales-filter="returned">Open returned contacts</button></section>':'')+'<section class="card"><h2>Follow up today · '+due.length+'</h2>'+(due.length?due.slice(0,5).map(function(p){return '<div class="sales-home-row"><div><strong>'+esc(p.business)+'</strong><p>'+esc(p.nextAction||dateLabel(p.followUp))+'</p></div><button type="button" class="btn btn-ghost btn-sm" data-log-followup="'+esc(p.id)+'">Add follow-up</button></div>';}).join('')+(due.length>5?'<button type="button" class="btn btn-ghost" data-sales-filter="followup">See all follow-ups</button>':''):'<p>No calls or visits due. Add a contact or plan your next follow-up.</p>')+'</section><p class="helper sales-bonus">'+(rep?rep.visits.length:0)+' completed client visits this week. '+(rep?.visitsNeeded?rep.visitsNeeded+' more for the UGX 50,000 bonus.':'Weekly bonus earned.')+'</p></div>';
+  }
   function section(title, count, cls, body) {
     if (!count) return "";
     return '<section><h2 class="section-title ' + cls + '">' + esc(title) + '<span class="count">' + count + "</span></h2><div class=\"list\">" + body + "</div></section>";
@@ -718,8 +730,9 @@
   function leadTools() { return window.VeriskoLeadPipeline; }
   function renderLeads() {
     var manager = canReviewProspects();
-    var viewer=(settings.user||{}).email;if(viewer!==leadViewer){leadViewer=viewer;leadListMode=manager?'all':'mine';leadOwnerFilter='';leadDueFilter='';leadQuery='';}
+    var viewer=(settings.user||{}).email;if(viewer!==leadViewer){leadViewer=viewer;leadListMode=manager?'all':settings.user?.role==='sales'&&['all','followup','returned','sent'].includes(leadListMode)?leadListMode:'mine';leadOwnerFilter='';leadDueFilter='';leadQuery='';}
     if (!leadListMode) leadListMode = manager ? 'all' : 'mine';
+    if(settings.user?.role==='sales')return renderSalesContacts();
     setHead('Sales contacts', manager ? 'Prospecting contacts' : 'My leads', 'Save contacts and follow up. Send them to Operations when they are ready.', 'Save a lead', true);
     var ownerOptions={};
     if(manager)leadTools().salespersonSummary(state.prospects,state.users).forEach(function(r){ownerOptions[r.key]=r.name;});
@@ -731,11 +744,22 @@
     if(manager){document.getElementById('leadOwnerFilter').value=leadOwnerFilter;document.getElementById('leadDueFilter').value=leadDueFilter;}
     updateLeadGrid();
   }
+  function renderSalesContacts(){
+    setHead('Contacts','My contacts','Tap Send for site visit when the client is ready.','Save a contact',true);
+    content.innerHTML='<section class="sales-contact-list"><div class="card sales-contact-tools"><label for="leadSearch">Find a contact<input id="leadSearch" type="search" placeholder="Name, phone or area" value="'+esc(leadQuery)+'"></label><label for="leadMode">Show<select id="leadMode"><option value="all">All contacts</option><option value="followup">Follow up</option><option value="returned">Sent back to me</option><option value="sent">Sent for site visit</option></select></label><p class="result-note" id="leadCount"></p></div><div class="stack" id="leadGrid"></div></section>';
+    if(!['all','followup','returned','sent'].includes(leadListMode))leadListMode='all';document.getElementById('leadMode').value=leadListMode;updateLeadGrid();
+  }
+  function updateSalesContactGrid(){
+    var S=window.VeriskoSalesWorkspace,me=settings.user,items=readyUser===me.id?readyData.items:[],search=document.getElementById('leadSearch').value.toLowerCase(),day=leadTools().kampalaDay();
+    var rows=(state.prospects||[]).filter(function(p){if(!S.own(p,me))return false;var c=items.find(function(c){return c.contactId===p.id;});return (leadListMode==='all'||leadListMode==='returned'&&S.returned(c)||leadListMode==='sent'&&c&&!S.returned(c)||leadListMode==='followup'&&(!c||S.returned(c)))&&[p.business,p.contact,p.phone,p.location].join(' ').toLowerCase().includes(search);}).sort(function(a,b){return (a.followUp||'9999').localeCompare(b.followUp||'9999');});
+    document.getElementById('leadCount').textContent=rows.length+' contact'+(rows.length===1?'':'s');document.getElementById('leadGrid').innerHTML=rows.map(function(p){return S.contactCard({p:p,c:items.find(function(c){return c.contactId===p.id;}),user:me,esc:esc,call:callBtn(p.phone),voice:voiceButton(p.id),dateLabel:dateLabel,sending:!!salesSending[me.id+':'+p.id]});}).join('')||'<section class="card"><p>No contacts here yet. Tap Save a contact to add one.</p></section>';
+  }
   function leadSalespersonSummary() {
     var rows=leadTools().salespersonSummary(state.prospects,state.users);
     return '<section class="card lead-team-summary"><h2>Salesperson summary</h2><p class="helper">See each person’s contacts and follow-ups. Tap a name to filter. Dates use Uganda time.</p><div class="lead-summary-scroll"><table class="lead-summary-table"><caption class="sr-only">Salesperson prospecting activity</caption><thead><tr><th scope="col">Salesperson</th><th scope="col">Contacts added</th><th scope="col">Follow-ups done</th><th scope="col">Due today</th><th scope="col">Overdue</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><th scope="row"><button class="btn btn-ghost btn-sm" data-lead-summary-owner="'+esc(r.key)+'">'+esc(r.name)+'</button></th><td>'+r.contacts+'</td><td>'+r.followUps+'</td><td'+(r.today?' class="lead-summary-today"':'')+'>'+r.today+'</td><td'+(r.overdue?' class="lead-summary-overdue"':'')+'>'+r.overdue+'</td></tr>';}).join('')+'</tbody></table></div><div class="lead-summary-cards">'+rows.map(function(r){return '<article class="salesperson-summary-card"><h3><button type="button" data-lead-summary-owner="'+esc(r.key)+'">'+esc(r.name)+' <span aria-hidden="true">→</span></button></h3><dl><div><dt>Contacts added</dt><dd>'+r.contacts+'</dd></div><div><dt>Follow-ups done</dt><dd>'+r.followUps+'</dd></div><div'+(r.today?' class="due-today"':'')+'><dt>Due today</dt><dd>'+r.today+'</dd></div><div'+(r.overdue?' class="due-overdue"':'')+'><dt>Overdue</dt><dd>'+r.overdue+'</dd></div></dl></article>';}).join('')+'</div>'+(!rows.length?'<p class="helper">Salespeople will appear here when staff or contacts are added.</p>':'')+'</section>';
   }
   function updateLeadGrid() {
+    if(settings.user?.role==='sales')return updateSalesContactGrid();
     var L=leadTools(), me=settings.user||{}, search=(document.getElementById('leadSearch').value||'').toLowerCase(), dueToday=L.kampalaDay();
     var rows=(state.prospects||[]).filter(function(p){
       if(!L.isLead(p))return false;
@@ -771,31 +795,39 @@
     return '<div class="lead-contact-summary">'+(readyCase?line('Site visit owner',esc(readyCase.ownerName))+line('Progress',esc(readyCase.firstPayment?(readyCase.firstPayment.status==='approved'?'Payment approved':readyCase.firstPayment.status==='query'?'Payment needs fixing':'Payment awaiting approval'):readyCase.quoteSent?'Quote sent':readyCase.visit?.doneAt?'Visit done':readyCase.visit?'Visit confirmed':'Waiting for visit confirmation'))+'<button type="button" class="btn btn-ghost btn-sm" data-nav-view="ready">View site visit request</button>':'')+line('Added by',esc(recordedBy))+line('Last follow-up',esc(lastText))+line('Next follow-up', '<span'+(dueStatus==='overdue'?' style="color:var(--red);font-weight:600"':'')+'>'+esc(due)+'</span>')+'</div>';
   }
   function leadFormHtml(p) {
-    return '<p class="helper full">Keep this contact for follow-up. No site visit, GPS pin or qualification answers are required.</p>'+
+    return '<p class="helper full">Save who you met. You can send them for a site visit later.</p>'+
       field('business','Business or contact name','text',p.business,{required:true,full:true})+
-      field('contact','Person you spoke with','text',p.contact,{full:true})+
       field('phone','Phone number','tel',p.phone,{required:true,full:true,placeholder:'0772 123 456'})+
       field('location','Area or landmark','text',p.location,{full:true})+
-      field('leadStatus','Contact status','select',p.leadStatus||'New contact',{full:true,options:leadTools().STATUSES})+
+      field('leadStatus','What did they say?','select',p.leadStatus||'New contact',{full:true,options:leadTools().STATUSES})+
       field('followUp','Next follow-up','date',p.followUp,{full:true})+
-      field('nextAction','Next action','text',p.nextAction,{full:true,placeholder:'Call on Friday to discuss cameras'})+
-      field('notes','Conversation notes','textarea',p.notes,{full:true});
+      '<details class="full"><summary>Extra notes (optional)</summary>'+field('contact','Person you spoke with','text',p.contact,{full:true})+
+      field('nextAction','What will you do next?','text',p.nextAction,{full:true,placeholder:'Call on Friday to discuss cameras'})+
+      field('notes','Notes','textarea',p.notes,{full:true})+'</details>';
   }
   function saveLead(data) {
     var L=leadTools(),prev=editing.id?prospect(editing.id):null;
     var error=L.check(data,state.prospects||[],editing.id);if(error){showFormError(error);return;}
     if(prev&&!ownProspect(prev)){showFormError('Only the salesperson who saved this contact can edit its details.');return;}
-    var me=settings.user||{},p=Object.assign({},prev||{},data,{id:editing.id||uid(),leadOnly:true,phone:window.VeriskoLeadImport.normalizePhone(data.phone),stage:'New prospect',reviewStatus:'draft',qualStatus:'',created:prev?prev.created:today,createdBy:prev?prev.createdBy:me.name,createdByEmail:prev?prev.createdByEmail:me.email,followUps:prev?prev.followUps:[]});
+    var me=settings.user||{},p=Object.assign({},prev||{},data,{id:editing.id||uid(),leadOnly:prev?prev.leadOnly===true:true,phone:window.VeriskoLeadImport.normalizePhone(data.phone),stage:prev?.stage||'New prospect',reviewStatus:prev?.reviewStatus||'draft',qualStatus:prev?.qualStatus||'',created:prev?prev.created:today,createdBy:prev?prev.createdBy:me.name,createdByEmail:prev?prev.createdByEmail:me.email,followUps:prev?prev.followUps:[]});
     stampPlan(p);
     if(prev)state.prospects[state.prospects.findIndex(function(x){return x.id===p.id;})]=p;else state.prospects.push(p);
-    dialog.close();saveData('Lead saved for follow-up. No visit booked.');view='leads';render();
+    dialog.close();saveData('Contact saved.');view='leads';render();
   }
+  var salesSending={},salesSendRequests={};
   async function sendLead(id,target) {
-    var userId=settings.user?.id;try{
-      if(localUnsynced&&!(await pushShared()))throw new Error('Sync this contact before sending it to the site visit queue.');
-      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=131');if(settings.user?.id!==userId)return;
-      m.openReadyRequest({api:readyApi,user:settings.user,contacts:state.prospects||[],selectedId:id,items:readyData.items,esc:esc,isCurrent:function(){return settings.user?.id===userId&&!document.body.classList.contains('locked');},onSaved:function(item){updateReadyData({items:[item].concat(readyData.items.filter(function(c){return c.contactId!==item.contactId;})),people:readyData.people});toast('Sent to Team Lead and Operations.');if(view==='leads')updateLeadGrid();}});
-    }catch(e){toast(e.message);}
+    var userId=settings.user?.id,key=userId+':'+id;if(salesSending[key])return;salesSending[key]=true;
+    document.querySelectorAll('[data-lead-id="'+id+'"]').forEach(function(b){b.disabled=true;b.textContent='Sending…';});
+    try{
+      if(rolePreview)throw new Error('This is a sample. Sending is turned off.');
+      if(localUnsynced&&!(await pushShared()))throw new Error('Connect to the internet so we can save this contact first.');
+      var fresh=await readyApi('GET');if(settings.user?.id!==userId)return;updateReadyData(fresh);
+      var c=fresh.items.find(function(c){return c.contactId===id;}),p=prospect(id);
+      if(c&&c.state!=='returned'){delete salesSendRequests[key];toast('Already sent. See My work for progress.');return;}
+      salesSendRequests[key]||=crypto.randomUUID();
+      var item=await window.VeriskoSalesWorkspace.sendContact({api:readyApi,user:settings.user,contact:p,item:c,requestId:salesSendRequests[key],isCurrent:function(){return settings.user?.id===userId&&!document.body.classList.contains('locked');}});
+      delete salesSendRequests[key];updateReadyData({items:[item].concat(fresh.items.filter(function(c){return c.contactId!==id;})),people:fresh.people});toast('Sent. Operations and your Team Lead can now arrange the visit.');
+    }catch(e){toast(e.message);}finally{delete salesSending[key];if(settings.user?.id===userId){if(view==='leads'&&document.getElementById('leadGrid'))updateLeadGrid();if(view==='today'&&settings.user?.role==='sales')renderSalesHome();}}
   }
   async function convertLead(id) {
     var p=prospect(id);if(!leadTools().canManage(p,settings.user))return;
@@ -1176,10 +1208,10 @@
     var P=window.VeriskoSalesPay,policy=P.POLICY,week=P.period(Date.now(),commWeekShift),office=canReviewProspects()||isTeamLead(),email=office?undefined:(settings.user.email||'').toLowerCase();
     if(week.start<new Date(policy.effectiveFrom+'T00:00:00+03:00')){commWeekShift=0;week=P.period();}
     var result=P.calculate(state,week,email),C=window.VeriskoCommission;
-    setHead('Monday pay',office?'Sales pay':'My pay','Completed visits, weekly bonus and confirmed client payments.','',false);
+    setHead('Monday pay',office?'Sales pay':'My pay','What you have earned. Pay is due every Monday.','',false);
     var label=function(d){return d.toLocaleDateString('en-GB',{timeZone:'Africa/Kampala',day:'numeric',month:'short'});};
     var previous=P.period(Date.now(),commWeekShift-1).start>=new Date(policy.effectiveFrom+'T00:00:00+03:00');
-    var html='<section class="card"><div class="iw-row"><button type="button" class="btn btn-ghost btn-sm" data-pay-week="-1"'+(!previous?' hidden':'')+'>Previous week</button><strong>'+label(week.start)+' – '+label(new Date(week.end.getTime()-1))+'</strong><button type="button" class="btn btn-ghost btn-sm" data-pay-week="1"'+(commWeekShift>=0?' hidden':'')+'>Next week</button></div><p class="helper">Payday: Monday '+label(week.payday)+'. Uganda time.</p><p class="dash-big">'+money(result.total)+'</p><p class="helper">Earnings recorded so far. This is not confirmation that money has been sent.</p></section><section class="card current-pay-rules"><h2>The three pay amounts</h2><dl><div><dt>Each completed client visit</dt><dd>'+money(policy.perVisit)+'</dd></div><div><dt>Bonus at 3 completed visits in the week</dt><dd>'+money(policy.weeklyBonus)+'</dd></div><div><dt>Client’s first confirmed payment</dt><dd>'+money(policy.perDeposit)+'</dd></div></dl><p class="helper">Paid every Monday. Fewer than 3 visits: no weekly bonus. Three visits earn UGX 95,000 before payment commissions. Each client counts once for a completed visit and once for their first approved payment.</p></section><div class="list">';
+    var html='<section class="card"><div class="iw-row"><button type="button" class="btn btn-ghost btn-sm" data-pay-week="-1"'+(!previous?' hidden':'')+'>Previous week</button><strong>'+label(week.start)+' – '+label(new Date(week.end.getTime()-1))+'</strong><button type="button" class="btn btn-ghost btn-sm" data-pay-week="1"'+(commWeekShift>=0?' hidden':'')+'>Next week</button></div><p class="helper">Payday: Monday '+label(week.payday)+'. Uganda time.</p><p class="dash-big">'+money(result.total)+'</p><p class="helper">Earnings recorded so far. This is not confirmation that money has been sent.</p></section>'+(office?'<section class="card current-pay-rules"><h2>The three pay amounts</h2>':'<details class="card current-pay-rules"><summary>How my pay works</summary>')+'<dl><div><dt>Each completed client visit</dt><dd>'+money(policy.perVisit)+'</dd></div><div><dt>Bonus at 3 completed visits in the week</dt><dd>'+money(policy.weeklyBonus)+'</dd></div><div><dt>Client’s first confirmed payment</dt><dd>'+money(policy.perDeposit)+'</dd></div></dl><p class="helper">Paid every Monday. Fewer than 3 visits: no weekly bonus. Three visits earn UGX 95,000 before payment commissions. Each client counts once for a completed visit and once for their first approved payment.</p>'+(office?'</section>':'</details>')+'<div class="list">';
     html+=result.reps.map(function(r){return '<article class="card"><h2>'+esc(office?r.name:'Your breakdown')+'</h2><div class="item-line"><span>Completed client visits · '+r.visits.length+'</span><strong>'+money(r.visitAmount)+'</strong></div><div class="item-line"><span>Weekly bonus</span><strong>'+money(r.bonusAmount)+'</strong></div><div class="item-line"><span>First client payments · '+r.deposits.length+'</span><strong>'+money(r.depositAmount)+'</strong></div><div class="item-line pay-total"><span>Total earned</span><strong>'+money(r.total)+'</strong></div><p class="helper">'+(r.visitsNeeded?r.visitsNeeded+' more completed client visit'+(r.visitsNeeded===1?'':'s')+' needed for the weekly bonus.':'Weekly visit target reached.')+'</p><details class="pay-evidence"><summary>What earned this pay?</summary>'+(r.visits.map(v=>'<p>Visit: '+esc(v.business)+'</p>').join('')||'<p>No qualifying completed visits yet.</p>')+r.deposits.map(v=>'<p>First payment confirmed: '+esc(v.business)+'</p>').join('')+'</details></article>';}).join('');
     html+='</div><details class="card pay-history-note"><summary>Earlier pay history</summary><p>This policy starts on 19 October 2026. Earlier records keep the previous rules. Operations must reconcile any earlier unpaid earnings before the first Monday payout. No payout record is created by this screen.</p></details>';
     content.innerHTML='<div class="stack">'+html+'</div>';
@@ -2978,7 +3010,7 @@
       // Sales and Team leads add a lead by booking its site check: one screen,
       // under a minute (booking.js). Operations/admin keep the full form.
       if (presetProspect === "__lead__" || editing.lead) {
-        editing.lead = true; document.getElementById("dialogTitle").textContent = id ? "Edit saved lead" : "Save a lead"; html += leadFormHtml(source);
+        editing.lead = true; document.getElementById("dialogTitle").textContent = id ? "Edit contact" : "Save a contact"; html += leadFormHtml(source);
       } else if (!id && !canReviewProspects()) {
         editing.quick = true;
         document.getElementById("dialogTitle").textContent = "Book a site check";
@@ -3216,7 +3248,7 @@
     }
     if (type === "job") { recalcQuoteForm(); updateMatTotal(); }
     document.getElementById("saveButton").textContent = id ? "Save changes" : "Save";
-    if (editing.lead) document.getElementById("saveButton").textContent = "Save lead";
+    if (editing.lead) document.getElementById("saveButton").textContent = "Save contact";
     if (editing.quick) { document.getElementById("saveButton").textContent = "Book site check"; autoCaptureGeo(); }
     if (!dialog.open) dialog.showModal();
     var first = formContent.querySelector('input:not([type=hidden]),select,textarea');
@@ -3544,13 +3576,13 @@
   async function openContactVoice(id){
     var userId=settings.user?.id,voiceGeneration=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!p||!['sales','teamlead','operations','admin'].includes(settings.user?.role))return;
-    try{var m=await import('./voice-notes-ui.mjs?v=131');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
+    try{var m=await import('./voice-notes-ui.mjs?v=132');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-voice]');if(b){e.preventDefault();e.stopPropagation();openContactVoice(b.dataset.clientVoice);}},true);
   async function openContactWork(id){
     var userId=settings.user?.id,generation=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!['sales','teamlead','operations','admin'].includes(settings.user?.role)||id&&!p)return;
-    try{var m=await import('./client-work-ui.mjs?v=131');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
+    try{var m=await import('./client-work-ui.mjs?v=132');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-work],[data-client-work-all]');if(b){e.preventDefault();e.stopPropagation();openContactWork(b.dataset.clientWork||'');}},true);
   function followUpHistory(p) {
@@ -4440,6 +4472,7 @@
     { icon: ICON_PEOPLE, title: "You see what your role needs", body: "The app shows each person only their part of the work. As the team grows — sales, operations, installers, accounts — everyone works from the same connected records." },
     { icon: ICON_INSTALL, title: "Quick taps, saved for everyone", body: "Most things are a tap, not typing. Add with the + button; your work saves and syncs to the team automatically — and keeps working offline." }
   ];
+  function onboardingSteps(){return settings.user?.role==='sales'?[{welcome:true,title:'Welcome to Verisko',body:'Save people you meet. Follow up. Send a contact for a site visit when they are ready.'},{icon:ICON_PEOPLE,title:'Keep one contact',body:'If the team sends a contact back, read the reason. Follow up and send that same contact again when ready.'},{icon:ICON_CALENDAR,title:'See your work and pay',body:'My work shows visit progress. My pay shows what you have earned and your Monday pay date.'}]:ONB_STEPS;}
   var onbScreen = document.getElementById("onboarding");
   var onbCard = document.getElementById("onbCard");
   var onbStep = 0;
@@ -4459,8 +4492,8 @@
     showApp();
   }
   function renderOnboarding() {
-    var s = ONB_STEPS[onbStep];
-    var last = onbStep === ONB_STEPS.length - 1;
+    var steps=onboardingSteps(),s=steps[onbStep];
+    var last = onbStep === steps.length - 1;
     var mark = s.welcome
       ? '<div class="lockup lockup-lg" role="img" aria-label="Verisko"><img class="lockup-mark" src="logo.svg" alt=""><span class="lockup-word">VERISKO</span></div>'
       : '<div class="onb-icon" aria-hidden="true">' + s.icon + "</div>";
@@ -4468,13 +4501,13 @@
       '<button type="button" class="onb-skip" data-onb-skip>' + (last ? "" : "Skip") + "</button>" + mark +
       '<h1 class="onb-title">' + esc(s.title) + "</h1>" +
       '<p class="onb-body">' + esc(s.body) + "</p>" +
-      '<div class="onb-dots" aria-hidden="true">' + ONB_STEPS.map(function (_, k) { return '<span class="onb-dot' + (k === onbStep ? " on" : "") + '"></span>'; }).join("") + "</div>" +
+      '<div class="onb-dots" aria-hidden="true">' + steps.map(function (_, k) { return '<span class="onb-dot' + (k === onbStep ? " on" : "") + '"></span>'; }).join("") + "</div>" +
       '<button type="button" class="btn btn-primary btn-block" data-onb-next>' + (last ? "Get started" : "Next") + "</button>";
   }
   onbCard.addEventListener("click", function (e) {
     if (e.target.closest("[data-onb-skip]")) { finishOnboarding(); return; }
     if (e.target.closest("[data-onb-next]")) {
-      if (onbStep >= ONB_STEPS.length - 1) finishOnboarding();
+      if (onbStep >= onboardingSteps().length - 1) finishOnboarding();
       else { onbStep++; renderOnboarding(); }
     }
   });
@@ -4503,7 +4536,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=131");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=132");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }
@@ -5112,6 +5145,7 @@
     if(e.target.closest('[data-open-leads]')){view='leads';leadListMode='all';leadViewer=(settings.user||{}).email;render();return;}
     var leadEdit=e.target.closest('[data-edit-lead]');if(leadEdit){openForm('prospect',leadEdit.dataset.editLead);return;}
     var leadSave=e.target.closest('[data-save-lead]');if(leadSave){openForm('prospect',null,'__lead__');return;}
+    var salesFilter=e.target.closest('[data-sales-filter]');if(salesFilter){leadListMode=salesFilter.dataset.salesFilter;view='leads';render();return;}
     var leadSend=e.target.closest('[data-lead-send]');if(leadSend){sendLead(leadSend.dataset.leadId,leadSend.dataset.leadSend);return;}
     var leadConvert=e.target.closest('[data-lead-convert]');if(leadConvert){convertLead(leadConvert.dataset.leadConvert);return;}
 

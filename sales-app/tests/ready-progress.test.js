@@ -31,3 +31,16 @@ test('the existing first payment is linked only to the saved quote selected for 
  assert.equal(projectReady(b,[{...c,quoteSent:{}}]).transactions[0].installId,undefined);
  assert.equal(projectReady(b,[{...c,firstPayment:{...payment,installId:'other'}}]).transactions[0].installId,'other');
 });
+
+test('return to Sales and resend preserve one completed visit and its original earned pay',()=>{
+ const done={...c,state:'returned',visit:{...visit,doneAt:'2026-10-22T12:00:00+03:00',doneByName:'Ops',doneByEmail:'ops@test'}},week=globalThis.VeriskoSalesPay.period('2026-10-22T12:00:00Z');
+ const returned=projectReady(base(),[done]);assert.equal(returned.prospects[0].readyProgress,'Needs your follow-up');assert.equal(returned.appointments.length,1);assert.equal(globalThis.VeriskoSalesPay.calculate(returned,week).total,15000);
+ const resent=projectReady(returned,[{...done,state:'queued'}]);assert.equal(resent.appointments.length,1);assert.equal(globalThis.VeriskoSalesPay.calculate(resent,week).total,15000);
+});
+
+test('an upcoming visit returned to Sales leaves the active schedule until it is confirmed again',()=>{
+ const paused={...c,state:'returned',visit:{...visit,onHoldAt:'2026-10-22T08:00:00Z',onHoldReason:'Client not ready'}};
+ const d=projectReady(base(),[paused]);assert.equal(d.appointments[0].status,'Cancelled');assert.equal(d.prospects[0].readyProgress,'Needs your follow-up');
+ const pending=projectReady(d,[{...paused,state:'queued'}]);assert.equal(pending.appointments[0].status,'Cancelled');
+ const confirmed=projectReady(pending,[{...c,state:'assigned'}]);assert.equal(confirmed.appointments.length,1);assert.equal(confirmed.appointments[0].status,'Confirmed');
+});

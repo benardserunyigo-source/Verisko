@@ -23,8 +23,8 @@
   {id:'installerhelp',section:'more',label:'Help',roles:['installer']}
  ];
  var sections=[{id:'home',label:'Home'},{id:'contacts',label:'Contacts'},{id:'work',label:'Jobs'},{id:'more',label:'More'}];
- function views(role,section){return pages.filter(function(p){return p.roles.includes(role)&&(!section||p.section===section);});}
+ function views(role,section){var list=pages.filter(function(p){return p.roles.includes(role);}).map(function(p){if(role!=='sales')return p;var changes={dashboard:{section:'more',label:'My pay'},field:{section:'work',label:'My shift'},ready:{section:'work',label:'Sent contacts'},leads:{label:'My contacts'},more:{label:'Help & prices'}};return Object.assign({},p,changes[p.id]||{});});if(role==='sales')list.sort(function(a,b){var order=['today','leads','ready','field','visits','dashboard','more'];return (order.includes(a.id)?order.indexOf(a.id):99)-(order.includes(b.id)?order.indexOf(b.id):99);});return list.filter(function(p){return !section||p.section===section;});}
  function allowed(role,view){return views(role).some(function(p){return p.id===view;});}
  function group(role,view){var p=views(role).find(function(p){return p.id===view;});return p?p.section:null;}
- root.VeriskoNavigation={views:views,allowed:allowed,group:group,sections:function(role){return sections.filter(function(s){return views(role,s.id).length;});},first:function(role,section){return views(role,section)[0]?.id||null;}};
+ root.VeriskoNavigation={views:views,allowed:allowed,group:group,sections:function(role){return sections.filter(function(s){return views(role,s.id).length;}).map(function(s){return role==='sales'?Object.assign({},s,{label:({work:'My work',more:'My pay'})[s.id]||s.label}):s;});},first:function(role,section){return views(role,section)[0]?.id||null;}};
 })(typeof window==='object'?window:globalThis);

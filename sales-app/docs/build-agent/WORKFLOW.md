@@ -13,8 +13,8 @@ Autonomy covers scoped source changes, tests, documentation, commits and release
 | Step | Person | Required outcome |
 | --- | --- | --- |
 | Save contact | Sales | Name/contact, interest and next follow-up; keep prospecting contacts until ready. |
-| Send for visit | Sales | Select the existing contact, add only missing visit context, send to shared Operations/Team Lead queue. |
-| Take ownership | Operations or Team Lead | Take or assign the lead; sending it back requires a reason. Keep a clear owner. |
+| Send for visit | Sales | Tap Send for site visit on the existing contact; reuse its saved notes and send to shared Operations/Team Lead queue. Returned contacts show a reason and can be sent again. |
+| Take ownership | Operations or Team Lead | Take or assign the lead; office ownership returns require a reason. Send back to Sales explicitly when the client is not ready, with a reason; preserve earlier visits and earned pay. Keep a clear owner. |
 | Visit and quote | Operations or Team Lead | Confirm visit, mark it done, record quote sent. Sales sees progress and adds ongoing interactions. |
 | First payment | Operations or Team Lead records; authorized approver approves | Sales sees approved payment; commission accrues once. Recording is not bank transfer. |
 | Materials | Operations | Plan quantities for the same paid job, request buying, record supplier quotes/orders and arrivals. |

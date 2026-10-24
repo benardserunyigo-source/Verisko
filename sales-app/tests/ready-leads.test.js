@@ -81,3 +81,31 @@ test('quote tracking reuses the saved quote and never links another client’s q
  assert.equal((await f.call('ops','quote_sent',{baseVersion:4,date:'2026-10-22'})).status,400);assert.equal((await f.call('ops','quote_sent',{baseVersion:4,date:'2026-10-22',quoteId:'foreign'})).status,400);
  const r=await f.call('ops','quote_sent',{baseVersion:4,date:'2026-10-22',quoteId:'q2',reference:'FORGED'});assert.equal(r.item.quoteSent.sourceId,'q2');assert.equal(r.item.quoteSent.reference,'TEST-002');assert.equal((await f.call('sales')).items[0].availableQuotes,undefined);
 });
+
+test('explicit Send back to Sales bypasses office pass-back, requires reason and preserves the same contact for resend',async()=>{
+ const f=fixture();await f.call('sales','request');await f.call('ops','take',{baseVersion:1});await f.call('ops','assign',{baseVersion:2,toId:'lead'});
+ assert.equal((await f.call('lead','return_sales',{baseVersion:3,note:''})).status,400);
+ assert.equal((await f.call('ops','return_sales',{baseVersion:3,note:'Not ready'})).status,403);
+ assert.equal((await f.call('sales','return_sales',{baseVersion:3,note:'Not ready'})).status,403);
+ let r=await f.call('lead','return_sales',{baseVersion:3,note:'Client asked for a call next month'});assert.equal(r.status,200);assert.equal(r.item.ownerId,'sales');assert.equal(r.item.state,'returned');assert.equal(r.item.history.at(-1).type,'returned_to_sales');
+ r=await f.call('sales','request',{baseVersion:r.item.version});assert.equal(r.status,200);assert.equal(r.item.contactId,'contact');assert.equal(r.item.state,'queued');assert.equal(r.item.history.length,5);assert.equal(f.prospects[0].createdByEmail,'sales@test');
+});
+test('a completed visit can return to Sales and resume without losing or repeating the completed visit',async()=>{
+ const f=fixture();await f.call('sales','request');await f.call('ops','take',{baseVersion:1});await f.call('ops','confirm_visit',{baseVersion:2,date:'2026-10-22',time:'10:00'});let r=await f.call('ops','complete_visit',{baseVersion:3,date:'2026-10-22'});const visit=structuredClone(r.item.visit);
+ f.prospects[0].leadOnly=false;r=await f.call('ops','return_sales',{baseVersion:4,note:'Not ready to buy until next month'});assert.equal(r.status,200);assert.deepEqual(r.item.visit,visit);
+ r=await f.call('sales','request',{baseVersion:5,note:'Client called and is now ready'});assert.equal(r.status,200);assert.equal(r.item.visit.id,visit.id);assert.equal(r.item.visit.doneAt,visit.doneAt);assert.deepEqual((await f.call('ops')).items[0].visit,visit);
+ r=await f.call('lead','take',{baseVersion:6});assert.equal(r.status,200);assert.equal((await f.call('lead','complete_visit',{baseVersion:7,date:'2026-10-22'})).status,409);
+ assert.equal((await f.call('lead','quote_sent',{baseVersion:7,date:'2026-10-22'})).status,200);
+});
+test('a client with received money cannot be sent back into Sales prospecting',async()=>{
+ const f=fixture();await f.call('sales','request');await f.call('ops','take',{baseVersion:1});f.transactions.push({id:'paid',direction:'in',prospectId:'contact',status:'approved',amount:100});
+ const r=await f.call('ops','return_sales',{baseVersion:2,note:'Not ready'});assert.equal(r.status,409);assert.match(r.error,/payment or installation/);assert.equal((await f.call('sales')).items[0].state,'assigned');
+});
+
+test('returning an upcoming visit stops it, and the same visit must be confirmed again after resend',async()=>{
+ const f=fixture();await f.call('sales','request');await f.call('ops','take',{baseVersion:1});let r=await f.call('ops','confirm_visit',{baseVersion:2,date:'2026-10-22',time:'10:00'});const id=r.item.visit.id;
+ r=await f.call('ops','return_sales',{baseVersion:3,note:'Client wants us to wait'});assert.equal(r.status,200);assert.ok(r.item.visit.onHoldAt);
+ f.prospects[0].leadOnly=false;r=await f.call('sales','request',{baseVersion:4});assert.equal(r.status,200);await f.call('lead','take',{baseVersion:5});
+ assert.equal((await f.call('lead','complete_visit',{baseVersion:6,date:'2026-10-22'})).status,409);
+ r=await f.call('lead','confirm_visit',{baseVersion:6,date:'2026-10-22',time:'15:00'});assert.equal(r.status,200);assert.equal(r.item.visit.id,id);assert.equal(r.item.visit.time,'15:00');assert.equal(r.item.visit.onHoldAt,undefined);
+});
