@@ -19,3 +19,7 @@ Phone checks at 390px and 320px covered Home, contacts, short contact form and p
 ## Boundaries
 
 No changed pay policy, customer prices, account privileges, warranty or tracking policy. Sales still sees only its own clients and pay; office financial data stays protected. A browser test is not real Android/TalkBack or authenticated production acceptance. Existing Android pilot remains pending. No supplier/client/staff messages were sent.
+
+## Release
+
+v132 `e9d77cd2bbc9249393c5e047c166e84dc3c8a03f` reached Netlify ready. HTML references v132 and the new Sales workspace module; five affected frontend hashes match the tested local source. Six private APIs deny unauthenticated requests with JSON 401. Public fictional Sales preview opened the new Home and pay page with no console errors; it remains view only and is not authenticated role acceptance. Saved release-readback.json records the checks.
