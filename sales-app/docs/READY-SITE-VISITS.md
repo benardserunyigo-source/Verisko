@@ -23,6 +23,8 @@ The current owner (Team Lead or Operations), or Admin, sees one next-step button
 
 Sales sees all three steps and their dates in the queue. Sales cannot edit them. The history records who saved each step and when. Quote status does not create payment commission.
 
+If the client changes the agreed time, the current owner or Admin can tap **Change visit time** before the visit is marked done. Choose the new date and time in Uganda and give a short reason. The same visit is updated, Sales sees the new time and history, and no extra visit pay is created. A completed visit cannot be rescheduled.
+
 Queue visits are managed here. Their fields are restored from the authoritative queue record when older devices save the main workspace, so they cannot be silently undone. Duplicate new visits for the same queue contact are rejected. A new owner can continue the existing progress after an office handover. After confirmation, pass the job to another office person instead of returning it to prospecting.
 
 Job payments and later installation steps continue through their existing screens.

@@ -60,18 +60,21 @@ export function transitionReady(old,body,me,p,users,at,appointments=[],transacti
     if(action==='payment_query'&&note.length<3)throw fail('Add a reason before sending the payment back.');
     c.firstPayment={...c.firstPayment,status:action==='approve_payment'?'approved':'query',reviewedBy:me.name,reviewedAt:at,reviewNote:action==='payment_query'?note:'',approvedAt:action==='approve_payment'?at:''};type=action==='approve_payment'?'payment_approved':'payment_queried';
    }
-  }else if(['confirm_visit','complete_visit','quote_sent'].includes(action)){
+  }else if(['confirm_visit','reschedule_visit','complete_visit','quote_sent'].includes(action)){
    if(!c.ownerId)throw fail('Take or assign this lead first.',409);
    if(c.ownerId!==me.id&&me.role!=='admin')throw fail('Only the current owner can update this visit.',403);
    const day=String(body.date||''),today=new Date(Date.parse(at)+3*3600000).toISOString().slice(0,10);
    if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(Date.parse(day+'T12:00:00Z'))||new Date(day+'T12:00:00Z').toISOString().slice(0,10)!==day)throw fail('Choose a valid date.');
-   if(action==='confirm_visit'){
-    if(c.visit)throw fail('This visit is already confirmed.',409);
+   if(action==='confirm_visit'||action==='reschedule_visit'){
+    const reschedule=action==='reschedule_visit';
+    if(reschedule){if(!c.visit)throw fail('Confirm the visit first.',409);if(c.visit.doneAt||c.quoteSent)throw fail('This visit is already done. Its time cannot be changed.',409);if(note.length<3)throw fail('Add a reason for changing the visit time.');}
+    if(!reschedule&&c.visit)throw fail('This visit is already confirmed.',409);
     if(day<today)throw fail('Choose today or a future visit date.');
     const time=String(body.time||'');if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw fail('Choose a valid visit time.');
-    const existing=appointments.filter(a=>a.prospectId===p.id&&a.status!=='Cancelled');
+    if(reschedule){if(day===c.visit.date&&time===c.visit.time)throw fail('Choose a different visit date or time.');c.visit={...c.visit,date:day,time,rescheduledAt:at};type='visit_rescheduled';}
+    else{const existing=appointments.filter(a=>a.prospectId===p.id&&a.status!=='Cancelled');
     if(existing.length>1||existing.some(a=>a.visitResult))throw fail('This contact already has visits. Ask Operations to check them before confirming.',409);
-    c.visit={id:existing[0]?.id||'ready-visit-'+p.id,date:day,time,confirmedAt:at,byName:me.name,byEmail:me.email};type='visit_confirmed';
+    c.visit={id:existing[0]?.id||'ready-visit-'+p.id,date:day,time,confirmedAt:at,byName:me.name,byEmail:me.email};type='visit_confirmed';}
    }else if(action==='complete_visit'){
     if(!c.visit)throw fail('Confirm the visit first.',409);
     if(c.visit.doneAt)throw fail('This visit is already marked done.',409);
@@ -96,7 +99,7 @@ export function transitionReady(old,body,me,p,users,at,appointments=[],transacti
    type='returned';
   }else throw fail('Unknown queue action.');
  }
- c.version++;c.updatedAt=at;c.history.push({id:eventId,type,at,by:me.id,name:me.name||'Staff',toId,toName,note,date:['confirm_visit','complete_visit','quote_sent'].includes(action)?body.date:undefined,time:action==='confirm_visit'?body.time:undefined});return c;
+ c.version++;c.updatedAt=at;c.history.push({id:eventId,type,at,by:me.id,name:me.name||'Staff',toId,toName,note,date:['confirm_visit','reschedule_visit','complete_visit','quote_sent'].includes(action)?body.date:undefined,time:['confirm_visit','reschedule_visit'].includes(action)?body.time:undefined});return c;
 }
 function view(c,p,users,me,transactions=[],jobs=[],installations=[]){const creator=users.find(u=>own(p,u));const safe=structuredClone(c);safe.firstPayment=paymentView(c,p,me,transactions,jobs);safe.materialsStatus=materialsSummary(c.materialPlans);safe.installationProgress=contactInstallations(p.id,jobs,installations);if(office(me))safe.availableQuotes=jobs.filter(j=>j.prospectId===p.id&&!['Draft','Cancelled','Rejected'].includes(j.stage)).map(j=>({id:j.id,ref:j.ref||'Saved quote'}));if(['admin','operations'].includes(me.role))safe.paidWork=paidWork(p,transactions,jobs,c);else delete safe.materialPlans;if(!office(me)){safe.history=safe.history.map(e=>e.type==='payment_queried'?{...e,note:''}:e);if(safe.quoteSent){delete safe.quoteSent.reference;delete safe.quoteSent.byEmail;}if(safe.visit){delete safe.visit.byEmail;delete safe.visit.doneByEmail;}}return {...safe,contact:{id:p.id,business:p.business||'',contact:p.contact||'',phone:p.phone||'',location:p.location||'',leadOnly:p.leadOnly===true,createdBy:p.createdBy||creator?.name||'Sales'},ownerName:users.find(u=>u.id===c.ownerId)?.name||(c.ownerId?'Former team member':'Unassigned'),creatorId:creator?.id||null};}
 export function createReadyHandler({store,authorize,now=()=>new Date().toISOString()}){return async request=>{try{

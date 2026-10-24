@@ -21,3 +21,11 @@ Hourly thread heartbeat `verisko-portal-build-agent` was created ACTIVE for this
 ## Continue here
 
 Start with the highest-priority ready item in QUEUE.md. Update this checkpoint with new evidence rather than changing historical verification claims. Record any schedule identifier after its successful creation. A skill is reusable instructions; the project chat is the owner, and a heartbeat is the scheduled runner, not an always-on server.
+
+## Full journey audit: 24 October 2026, Uganda time
+
+Completed the approved journey and role-access audit. Added owner/Admin visit rescheduling with a reason, same appointment ID and protected Sales progress. Completed visits remain fixed. Full suite: **492 passed**, including stale-save recovery, once-only visit pay and denied cross-role installation/payment/stock commands.
+
+Phone QA used fictional Sales, Operations and Installer accounts, local real HTTP handlers and 390 × 844 viewports. Sales saved/submitted one existing contact without re-entry; Operations changed the visit time and Sales read the updated time. Installer job/checks/materials screens fit the phone width. Evidence and coverage map: `../qa/2026-10-24-full-journey-audit.md`.
+
+Release candidate v128 is tested locally; deployment readback follows the scoped release commit. No real staff/customer/financial records were changed. Android handset pilot and real authenticated cross-device checks remain pending.
