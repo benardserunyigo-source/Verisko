@@ -1,10 +1,10 @@
 # Simple Operations and Team Lead visit pages
 
-24 October 2026, v134.
+24 October 2026, v135.
 
 ## Change
 
-Operations and Team Lead Home now start with New requests and With me, each linking to the matching request filter. Next visits stays short. Installations, materials, installation alerts and the Operations active-work dashboard stay available under Other work. Team Lead no longer lands on the Sales prospecting start card. Required ID notices and existing shift controls remain.
+Operations and Team Lead Home now start with New requests and With me, each linking to the matching request filter. Next visits stays short. Camera prices, installations, materials, installation alerts and the Operations active-work dashboard stay available under Other work. Team Lead no longer lands on the Sales prospecting start card. Required ID notices and existing shift controls remain.
 
 Contacts opens Visit requests first for both roles. The page has three count filters, search by name/phone/area and refresh. A request shows the saved name, area, salesperson, current handler and saved note. Take contact is the visible action on a new request. Taking switches to With me and exposes Confirm visit, Call contact and Send back to Sales. Confirmation uses the existing short date/time form. Returning still requires a reason and uses the same contact/case. A booked visit shows its Uganda date/time, visit completion and start/finish controls. Later quote/payment steps, assignment, previous-person return, voice, time/location, full progress and history remain under More details. No backend permissions, pay, finance, visit, warranty or tracking rules changed. Admin and Sales retain their own page variants.
 
@@ -21,3 +21,5 @@ Local real-handler browser reused only fictional DEMO Kato Shop. Operations open
 Phone browser testing is not actual Android/TalkBack acceptance or a signed-in production mutation test. The existing Android pilot remains pending. Source changes are presentation/navigation only. The existing server commands enforce all access, reasons, versions and audit events. No messages were sent.
 
 Release inspection caught the new Home request shortcuts being disabled by the view-only preview guard. Added only these navigation/filter selectors to its allowed controls. A new behavioral test confirms those controls navigate while Take contact stays disabled and intercepted. Preview POST transport remains blocked by existing tests. No real account permission changed.
+
+Confirmed the existing Camera prices tool remains reachable through Home → Other work. This keeps it available while request navigation stays short.
