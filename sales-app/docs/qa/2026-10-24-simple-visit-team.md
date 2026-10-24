@@ -23,3 +23,7 @@ Phone browser testing is not actual Android/TalkBack acceptance or a signed-in p
 Release inspection caught the new Home request shortcuts being disabled by the view-only preview guard. Added only these navigation/filter selectors to its allowed controls. A new behavioral test confirms those controls navigate while Take contact stays disabled and intercepted. Preview POST transport remains blocked by existing tests. No real account permission changed.
 
 Confirmed the existing Camera prices tool remains reachable through Home → Other work. This keeps it available while request navigation stays short.
+
+## Final release
+
+v135 source `f87ac88700af77c9c204314daab97cf8a4ff016d` reached Netlify ready. Six affected frontend hashes match; HTML loads app and preview v135. Six private API routes return JSON 401 without authentication. Both live Operations and Team Lead previews navigate Home → New requests, with Take contact still disabled; no console errors. DOM readback confirmed exact final script versions. Release-readback.json records the source and endpoint checks. Public fictional previews are separate from authenticated production or Android acceptance.
