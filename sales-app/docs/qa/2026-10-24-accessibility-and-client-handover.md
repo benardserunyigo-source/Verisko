@@ -1,6 +1,6 @@
 # Verisko portal: accessibility, simple use and delivery audit
 
-24 October 2026. Release candidate v130. Scope: Sales contact → shared visit queue → quote → approved payment → materials → installer → Operations approval → client sign-off.
+24 October 2026. Released v130. Scope: Sales contact → shared visit queue → quote → approved payment → materials → installer → Operations approval → client sign-off.
 
 ## Assessment
 
@@ -88,4 +88,6 @@ These limits remain visible. Do not label the whole system fully field-accepted 
 
 ## Release
 
-Pending exact-commit deployment and live asset/authentication-boundary verification.
+Release `e5b0782dfa88bc3e5d2abb8ad361a1b616bce4c3` reached Netlify ready. Five affected frontend files (`app.js`, `app.css`, `client-handover.js`, `installer-ui.mjs`, `ready-leads-ui.mjs`) returned HTTP 200 with hashes matching the tested files. HTML references v130 and the new handover module. Data, ready-leads, installer, voice-notes, client-work and field-shifts APIs all returned JSON 401 without a session. The public fictional Operations preview loaded with no console errors.
+
+Readback: `output/audits/accessibility-handover-20261024/release-readback.json`. This confirms publication and unauthenticated boundaries. It does not claim production staff-authenticated or actual Android acceptance.
