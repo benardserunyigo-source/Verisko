@@ -15,4 +15,4 @@ Audit evidence: `../qa/2026-10-24-full-journey-audit.md`. Full suite: 492 passed
 
 Job-record approval sync resolved in v129. Evidence: `../qa/2026-10-24-job-approval-sync.md`; 496 tests passed, browser approval → Job records → Installed filter → reload checked. Existing price/payment/funding fields were preserved.
 
-Android pilot distribution: direct HTTPS download requested by owner on 24 October. Publish the existing checksum-verified 0.3.0 APK; handset acceptance remains pending.
+Android pilot distribution: direct HTTPS download requested by owner on 24 October. Existing checksum-verified 0.3.0 APK is live at `/downloads/verisko-field-0.3.0-pilot.apk` (HTTP 200 and exact binary hash checked); handset acceptance remains pending.
