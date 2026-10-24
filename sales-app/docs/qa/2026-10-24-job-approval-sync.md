@@ -1,6 +1,6 @@
 # Job records follows installation approval
 
-Release candidate v129. Checked 24 October 2026.
+Released v129, source commit `f8cddec27bdfdf8c447dd51f224da6fc852df0a8`. Checked 24 October 2026.
 
 ## Change
 
@@ -28,3 +28,7 @@ Used fictional Operations and the real local HTTP handlers. A submitted installa
 Independent HTTP readback compared the entire job against a private before snapshot: the only job field changed was stage. The payment record was identical. There was still one job and one payment. A 390-pixel viewport had no horizontal overflow.
 
 Evidence: `/Users/ben/Verisko/output/audits/job-approval-sync-20261024/` (`readback.json`, `job-records-installed.jpg`, `job-records-phone.jpg`). The browser login fixture does not test production PIN verification; prepared evidence and GPS are synthetic. No real staff/customer/payment record was changed. Actual Android acceptance remains separate.
+
+## Release readback
+
+Netlify reported ready for the exact source commit. Production HTML referenced v129 and the deployed app.js hash matched the tested local file. Data, ready-leads and installer APIs returned JSON 401 without authentication. The public fictional Operations preview opened correctly. This is deployment verification, not a production staff-account or actual Android acceptance test.
