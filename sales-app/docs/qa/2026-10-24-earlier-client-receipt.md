@@ -14,4 +14,4 @@ In the existing isolated4406 fictional Operations session, after reload: Job rec
 
 ## Release
 
-Frontend v138 prepared. Source deployment/readback to follow in checkpoint.
+Frontend v138 source b044410 reached Netlify ready (deploy6add1818572c6b1df29db0cc). All three changed functional asset hashes match live; HTML usesv138 and six private APIs return JSON401 unauthenticated. Live public Operations Job records and summary open without console errors. Local authenticated Kato demo is distinct from public preview; no authenticated production record mutation. See release-readback.json in the evidence folder.
