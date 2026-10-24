@@ -116,3 +116,12 @@ Sales has one-tap sending from its own saved contacts. An office owner (Operatio
 ## Operations job summaries (v137)
 
 Operations/Admin can read joined summaries using their existing authenticated workspace, ready-case and installation endpoints. No new data privilege or backend write route was added. The screen refuses other roles before fetching; existing server projections continue to protect private costs, payments and media. No new browser persistence is added. Leaving the page or switching accounts discards its loaded summary state.
+
+
+## Client quote links (v139)
+
+Operations/Admin can create or revoke a private client quote link and read its reply. Sales, Team Lead, Installer and unsigned callers cannot issue links or list replies. The public page requires a random32-byte bearer token, held in the URL fragment and sent in a same-origin JSON request. Only its hash is stored. It exposes the quote reference, client business name, customer scope/prices/terms and the saved typed-name plan choice. It does not expose internal costs, phone/address, staff records, other clients, receipts or media. This is a self-reported reply from whoever holds the link, not verified identity or a payment.
+
+Links expire within7days (earlier if an unaccepted quote expires), can be turned off, and stop working after a quote's commercial details/date change or cancellation/deletion. New links replace old ones. Compare-and-swap writes prevent simultaneous replies from overwriting one another; retries of the same reply succeed without duplication. Earlier choices are retained when a revised/revoked link is replaced. Accepted jobs expose only their existing agreed plan; unaccepted checked quotes expose only existing supported plans that pass server pricing/approval guards.
+
+Client choice is saved separately from the protected source quote, client money and funding approval. It appears in Job records and the job summary. Staff review it before accepting a plan; Admin funding approval and actual receipt approval remain required. No customer/staff message is sent automatically. The operator chooses Send on WhatsApp.

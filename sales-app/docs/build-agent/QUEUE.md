@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | WhatsApp client quote and payment-plan reply | working | Operations shares a private expiring customer link; client sees only checked customer prices, chooses a plan and confirms; reply appears on the same job. No automatic payment/funding approval, contract change or real message. Role/privacy, stale link, expiry, retries and phone checks required. |
 | 0 | Earlier client receipt in Job records finance | done | v138 b044410 ready;543 tests passed. Same Kato demo shows2m approved/3.28m due in Job records, edit panel, funding/schedule and summary. Shared once-only receipt selection; ambiguous clients flagged. No ledger mutation. See `../qa/2026-10-24-earlier-client-receipt.md`. |
 | 0 | Operations job summaries | done | v137 source1b45b3a ready;540 tests passed. One summary per saved source/client/installation, no repeated cash across jobs, pending/unknown balances explicit, net installer pay and returns. Local phone links, unchanged-record readback and live preview verified; see `../qa/2026-10-24-operations-job-summaries.md`. |
 | 0 | Simple Operations and Team Lead visit requests | done | v135: 527 tests passed; both roles took, confirmed and reason-returned the same request in local phone browser checks. Clean Home/count filters/card; live preview navigation works with writes blocked. f87ac88 ready; see `../qa/2026-10-24-simple-visit-team.md`. |

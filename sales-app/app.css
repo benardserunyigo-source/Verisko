@@ -1025,3 +1025,6 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 .summary-journey{list-style:none;padding-left:0}.summary-journey li{margin:10px 0}.summary-journey span{font-weight:700;color:#205d43}
 .summary-search{width:100%;min-height:48px;padding:12px;border:1px solid #78818e;border-radius:10px;font:inherit;background:white}
 @media(max-width:480px){.job-summary-card{padding:16px}.summary-money{font-size:14px;gap:8px}.job-summary-card header{display:block}.job-summary-card .iw-status{display:inline-block;margin-top:8px}.job-summary-card .ready-actions>*{flex:1 1 140px;min-height:46px}}
+
+/* Client quote link: one short, phone-sized sheet. */
+.record-dialog[open]{display:flex;flex-direction:column}.record-dialog .dialog-body{padding:18px;overflow:auto;min-height:0}.record-dialog .dialog-foot{padding:14px 18px;border-top:1px solid var(--hair);display:flex}.record-dialog .dialog-foot .btn{width:100%}.record-dialog .dialog-body p{margin:0 0 14px}.record-dialog .dialog-body input{width:100%;min-height:48px}.record-dialog .dialog-body>.btn{margin:8px 0;min-height:48px}
