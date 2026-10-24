@@ -35,9 +35,9 @@ test('customer PDF and share text include the mini PC, privacy and faults-only w
 });
 
 test('handover requires a real date, mini PC reference and recorded alert test, including after acceptance',()=>{
-  const accepted=save(quote({stage:'Accepted',scheduledDate:'2026-10-18',fundingConfirmed:true}));
-  assert.throws(()=>save({...accepted,stage:'Handed over'},[accepted]),/actual installation|mini PC|alert test/);
-  const ready={...accepted,stage:'Handed over',serviceStartDate:'2026-10-18',monitoringMiniPcRef:'QA-BOX-1',monitoringCommissioned:true,monitoringTestEvidence:'QA-only offline / reporting test reference'};
+  const accepted=save(quote({stage:'Installed',scheduledDate:'2026-10-18',fundingConfirmed:true}));
+  assert.throws(()=>save({...accepted,stage:'Handed over'},[accepted]),/actual installation|mini PC|alert test|handover checks|representative/);
+  const ready={...accepted,checklist:{cameras:true,tested:true,remote:true,trained:true,credentials:true},clientHandover:{name:'TEST Client',role:'Client / owner',date:'2026-10-18',method:'Signed form',reference:'TEST form',confirmed:true},stage:'Handed over',serviceStartDate:'2026-10-18',monitoringMiniPcRef:'QA-BOX-1',monitoringCommissioned:true,monitoringTestEvidence:'QA-only offline / reporting test reference'};
   const handed=save(ready,[accepted]);
   assert.equal(handed.careSchedule.monitoringStatus,'Test recorded');
   assert.equal(handed.careSchedule.callbackEnd,'2027-10-18');assert.equal(handed.careSchedule.warrantyEnd,'2028-10-18');

@@ -204,7 +204,16 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
       }
 
       if (canReview) {
-        try { clean.jobs = validateQuotes(storedJobs, clean.jobs, isAdmin, email); }
+        try {
+          for(const j of clean.jobs){
+            const before=storedJobs.find(old=>old.id===j.id);
+            if(j.stage==='Handed over'&&before?.stage!=='Handed over'){
+              const linked=installationProgress.filter(i=>i.sourceId===j.id&&(!i.contactId||i.contactId===j.prospectId));
+              if(!linked.length||linked.some(i=>i.status!=='Completed'))throw new Error('Operations must approve the installation before client sign-off.');
+            }
+          }
+          clean.jobs = validateQuotes(storedJobs, clean.jobs, isAdmin, email);
+        }
         catch(error) { return json({ok:false,error:error.message},400,headers); }
       }
 

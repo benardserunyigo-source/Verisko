@@ -15,7 +15,7 @@ export function projectApprovedJobs(jobs=[],installations=[]){
 export function contactInstallations(contactId,jobs=[],installations=[]){
  const quoteIds=new Set(jobs.filter(j=>j.prospectId===contactId).map(j=>j.id));
  return installations.filter(i=>i.contactId===contactId||i.sourceId&&quoteIds.has(i.sourceId)).flatMap(i=>{
- const stage=i.status==='Completed'?'Installation approved':i.status==='Submitted'?'Waiting for installation approval':i.status==='Needs correction'?'Installation needs fixing':i.assignmentStatus==='pending'?'Waiting for installer reply':i.assignmentStatus==='declined'?'Installer declined':i.status==='In progress'?(i.workStarted?'Installation in progress':'Installer assigned'):'';
+ const stage=i.status==='Completed'?(jobs.find(j=>j.id===i.sourceId)?.clientHandover?.recordedAt?'Client signed off':'Installation approved'):i.status==='Submitted'?'Waiting for installation approval':i.status==='Needs correction'?'Installation needs fixing':i.assignmentStatus==='pending'?'Waiting for installer reply':i.assignmentStatus==='declined'?'Installer declined':i.status==='In progress'?(i.workStarted?'Installation in progress':'Installer assigned'):'';
  if(!stage)return [];return [{id:i.id,sourceId:i.sourceId,label:jobs.find(j=>j.id===i.sourceId)?.ref||'Installation',stage,scheduledDate:i.scheduledDate,updatedAt:i.updatedAt}];
  }).sort((a,b)=>String(a.updatedAt).localeCompare(String(b.updatedAt)));
 }

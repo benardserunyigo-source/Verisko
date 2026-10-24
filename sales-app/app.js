@@ -312,7 +312,7 @@
             return '<button type="button" class="ask-chip" data-choice="' + esc(c) + '">' + esc(c) + "</button>";
           }).join("") + "</div>" : "";
       var inputHtml = opts.input
-        ? '<textarea class="ask-input" id="askInput" rows="3" placeholder="' + esc(opts.input.placeholder || "") + '">' + esc(opts.input.value || "") + "</textarea>" : "";
+        ? '<label for="askInput">' + esc(opts.input.label || opts.input.placeholder || 'Your note') + '</label><textarea class="ask-input" id="askInput" rows="3" placeholder="' + esc(opts.input.placeholder || "") + '">' + esc(opts.input.value || "") + "</textarea>" : "";
       dlg.innerHTML =
         '<div class="ask-head"><h2 id="askTitle">' + esc(opts.title || "") + "</h2>" +
         (opts.body ? '<p class="ask-body">' + esc(opts.body) + "</p>" : "") + "</div>" +
@@ -454,10 +454,10 @@
   var pendingInstallationId='';
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=129');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=130');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=129');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=130');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({initialJobId:pendingInstallationId,previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
       pendingInstallationId='';
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
@@ -528,11 +528,11 @@
   }
   async function renderReadyQueue(){
     var id=settings.user.id;setHead('Contacts','Ready for site visit','Loading the shared queue…','',false);content.innerHTML='<p role="status">Loading queue…</p>';
-    try{var m=await import('./ready-leads-ui.mjs?v=129');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
+    try{var m=await import('./ready-leads-ui.mjs?v=130');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
   }
   async function renderMaterials(){
     var id=settings.user.id;setHead('Jobs','Materials & buying','Use the paid client’s details. Plan, request buying, then record orders and deliveries.','',false);content.innerHTML='<p role="status">Loading paid jobs…</p>';
-    try{var m=await import('./materials-ui.mjs?v=129');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
+    try{var m=await import('./materials-ui.mjs?v=130');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
   }
   setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
@@ -567,7 +567,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=129'), import('./field-shifts-ui.mjs?v=129'), import('./field-shifts-android.mjs?v=129')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=130'), import('./field-shifts-ui.mjs?v=130'), import('./field-shifts-android.mjs?v=130')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -649,7 +649,7 @@
   async function mountTeamWork(){
     var host=document.getElementById('activeWorkDashboard'),person=settings.user?.id,generation=sessionGeneration;if(!host)return;
     var current=function(){return settings.user?.id===person&&sessionGeneration===generation&&view==='today'&&host.isConnected&&!document.body.classList.contains('locked');};
-    try{var m=await import('./active-work-ui.mjs?v=129');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
+    try{var m=await import('./active-work-ui.mjs?v=130');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
   }
   /* --------------------------------- TODAY ---------------------------------- */
   function renderToday() {
@@ -793,7 +793,7 @@
   async function sendLead(id,target) {
     var userId=settings.user?.id;try{
       if(localUnsynced&&!(await pushShared()))throw new Error('Sync this contact before sending it to the site visit queue.');
-      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=129');if(settings.user?.id!==userId)return;
+      await refreshReadySummary(true);var m=await import('./ready-leads-ui.mjs?v=130');if(settings.user?.id!==userId)return;
       m.openReadyRequest({api:readyApi,user:settings.user,contacts:state.prospects||[],selectedId:id,items:readyData.items,esc:esc,isCurrent:function(){return settings.user?.id===userId&&!document.body.classList.contains('locked');},onSaved:function(item){updateReadyData({items:[item].concat(readyData.items.filter(function(c){return c.contactId!==item.contactId;})),people:readyData.people});toast('Sent to Team Lead and Operations.');if(view==='leads')updateLeadGrid();}});
     }catch(e){toast(e.message);}
   }
@@ -1493,6 +1493,42 @@
     if(source.servicePolicyVersion!==window.VeriskoCare.VERSION)return '';
     return '<div class="field full"><h3>Included care: activation and handover</h3><p class="helper">Mini PC and care stay inside the existing callback allowance. Monitor health/status only, without access to footage. Record the actual activation test; this form does not turn on monitoring or send alerts.</p>'+field('serviceStartDate','Actual installation / care start date','date',source.serviceStartDate||'')+field('monitoringMiniPcRef','On-site mini PC reference','text',source.monitoringMiniPcRef||'')+field('monitoringTestEvidence','Offline-alert test evidence / reference','textarea',source.monitoringTestEvidence||'',{full:true})+'<label class="chk-item"><input id="f_monitoringCommissioned" type="checkbox"'+(source.monitoringCommissioned?' checked':'')+'><span>Mini PC installed; camera-offline and site-reporting alerts tested; monitoring has no footage access.</span></label></div>';
   }
+  function clientHandoverFields(j,prefix,required) {
+    var h=j.clientHandover||{},client=jobClient(j),req=required?' required':'';
+    function input(name,label,value,type,options){
+      var id=prefix+'_'+name,control=options?'<select id="'+id+'" name="'+name+'"'+req+'><option value="">Choose</option>'+options.map(function(x){return '<option'+(x===value?' selected':'')+'>'+esc(x)+'</option>';}).join('')+'</select>':'<input id="'+id+'" name="'+name+'" type="'+(type||'text')+'" value="'+esc(value||'')+'"'+req+' maxlength="1000">';
+      return '<div class="field"><label for="'+id+'">'+label+'</label>'+control+'</div>';
+    }
+    return '<h3>Client sign-off</h3><p class="helper">Record the client’s agreement after showing them the system. Verisko staff approval is separate. Do not save passwords here.</p>'+input('clientName','Client or representative name',h.name||client.contact)+input('clientRole','Their role',h.role||'','text',['Client / owner','Authorised representative'])+input('clientDate','Date they agreed',h.date||today,'date')+input('clientMethod','How did they agree?',h.method||'','text',window.VeriskoHandover.METHODS)+input('clientReference','Signed form, client message or meeting reference',h.reference||'')+'<label class="chk-item"><input name="clientConfirmed" type="checkbox"'+(h.confirmed?' checked':'')+'><span>The client agreed the work is complete.</span></label>';
+  }
+  function clientHandoverFromForm(form) {
+    var f=new FormData(form);return {name:f.get('clientName')||'',role:f.get('clientRole')||'',date:f.get('clientDate')||'',method:f.get('clientMethod')||'',reference:f.get('clientReference')||'',confirmed:f.has('clientConfirmed')};
+  }
+  function clientHandoverSummary(j){
+    var h=j.clientHandover;if(!h?.recordedAt)return '';
+    return '<p><strong>Client signed off</strong><br>'+esc(h.name)+' · '+esc(h.role)+' · '+esc(h.date)+'</p><p class="helper">'+esc(h.method)+' · '+esc(h.reference)+'<br>Recorded by '+esc(h.recordedBy)+'</p>';
+  }
+  function openClientHandover(id) {
+    var j=job(id);if(!canInstalls()||!j||j.stage!=='Installed')return;
+    var handoverGeneration=sessionGeneration;
+    var dlg=document.getElementById('askDialog');
+    function input(name,label,value,type){return '<div class="field"><label for="h_'+name+'">'+label+'</label><input id="h_'+name+'" name="'+name+'" type="'+(type||'text')+'" value="'+esc(value||'')+'" required></div>';}
+    var care=j.servicePolicyVersion===window.VeriskoCare.VERSION;
+    dlg.innerHTML='<form id="clientHandoverForm"><h2 id="askTitle">Finish client handover</h2><p>'+esc(jobClient(j).business)+' · '+esc(j.ref)+'</p><p class="helper">Use the same job. This records client sign-off; it does not record a payment.</p><fieldset><legend>Show the client</legend>'+INSTALL_CHECKLIST.map(function(i){return '<label class="chk-item"><input name="check_'+i.key+'" type="checkbox"'+(j.checklist?.[i.key]?' checked':'')+'><span>'+esc(i.label)+'</span></label>';}).join('')+'</fieldset>'+clientHandoverFields(j,'h',true)+(care?'<fieldset><legend>Included care</legend>'+input('serviceStartDate','Actual installation / care start date',j.serviceStartDate,'date')+input('monitoringMiniPcRef','On-site mini PC reference',j.monitoringMiniPcRef)+input('monitoringTestEvidence','Offline-alert test reference',j.monitoringTestEvidence)+'<label class="chk-item"><input name="monitoringCommissioned" type="checkbox"'+(j.monitoringCommissioned?' checked':'')+'><span>Mini PC installed; offline alerts tested. No footage access.</span></label></fieldset>':'')+'<p role="alert" class="form-error" hidden></p><div class="ask-actions"><button class="btn btn-ghost" type="button" data-handover-cancel>Cancel</button><button class="btn btn-primary" type="submit">Save client sign-off</button></div></form>';
+    var form=dlg.querySelector('form');dlg.querySelector('[data-handover-cancel]').onclick=function(){dlg.close();};
+    form.onsubmit=async function(e){
+      e.preventDefault();if(handoverGeneration!==sessionGeneration||!canInstalls()){dlg.close();return;}var f=new FormData(form),checks={};INSTALL_CHECKLIST.forEach(function(i){checks[i.key]=f.has('check_'+i.key);});
+      var fields={stage:'Handed over',checklist:checks,clientHandover:clientHandoverFromForm(form)};
+      if(care){['serviceStartDate','monitoringMiniPcRef','monitoringTestEvidence'].forEach(function(k){fields[k]=f.get(k)||'';});fields.monitoringCommissioned=f.has('monitoringCommissioned');}
+      var next=Object.assign({},j,fields),errors=window.VeriskoHandover.errors(next,today).concat(window.VeriskoCare.handoverErrors(next));
+      var error=form.querySelector('[role="alert"]');if(errors.length){error.textContent=errors.join(' ');error.hidden=false;error.tabIndex=-1;error.focus();return;}
+      var b=form.querySelector('[type="submit"]');b.disabled=true;
+      state.jobs=state.jobs.map(function(x){return x.id===id?next:x;});
+      try{var saved=await saveData();if(handoverGeneration!==sessionGeneration)return;if(saved){toast('Client sign-off saved');dlg.close();render();}else{error.textContent='Sign-off is not confirmed. Check your connection and retry.';error.hidden=false;b.disabled=false;}}catch(ex){error.textContent=ex.message;error.hidden=false;b.disabled=false;}
+    };
+    dlg.showModal();
+  }
+
   function careScheduleHtml(j) {
     var c=window.VeriskoCare.schedule(j);if(!c)return '';
     return '<section class="card"><h3>Included care and warranty</h3><p>'+esc(window.VeriskoCare.summary)+'</p><p class="helper">Faults only. Accidental damage and power-surge damage are excluded. No footage access through monitoring.</p><div class="item-line"><span class="k">Monitoring</span><span class="v">'+esc(c.monitoringStatus)+'</span></div>'+(c.start?'<div class="item-line"><span class="k">Care start</span><span class="v">'+esc(c.start)+'</span></div><div class="item-line"><span class="k">Callbacks / monitoring end</span><span class="v">'+esc(c.callbackEnd)+'</span></div><div class="item-line"><span class="k">Camera / cable warranty end</span><span class="v">'+esc(c.warrantyEnd)+'</span></div>':'<p class="helper">Record the actual installation date to set coverage dates.</p>')+'</section>';
@@ -1632,6 +1668,11 @@
     if (r.needsApproval && !isAdmin() && (!r.pricingVersion || data.stage !== 'Draft')) { showFormError("Save a draft and ask the Owner to approve the cost or discount before quoting."); return; }
     var stage = JOB_STAGES.indexOf(data.stage) >= 0 ? data.stage : "Draft";
     var checklist = collectChecklist();
+    if(stage==='Handed over' && (existing.stage!=='Handed over'||existing.clientHandover?.recordedAt)){
+      inputs.clientHandover=existing.clientHandover?.recordedAt?existing.clientHandover:clientHandoverFromForm(document.getElementById('recordForm'));
+      var handoverErrors=window.VeriskoHandover.errors(Object.assign({},inputs,{checklist:checklist}),today);
+      if(handoverErrors.length){showFormError(handoverErrors.join(' '));return;}
+    }
     if(stage==='Handed over' && window.VeriskoCare.handoverErrors(inputs).length) { showFormError(window.VeriskoCare.handoverErrors(inputs).join(' ')); return; }
     if (stage === "Handed over" && !checklistComplete(checklist)) {
       var missing = INSTALL_CHECKLIST.filter(function (i) { return !checklist[i.key]; }).map(function (i) { return i.label.toLowerCase(); });
@@ -1646,7 +1687,7 @@
       prospectId: prospectId, business: client.business, contact: client.contact, phone: client.phone, location: client.location,
       stage: stage, finalPrice: finalPrice, priceOverride: priceOverride,
       scheduledDate: data.scheduledDate || "", scheduledTime: data.scheduledTime || "",
-      technicianId: data.technicianId || "", materials: collectMaterials(), checklist: checklist,
+      technicianId: document.getElementById("f_technicianId")?(data.technicianId || ""):(existing.technicianId || ""), materials: document.getElementById("matList")?collectMaterials():(existing.materials || []), checklist: checklist,
       notes: (data.notes || "").trim()
     }, inputs);
     if (r.pricingVersion) fields.quoteSnapshot = r;
@@ -1858,7 +1899,7 @@
       .sort(function (a, b) { return order.indexOf(a.stage) - order.indexOf(b.stage) || (b.createdAt || "").localeCompare(a.createdAt || ""); });
     var list = rows.length ? '<div class="list">' + rows.map(jobCard).join("") + "</div>" :
       emptyState(ICON_INSTALL, "No jobs yet", "Tap New job to price a site, or start one from a closed sale in Prospects.", "New job", 'data-new="job"');
-    content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " job" : " jobs") + "</p>" + list + technicianRosterCard();
+    content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " job" : " jobs") + "</p>" + list + '<details class="card"><summary>Older job tools</summary><p class="helper">For older manual jobs only. New installations use the assigned Installer account and the linked materials list.</p>'+technicianRosterCard()+'</details>';
   }
 
   function fundingOverviewHtml(jobs) {
@@ -1874,7 +1915,8 @@
 
   function jobCard(j) {
     var c = jobClient(j);
-    var approvedInstall=(c.prospect?.installationProgress||[]).find(function(i){return i.sourceId===j.id&&i.stage==='Installation approved';});
+    var linkedInstallation=(c.prospect?.installationProgress||[]).find(function(i){return i.sourceId===j.id;});
+    var approvedInstall=(c.prospect?.installationProgress||[]).find(function(i){return i.sourceId===j.id&&['Installation approved','Client signed off'].includes(i.stage);});
     var r = computeQuote(j);
     var val = jobValue(j);
     var tech = j.technicianId ? technician(j.technicianId) : null;
@@ -1883,7 +1925,7 @@
       '<div class="item-line"><span class="k">Value</span><span class="v">' + money(val) + "</span></div>";
     var cam = Number(j.cameraCount) || 0;
     var camMeta = r.pricingVersion ? cam + "-cam · " + r.tier : cam >= 12 ? "12+ cam" : (cam >= 2 ? cam + "-cam · " + r.tier : "priced by hand");
-    return '<article class="item" data-edit="job" data-id="' + j.id + '">' +
+    return '<article class="item" data-job-id="' + esc(j.id) + '">' +
       '<div class="item-top"><div><div class="item-title">' + esc(c.business || "Untitled job") + "</div>" +
       '<div class="item-meta">' + esc(j.ref || "") + " · " + esc(camMeta) + "</div></div>" + jobStageChip(j.stage) + "</div>" +
       '<div class="item-lines">' +
@@ -1893,7 +1935,7 @@
       (approvedInstall ? '<div class="item-line"><span class="k">Install</span><span class="v">'+(approvedInstall.scheduledDate?dateLabel(approvedInstall.scheduledDate)+' · ':'')+'Installation approved</span></div>' : delivery ? '<div class="item-line"><span class="k">Install</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Date not set") + " · " + (tech ? esc(tech.name) : '<span style="color:var(--amber)">no technician</span>') + "</span></div>" : "") +
       ((delivery && (val > 0 || paidForJob(j.id) > 0)) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (val > 0 ? " · " + money(Math.max(0, val - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
       (j.stage === "Handed over" || (/progress|installed/i.test(j.stage || "") && checklistDone(j) > 0) ? '<div class="item-line"><span class="k">Checklist</span><span class="v">' + checklistDone(j) + " / " + INSTALL_CHECKLIST.length + (checklistComplete(j.checklist) ? " · done" : "") + "</span></div>" : "") +
-      "</div>" + '<button type="button" class="btn btn-ghost" data-installation-work>Installer work / quality review</button>' + quoteActionsHtml(j.id) + "</article>";
+      "</div>" + '<button type="button" class="btn btn-ghost" data-edit="job" data-id="'+esc(j.id)+'">Edit job</button>' + (j.stage==='Installed'?'<p class="helper">Next: show the client the system and record their sign-off.</p><button type="button" class="btn btn-primary" data-client-handover="'+esc(j.id)+'">Client sign-off</button>':clientHandoverSummary(j)) + '<button type="button" class="btn btn-ghost" data-installation-work="'+esc(linkedInstallation?.id||'')+'">Open installation checks</button>' + quoteActionsHtml(j.id) + "</article>";
   }
 
   // Onboard/manage technicians (Operations + admin).
@@ -2921,10 +2963,10 @@
       var choices = opts.options.map(function (o) { return typeof o === "string" ? { value: o, label: o } : o; });
       input = '<input type="hidden" id="f_' + name + '" name="' + name + '" value="' + esc(value || "") + '">' +
         '<div class="segmented" role="radiogroup" aria-label="' + esc(label) + '">' +
-        choices.map(function (c) {
+        choices.map(function (c,index) {
           var on = c.value === value;
           return '<button type="button" class="seg-btn" role="radio" aria-checked="' + (on ? "true" : "false") +
-            '" data-seg-target="' + name + '" data-val="' + esc(c.value) + '">' + esc(c.label) + "</button>";
+            '" tabindex="'+(on||(!value&&index===0)?'0':'-1')+'" data-seg-target="' + name + '" data-val="' + esc(c.value) + '">' + esc(c.label) + "</button>";
         }).join("") + "</div>";
     } else if (type === "multi") {
       // Tap any number of choices; stored as "A, B, C".
@@ -3114,6 +3156,7 @@
       if(!lockedPricing) qInputs.servicePolicyVersion=window.VeriskoCare.VERSION;
       var currentPricing = qInputs.pricingVersion === window.VeriskoPricing.VERSION;
       var jobStage = source.stage || "Draft";
+      var hasSharedInstallation=!!(prospect(source.prospectId).installationProgress||[]).find(function(i){return i.sourceId===source.id;});
       var jr = computeQuote(qInputs);
       var showFinal = jr.custom || !!source.priceOverride;
       var techOpts = (state.technicians || []).filter(function (t) { return t.active !== false || t.id === source.technicianId; })
@@ -3122,7 +3165,7 @@
         '<input type="hidden" id="f_pricingVersion" value="' + esc(qInputs.pricingVersion || '') + '">' +
         '<input type="hidden" id="f_servicePolicyVersion" value="'+esc(qInputs.servicePolicyVersion || '')+'">' +
         '<input type="hidden" id="f_renewQuote" value="'+(repricing?'yes':'no')+'">' +
-        (lockedPricing ? '<p class="helper">Accepted pricing is locked. Delivery details can be updated. Create a revised quote for scope changes.</p>' : repricing ? '<p class="helper">This unaccepted quote is being refreshed with current prices. Confirm the costs before reissuing.</p>' : '') + '<fieldset style="border:0;padding:0;margin:0;min-width:0;display:contents"'+(lockedPricing?' disabled':'')+'>' +
+        (lockedPricing ? '<p class="helper">Accepted pricing is locked. Delivery details can be updated. Create a revised quote for scope changes.</p>' : repricing ? '<p class="helper">This unaccepted quote is being refreshed with current prices. Confirm the costs before reissuing.</p>' : '') + (lockedPricing?'<details class="field full"><summary>Agreed package and price</summary>':'')+'<fieldset style="border:0;padding:0;margin:0;min-width:0;display:contents"'+(lockedPricing?' disabled':'')+'>' +
         // ---- Pricing (the quote) ----
         (currentPricing ? installationFieldsHtml(qInputs,jr) : '<div class="field full"><label>Site scoring <span class="optional-tag" id="quoteTier"></span></label>' +
         QUOTE_RUBRIC.map(function (r) {
@@ -3151,7 +3194,7 @@
           ? '<div class="field full" id="finalPriceField"' + (showFinal ? "" : " hidden") + '><label for="f_finalPrice">Final price (UGX) <span class="optional-tag">custom / override</span></label>' +
             '<input id="f_finalPrice" class="quote-input" type="number" inputmode="numeric" min="0" step="10000" value="' + esc(source.finalPrice || "") + '" placeholder="0"><p class="helper">Set this for a 12+ camera custom job, or to override the calculated price while preserving at least 26%.</p></div>'
           : '<div id="finalPriceField" hidden></div>') +
-        '</fieldset>' +
+        '</fieldset>' + (lockedPricing?'</details>':'') +
         (id && lockedPricing ? '<div class="field full"><label>Agreed quotation</label>'+quoteActionsHtml(id)+'</div>' : '') +
         // ---- Stage ----
         field("stage", "Stage", "select", jobStage, { options: JOB_STAGES, full: true }) +
@@ -3160,19 +3203,20 @@
         field("scheduledDate", "Install date", "date", source.scheduledDate || "") +
         field("scheduledTime", "Time", "time", source.scheduledTime || "") +
         careSetupFieldsHtml(qInputs) +
+        (hasSharedInstallation?'<p class="helper">Installer and materials are saved on this same job under Installations. No need to enter them again.</p>':
         '<div class="field full"><label for="f_technicianId">Technician</label><select id="f_technicianId" name="technicianId"><option value="">— unassigned —</option>' + techOpts + "</select>" +
         (techOpts ? "" : '<p class="helper">Add technicians in the Technicians card to assign one.</p>') + "</div>" +
         '<div class="field full"><label>Materials <span class="optional-tag">bill of materials</span></label>' +
         '<div class="mat-head"><span>Item</span><span>Qty</span><span>Unit</span><span></span></div>' +
         '<div class="mat-list" id="matList">' + ((source.materials && source.materials.length) ? source.materials.map(materialRow).join("") : materialRow()) + "</div>" +
         '<button type="button" class="btn btn-ghost btn-sm" data-mat-add style="margin-top:8px">Add item</button>' +
-        '<p class="mat-total" id="matTotal" aria-live="polite"></p></div>' +
+        '<p class="mat-total" id="matTotal" aria-live="polite"></p></div>') +
         "</div>" +
         // ---- Completion checklist (revealed at handover; gates it) ----
         '<div class="field full" id="chkField"' + ((jobStage === "Handed over") ? "" : " hidden") + '><label>Completion checklist <span class="optional-tag">tick before handover</span></label>' +
         '<div class="chk-list" id="chkList">' + INSTALL_CHECKLIST.map(function (i) {
           return '<label class="chk-item"><input type="checkbox" data-check="' + esc(i.key) + '"' + ((source.checklist && source.checklist[i.key]) ? " checked" : "") + "><span>" + esc(i.label) + "</span></label>";
-        }).join("") + "</div></div>" +
+        }).join("") + "</div>" + (source.clientHandover?.recordedAt?clientHandoverSummary(source):clientHandoverFields(source,'f'))+"</div>" +
         ((id && jobIsDelivery(jobStage)) ? installmentScheduleHtml(source)+careScheduleHtml(source)+jobPaymentsSection(source) : "") +
         field("notes", "Notes", "textarea", source.notes, { full: true, optional: true, placeholder: "Anything the customer or Ben should know." });
     }
@@ -3208,7 +3252,7 @@
     if (first) first.focus();
   }
 
-  function showFormError(msg) { formError.textContent = msg; formError.hidden = false; }
+  function showFormError(msg) { formError.textContent = msg; formError.hidden = false; formError.tabIndex=-1; formError.focus(); }
   function hideFormError() { formError.hidden = true; formError.textContent = ""; }
 
   // Delete the record being edited (prospect also removes its site visits).
@@ -3308,7 +3352,7 @@
     if (!btn) return;
     var name = btn.getAttribute("data-seg-target");
     btn.parentNode.querySelectorAll(".seg-btn").forEach(function (b) {
-      b.setAttribute("aria-checked", b === btn ? "true" : "false");
+      b.setAttribute("aria-checked", b === btn ? "true" : "false"); b.tabIndex=b===btn?0:-1;
     });
     var hidden = document.getElementById("f_" + name);
     if (hidden) hidden.value = btn.getAttribute("data-val");
@@ -3446,6 +3490,7 @@
   // protects the audit trail. Legacy prospects (no reviewStatus) are locked too.
   function salesCanDeleteProspect(p) { return (leadTools().isLead(p) && !p.handoffAt) || p.reviewStatus === "pending" || p.reviewStatus === "query"; }
   function canDeleteRecord(type, rec) {
+    if(type==='job'&&jobIsDelivery((rec||{}).stage))return false;
     if (canReviewProspects()) return true;        // Operations/admins can delete
     if (type === "prospect") return salesCanDeleteProspect(rec || {});
     if (type === "appointment") { var p = prospect((rec || {}).prospectId); return !p || !p.id || salesCanDeleteProspect(p); }
@@ -3528,13 +3573,13 @@
   async function openContactVoice(id){
     var userId=settings.user?.id,voiceGeneration=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!p||!['sales','teamlead','operations','admin'].includes(settings.user?.role))return;
-    try{var m=await import('./voice-notes-ui.mjs?v=129');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
+    try{var m=await import('./voice-notes-ui.mjs?v=130');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-voice]');if(b){e.preventDefault();e.stopPropagation();openContactVoice(b.dataset.clientVoice);}},true);
   async function openContactWork(id){
     var userId=settings.user?.id,generation=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!['sales','teamlead','operations','admin'].includes(settings.user?.role)||id&&!p)return;
-    try{var m=await import('./client-work-ui.mjs?v=129');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
+    try{var m=await import('./client-work-ui.mjs?v=130');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-work],[data-client-work-all]');if(b){e.preventDefault();e.stopPropagation();openContactWork(b.dataset.clientWork||'');}},true);
   function followUpHistory(p) {
@@ -3568,7 +3613,7 @@
       }).join("") + "</div>" : "") +
       (tries >= 2 && canDisqualify(p) ? '<p class="ask-body" style="color:var(--red)">' + tries + " unanswered calls so far — you can disqualify this lead from its card.</p>" : "") +
       '<div class="ask-choices" role="group" aria-label="What happened">' + FOLLOW_OUTCOMES.map(function (c) { return '<button type="button" class="ask-chip" data-choice="' + esc(c) + '">' + esc(c) + "</button>"; }).join("") + "</div>" +
-      '<textarea class="ask-input" id="fuNote" rows="3" placeholder="Call notes — what did they say?"></textarea>' +
+      '<label for="fuNote">Conversation notes</label><textarea class="ask-input" id="fuNote" rows="3" placeholder="Call notes — what did they say?"></textarea>' +
       '<div class="field"><label for="fuDate">Next follow-up</label><input id="fuDate" type="date" value="' + esc(nextDate) + '"></div>' +
       '<div class="field"><label for="fuAction">Next action</label><input id="fuAction" type="text" list="fuActionList" autocomplete="off" placeholder="Tap a suggestion or type" value="' + esc(p.nextAction || "") + '">' +
       '<datalist id="fuActionList">' + NEXT_ACTIONS.map(function (a) { return "<option>" + esc(a) + "</option>"; }).join("") + "</datalist></div>" +
@@ -4022,6 +4067,25 @@
 
   /* ------------------------------- Access gate ------------------------------ */
   var lockScreen = document.getElementById("lockScreen");
+  // Custom sign-in/tour overlays must trap keyboard focus like native dialogs.
+  var activeLockOverlay=null;
+  function visibleLockOverlay(){return Array.from(document.querySelectorAll('.lockscreen')).find(function(el){return !el.hidden&&el.getBoundingClientRect().width;});}
+  function syncLockAccessibility(){
+    var overlay=visibleLockOverlay();
+    document.querySelectorAll('.app-shell,.topbar,.user-menu,.skip-link').forEach(function(el){el.inert=!!overlay;});
+    if(overlay&&overlay!==activeLockOverlay){var first=overlay.querySelector('input:not([type=hidden]),button,a[href]');if(first)first.focus();}
+    activeLockOverlay=overlay;
+  }
+  var lockAccessibilityObserver=new MutationObserver(syncLockAccessibility);
+  document.querySelectorAll('.lockscreen').forEach(function(el){lockAccessibilityObserver.observe(el,{attributes:true,attributeFilter:['hidden'],childList:true,subtree:true});});
+  document.addEventListener('keydown',function(e){
+    var overlay=visibleLockOverlay();if(e.key!=='Tab'||!overlay)return;
+    var items=Array.from(overlay.querySelectorAll('input:not([type=hidden]),button,a[href],select,textarea,[tabindex="0"]')).filter(function(el){return !el.disabled&&el.getBoundingClientRect().width;}),first=items[0],last=items[items.length-1];
+    if(!first)return;
+    if(!overlay.contains(document.activeElement)||e.shiftKey&&document.activeElement===first){e.preventDefault();(e.shiftKey?last:first).focus();}
+    else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+  });
+  syncLockAccessibility();
   var lockCard = document.getElementById("lockCard");
   var userChip = document.getElementById("userChip");
   var userMenu = document.getElementById("userMenu");
@@ -4468,7 +4532,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=129");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=130");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }
@@ -5046,6 +5110,11 @@
     else openForm("prospect");
   });
 
+  document.addEventListener('keydown',function(e){
+    var b=e.target.closest('[role="radio"][data-seg-target]');if(!b||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(e.key))return;
+    var buttons=Array.from(b.parentElement.querySelectorAll('[role="radio"]')),i=buttons.indexOf(b),next=e.key==='Home'?0:e.key==='End'?buttons.length-1:(i+(['ArrowLeft','ArrowUp'].includes(e.key)?-1:1)+buttons.length)%buttons.length;
+    e.preventDefault();buttons[next].click();buttons[next].focus();
+  });
   content.addEventListener("input", function (e) {
     if (e.target.id === "leadSearch") { leadQuery=e.target.value; updateLeadGrid(); }
     if (e.target.id === "search") updateProspectGrid();
@@ -5062,9 +5131,10 @@
   });
 
   content.addEventListener("click", function (e) {
+    var handoverButton=e.target.closest('[data-client-handover]');if(handoverButton){e.stopPropagation();openClientHandover(handoverButton.dataset.clientHandover);return;}
     var payWeekButton=e.target.closest('[data-pay-week]');if(payWeekButton){commWeekShift+=Number(payWeekButton.dataset.payWeek);render();return;}
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
-    if(e.target.closest('[data-installation-work]')){e.stopPropagation();view='installwork';render();return;}
+    var installationButton=e.target.closest('[data-installation-work]');if(installationButton){e.stopPropagation();pendingInstallationId=installationButton.dataset.installationWork||'';view='installwork';render();return;}
     var summaryOwner=e.target.closest('[data-lead-summary-owner]');
     if(summaryOwner&&canReviewProspects()){leadOwnerFilter=summaryOwner.dataset.leadSummaryOwner;leadDueFilter='';leadQuery='';leadListMode='all';renderLeads();document.getElementById('leadCount').scrollIntoView({block:'center',behavior:'smooth'});return;}
     if(e.target.closest('[data-reset-lead-filters]')){leadOwnerFilter='';leadDueFilter='';leadQuery='';renderLeads();return;}

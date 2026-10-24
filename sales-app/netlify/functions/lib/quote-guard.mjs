@@ -3,6 +3,7 @@ import { pricing, VERSION } from './pricing-policy.mjs';
 import '../../../offer-catalogue.js';
 import '../../../job-finance.js';
 import '../../../care-policy.js';
+import '../../../client-handover.js';
 const offer = globalThis.VeriskoOffer;
 const finance = globalThis.VeriskoJobFinance;
 const care = globalThis.VeriskoCare;
@@ -18,15 +19,33 @@ export function contextFor(q) {
   return {lines,zone:offer.zones.find(z => z.key === q.zone) || offer.zones[0]};
 }
 export function validateQuotes(stored, incoming, isAdmin, email, now = new Date().toISOString()) {
+  const handoverDay=new Date(Date.parse(now)+10800000).toISOString().slice(0,10);
   const previous = new Map((stored || []).map(j => [j.id,j]));
   const records = [...(incoming || [])];
   const ids = new Set(records.map(j=>j.id));
   for(const j of stored || []) if(won(j.stage) && !ids.has(j.id)) records.push(j);
   return records.map(job => {
     const prev = previous.get(job.id);
+    // Keep a saved client acceptance on stale device saves. Do not manufacture
+    // acceptance from installer/staff approval, or accept browser attribution.
+    if(prev?.clientHandover?.recordedAt){
+      if(job.clientHandover && JSON.stringify(job.clientHandover)!==JSON.stringify(prev.clientHandover))throw new Error('Client sign-off is saved. Keep the original acceptance record.');
+      const stale=!job.clientHandover;
+      job={...job,clientHandover:prev.clientHandover,checklist:prev.checklist,stage:prev.stage==='Handed over'?'Handed over':job.stage};
+      if(stale)for(const k of ['serviceStartDate','monitoringMiniPcRef','monitoringCommissioned','monitoringTestEvidence'])job[k]=prev[k];
+    }
+    if(job.stage==='Handed over' && prev?.stage!=='Handed over'){
+      if(prev?.stage!=='Installed')throw new Error('Finish and approve the installation before client sign-off.');
+      const errors=globalThis.VeriskoHandover.errors(job,handoverDay);
+      if(errors.length)throw new Error(errors.join(' '));
+      const h=job.clientHandover;
+      job={...job,clientHandover:{name:String(h.name).trim().slice(0,100),role:String(h.role).trim().slice(0,100),date:h.date,method:h.method,reference:String(h.reference).trim().slice(0,1000),confirmed:true,recordedAt:now,recordedBy:email}};
+    }else if(!prev?.clientHandover?.recordedAt && job.clientHandover){
+      job={...job};delete job.clientHandover;
+    }
     if(job.servicePolicyVersion===care.VERSION && job.stage==='Handed over') {
       if(care.handoverErrors(job).length) throw new Error(care.handoverErrors(job).join(' '));
-      if(job.serviceStartDate>now.slice(0,10)) throw new Error('The actual installation date cannot be in the future at handover.');
+      if(job.serviceStartDate>handoverDay) throw new Error('The actual installation date cannot be in the future at handover.');
       if(prev?.stage==='Handed over' && prev.serviceStartDate!==job.serviceStartDate && !isAdmin) throw new Error('The Owner must correct an already handed-over care start date.');
     }
     // Old agreed records are immutable commercially; lifecycle updates continue.

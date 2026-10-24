@@ -1,6 +1,6 @@
-import {elapsed} from './client-work-ui.mjs?v=129';
-import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=129';
-import {manager,TESTS,PARTS,reasons,readiness,installationProgress,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady,installerPaymentSummary,PAYMENT_METHODS} from './installer-model.mjs?v=129';
+import {elapsed} from './client-work-ui.mjs?v=130';
+import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=130';
+import {manager,TESTS,PARTS,reasons,readiness,installationProgress,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady,installerPaymentSummary,PAYMENT_METHODS} from './installer-model.mjs?v=130';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>'UGX '+Number(v).toLocaleString('en-UG');
 const time=v=>new Date(v).toLocaleString('en-GB',{timeZone:'Africa/Kampala'});
@@ -21,7 +21,7 @@ export async function mountInstaller(ctx){
 async function showDemo(role='operations'){
  if(!realContext||!manager(realContext.user))return;
  if(active?.client.queue.length){realContext.toast('Send saved work before changing views.');return;}
- if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=129');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
+ if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=130');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
  if(active)active.stop();const actor=demoController.transport.actors[role==='installer'?1:0];
  active=new InstallerView({...realContext,user:actor,demo:true,demoRole:role,initialJobId:'demo-installation',fetcher:demoController.transport.fetcher(role),token:async()=>''});await active.start();
 }
@@ -137,7 +137,7 @@ class InstallerView {
   }return html;
  }
  modal(title,html,save){
-  document.getElementById('iwDialog')?.remove();const d=document.createElement('dialog');d.id='iwDialog';d.className='iw-dialog';d.innerHTML='<form><h2>'+esc(title)+'</h2>'+html+'<p role="alert" class="iw-alert" hidden></p><div class="iw-row"><button class="btn btn-ghost" type="button" data-iw-close>Cancel</button><button class="btn btn-primary" type="submit">Save</button></div></form>';document.body.append(d);const selfButton=d.querySelector('[data-iw-supervise-me]');if(selfButton)selfButton.onclick=()=>{const self=[...d.querySelectorAll('[name=supervisorIds]')].find(el=>el.value===this.user.id);if(self){self.checked=true;selfButton.textContent='You are selected as site supervisor';}};d.querySelector('[data-iw-close]').onclick=()=>d.close();d.onclose=()=>d.remove();d.querySelector('form').onsubmit=async e=>{e.preventDefault();const b=d.querySelector('[type="submit"]');b.disabled=true;try{await save(new FormData(e.target));d.close();this.draw();}catch(e){const error=d.querySelector('[role="alert"]');error.textContent=e.message;error.hidden=false;b.disabled=false;}};d.showModal();return d;
+  document.getElementById('iwDialog')?.remove();const d=document.createElement('dialog');d.id='iwDialog';d.setAttribute('aria-labelledby','iwDialogTitle');d.className='iw-dialog';d.innerHTML='<form><h2 id="iwDialogTitle">'+esc(title)+'</h2>'+html+'<p role="alert" class="iw-alert" hidden></p><div class="iw-row"><button class="btn btn-ghost" type="button" data-iw-close>Cancel</button><button class="btn btn-primary" type="submit">Save</button></div></form>';document.body.append(d);const selfButton=d.querySelector('[data-iw-supervise-me]');if(selfButton)selfButton.onclick=()=>{const self=[...d.querySelectorAll('[name=supervisorIds]')].find(el=>el.value===this.user.id);if(self){self.checked=true;selfButton.textContent='You are selected as site supervisor';}};d.querySelector('[data-iw-close]').onclick=()=>d.close();d.onclose=()=>d.remove();d.querySelector('form').onsubmit=async e=>{e.preventDefault();const b=d.querySelector('[type="submit"]');b.disabled=true;try{await save(new FormData(e.target));d.close();this.draw();}catch(e){const error=d.querySelector('[role="alert"]');error.textContent=e.message;error.hidden=false;b.disabled=false;}};d.showModal();return d;
  }
  async click(e){const b=e.target.closest('button');if(!b)return;const d=b.dataset,j=this.client.local(this.jobId),c=j?.cameras.find(x=>x.id===this.cameraId);try{
   if('iwDemo'in d){await showDemo();return;}

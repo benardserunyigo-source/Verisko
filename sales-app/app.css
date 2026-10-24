@@ -10,15 +10,15 @@
   --bg:#f5f6f8;
   --card:#ffffff;
   --ink:#1c1c1e;
-  --muted:#6b6f76;
-  --faint:#787e88;
+  --muted:#5c626c;
+  --faint:#5d6673;
   --hair:rgba(20,28,46,.09);
   --hair-strong:rgba(20,28,46,.14);
   --fill:#eef0f4;          /* input + tinted button fill */
   --fill-2:#f2f4f7;
 
   /* Interactive accent */
-  --accent:#0e78ad;        /* readable cyan for links/active */
+  --accent:#08689a;        /* readable cyan for links/active */
   --accent-soft:#e7f2fa;
 
   /* Status */
@@ -937,3 +937,18 @@ dialog::backdrop{background:rgba(10,16,32,.42);backdrop-filter:blur(3px)}
 .voice-dialog strong,.voice-dialog h2{overflow-wrap:anywhere}
 
 .active-work-head,.active-work-person-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.active-work-head h2,.active-work-person h3{margin:0}.active-work-totals{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}.active-work-totals>div{padding:14px;background:var(--fill);border-radius:12px}.active-work-totals strong{display:block;font-size:27px}.active-work-totals span,.active-work-role{font-size:13px;color:var(--secondary)}.active-work-tools{display:flex;gap:16px;align-items:end;justify-content:space-between;margin:18px 0}.active-work-tools label{max-width:220px;flex:1}.active-work-tools select{min-height:44px;width:100%;margin-top:6px}.active-work-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:12px}.active-work-person{border:1px solid var(--line,#e6e8ed);border-radius:14px;padding:18px;overflow-wrap:anywhere}.active-work-person h3{font-size:18px}.active-work-person p{margin:10px 0}.active-work-duration{white-space:nowrap;color:var(--navy,#182d65);background:var(--fill);border-radius:8px;padding:7px 9px;font-size:16px}.active-work-client{font-weight:600}.active-work-check{background:#fff4df;color:#785310;padding:10px;border-radius:8px;font-size:13px}.active-work-empty{padding:20px 0;color:var(--secondary)}@media(max-width:540px){.active-work-totals>div{padding:10px}.active-work-totals span{font-size:12px}.active-work-tools{display:block}.active-work-tools label{display:block}.active-work-person{padding:14px}.active-work-duration{font-size:14px}}
+
+/* Accessible form boundaries and focus, including low-vision phone use. */
+.lock-eyebrow{color:var(--accent)}
+input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]),select,textarea{border:1px solid #7b8593}
+:focus-visible{outline:3px solid #0e78ad;outline-offset:3px}
+html{scroll-padding-bottom:100px}
+input,select,textarea,button,a,summary{scroll-margin-block:90px}
+#clientHandoverForm .field{margin:16px 0}
+#clientHandoverForm fieldset{margin:16px 0;padding:12px;border:1px solid #7b8593;border-radius:10px}
+#clientHandoverForm input:not([type=checkbox]),#clientHandoverForm select{width:100%;min-height:46px;padding:10px;border-radius:10px;background:var(--fill);font-size:16px}
+
+summary{min-height:44px;padding-block:10px;cursor:pointer}
+/* Long photo/check labels must wrap within even a 320px phone. */
+.iw-card .btn,.iw-dialog .btn{white-space:normal;max-width:100%;height:auto;padding-block:12px;text-align:center;overflow-wrap:anywhere}
+.iw-card form,.iw-dialog form{min-width:0}

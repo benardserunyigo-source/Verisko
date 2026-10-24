@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | Full accessibility, simple-use and client handover audit | working | Check each role and the full shared client journey through actual client acceptance, not only technical approval. Fix demonstrated barriers, server bypasses and duplicate entry. Use fictional QA only. |
 | 1 | Android field pilot | needs-device | On an actual Android handset: phone/PIN sign-in for intended roles; GPS consent/permissions; shift locked-screen tracking, pause/resume/checkout; offline sync; voice recording/playback; installer photos and start/finish. Check same saved records in Operations. Log device/app version and results without publishing staff data. |
 | 2 | Reconcile release readiness against the complete approved journey | done | Read current full-journey tests and role policies. Map every journey step to coverage and current module docs, flag actual gaps, fix reproducible bugs under existing policy. Do not repeat already verified clock testing without a new failure. Save a concise coverage map. |
 | 3 | Phone usability check across Sales, Operations and Installer | done | Inspect the existing phone layout using fictional role sessions: four primary buttons, short words, no duplicate contact/material entry, understandable save/offline/error state. Fix concrete defects; do not redesign working flows for taste alone. |
