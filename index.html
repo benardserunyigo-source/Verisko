@@ -55,8 +55,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="styles.css" />
-  <!-- Preload the hero (LCP) image -->
-  <link rel="preload" as="image" href="assets/hero-camera.png" />
+  <!-- Preload the hero (LCP) image: the intro video's poster frame -->
+  <link rel="preload" as="image" href="assets/video/verisko-intro-poster.jpg" fetchpriority="high" />
 
   <!-- Set the reveal flag before first paint so animated content never flashes in -->
   <script>document.documentElement.classList.add('js-reveal');</script>
@@ -114,18 +114,22 @@
           <p class="hero-micro">Free. No pressure. Written quote in 2 days.</p>
         </div>
 
-        <div class="hero-media">
-          <img src="assets/hero-camera.png"
-               width="864" height="864"
-               fetchpriority="high" decoding="async"
-               alt="Verisko AI bullet security camera" />
-
-          <div class="hero-live" aria-hidden="true">
-            <span class="live-dot"></span>
-            <span class="live-meta">
-              <span class="live-label">Front Gate</span>
-              <span class="live-sub">Live · on your phone</span>
-            </span>
+        <div class="hero-media hero-media--video">
+          <!-- Intro video: poster first, plays with sound on click (no autoplay).
+               Captions are burned into the picture, so it also works on mute. -->
+          <div class="hero-video" id="heroVideo">
+            <video preload="none" playsinline
+                   poster="assets/video/verisko-intro-poster.jpg"
+                   width="1280" height="720"
+                   aria-label="Hi, this is Ben from Verisko. A one minute introduction.">
+              <source src="assets/video/verisko-intro.mp4" type="video/mp4" />
+            </video>
+            <button class="hero-play" type="button" aria-label="Play the Verisko introduction, 1 minute 14 seconds">
+              <span class="hero-play-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="34" height="34"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
+              </span>
+              <span class="hero-play-label">Watch the intro <small>1 min 14 sec</small></span>
+            </button>
           </div>
         </div>
       </div>

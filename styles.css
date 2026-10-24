@@ -288,6 +288,82 @@ body.nav-open { overflow: hidden; }   /* lock scroll while drawer is open */
   box-shadow: 0 34px 70px rgba(4, 12, 46, 0.34);
 }
 
+/* Intro video panel: 16:9 poster with a play button; the video plays in place.
+   Centred beside the copy (the old square photo overhung the band; a 16:9 panel looks right level with it). */
+.hero-media--video { align-self: center; margin-bottom: 0; }
+/* Side by side only: close up the white gap under the band, since the panel no longer overhangs it. */
+@media (min-width: 901px) {
+  .hero:has(.hero-media--video)::before { height: calc(100% - 36px); }
+  .hero:has(.hero-media--video) .hero-inner { padding-bottom: 36px; }
+}
+.hero-video {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 22px;
+  overflow: hidden;
+  background: #012169;
+  box-shadow: 0 34px 70px rgba(4, 12, 46, 0.34);
+}
+.hero-video video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #012169;
+}
+.hero-video.is-playing video { object-fit: contain; }
+.hero-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-auto-flow: column;
+  justify-content: start;
+  align-content: end;
+  align-items: center;
+  gap: 14px;
+  padding: 0 0 22px 22px;
+  border: 0;
+  background: linear-gradient(to top, rgba(1, 33, 105, 0.55), rgba(1, 33, 105, 0) 45%);
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: opacity 0.25s ease;
+}
+.hero-video.is-playing .hero-play { opacity: 0; pointer-events: none; }
+.hero-play-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: var(--cyan);
+  color: #fff;
+  box-shadow: 0 0 0 8px rgba(22, 155, 215, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hero-play-icon svg { margin-left: 4px; }
+.hero-play-label {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.hero-play-label small {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+@media (hover: hover) {
+  .hero-play:hover .hero-play-icon { transform: scale(1.06); box-shadow: 0 0 0 12px rgba(22, 155, 215, 0.3); }
+}
+.hero-play:focus-visible { outline: 3px solid #fff; outline-offset: -6px; }
+
 /* Frosted "live feed" chip floating over the camera panel — makes the
    "watch from anywhere" promise visible at a glance. */
 .hero-live {

@@ -285,4 +285,28 @@
       if (e.key === 'Escape' && !featureModal.hidden) closeModal();
     });
   }
+
+  /* ---- Hero intro video: plays in place, with sound, only when asked ---- */
+  var heroBox = document.getElementById('heroVideo');
+  if (heroBox) {
+    var heroVideo = heroBox.querySelector('video');
+    var heroPlay = heroBox.querySelector('.hero-play');
+    heroPlay.addEventListener('click', function () {
+      heroVideo.controls = true;
+      heroVideo.preload = 'auto';
+      heroBox.classList.add('is-playing');
+      var started = heroVideo.play();
+      if (started && started.catch) {
+        started.catch(function () {
+          heroBox.classList.remove('is-playing');
+          heroVideo.controls = false;
+        });
+      }
+    });
+    heroVideo.addEventListener('ended', function () {
+      heroBox.classList.remove('is-playing');
+      heroVideo.controls = false;
+      heroVideo.currentTime = 0;
+    });
+  }
 })();
