@@ -114,3 +114,20 @@ test('Operations summary follows the selected cash plan',()=>{
   assert.match(html,/Before installation/);assert.match(html,/4040000/);assert.match(html,/On completion/);
   assert.doesNotMatch(html,/After 30 days/);
 });
+
+test('selected profit targets and market expiry are authoritative; agreed prices stay locked',()=>{
+ const raised=save(base({targetMargin:.5}));assert.ok(raised.quoteSnapshot.margin>=.5);assert.equal(raised.quoteSnapshot.targetMargin,.5);assert.throws(()=>save(base({targetMargin:1})),/26% to 50%/);
+ assert.throws(()=>validateQuotes([],[base({})],false,'ops@test',now,pricing,{status:'expired'}),/price list has expired/);
+ const accepted=save(base({stage:'Accepted',paymentPlan:'cash',scheduledDate:'2026-10-20'}));const old=accepted.quotedTotal;
+ const saved=validateQuotes([accepted],[{...accepted,stage:'Scheduled'}],false,'ops@test',now,pricing,{status:'expired'})[0];assert.equal(saved.quotedTotal,old);assert.deepEqual(saved.quoteSnapshot,accepted.quoteSnapshot);
+ assert.throws(()=>validateQuotes([accepted],[{...accepted,targetMargin:.5}],true,'owner@test',now),/Accepted pricing is locked/);
+});
+
+test('new quotes must acknowledge the current Sales price list version',()=>{
+ const market={status:'active',version:2};assert.throws(()=>validateQuotes([],[base({salesPriceVersion:1})],false,'ops@test',now,pricing,market),/Sales prices changed/);
+ assert.ok(validateQuotes([],[base({salesPriceVersion:2})],false,'ops@test',now,pricing,market)[0].quoteSnapshot.cash>0);
+});
+
+test('an old draft cannot be sent with a stale or expired Sales list',()=>{
+ const draft=save(base({salesPriceVersion:1}));for(const market of [{status:'active',version:2},{status:'expired',version:1}])assert.throws(()=>validateQuotes([draft],[{...draft,stage:'Sent'}],false,'ops@test',now,pricing,market),/Sales prices changed|price list has expired/);
+});

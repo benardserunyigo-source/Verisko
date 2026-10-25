@@ -36,3 +36,9 @@ test('review and apply is local; reset restores saved terms and only acknowledge
  s.updatePayment('12months','upfront','1500000');s.updatePayment('12months','monthly','200000');const chosen=s.applySuggestion('12months');s.accept(chosen.budget,chosen.options);s.updatePayment('12months','monthly','10000');assert.deepEqual(s.reset().options,chosen.options);
  s.update('care','');assert.deepEqual(s.read().suggestions,{});assert.equal(s.applySuggestion('12months').estimate,null);
 });
+
+test('Operations selects up to 50% for each plan including rental; suggestions respect the selected target',()=>{
+ const budget={policy,packages:{4:{direct:2200000}}};for(const id of ['cash','12months','24months','rental']){
+ const s=createDraftCostScenario('operations',budget),before=s.read();const raised=s.updateTarget(id,'50');assert.equal(raised.options.find(p=>p.id===id).targetMargin,.5);assert.equal(raised.estimate.rows.find(p=>p.id===id).belowTarget,true);const applied=s.applySuggestion(id);assert.ok(applied.estimate.rows.find(p=>p.id===id).margin>=.5);s.accept(applied.budget,applied.options);assert.equal(s.reset().options.find(p=>p.id===id).targetMargin,.5);assert.equal(s.updateTarget(id,'100').estimate,null);assert.ok(s.reset().estimate);for(const row of before.options.filter(p=>p.id!==id))assert.deepEqual(s.read().options.find(p=>p.id===row.id),row);
+ }
+});

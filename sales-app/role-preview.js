@@ -52,7 +52,7 @@
  }
  document.addEventListener('click',block,true);
  document.addEventListener('submit',function(e){e.preventDefault();e.stopImmediatePropagation();},true);
- function mark(){document.querySelectorAll('button,input,select,textarea').forEach(function(el){if(el.matches('button')){if(!el.matches(allowed))el.disabled=true;}else if(!el.closest('.filters')&&!el.matches('[data-draft-job],[data-draft-cost],[data-draft-payment],[data-work-role],[type=search],#iwQueue,#jobFilter,#prospectFilter,#visitFilter'))el.disabled=true;});}
+ function mark(){document.querySelectorAll('button,input,select,textarea').forEach(function(el){if(el.matches('button')){if(!el.matches(allowed))el.disabled=true;}else if(!el.closest('.filters')&&!el.matches('[data-draft-job],[data-draft-cost],[data-draft-payment],[data-draft-target],[data-work-role],[type=search],#iwQueue,#jobFilter,#prospectFilter,#visitFilter'))el.disabled=true;});}
  new MutationObserver(mark).observe(document.body,{childList:true,subtree:true});
  var banner=document.createElement('aside');banner.className='role-preview-notice';banner.setAttribute('role','status');banner.textContent='PREVIEW · '+context.label+' · Sample data · View only';document.body.prepend(banner);
  document.body.classList.add('role-preview-active');

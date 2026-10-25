@@ -33,7 +33,9 @@
     q = q || {}; context = context || {};
     var count = Number(q.cameraCount), pack = PACKAGES[count], addons = q.addons || {};
     if (!pack) return { pricingVersion: VERSION, cameras: count, custom: true, needsApproval: true, errors: ["Choose 4, 6, 8 or 12 cameras."], cash: 0, lines: [], zone: context.zone || { surcharge: 0 } };
-    var errors = [], storageKeys = Object.keys(STORAGE).filter(function (k) { return !!addons[k]; });
+    var target=q.targetMargin==null?POLICY.target:Number(q.targetMargin);
+    var targetValid=Number.isFinite(target)&&target>=.26&&target<=.5;
+    var errors = targetValid?[]:["Choose a profit margin from 26% to 50%."], storageKeys = Object.keys(STORAGE).filter(function (k) { return !!addons[k]; });
     if (storageKeys.length > 1) errors.push("Choose only one hard drive.");
     var storage = storageKeys.reduce(function (s, k) { return s + STORAGE[k]; }, 0);
     var otherLines = (context.lines || []).filter(function (l) { return !STORAGE[l.key] && l.key !== "camFixed" && l.key !== "camWide" && l.key !== "surge"; });
@@ -58,9 +60,10 @@
     var extraCrew = hasBreakdown ? number(q.extraCrewCost) : 0;
     var crewApprovalKey = extraCrew > 0 ? count + ':' + extraCrew : '';
     var direct = baseDirect + storage + extra;
-    var base = minimum(baseDirect, pack.fee), targetPrice = minimum(direct, pack.fee), priceFloor = minimum(direct, 0, POLICY.margin);
-    var lines = [], running = baseDirect, prior = base;
-    storageKeys.forEach(function (k) { running += STORAGE[k]; var total = minimum(running, pack.fee), amount = total - prior; lines.push({ key: k, label: k === "hdd2tb" ? "Hard drive 2TB" : k === "hdd4tb" ? "Hard drive 4TB" : "Hard drive 6TB", qty: 1, price: amount, total: amount }); prior = total; });
+    var listed=(config.salesCatalogue||[]).find(function(p){return p.cameras===count;});
+    var base = Math.max(minimum(baseDirect, pack.fee,targetValid?target:POLICY.target),listed?listed.price:0), targetPrice = minimum(direct, pack.fee,targetValid?target:POLICY.target), priceFloor = minimum(direct, 0, POLICY.margin);
+    var lines = [], running = baseDirect, prior = minimum(baseDirect, pack.fee,targetValid?target:POLICY.target);
+    storageKeys.forEach(function (k) { running += STORAGE[k]; var total = minimum(running, pack.fee,targetValid?target:POLICY.target), amount = total - prior; lines.push({ key: k, label: k === "hdd2tb" ? "Hard drive 2TB" : k === "hdd4tb" ? "Hard drive 4TB" : "Hard drive 6TB", qty: 1, price: amount, total: amount }); prior = total; });
     otherLines.forEach(function (l) { var total = up(number(l.total)); lines.push(Object.assign({}, l, { price: total / l.qty, total: total })); });
     var quoted = base + lines.reduce(function (s, l) { return s + l.total; }, 0) + number(zone.surcharge);
     var uplift = Math.max(0, targetPrice - up(quoted));
@@ -73,21 +76,22 @@
     if (override) price = number(q.finalPrice);
     if (price % POLICY.increment !== 0) errors.push("Customer prices must be in UGX 10,000 increments.");
     var result = costsAt(price, direct);
+    if(q.targetMargin!=null&&targetValid&&result.margin<target) errors.push("Price is below the selected profit margin. Increase the price.");
     if (result.margin < POLICY.margin) errors.push("Price is below the 26% profit margin. Reduce the discount or increase the price.");
     var reasons = [];
     if (extraCrew > 0 && q.crewApprovalKey !== crewApprovalKey) reasons.push("extra crew");
     if (baseDirect < pack.direct) reasons.push("lower direct cost");
     if (otherLines.some(function(l){return l.key !== 'hdmi' && number((q.addonCosts||{})[l.key]) === 0;})) reasons.push("zero-cost add-on");
-    if (result.margin < POLICY.target) reasons.push("discount below the 30% target");
+    if (result.margin < (q.targetMargin==null?POLICY.target:target)) reasons.push("discount below the planned target");
     if (q.priceOverride || discountPct > 0) reasons.push("selling price adjustment");
-    var approvalKey = reasons.length ? JSON.stringify([VERSION,count,baseDirect,storage,extra,price,q.costEvidence || '',q.paymentPlan || 'installments',q.scheduledDate || '',q.addons || {},q.addonCosts || {},zone.key || '',installationType]) : '';
+    var approvalKey = reasons.length ? JSON.stringify([VERSION,count,baseDirect,storage,extra,price,q.costEvidence || '',q.paymentPlan || 'installments',q.scheduledDate || '',q.addons || {},q.addonCosts || {},zone.key || '',installationType].concat(q.targetMargin==null?[]:[q.targetMargin])) : '';
     var approved = !!approvalKey && q.costApprovalKey === approvalKey;
     var releaseErrors = [];
     if (!q.costConfirmed || !String(q.costEvidence || '').trim()) releaseErrors.push("Confirm supplier prices, chargeable freight, cable routes, crew scope and overhead; add the evidence link or reference.");
     if (!['installments','cash'].includes(q.paymentPlan)) releaseErrors.push("Choose the customer's payment plan.");
     return {
       approvalKeyRequired: approvalKey, approvalReasons: reasons, releaseErrors: releaseErrors,
-      paymentPlan: q.paymentPlan, exchangeRate: POLICY.fx, targetMargin: POLICY.target, fundingRequired: direct + (q.servicePolicyVersion ? POLICY.callbacks : 0),
+      paymentPlan: q.paymentPlan, exchangeRate: POLICY.fx, targetMargin: targetValid?target:POLICY.target, fundingRequired: direct + (q.servicePolicyVersion ? POLICY.callbacks : 0),
       servicePolicyVersion: q.servicePolicyVersion || '',
       fundingGap: Math.max(0,direct + (q.servicePolicyVersion ? POLICY.callbacks : 0) - (q.paymentPlan === 'cash' ? round(price*.6) : result.payments[0]) * (1-POLICY.processing)),
       pricingVersion: VERSION, pts: context.pts || 0, tier: installationType, cameras: count, packageTier: pack.name,
@@ -101,6 +105,7 @@
   }
   // Deliberate allow-list: Sales price cards never receive the costing model.
   function publicPackages() {
+    if(config.salesCatalogue)return config.salesCatalogue;
     if (!Object.keys(PACKAGES).length) return config.catalogue || [];
     return [4,6,8,12].map(function (count) {
       var r = compute({ cameraCount: count });

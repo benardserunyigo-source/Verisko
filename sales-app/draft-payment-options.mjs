@@ -20,6 +20,7 @@ export function draftPaymentOptions(role, {cameras=4,options}={}) {
       if(!['upfront','monthly'].every(k=>Number.isSafeInteger(supplied[k])&&supplied[k]>=0&&supplied[k]%10000===0))return [];
       if(row.months?supplied.monthly===0:supplied.monthly!==0||supplied.upfront===0)return [];
       if(supplied.months!==undefined&&supplied.months!==row.months||supplied.owns!==undefined&&supplied.owns!==row.owns)return [];
+      if(supplied.targetMargin!==undefined){if(typeof supplied.targetMargin!=='number'||!Number.isFinite(supplied.targetMargin)||supplied.targetMargin<.26||supplied.targetMargin>.5)return [];row.targetMargin=supplied.targetMargin;}
       row.upfront=supplied.upfront;row.monthly=supplied.monthly;
       if(!Number.isSafeInteger(row.upfront+row.monthly*row.months)||supplied.total!==undefined&&supplied.total!==row.upfront+row.monthly*row.months)return [];
     }
@@ -61,7 +62,7 @@ export function draftCostEstimate(role, pricing, {preview=false,cameras=4,option
       }
     }
     const rawCost=base+paymentFees+loss+financing,cost=Math.round(rawCost),profit=row.total-cost,margin=(row.total-rawCost)/row.total;
-    return {id:row.id,base:Math.round(base),paymentFees:Math.round(paymentFees),loss:Math.round(loss),financing:Math.round(financing),cost,profit,margin,belowFloor:margin<.26};
+    return {id:row.id,base:Math.round(base),paymentFees:Math.round(paymentFees),loss:Math.round(loss),financing:Math.round(financing),cost,profit,margin,belowFloor:margin<.26,...(row.targetMargin!==undefined?{targetMargin:row.targetMargin,belowTarget:margin<row.targetMargin}:{})};
   });
   return rows.every(r=>Number.isSafeInteger(r.cost)&&Number.isFinite(r.margin))?{preview,rows,processing:p.processing,monthly:p.monthly}:null;
 }

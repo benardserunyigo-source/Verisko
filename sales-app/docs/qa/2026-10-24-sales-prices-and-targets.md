@@ -1,0 +1,15 @@
+# Operations prices and profit targets
+
+Owner request: Operations controls the package prices Sales can offer for 30 days. Quote targets may rise from26% to50%; owner explicitly chose the same maximum50% profit margin for rental, rather than100% markup or impossible100% margin.
+
+Operations/Admin → More → Sales prices: four package prices, 10k increments, saved together with a server-set30-day expiry/version and compare-and-set guard. Each save starts a new30-day period. All values are checked against current private job costs and minimum26% before-tax margin. Sales/Team Lead receive the allowlisted active package prices and expiry only. Installers cannot read them. A missing list remains clearly labelled reference prices pending Operations confirmation; expired lists hide prices. Existing accepted quotes remain commercially locked, and an already sent unchanged quote keeps its own existing7-day validity. New/repriced quotes cannot use an expired list. Package base pricing uses the current active Operations list and confirmed cost/selected-target floor; add-ons/extra work remain separate.
+
+Quote form now accepts26–50% before-tax target with independent server recomputation and below-target override rejection. Draft payment options expose a separate26–50% target for each option, including rental. Below-target amounts are flagged; suggestions keep the deposit/setup fee, recalculate monthly or cash amounts with existing financing/loss/fees, and require explicit apply/save. Target and options persist privately on the same job. Rental estimates remain first12months and do not price lifetime support.
+
+Automated checks: exact30-day expiry boundary and renewal, permissions/public projection, whole10k increments, low-margin and stale-write rejection, same-job target save/reopen and malformed/out-of-range targets, all quote package sizes/target bounds, existing agreed-quote lock and expiry gate, data-response integration and routers. Full test results and release readback appended below.
+
+Phone QA uses actual price editor/handler, draft workspace/handler and extracted actual Sales renderer in isolated fictional storage at4428. Saved4-camera reference price4.2m, saw same price and40/30/30 payments in Sales, advanced the fixture clock30days and saw Prices need updating with old amounts hidden. Rental50% target suggested2m setup+300k/month for12months, total5.6m, estimated profit2,823,399/margin50.42%; applied/saved/reopened with target50 retained. Source job/client unchanged. No real prices or financial/account records edited. This is not actual Android handset acceptance.
+
+Evidence: output/audits/sales-price-control-20261024/ (server.mjs, source-readback.json, operations-phone.png and subsequent live/readback evidence).
+
+605 tests pass. Added current price-list version acknowledgement for new/repriced/sent-from-Draft quotes, preserving agreed/sent unchanged quote terms. Higher list/target hard-drive add-on regressions pass;320/390px actual-app preview and isolated write checks pass with no overflow or console errors. Exact release verification pending.

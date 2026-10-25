@@ -249,3 +249,11 @@ Added below-floor suggestions for all four draft options and4/6/8/12 jobs. Keeps
 
 
 Release verified: v147 source `abfedf2663456e21bf5bb916bfc2964a8dac9657`, Netlify deploy `6add62476d265f5218ad4f8e` ready. Thirteen live assets match local bytes, including unchanged customer catalogue/calculator/PDF/client-plan logic. Eight private routes return JSON401 unsigned. Live fictional Operations preview:16.12% suggestion→27.12%, deposit1.5m retained/monthly250k applied, focus moves to payment field; Save remains disabled. Reset restores sample. No390px overflow or console errors. Evidence: output/audits/draft-payment-suggestions-20261024/release-readback.json and live-phone-readback.json. Authenticated save/reopen verified only with isolated fictional storage, not production financial records. Physical Android remains a separate device check. Final evidence-only commit stays local.
+
+## Operations price control and targets: 24 October2026
+
+Added private Operations/Admin Sales price list with30-day server expiry and version/CAS, four package inputs,10k steps and cost/margin validation. Sales gets allowlisted active prices/expiry, expired lists hide amounts, existing quotes retain their saved terms. Active list feeds new quote base price, while cost/selected-margin requirements still apply; expired lists block new/repriced quotes. Operations quote and per-draft-option targets26–50%, including rental per explicit owner clarification. Suggestions respect selected target; same-job save preserves it. No real list has been seeded/published by QA.
+
+Phone isolated handler checks passed for publish→Sales→30-dayexpiry and rental50% review/apply/save/reopen. Earlier source records unchanged. See ../qa/2026-10-24-sales-prices-and-targets.md. Sourcev148 prepared; tests/release gates below.
+
+605 tests pass. Added current price-list version acknowledgement for new/repriced/sent-from-Draft quotes, preserving agreed/sent unchanged quote terms. Higher list/target hard-drive add-on regressions pass;320/390px actual-app preview and isolated write checks pass with no overflow or console errors. Exact release verification pending.

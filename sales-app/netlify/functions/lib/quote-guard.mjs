@@ -7,8 +7,8 @@ import '../../../client-handover.js';
 const offer = globalThis.VeriskoOffer;
 const finance = globalThis.VeriskoJobFinance;
 const care = globalThis.VeriskoCare;
-export const COMMERCIAL = ['pricingVersion','cameraCount','installationType','rubric','addons','zone','discountPct','priceOverride','finalPrice','directCost','extraCost','extraMaterialsCost','extraCrewCost','extraAccessTravelCost','addonCosts','costConfirmed','costEvidence','paymentPlan','servicePolicyVersion'];
-const signature = j => JSON.stringify(COMMERCIAL.map(k => j[k] ?? null));
+export const COMMERCIAL = ['pricingVersion','cameraCount','installationType','rubric','addons','zone','discountPct','priceOverride','finalPrice','directCost','extraCost','extraMaterialsCost','extraCrewCost','extraAccessTravelCost','addonCosts','costConfirmed','costEvidence','paymentPlan','servicePolicyVersion','targetMargin','salesPriceVersion'];
+const signature = j => JSON.stringify(COMMERCIAL.filter(k=>!['targetMargin','salesPriceVersion'].includes(k)||j[k]!=null).map(k => j[k] ?? null));
 const won = stage => ['Accepted','Scheduled','In progress','Installed','Handed over'].includes(stage);
 export function contextFor(q) {
   const lines = offer.addons.flatMap(a => {
@@ -18,7 +18,7 @@ export function contextFor(q) {
   if(q.addons?.tv32 || q.addons?.tv43) lines.push({key:'hdmi',label:'HDMI 5m cable',qty:1,price:40000,total:40000});
   return {lines,zone:offer.zones.find(z => z.key === q.zone) || offer.zones[0]};
 }
-export function validateQuotes(stored, incoming, isAdmin, email, now = new Date().toISOString()) {
+export function validateQuotes(stored, incoming, isAdmin, email, now = new Date().toISOString(), pricingModel=pricing, market=null) {
   const handoverDay=new Date(Date.parse(now)+10800000).toISOString().slice(0,10);
   const previous = new Map((stored || []).map(j => [j.id,j]));
   const records = [...(incoming || [])];
@@ -68,16 +68,19 @@ export function validateQuotes(stored, incoming, isAdmin, email, now = new Date(
         costApprovalKey:prev.costApprovalKey,costApprovedBy:prev.costApprovedBy,costApprovedAt:prev.costApprovedAt,
         fundingApprovedKey:prev.fundingApprovedKey,fundingApprovedBy:prev.fundingApprovedBy,careSchedule:care.schedule(job)};
     }
+    const needsCurrentPrice=(!prev||!same||job.renewQuote||prev.stage==='Draft'&&job.stage!=='Draft')&&!['Cancelled','Rejected'].includes(job.stage);
+    if(market?.status==='active'&&needsCurrentPrice&&job.salesPriceVersion!==market.version)throw new Error('Sales prices changed. Reload prices and review this quote before saving.');
+    if(market?.status==='expired'&&needsCurrentPrice)throw new Error('The Sales price list has expired. Operations must update prices first.');
     if(Object.entries(job.addons || {}).some(([k,v]) => v && (!offer.addons.some(a=>a.key===k) || ['camFixed','camWide'].includes(k)))) throw new Error('Choose a supported package or approved add-on.');
-    if(!pricing.policy.fx) throw new Error('Approved pricing is unavailable. Contact the Owner before issuing a quote.');
+    if(!pricingModel.policy.fx) throw new Error('Approved pricing is unavailable. Contact the Owner before issuing a quote.');
     let q={...job,costApprovalKey:'',crewApprovalKey:''};
-    let result=pricing.compute(q,contextFor(q));
+    let result=pricingModel.compute(q,contextFor(q));
     if(result.errors.length) throw new Error(result.errors.join(' '));
     const key=result.approvalKeyRequired;
     const prior=key && prev?.costApprovalKey === key && !!prev.costApprovedBy;
     const approved=!!key && (prior || (isAdmin && job.costApprovalKey === key));
     if(approved) q.costApprovalKey=key;
-    result=pricing.compute(q,contextFor(q));
+    result=pricingModel.compute(q,contextFor(q));
     const unchanged=prev && signature(prev) === signature(job);
     const quotedAt=unchanged && !job.renewQuote && prev.quotedAt ? prev.quotedAt : now.slice(0,10);
     const validUntil=finance.addDays(quotedAt,7);

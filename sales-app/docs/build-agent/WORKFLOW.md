@@ -67,3 +67,7 @@ Read `../CLOCK-IN-OUT-TEST.md`, `../ACTIVE-WORK-TEST.md`, `../FIELD-SHIFT-CHECKS
 Checked local skills, automation definitions and Verisko chat inventory on 23 October 2026. No separate Verisko build skill or active portal build schedule was found. This existing implementation chat becomes the single managing agent; no duplicate chat is needed. Older **VERISKO | Operations** is business/reference history. Marketing, supplier research, guest-house sourcing and the parked China-direct idea remain outside this build. Nimara's Operations Desk and paused attachment filer are not portal agents; do not modify them.
 
 Historical `../CODEX-HANDOFF.md` predates current releases and contains obsolete test counts/backend assumptions. Use current module docs, code and new evidence instead. Current queue and checkpoint take precedence over old suggested backlog, subject always to the latest direct user instruction.
+
+## 24 October pricing-control update
+
+Operations/Admin can save package prices for30days; Sales receives the active list and expiry, no costs/profit. Expired lists require Operations review, not an automatic invented market adjustment. Saved/agreed client quotes retain their existing commercial lock and quote-validity rules. Operations can select26–50% before-tax quote/draft-option margin, including rental. Ben explicitly chose50% margin maximum for rental instead of100% markup. The26% safety floor remains; draft target edits are not a published price list or a client contract.

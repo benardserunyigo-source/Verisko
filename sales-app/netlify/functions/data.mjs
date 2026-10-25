@@ -1,3 +1,4 @@
+import {salesPriceView} from '../../sales-price-policy.mjs';
 import {loadVoiceNotes,projectVoice,stripVoice} from './lib/voice-notes-core.mjs';
 import {loadInstallationProgress} from './lib/installation-progress.mjs';
 import {firstClientPayment} from './lib/ready-payments.mjs';
@@ -61,10 +62,14 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
     const isTeamLead = !bootstrap && !!me && me.role === "teamlead";
     const isSales = !bootstrap && !!me && me.role !== "admin" && me.role !== "operations" && me.role !== "teamlead";
 
+    const marketRecord=await storeFor({name:'verisko-sales-prices',consistency:'strong'}).get('current',{type:'json'});
+    const salesPrices=salesPriceView(marketRecord);
+    const activePricing=pricingInputs?globalThis.createVeriskoPricing({...pricingInputs,...(marketRecord?{salesCatalogue:salesPrices.catalogue}:{})}):pricing;
+    const catalogue=marketRecord?salesPrices.catalogue:pricing.publicPackages();
     if (request.method === "GET") {
       // A salesperson only ever receives their own records (scope.mjs).
-      if (isSales) return json({ ok: true, catalogue: pricing.publicPackages(), data: { ...EMPTY, ...scopeForSales(data, email) } }, 200, headers);
-      if (isTeamLead) return json({ ok: true, catalogue: pricing.publicPackages(), data: { ...EMPTY, ...scopeForTeamLead(data, email) } }, 200, headers);
+      if (isSales) return json({ ok: true, salesPrices, catalogue, data: { ...EMPTY, ...scopeForSales(data, email) } }, 200, headers);
+      if (isTeamLead) return json({ ok: true, salesPrices, catalogue, data: { ...EMPTY, ...scopeForTeamLead(data, email) } }, 200, headers);
       const out = { ...EMPTY, ...Object.fromEntries(Object.keys(EMPTY).filter(k=>data[k]!==undefined).map(k=>[k,data[k]])), prospects: (data.prospects||[]).filter(p=>globalThis.VeriskoLeadPipeline.canSee(p,me)) };
       // Owner/Operations: staff sign-ups waiting for approval (no ID photos —
       // those are fetched one at a time from /api/auth).
@@ -76,7 +81,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
         out.config=Object.fromEntries(keys.filter(k=>out.config[k]!==undefined).map(k=>[k,out.config[k]]));
       }
       out.users=visibleRoster(users,me||{role:"admin"});
-      return json({ ok: true, pricing: pricingInputs, catalogue: pricing.publicPackages(), data: out }, 200, headers);
+      return json({ ok: true, pricing: pricingInputs?{...pricingInputs,...(marketRecord?{salesCatalogue:catalogue}:{})}:null, salesPrices, catalogue, data: out }, 200, headers);
     }
 
     if (request.method === "POST") {
@@ -212,7 +217,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
               if(!linked.length||linked.some(i=>i.status!=='Completed'||i.clientReview?.outcome!=='accepted'))throw new Error('The assigned site supervisor and client must sign off together in Installations.');
             }
           }
-          clean.jobs = validateQuotes(storedJobs, clean.jobs, isAdmin, email);
+          clean.jobs = validateQuotes(storedJobs, clean.jobs, isAdmin, email,new Date().toISOString(),activePricing,salesPrices);
         }
         catch(error) { return json({ok:false,error:error.message},400,headers); }
       }

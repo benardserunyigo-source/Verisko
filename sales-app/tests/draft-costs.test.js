@@ -109,3 +109,8 @@ test('reviewed suggestion saves and reopens on the same job without changing cli
  const saved=await f.api(await f.body({costs:{direct:2200000,care:200000,business:250000},options:reviewed.options.map(({id,upfront,monthly})=>({id,upfront,monthly}))}));assert.equal(saved.status,200);
  f.restart();const reopened=await f.api();assert.deepEqual(reopened.item.options,reviewed.options);assert.equal(reopened.item.results[1].belowFloor,false);assert.ok(reopened.item.results[1].margin>.26);assert.deepEqual(f.workspace,original);assert.equal(f.store.rows.size,1);
 });
+
+test('per-option profit targets save privately and reject targets beyond 26–50%',async()=>{
+ const f=fixture(),loaded=await f.api(),options=loaded.options.map(p=>({...p,targetMargin:.5}));const saved=await f.api(await f.body({options}));assert.equal(saved.status,200);assert.equal((await f.api()).item.options[3].targetMargin,.5);
+ for(const targetMargin of [.25,.51,1,'50'])assert.equal((await f.api(await f.body({requestId:'bad-target',options:options.map(p=>({...p,targetMargin}))}))).status,400);
+});

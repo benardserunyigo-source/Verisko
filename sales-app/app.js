@@ -454,10 +454,10 @@
   var pendingInstallationId='';
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=147');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=148');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=147');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=148');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({initialJobId:pendingInstallationId,previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
       pendingInstallationId='';
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
@@ -505,6 +505,7 @@
     else if (view === "settings") renderSettings();
     else if (view === "support") renderSupport();
     else if (view === "prices") renderPackagePrices();
+    else if (view === "salesprices") renderSalesPriceEditor();
     else if (view === "draftplans") renderDraftPaymentOptions();
     else if (view === "applications") renderApplications();
     else if (view === "field") renderFieldShifts();
@@ -530,15 +531,15 @@
   }
   async function renderReadyQueue(){
     var id=settings.user.id;setHead('Contacts','Visit requests','Loading contacts…','',false);content.innerHTML='<p role="status">Loading contacts…</p>';
-    try{var m=await import('./ready-leads-ui.mjs?v=147');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,initialFilter:pendingReadyFilter||undefined,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});pendingReadyFilter='';}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
+    try{var m=await import('./ready-leads-ui.mjs?v=148');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,initialFilter:pendingReadyFilter||undefined,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});pendingReadyFilter='';}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
   }
   async function renderJobSummaries(){
     var id=settings.user.id;setHead('Jobs','Job summaries','Progress, payments and what is left to do.','',false);content.innerHTML='<p role="status">Loading job summaries…</p>';
-    try{var m=await import('./job-summary.mjs?v=147');if(view!=='jobsummary'||settings.user?.id!==id)return;readyMounted=m.mountJobSummaries({host:content,user:settings.user,api:readyApi,isCurrent:function(){return view==='jobsummary'&&settings.user?.id===id&&!document.body.classList.contains('locked');},quoteValue:jobValue,onInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},onRecord:function(jobId){openForm('job',jobId);},onDraftCosts:function(jobId){pendingDraftJobId=jobId;view='draftplans';render();},onMaterials:function(choice){pendingMaterialChoice=choice;view='materials';render();}});}catch(e){if(view==='jobsummary'&&settings.user?.id===id)content.innerHTML='<p role="alert">'+esc(e.message)+'</p>';}
+    try{var m=await import('./job-summary.mjs?v=148');if(view!=='jobsummary'||settings.user?.id!==id)return;readyMounted=m.mountJobSummaries({host:content,user:settings.user,api:readyApi,isCurrent:function(){return view==='jobsummary'&&settings.user?.id===id&&!document.body.classList.contains('locked');},quoteValue:jobValue,onInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},onRecord:function(jobId){openForm('job',jobId);},onDraftCosts:function(jobId){pendingDraftJobId=jobId;view='draftplans';render();},onMaterials:function(choice){pendingMaterialChoice=choice;view='materials';render();}});}catch(e){if(view==='jobsummary'&&settings.user?.id===id)content.innerHTML='<p role="alert">'+esc(e.message)+'</p>';}
   }
   async function renderMaterials(){
     var id=settings.user.id;setHead('Jobs','Materials & buying','Use the paid client’s details. Plan, request buying, then record orders and deliveries.','',false);content.innerHTML='<p role="status">Loading paid jobs…</p>';
-    try{var m=await import('./materials-ui.mjs?v=147');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,initialSelected:pendingMaterialChoice,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});pendingMaterialChoice=null;}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
+    try{var m=await import('./materials-ui.mjs?v=148');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,initialSelected:pendingMaterialChoice,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});pendingMaterialChoice=null;}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
   }
   setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
@@ -573,7 +574,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=147'), import('./field-shifts-ui.mjs?v=147'), import('./field-shifts-android.mjs?v=147')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=148'), import('./field-shifts-ui.mjs?v=148'), import('./field-shifts-android.mjs?v=148')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -606,13 +607,22 @@
     setHead('Internal review','Draft payment options','Choose a job. Compare its draft costs and four ways to pay.','',false);
     content.innerHTML='<p role="status">Loading draft options…</p>';
     var userId=settings.user.id,generation=sessionGeneration;
-    try{var m=await import('./draft-cost-workspace.mjs?v=147');var current=function(){return view==='draftplans'&&settings.user?.id===userId&&['admin','operations'].includes(settings.user?.role)&&sessionGeneration===generation&&!document.body.classList.contains('locked');};if(current()){readyMounted=m.mountDraftCostWorkspace({host:content,user:settings.user,pricing:window.VeriskoPricing,jobs:state.jobs||[],initialJobId:pendingDraftJobId,api:readyApi,preview:!!rolePreview,isCurrent:current});pendingDraftJobId='';}}
+    try{var m=await import('./draft-cost-workspace.mjs?v=148');var current=function(){return view==='draftplans'&&settings.user?.id===userId&&['admin','operations'].includes(settings.user?.role)&&sessionGeneration===generation&&!document.body.classList.contains('locked');};if(current()){readyMounted=m.mountDraftCostWorkspace({host:content,user:settings.user,pricing:window.VeriskoPricing,jobs:state.jobs||[],initialJobId:pendingDraftJobId,api:readyApi,preview:!!rolePreview,isCurrent:current});pendingDraftJobId='';}}
     catch(e){if(view==='draftplans'&&settings.user?.id===userId&&sessionGeneration===generation)content.innerHTML='<p role="alert">Could not load draft options. Refresh and try again.</p>';}
   }
+  async function renderSalesPriceEditor(){
+    if(!['admin','operations'].includes(settings.user?.role))return;
+    setHead('Price list','Sales prices','Set prices for the next 30 days.','',false);content.innerHTML='<p role="status">Loading…</p>';
+    var id=settings.user.id,generation=sessionGeneration;
+    try{var m=await import('./sales-prices-ui.mjs?v=148');var current=()=>view==='salesprices'&&settings.user?.id===id&&generation===sessionGeneration;if(current())readyMounted=m.mountSalesPrices({host:content,user:settings.user,api:readyApi,preview:!!rolePreview,isCurrent:current});}catch(e){if(view==='salesprices')content.textContent='Could not load prices. Refresh and try again.';}
+  }
+  var salesPriceStatus=null;
   function renderPackagePrices() {
+    var priceStatus=typeof salesPriceStatus==='undefined'?null:salesPriceStatus;
     setHead("SALES", "Camera package prices", "Standard installation prices, subject to a site survey. Operations confirms the final quote.", "", false);
     if (!window.VeriskoPricing) { content.innerHTML = '<p class="helper">Reconnect and refresh to load current package prices.</p>'; return; }
-    content.innerHTML = '<details class="card package-intro"><summary>What the package includes</summary><div class="package-inclusions"><p>Simple installation: fixed cameras, recorder, standard cabling, installation and phone viewing setup.</p><ul class="help-steps"><li><strong>12 months:</strong> callbacks and camera-status monitoring through an on-site mini PC.</li><li><strong>Privacy:</strong> monitoring checks system health without access to footage.</li><li><strong>2 years:</strong> replacement of faulty cameras and installed cables. Accidents and power-surge damage are excluded.</li></ul><p class="helper">Included in the package price. Hard drive is an add-on; without one, there is no stored recording.</p><p class="helper">Three-month payment plan included. Complex jobs are priced after measuring extra materials, labour and equipment/travel. Outdoor cameras alone do not make a job complex. Prices are before VAT where applicable.</p></div></details>' +
+    if(priceStatus?.status==='expired'||priceStatus?.expiresAt&&Date.now()>=Date.parse(priceStatus.expiresAt)){content.innerHTML='<section class="card"><h2>Prices need updating</h2><p>The 30 days are over. Ask Operations for new prices before offering a price.</p></section>';return;}
+    content.innerHTML = (priceStatus?.status==='active'?'<p class="helper">Prices valid until '+esc(new Date(priceStatus.expiresAt).toLocaleString('en-GB',{timeZone:'Africa/Kampala'}))+' Uganda time. Operations confirms the final quote.</p>':'<p class="helper">Reference prices. Operations must confirm current prices.</p>')+'<details class="card package-intro"><summary>What the package includes</summary><div class="package-inclusions"><p>Simple installation: fixed cameras, recorder, standard cabling, installation and phone viewing setup.</p><ul class="help-steps"><li><strong>12 months:</strong> callbacks and camera-status monitoring through an on-site mini PC.</li><li><strong>Privacy:</strong> monitoring checks system health without access to footage.</li><li><strong>2 years:</strong> replacement of faulty cameras and installed cables. Accidents and power-surge damage are excluded.</li></ul><p class="helper">Included in the package price. Hard drive is an add-on; without one, there is no stored recording.</p><p class="helper">Three-month payment plan included. Complex jobs are priced after measuring extra materials, labour and equipment/travel. Outdoor cameras alone do not make a job complex. Prices are before VAT where applicable.</p></div></details>' +
       '<div class="list">' + window.VeriskoPricing.publicPackages().map(function (p) {
         return '<article class="item"><div class="item-top"><div><div class="item-title">' + p.cameras + ' cameras · ' + esc(p.name) + '</div><div class="item-meta">' + p.recorderChannels + 'CH recorder · hard drive separate</div></div></div>' +
           '<div class="pay-summary"><div class="pay-line pay-grand"><span>Standard installation price</span><strong>' + money(p.price) + '</strong></div></div><div class="item-lines">' +
@@ -649,7 +659,7 @@
     if(settings.user?.role==='sales'){setHead('Help','Help & prices','Choose what you need.','',false);content.innerHTML='<div class="nav-tool-grid"><button type="button" class="nav-tool" data-nav-view="support"><strong>Help videos</strong><span>Watch a short lesson.</span></button><button type="button" class="nav-tool" data-nav-view="prices"><strong>Camera prices</strong><span>Show a client our packages.</span></button></div>';return;}
     setHead('More','Tools & help','Choose what you need.','',false);
     var pages=navigation.views((settings.user||{}).role,'more').filter(function(p){return p.id!=='more';});
-    var notes={draftplans:'Compare four draft ways to pay. Internal review only.',support:'Watch training videos and find quick answers.',cashflow:'Review money in, money out and balances.',applications:'Review people who want to join the team.',settings:'Manage team access and app settings.',installerhelp:'Get help with your assigned installation.'};
+    var notes={salesprices:'Set the prices Sales can offer for 30 days.',draftplans:'Compare four draft ways to pay. Internal review only.',support:'Watch training videos and find quick answers.',cashflow:'Review money in, money out and balances.',applications:'Review people who want to join the team.',settings:'Manage team access and app settings.',installerhelp:'Get help with your assigned installation.'};
     content.innerHTML='<div class="nav-tool-grid">'+pages.map(function(p){return '<button type="button" class="nav-tool" data-nav-view="'+p.id+'"><strong>'+esc(p.label)+'</strong><span>'+esc(notes[p.id]||'')+'</span><span class="nav-tool-arrow" aria-hidden="true">→</span></button>';}).join('')+'</div>';
   }
   function renderInstallerHome(){
@@ -667,7 +677,7 @@
   async function mountTeamWork(){
     var host=document.getElementById('activeWorkDashboard'),person=settings.user?.id,generation=sessionGeneration;if(!host)return;
     var current=function(){return settings.user?.id===person&&sessionGeneration===generation&&view==='today'&&host.isConnected&&!document.body.classList.contains('locked');};
-    try{var m=await import('./active-work-ui.mjs?v=147');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
+    try{var m=await import('./active-work-ui.mjs?v=148');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
   }
   /* --------------------------------- TODAY ---------------------------------- */
   function renderToday() {
@@ -1540,7 +1550,7 @@
   }
 
   function costReviewFieldsHtml(source) {
-    return '<div class="field full"><label for="f_costEvidence">Cost evidence / supplier quote and survey reference</label><textarea id="f_costEvidence" class="quote-input" placeholder="Paste folder / quote links and record measured routes, freight weight, crew scope and overhead checks">'+esc(source.costEvidence || '')+'</textarea><label class="chk-item"><input id="f_costConfirmed" type="checkbox" class="quote-input"'+(source.costConfirmed?' checked':'')+'><span>Costs and site scope checked. The mini PC, 12-month callbacks/monitoring and 2-year fault warranty fit within the existing callback allowance. Commission / visit pay are in overhead; add-on costs are separate.</span></label><p class="helper">UGX 4,300/USD. 30% planned margin, 26% minimum. Seven-day quote validity. Prices exclude separately applicable VAT; confirm tax treatment before issuing a tax invoice.</p></div>'+
+    return '<input id="f_salesPriceVersion" type="hidden" value="'+(salesPriceStatus?.status==='active'?salesPriceStatus.version:source.salesPriceVersion||0)+'"><div class="field full"><label for="f_targetMargin">Profit before tax (%)</label><input id="f_targetMargin" class="quote-input" type="number" inputmode="decimal" min="26" max="50" step="1" value="'+esc(source.targetMargin==null?30:Math.round(source.targetMargin*100))+'"><p class="helper">Choose 26 to 50. The quote covers job costs first.</p></div><div class="field full"><label for="f_costEvidence">Cost evidence / supplier quote and survey reference</label><textarea id="f_costEvidence" class="quote-input" placeholder="Paste folder / quote links and record measured routes, freight weight, crew scope and overhead checks">'+esc(source.costEvidence || '')+'</textarea><label class="chk-item"><input id="f_costConfirmed" type="checkbox" class="quote-input"'+(source.costConfirmed?' checked':'')+'><span>Costs and site scope checked. The mini PC, 12-month callbacks/monitoring and 2-year fault warranty fit within the existing callback allowance. Commission / visit pay are in overhead; add-on costs are separate.</span></label><p class="helper">UGX 4,300/USD. Selected profit target, 26% minimum. Seven-day quote validity. Prices exclude separately applicable VAT; confirm tax treatment before issuing a tax invoice.</p></div>'+
       '<div class="field full"><label for="f_paymentPlan">Agreed payment plan</label><select id="f_paymentPlan" class="quote-input"><option value="installments"'+(source.paymentPlan!=='cash'?' selected':'')+'>3 months: 40% installation / 30% day 30 / balance day 60</option><option value="cash"'+(source.paymentPlan==='cash'?' selected':'')+'>60% before installation / 40% completion</option></select></div>'+
       (isAdmin()?'<div class="field full"><label class="chk-item"><input id="f_fundingConfirmed" type="checkbox" class="quote-input"'+(source.fundingConfirmed?' checked':'')+'><span>I have reviewed available cash and open installments, and approve funding this job.</span></label></div>':'<p class="helper">The Owner confirms available funding before a financed job is accepted.</p>');
   }
@@ -1588,6 +1598,8 @@
     inputs.scheduledDate = (document.getElementById('f_scheduledDate') || {}).value || '';
     inputs.paymentPlan = (document.getElementById('f_paymentPlan') || {}).value || saved.paymentPlan || 'installments';
     inputs.costEvidence = (document.getElementById('f_costEvidence') || {}).value || '';
+    var priceVersion=document.getElementById('f_salesPriceVersion');inputs.salesPriceVersion=priceVersion?Number(priceVersion.value):saved.salesPriceVersion;
+    var marginInput=document.getElementById('f_targetMargin'); inputs.targetMargin=marginInput?Number(marginInput.value)/100:saved.targetMargin;
     inputs.costConfirmed = !!(document.getElementById('f_costConfirmed') || {}).checked;
     inputs.fundingConfirmed = isAdmin() ? !!(document.getElementById('f_fundingConfirmed') || {}).checked : !!saved.fundingConfirmed;
     inputs.costApprovalKey = saved.costApprovalKey || '';
@@ -1606,7 +1618,7 @@
     }
     if (jobIsDelivery(saved.stage)) {
       inputs.quoteSnapshot=saved.quoteSnapshot; inputs.pricingVerifiedAt=saved.pricingVerifiedAt;
-      ['pricingVersion','cameraCount','installationType','rubric','addons','zone','discountPct','priceOverride','finalPrice','directCost','extraCost','extraMaterialsCost','extraCrewCost','extraAccessTravelCost','addonCosts','costConfirmed','costEvidence','paymentPlan','servicePolicyVersion'].forEach(function(k){inputs[k]=saved[k];});
+      ['pricingVersion','cameraCount','installationType','rubric','addons','zone','discountPct','priceOverride','finalPrice','directCost','extraCost','extraMaterialsCost','extraCrewCost','extraAccessTravelCost','addonCosts','costConfirmed','costEvidence','paymentPlan','servicePolicyVersion','targetMargin','salesPriceVersion'].forEach(function(k){inputs[k]=saved[k];});
     }
     return inputs;
   }
@@ -1850,7 +1862,7 @@
     if (!await pushShared()) { toast('Connect and save the quote first.'); return; }
     var j=job(id); if(!j)return;
     var userId=settings.user?.id,generation=sessionGeneration;
-    try{var m=await import('./client-plan-ui.mjs?v=147');await m.openClientPlan({jobId:id,api:readyApi,phone:jobClient(j).phone,preview:!!rolePreview,onShared:function(){markQuoteShared(id);},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
+    try{var m=await import('./client-plan-ui.mjs?v=148');await m.openClientPlan({jobId:id,api:readyApi,phone:jobClient(j).phone,preview:!!rolePreview,onShared:function(){markQuoteShared(id);},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
   }
 
   // Opening WhatsApp records a sharing attempt (not delivery). A Draft moves to Sent, and
@@ -1922,7 +1934,7 @@
       emptyState(ICON_INSTALL, "No jobs yet", "Tap New job to price a site, or start one from a closed sale in Prospects.", "New job", 'data-new="job"');
     content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " job" : " jobs") + "</p>" + list + '<details class="card"><summary>Older job tools</summary><p class="helper">For older manual jobs only. New installations use the assigned Installer account and the linked materials list.</p>'+technicianRosterCard()+'</details>';
     var planUser=settings.user?.id;
-    import('./client-plan-ui.mjs?v=147').then(function(m){m.refreshClientPlanBadges({host:content,api:readyApi,isCurrent:function(){return view==='jobs'&&settings.user?.id===planUser&&!document.body.classList.contains('locked');}});}).catch(function(){});
+    import('./client-plan-ui.mjs?v=148').then(function(m){m.refreshClientPlanBadges({host:content,api:readyApi,isCurrent:function(){return view==='jobs'&&settings.user?.id===planUser&&!document.body.classList.contains('locked');}});}).catch(function(){});
   }
 
   function fundingOverviewHtml(jobs) {
@@ -3597,13 +3609,13 @@
   async function openContactVoice(id){
     var userId=settings.user?.id,voiceGeneration=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!p||!['sales','teamlead','operations','admin'].includes(settings.user?.role))return;
-    try{var m=await import('./voice-notes-ui.mjs?v=147');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
+    try{var m=await import('./voice-notes-ui.mjs?v=148');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-voice]');if(b){e.preventDefault();e.stopPropagation();openContactVoice(b.dataset.clientVoice);}},true);
   async function openContactWork(id){
     var userId=settings.user?.id,generation=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!['sales','teamlead','operations','admin'].includes(settings.user?.role)||id&&!p)return;
-    try{var m=await import('./client-work-ui.mjs?v=147');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
+    try{var m=await import('./client-work-ui.mjs?v=148');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-work],[data-client-work-all]');if(b){e.preventDefault();e.stopPropagation();openContactWork(b.dataset.clientWork||'');}},true);
   function followUpHistory(p) {
@@ -3934,6 +3946,7 @@
       if (!result.ok) return "unauth";
       if(generation!==sessionGeneration||!settings.auth)return "unchanged";
       if (guardApply && !guardApply()) return "unchanged";
+      salesPriceStatus=result.salesPrices||null;
       if (result.pricing) window.VeriskoPricing = window.createVeriskoPricing(result.pricing);
       else window.VeriskoPricing = window.createVeriskoPricing({version:window.VeriskoPriceCatalogue.version,catalogue:result.catalogue || window.VeriskoPriceCatalogue.catalogue});
       if (result.data && result.data.prospects) {
@@ -4178,7 +4191,7 @@
     renderLogin("denied");
     lockScreen.hidden = false;
   }
-  function signOutLocal() { sessionGeneration++; if(installerModule)installerModule.suspendInstaller(); stopFieldTracking(); window.VeriskoPricing=window.createVeriskoPricing(window.VeriskoPriceCatalogue); settings.auth = null; settings.user = null; saveSettings(); }
+  function signOutLocal() { sessionGeneration++; if(installerModule)installerModule.suspendInstaller(); stopFieldTracking(); window.VeriskoPricing=window.createVeriskoPricing(window.VeriskoPriceCatalogue); settings.auth = null; settings.user = null; salesPriceStatus=null; saveSettings(); }
 
   /* -------- Email magic-link login -------- */
   function renderLogin(step, message) {
@@ -4557,7 +4570,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=147");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=148");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }
