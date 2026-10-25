@@ -11,4 +11,4 @@ A separate private Netlify Blobs record stores the job/client identity, budget a
 - Two browser sessions: stale save rejected with edits retained; Reload saved draft recovered current saved values. Source job records, including customer price, unchanged. No console errors or horizontal overflow at 390px.
 - Evidence: output/audits/saved-draft-costs-20261024/, including server.mjs, tests.log, browser-readback.json and saved-costs-phone.png. Test storage is isolated and fictional.
 
-Release verification pending. Authenticated production saves and physical Android acceptance are not claimed. Public preview remains fictional with Save disabled.
+Release verified: source a9b95e032571336285a188bc9e34f1fcea093290; Netlify 6add50c41852fc13c5f46653 ready. Twelve asset hashes match; eight private APIs return JSON401 unsigned. Live preview shows job picker, 48px select, disabled Save and no overflow at 390px. Isolated fixture at 320px has no overflow. Authenticated production saves and physical Android acceptance are not claimed. Public preview remains fictional with Save disabled.
