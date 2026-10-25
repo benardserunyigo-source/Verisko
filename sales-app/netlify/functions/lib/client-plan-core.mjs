@@ -1,3 +1,4 @@
+import {reviewSavedClientOffer,selectSavedClientOffer} from './saved-client-offer.mjs';
 import {createHash, timingSafeEqual} from 'node:crypto';
 import {COMMERCIAL, validateQuotes} from './quote-guard.mjs';
 import '../../../quote-pdf.js';
@@ -9,7 +10,7 @@ const hash=s=>createHash('sha256').update(s).digest('hex');
 const fingerprint=j=>hash(JSON.stringify([j.id,j.prospectId,j.business,j.ref,COMMERCIAL.map(k=>j[k]??null),j.quoteSnapshot,j.quotedTotal,j.quotedAt,j.validUntil,j.scheduledDate,won(j)]));
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'}});
 function current(record,j,now){return !!j&&!['Cancelled','Rejected'].includes(j.stage)&&!record.revokedAt&&Date.parse(record.expiresAt)>Date.parse(now)&&record.fingerprint===fingerprint(j);}
-function status(record,j,now){return {jobId:record.jobId,createdAt:record.createdAt,expiresAt:record.expiresAt,current:current(record,j,now),revoked:!!record.revokedAt,choice:record.choice||null};}
+function status(record,j,now){return {jobId:record.jobId,createdAt:record.createdAt,expiresAt:record.expiresAt,current:current(record,j,now),revoked:!!record.revokedAt,choice:record.choice||null,...(record.mode?{mode:record.mode,draftVersion:record.draftVersion}:{} )};}
 export function clientOffer(j,client,now){
  if(!j.pricingVerifiedAt||!j.quoteSnapshot||['Cancelled','Rejected'].includes(j.stage))throw fail('Save and check this quote before making a client link.',409);
  if(!won(j)&&(!j.validUntil||j.validUntil<now.slice(0,10)))throw fail('This quote has expired. Refresh it first.',409);
@@ -27,7 +28,7 @@ export function clientOffer(j,client,now){
  if(!options.length)throw fail('This quote needs review before it can be shared.',409);
  return {ref:j.ref||'Verisko quote',business:client?.business||j.business||'Your camera installation',options,existingAgreement:won(j)};
 }
-export function createClientPlanHandler({store,loadWorkspace,authorize,now=()=>new Date().toISOString()}){return async request=>{try{
+export function createClientPlanHandler({store,loadWorkspace,authorize,loadDraft,loadMarket,pricing,now=()=>new Date().toISOString()}){return async request=>{try{
  if(request.headers.get('origin')&&request.headers.get('origin')!==new URL(request.url).origin)throw fail('Open this link in your browser.',403);
  if(!['GET','POST'].includes(request.method))throw fail('Method not allowed.',405);
  let body={};if(request.method==='POST'){
@@ -48,7 +49,7 @@ export function createClientPlanHandler({store,loadWorkspace,authorize,now=()=>n
   const plan=record.offer.options.find(p=>p.id===body.plan),name=typeof body.name==='string'?body.name.trim():'';
   if(!plan||body.confirmed!==true||name.length<2||name.length>100||/[\x00-\x1f]/.test(name))throw fail('Choose a plan, enter your name and tick Yes.');
   if(record.choice){if(record.choice.plan===plan.id&&record.choice.name===name)return json({ok:true,choice:record.choice});throw fail('Your choice is already saved. Please contact Verisko to change it.',409);}
-  const choice={plan:plan.id,title:plan.title,total:plan.total,rows:plan.rows,name,confirmed:true,at:stamp};
+  const choice={plan:plan.id,title:plan.title,total:plan.total,rows:plan.rows,name,confirmed:true,at:stamp,...(plan.offer?{offer:plan.offer,totalLabel:plan.totalLabel,ownership:plan.ownership,terms:plan.terms}:{})};
   const write=await store.setJSON(key,{...record,choice},{onlyIfMatch:old.etag});if(!write.modified)throw fail('This link changed. Reload to see the saved choice.',409);
   return json({ok:true,choice});
  }
@@ -57,15 +58,24 @@ export function createClientPlanHandler({store,loadWorkspace,authorize,now=()=>n
  if(body.action==='revoke'){
   if(!record)return json({ok:true});const write=await store.setJSON(key,{...record,revokedAt:stamp,revokedBy:auth.me.id},{onlyIfMatch:old.etag});if(!write.modified)throw fail('Link changed. Try again.',409);return json({ok:true});
  }
- if(body.action!=='create')throw fail('Choose an action.');
+ let review=null;
+ if(['reviewDraft','createDraft'].includes(body.action)){
+  if(!loadDraft||!pricing)throw fail('Saved options are unavailable. Refresh and try again.',503);
+  const draft=await loadDraft(request,jobId),market=loadMarket?await loadMarket():null;
+  review=reviewSavedClientOffer({job:j,client:(data.prospects||[]).find(p=>p.id===j.prospectId),draft,version:body.draftVersion,pricing,market,now:stamp});
+  if(body.action==='reviewDraft')return json({ok:true,review});
+  if(!Number.isSafeInteger(body.draftVersion)||body.draftVersion<1)throw fail('Review the saved draft again before creating this link.',400);
+  if(body.checked!==true)throw fail('Check the equipment, costs and payment terms before making a client link.',400);
+ }
+ if(!['create','createDraft'].includes(body.action))throw fail('Choose an action.');
  if(!/^[A-Za-z0-9_-]{43}$/.test(body.token||''))throw fail('A secure link is needed. Reload and try again.');
  if(record?.choice&&current(record,j,stamp))throw fail('The client already chose a plan. Review their reply before making a new link.',409);
  // Token is generated by Web Crypto in the operator's browser. Only its hash
  // is stored. Retrying the same creation returns the same issued snapshot.
- if(record?.tokenHash===hash(body.token)&&current(record,j,stamp))return json({ok:true,item:status(record,j,stamp)});
- const offer=clientOffer(j,(data.prospects||[]).find(p=>p.id===j.prospectId),stamp);
- const expiry=won(j)?Date.parse(stamp)+7*86400000:Math.min(Date.parse(stamp)+7*86400000,Date.parse(j.validUntil+'T23:59:59.999Z'));
- const next={jobId,tokenHash:hash(body.token),fingerprint:fingerprint(j),offer,createdAt:stamp,createdBy:auth.me.id,expiresAt:new Date(expiry).toISOString(),choice:null,previousChoices:[...(record?.previousChoices||[]),...(record?.choice?[record.choice]:[])]};
+ if(record?.tokenHash===hash(body.token)&&current(record,j,stamp)){if(review&&(record.mode!=='savedDraft'||record.draftVersion!==review.draftVersion||JSON.stringify(record.offer.options.map(p=>p.id))!==JSON.stringify(body.optionIds)))throw fail('This link request changed. Review it again.',409);return json({ok:true,item:status(record,j,stamp)});}
+ const offer=review?selectSavedClientOffer(review,body.optionIds):clientOffer(j,(data.prospects||[]).find(p=>p.id===j.prospectId),stamp);
+ const expiry=review?Date.parse(stamp)+7*86400000:won(j)?Date.parse(stamp)+7*86400000:Math.min(Date.parse(stamp)+7*86400000,Date.parse(j.validUntil+'T23:59:59.999Z'));
+ const next={...(review?{mode:'savedDraft',draftVersion:review.draftVersion}:{}),jobId,tokenHash:hash(body.token),fingerprint:fingerprint(j),offer,createdAt:stamp,createdBy:auth.me.id,expiresAt:new Date(expiry).toISOString(),choice:null,previousChoices:[...(record?.previousChoices||[]),...(record?.choice?[record.choice]:[])]};
  const write=await store.setJSON(key,next,old?{onlyIfMatch:old.etag}:{onlyIfNew:true});if(!write.modified)throw fail('Someone changed this link. Try again.',409);
  return json({ok:true,item:status(next,j,stamp)});
  }catch(e){return json({ok:false,error:e.status?e.message:'Could not save the client choice. Try again.'},e.status||500);}};}

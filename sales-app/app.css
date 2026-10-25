@@ -1092,3 +1092,9 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 .sales-draft-picker select,.sales-draft-picker button,[data-draft-sales-option]{width:100%;min-width:0;max-width:100%;min-height:48px}
 .sales-draft-picker label{display:block;font-weight:600;margin:16px 0 6px}
 [data-draft-to-sales]{margin-top:12px;min-height:48px}
+
+/* Saved client plans: keep checkboxes compact inside the phone dialog. */
+.client-plan-dialog .dialog-body .chk-item{align-items:flex-start;padding:14px;margin:10px 0;gap:12px}
+.client-plan-dialog .dialog-body .chk-item input{width:22px;height:22px;min-height:22px;flex:0 0 22px;margin:2px 0 0}
+.client-plan-dialog .chk-item span{min-width:0;line-height:1.5;overflow-wrap:anywhere}
+.client-plan-dialog .dialog-body details{margin:16px 0}.client-plan-dialog .dialog-body summary{min-height:44px;cursor:pointer}

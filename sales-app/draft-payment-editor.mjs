@@ -1,5 +1,5 @@
-import {draftCostBudget,draftCostEstimate,draftComparisonHtml,draftPaymentOptions} from './draft-payment-options.mjs?v=150';
-import {draftPaymentSuggestion} from './draft-payment-suggestions.mjs?v=150';
+import {draftCostBudget,draftCostEstimate,draftComparisonHtml,draftPaymentOptions} from './draft-payment-options.mjs?v=151';
+import {draftPaymentSuggestion} from './draft-payment-suggestions.mjs?v=151';
 const keys=['direct','care','business'];
 function parseCost(value,key){
  const text=String(value).trim();if(!/^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(text))return null;
