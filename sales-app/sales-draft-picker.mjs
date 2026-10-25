@@ -1,5 +1,5 @@
-import {draftCostBudget,draftCostEstimate,draftPaymentOptions,DRAFT_CAMERA_COUNTS} from './draft-payment-options.mjs?v=158';
-import {salesOfferText} from './sales-draft-offer.mjs?v=158';
+import {draftCostBudget,draftCostEstimate,draftPaymentOptions,DRAFT_CAMERA_COUNTS} from './draft-payment-options.mjs?v=159';
+import {salesOfferText} from './sales-draft-offer.mjs?v=159';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function mountSalesDraftPicker({host,jobs=[],initialSource,api,onUse,preview=false,isCurrent=()=>true}){
  let stopped=false,epoch=0,loaded=null,saving=false;const current=()=>!stopped&&isCurrent();

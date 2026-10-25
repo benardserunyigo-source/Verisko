@@ -13,6 +13,14 @@ test('one job joins the same client, quote, plan and installation; cash is not c
 test('multiple jobs never receive the same unlinked client deposit',()=>{
  const rows=build({data:{jobs:[source,{...source,id:'q2',ref:'TEST-Q2'}],prospects:[contact],transactions:[{...tx,installId:''}]},cases:[{...c,paidWork:[{id:'q'},{id:'q2'}],firstPayment:tx}]});assert.equal(rows.length,2);assert.ok(rows.every(r=>r.paid===0&&r.unassignedClientMoney===2000000));assert.equal(new Set(rows.map(r=>r.id)).size,2);
 });
+test('an earlier client reply cannot leave a settled signed-off job waiting for plan approval',()=>{
+ const signed={...job,installerPayments:[{id:'a-paid',installerId:'a',amount:200000},{id:'b-paid',installerId:'b',amount:150000}],installerPaymentVoids:[],clientReview:{outcome:'accepted',care:{monitoringCommissioned:true,monitoringMiniPcRef:'DEMO-PC',monitoringTestEvidence:'DEMO alert check'}}};
+ const clientPlans=[{jobId:'q',current:false,choice:{plan:'installments',title:'Pay over 3 months',total:4000000,name:'DEMO Client'}}];
+ const r=build({data:{jobs:[{...source,stage:'Handed over'}],prospects:[contact],transactions:[{...tx,amount:4000000}]},installations:[signed],clientPlans})[0];
+ assert.equal(r.signed,true);assert.equal(r.balance,0);assert.equal(r.crewBalance,0);assert.deepEqual(r.tasks,[]);
+ assert.match(summaryCard(r),/Earlier client choice/); // keep the history visible
+ for(const stage of ['Draft','Sent']){const pending=build({data:{jobs:[{...source,stage}],prospects:[contact],transactions:[]},installations:[],clientPlans:[{...clientPlans[0],current:true,mode:'savedDraft'}]})[0];assert.ok(pending.tasks.some(t=>t.text.includes('approve the client')));}
+});
 test('unknown external quote total never becomes zero balance or fully settled client',()=>{
  const r=build({data:{jobs:[],prospects:[contact],transactions:[{...tx,installId:''}]},cases:[{...c,quoteSent:{reference:'EXTERNAL'},paidWork:[{id:'client-c'}]}],installations:[{...job,sourceId:'',materialSourceId:'client-c'}]})[0];assert.equal(r.total,null);assert.equal(r.balance,null);assert.equal(r.paid,2000000);assert.match(summaryCard(r),/Not yet known/);assert.ok(r.tasks.some(t=>/full quote total/.test(t.text)));
 });

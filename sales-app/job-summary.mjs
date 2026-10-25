@@ -1,7 +1,7 @@
-import {replyText,choiceDetailsHtml} from './client-plan-ui.mjs?v=158';
-import './job-finance.js?v=158';
-import {installerPaymentSummary} from './installer-model.mjs?v=158';
-import {materialBalance} from './installer-materials.mjs?v=158';
+import {replyText,choiceDetailsHtml} from './client-plan-ui.mjs?v=159';
+import './job-finance.js?v=159';
+import {installerPaymentSummary} from './installer-model.mjs?v=159';
+import {materialBalance} from './installer-materials.mjs?v=159';
 const office=u=>['admin','operations'].includes(u?.role);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>'UGX '+Number(n).toLocaleString('en-UG');
@@ -52,7 +52,8 @@ export function buildJobSummaries({user,data={},cases=[],installations=[],quoteV
   if(cancelled){task('This job is '+s.stage.toLowerCase()+'. Check any open money or stock.','record');}
   else{
    if(!legacyDone&&!c?.visit?.doneAt&&!js.length)task('Arrange or finish the site visit.','visits');
-   if(r.clientPlan?.choice&&!r.clientPlan.approval)task('Review and approve the client’s chosen plan.','record');
+   // Earlier link replies cannot change an already agreed job or its closeout.
+   if(r.clientPlan?.choice&&!r.clientPlan.approval&&!['Accepted','Scheduled','In progress','Installed','Handed over'].includes(s?.stage))task('Review and approve the client’s chosen plan.','record');
    if(!quoteSent)task('Record the quote sent to the client.','visits');
    if(total==null)task('Add the full quote total to check the client balance.','record');
    if(r.unassignedClientMoney)task(money(r.unassignedClientMoney)+' client money is not linked to one job. Do not count it twice.','payments');

@@ -1,4 +1,4 @@
-import {elapsed} from './client-work-ui.mjs?v=158';
+import {elapsed} from './client-work-ui.mjs?v=159';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const roles={sales:'Sales',teamlead:'Team Lead',installer:'Installer',operations:'Operations',admin:'Admin'};
 const time=at=>new Date(at).toLocaleString('en-GB',{timeZone:'Africa/Kampala',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
