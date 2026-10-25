@@ -1064,3 +1064,8 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 .draft-cost-status{font-size:14px;color:#17264d}
 .draft-plan-review summary{padding:8px 0;min-height:44px;cursor:pointer;font-weight:700}
 @media(max-width:600px){.draft-plans-grid{grid-template-columns:1fr}.draft-plan{padding:16px}.draft-plan h2{font-size:21px}.draft-plan-total dd{font-size:18px}.draft-plans-notice{padding:16px}}
+
+/* Saved internal job drafts: large, predictable phone controls. */
+.draft-job-picker label{display:block;font-weight:600;margin:16px 0 8px}
+.draft-job-picker select{display:block;width:100%;max-width:100%;min-height:48px;padding:12px;border:1px solid var(--line,#d5dae2);border-radius:12px;background:#fff;color:inherit;font:inherit}
+.draft-job-picker select:focus-visible{outline:3px solid #2684c7;outline-offset:2px}
