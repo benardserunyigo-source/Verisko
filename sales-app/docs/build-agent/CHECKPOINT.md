@@ -161,3 +161,10 @@ All 559 tests passed. Phone checks at 390px and 320px found no document overflow
 
 
 Release verified: v140 source `9a70846b13d3907b7aaedabd16f7477797688a06`, Netlify deploy `6add468269edfa6bda393a05` ready. Eight asset hashes match, including unchanged current pricing/catalogue/PDF/client-plan code; HTML loads v140. Seven private APIs return 401 without authentication. Live Operations preview opened More → Draft payment options and showed all four correct totals, with no console errors. Evidence: `output/audits/draft-payment-options-20261024/release-readback.json` and `live-compare-phone.png`. No real client, financial or account records changed. Public fictional preview and automated role gates do not establish authenticated production or handset acceptance. Final evidence commit is documentation only and remains local to avoid another deployment.
+
+
+## Draft option cost and profit estimates: 24 October 2026
+
+Owner requested Operations cost/profit for each draft option and a below-26% flag. Implemented using the existing authenticated office budget, with no new API, persistent financial data, client changes or private values in assets. Cash/12/24/rental assumptions reconcile to the earlier budget proposal; final supplier/support cost holds remain visible. Missing/invalid inputs fail closed. Public previews show explicitly fictional cost inputs. Unrounded margin flags include the exact 26% boundary and one-shilling shortfall; no automatic price increases.
+
+All 563 tests passed; real-handler office/other-role/unsigned scope and unchanged-record checks, independent loan arithmetic and invalid-input tests included. Phone 390/320px tables/details and low-margin warnings checked without overflow or console errors. Evidence: `../qa/2026-10-24-draft-option-profit.md` and `output/audits/draft-option-profit-20261024/`. v141 prepared; release pending. No authenticated production or physical Android acceptance claim.

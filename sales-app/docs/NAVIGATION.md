@@ -24,3 +24,8 @@ Operations and Admin open **Jobs → Job summaries** first. Search and open a sa
 Operations and Admin: More → Draft payment options. One four-camera sample compares cash, 12 monthly payments, 24 monthly payments and ongoing rental. A compact table and plain-language cards show upfront, monthly and total amounts. Rental total covers the first 12 months only; equipment stays with Verisko.
 
 This is an internal review page with no selection, save or send action. It contains no private budget or client data and does not change the current quote, PDF or customer-link functions. Sales, Team Lead and Installer navigation excludes it. Sample prices are not confidential; this display guard separates workflows rather than making public assets private. Profit remains unconfirmed until costs and terms are checked.
+
+
+## Draft costs and profit (v141)
+
+The draft comparison adds estimated cost of doing the job, profit before tax and margin for each plan. Below 26% is flagged in red and text, without changing a price. Actual staff views use only the existing authenticated office budget; public previews use made-up figures. Missing inputs show unavailable. These estimates include saved care and finance allowances, not confirmed supplier costs or a final profit promise. No customer quote or sharing action is changed.

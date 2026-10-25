@@ -1,0 +1,13 @@
+# Draft option costs and profit — 24 October 2026
+
+The owner requested internal estimated job cost and before-tax profit for all four existing draft options, flagging margins below 26%, without changing customer prices.
+
+The screen uses the existing authenticated office pricing object. No private budget is embedded in public assets or preview data. No new API, record write or browser persistence is added. Operations/Admin receive these inputs through the existing server-scoped data endpoint; Sales, Team Lead and Installer do not. A missing/invalid budget displays unavailable, never zero or a fabricated cost. The async render retains the existing account/session guard; sign-out resets the pricing object.
+
+Calculation: direct four-camera budget plus its contingency, callback/care, acquisition and overhead allowances once. Add payment fees on receipts. Twelve-month and rental loss allowance is 3% of later receipts; 24-month allowance is 6%. For monthly plans, fund the base cost for one month before the initial receipt; reserve expected losses at installation, then compound interest only on negative cash before each monthly receipt. Cash assumes payment before procurement. Profit = total paid minus cost; margin = profit / total paid. Costs/profit display whole UGX and reconcile; the threshold uses unrounded margin, including a one-shilling shortfall. Rental covers 12 paid months only, not a guaranteed lifetime return. Final supplier/support costs and care adequacy remain unconfirmed. No mini PC cost is added twice.
+
+All four private-budget calculations reconcile within UGX 1 to the earlier proposal; saved evidence omits private input values. Fictional in-memory real-handler tests cover office access, denied other roles/unsigned request and unchanged stored records. Synthetic tests cover independent cash/finance arithmetic, fee/reserve reconciliation, invalid inputs, preview isolation and the exact 26% boundary. Current customer pricing, PDFs, quote sharing and accepted jobs remain unchanged.
+
+Phone QA at 390px and 320px: cost/profit/margin table, per-option details, no document overflow or console errors. Fictional higher-cost QA shows four red rows plus explicit Below 26% warnings, without changing prices. Public role previews always use clearly marked fictional cost inputs, never the private budget. Evidence: output/audits/draft-option-profit-20261024/ (model-check.json, profit-390.png, profit-320.png, low-margin-320.png). QA helper HTML/modules remain outside production Git. Real Android and authenticated production user acceptance are not claimed.
+
+Full suite: 563 passed. v141 prepared; release pending.
