@@ -260,3 +260,10 @@ Phone isolated handler checks passed for publish→Sales→30-dayexpiry and rent
 
 
 Release verified: v148 source `4b97024df774e95b942b5666a8fc983c23055e72`, Netlify `6add6633cd11ef8c0aa1fc6a` ready. Fourteen live asset hashes match; original public reference catalogue, PDF and client-plan logic remain unchanged. Nine private APIs, including new sales-prices, return JSON401 unsigned. Live Operations preview shows four price fields, Save disabled; rental target50 accepts a verified390k/month suggestion with2m setup and50.37% estimated first-year margin, applies locally, Save stays disabled. No390px overflow or console errors. Controls also checked320px locally. Browser attempt to click a disabled preview price input correctly refused; no bypass used. Evidence: output/audits/sales-price-control-20261024/release-readback.json, live-phone-readback.json and live-operations-phone.png. Isolated fictional publish/Sales/expiry/target saves verified separately; no production price list or client/account financial records changed. Actual Android handset acceptance not claimed. Operations should explicitly review/save its first live30-day list. Final evidence-only commit remains local.
+
+
+## Price-list and50% quote demo:24 October2026
+
+User requested a phone demo of Operations saving30-day prices, Sales receiving them, expiry and50% quote. Isolated actual controls/handlers and Sales/quote renderers at4429, fictional budget only: saved4-camera4.2m on24Oct18:00UTC, expiry23Nov18:00UTC (9pmUganda). Sales matched price/payment amounts. Simulated30-day clock advance hid old prices with Prices need updating. Separate internal4-camera50% quote: total5,610,000/cost2,802,900/profit2,807,100/margin50.04%; noquote saved/sent. Source workspace unchanged. Captures/readback and four-step replay at output/audits/sales-prices-demo-20261024/; replay4430 opened for owner.
+
+Demo exposed stale30% text in quote summary. Replaced only that helper with computed selected target and added renderer regression.606tests passed. v149 prepared; source release verification pending. No new price/policy/cost/client data changes.

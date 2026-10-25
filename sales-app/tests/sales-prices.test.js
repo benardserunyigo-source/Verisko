@@ -22,3 +22,7 @@ test('higher published package prices and targets cannot make hard drive add-ons
  const model=globalThis.createVeriskoPricing({...config,storage:{hdd2tb:300000,hdd4tb:500000},salesCatalogue:salesPriceRows(rows)});
  for(const targetMargin of [.26,.5])for(const key of ['hdd2tb','hdd4tb']){const r=model.compute({cameraCount:4,targetMargin,addons:{[key]:true}});assert.deepEqual(r.errors,[]);assert.equal(r.lines.length,1);assert.ok(r.lines[0].total>0);assert.ok(r.margin>=targetMargin);assert.ok(r.cash>8000000);}
 });
+
+test('quote summary labels the selected 50% target, not the old 30% default',async()=>{
+ const fs=await import('node:fs'),vm=await import('node:vm'),app=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8'),start=app.indexOf('  function quoteSummaryHtml(r)'),end=app.indexOf('  function recalcQuoteForm()',start),ctx=vm.createContext({money:n=>'UGX '+n.toLocaleString('en-UG'),esc:s=>s});vm.runInContext(app.slice(start,end),ctx);const r=pricing.compute({cameraCount:4,targetMargin:.5,paymentPlan:'installments'}),html=ctx.quoteSummaryHtml(r);assert.match(html,/50% target, 26% minimum/);assert.doesNotMatch(html,/30% target/);assert.ok(r.margin>=.5);
+});
