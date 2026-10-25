@@ -82,8 +82,11 @@ export function transitionReady(old,body,me,p,users,at,appointments=[],transacti
     if(!c.visit)throw fail('Confirm the visit first.',409);
     if(c.visit.doneAt)throw fail('This visit is already marked done.',409);
     if(day>today)throw fail('A completed visit cannot be in the future.');
-    // Noon EAT represents the chosen visit day for pay; history keeps the real save time.
-    c.visit={...c.visit,doneAt:day+'T12:00:00+03:00',doneByName:me.name,doneByEmail:me.email,doneNote:note};type='visit_done';
+    const doneTime=body.time==null?'':String(body.time);
+    if(doneTime&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(doneTime))throw fail('Choose a valid finish time.');
+    if(doneTime&&Date.parse(day+'T'+doneTime+':00+03:00')>Date.parse(at))throw fail('The visit finish time cannot be in the future.');
+    // Keep legacy day-only records compatible; only explicit times are displayed as exact.
+    c.visit={...c.visit,doneAt:day+'T'+(doneTime||'12:00')+':00+03:00',doneTime,doneRecordedAt:at,doneByName:me.name,doneByEmail:me.email,doneNote:note};type='visit_done';
    }else{
     if(!c.visit?.doneAt)throw fail('Mark the site visit done before recording the quote.',409);
     if(c.quoteSent)throw fail('The quote is already recorded as sent.',409);
@@ -110,7 +113,7 @@ export function transitionReady(old,body,me,p,users,at,appointments=[],transacti
    type='returned';
   }else throw fail('Unknown queue action.');
  }
- c.version++;c.updatedAt=at;c.history.push({id:eventId,type,at,by:me.id,name:me.name||'Staff',toId,toName,note,date:['confirm_visit','reschedule_visit','complete_visit','quote_sent'].includes(action)?body.date:undefined,time:['confirm_visit','reschedule_visit'].includes(action)?body.time:undefined});return c;
+ c.version++;c.updatedAt=at;c.history.push({id:eventId,type,at,by:me.id,name:me.name||'Staff',toId,toName,note,date:['confirm_visit','reschedule_visit','complete_visit','quote_sent'].includes(action)?body.date:undefined,time:['confirm_visit','reschedule_visit','complete_visit'].includes(action)?body.time:undefined});return c;
 }
 function view(c,p,users,me,transactions=[],jobs=[],installations=[]){const creator=users.find(u=>own(p,u));const safe=structuredClone(c);safe.firstPayment=paymentView(c,p,me,transactions,jobs);safe.materialsStatus=materialsSummary(c.materialPlans);safe.installationProgress=contactInstallations(p.id,jobs,installations);if(['operations','admin'].includes(me.role))safe.quoteJobs=jobs.filter(j=>j.prospectId===p.id&&!['Cancelled','Rejected'].includes(j.stage)).map(j=>({id:j.id,ref:j.ref||'Saved quote',stage:j.stage}));if(office(me))safe.availableQuotes=jobs.filter(j=>j.prospectId===p.id&&!['Draft','Cancelled','Rejected'].includes(j.stage)).map(j=>({id:j.id,ref:j.ref||'Saved quote'}));if(['admin','operations'].includes(me.role))safe.paidWork=paidWork(p,transactions,jobs,c);else delete safe.materialPlans;if(!office(me)){safe.history=safe.history.map(e=>e.type==='payment_queried'?{...e,note:''}:e);if(safe.quoteSent){delete safe.quoteSent.reference;delete safe.quoteSent.byEmail;}if(safe.visit){delete safe.visit.byEmail;delete safe.visit.doneByEmail;}}return {...safe,contact:{id:p.id,business:p.business||'',contact:p.contact||'',phone:p.phone||'',location:p.location||'',leadOnly:p.leadOnly===true,createdBy:p.createdBy||creator?.name||'Sales'},ownerName:users.find(u=>u.id===c.ownerId)?.name||(c.ownerId?'Former team member':'Unassigned'),creatorId:creator?.id||null};}
 export function createReadyHandler({store,authorize,coordinate=(_,fn)=>fn(),now=()=>new Date().toISOString()}){return async request=>{try{

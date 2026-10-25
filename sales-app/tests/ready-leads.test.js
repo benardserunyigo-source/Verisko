@@ -109,3 +109,9 @@ test('returning an upcoming visit stops it, and the same visit must be confirmed
  assert.equal((await f.call('lead','complete_visit',{baseVersion:6,date:'2026-10-22'})).status,409);
  r=await f.call('lead','confirm_visit',{baseVersion:6,date:'2026-10-22',time:'15:00'});assert.equal(r.status,200);assert.equal(r.item.visit.id,id);assert.equal(r.item.visit.time,'15:00');assert.equal(r.item.visit.onHoldAt,undefined);
 });
+
+test('visit completion saves the stated Uganda time and actual record time, rejecting future or malformed times',async()=>{
+ const f=fixture();await f.call('sales','request');await f.call('ops','take',{baseVersion:1});await f.call('ops','confirm_visit',{baseVersion:2,date:'2026-10-22',time:'10:00'});
+ for(const time of ['25:00','12:65','junk','15:01'])assert.equal((await f.call('ops','complete_visit',{baseVersion:3,date:'2026-10-22',time})).status,400);
+ const r=await f.call('ops','complete_visit',{baseVersion:3,date:'2026-10-22',time:'14:45'});assert.equal(r.status,200);assert.equal(r.item.visit.doneAt,'2026-10-22T14:45:00+03:00');assert.equal(r.item.visit.doneTime,'14:45');assert.equal(r.item.visit.doneRecordedAt,'2026-10-22T12:00:00.000Z');assert.equal(r.item.history.at(-1).time,'14:45');assert.equal((await f.call('sales')).items[0].visit.doneTime,'14:45');
+});

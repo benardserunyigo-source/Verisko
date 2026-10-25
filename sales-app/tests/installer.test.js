@@ -105,3 +105,10 @@ test('an assigned Team Lead can review and approve completed installer checks wi
  j=apply(j,'superviseSelf',{}, {baseVersion:0},lead);j=apply(j,'submit');j=apply(j,'complete',{comment:'Checked all photos, recording and coverage.'},{},lead);
  assert.equal(j.status,'Completed');assert.equal(j.approval.by,lead.id);assert.equal(lead.role,'teamlead');
 });
+
+test('cutting a cable run needs a reason, photo and supervisor decision before resolution and submission',()=>{
+ let j=ready();j=photo(j,'exception','camera-1');const data={type:'cut',reason:'Damaged cable',description:'TEST damage inside cable run',location:'Gate conduit',proposal:'Replace the full cable',photos:j.evidence.filter(e=>e.kind==='exception').map(e=>e.id)};
+ assert.throws(()=>apply(j,'exception',{...data,description:''},{cameraId:'camera-1'}),/Reason detail/);assert.throws(()=>apply(j,'exception',{...data,photos:[]},{cameraId:'camera-1'}),/photo/);
+ j=apply(j,'exception',data,{cameraId:'camera-1'});const id=j.exceptions[0].id;assert.equal(j.exceptions[0].type,'cut');assert.equal(j.cameras[0].cable.joins,'no');assert.throws(()=>apply(j,'submit'),/resolve cable/);assert.throws(()=>apply(j,'resolve',{note:'TEST',photos:[]},{exceptionId:id}),/Supervisor approval/);assert.throws(()=>apply(j,'decision',{decision:'approved',comment:'TEST'},{exceptionId:id}),/Supervisor/);
+ j=apply(j,'decision',{decision:'approved',comment:'Replace whole run. Do not join.'},{exceptionId:id},ops);j=photo(j,'resolution','camera-1');j=apply(j,'resolve',{note:'Full damaged cable replaced',photos:j.evidence.filter(e=>e.kind==='resolution').map(e=>e.id)},{exceptionId:id});assert.equal(j.exceptions[0].status,'resolved');assert.deepEqual(readiness(j),[]);
+});

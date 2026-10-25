@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | Meeting-note completeness check | working | Map every agreed note to behavior; explicit cable-cut approval, actual completion time, current release verification. Preserve pay/prices and pending ideas. |
 | 0 | Resolve walkthrough blockers and connect visit to quote | done | v157 source160106a ready;648tests pass. Private production cost input restored, same-contact quote links, optional30-daySalesrange and explicitly confirmed public pay copy.23asset hashes/application pretty-link-only normalization and10privateAPI401 verified.320/390px isolated role writes and live preview checked. Authenticated production cost-screen/Android acceptance remain separate. |
 | 0 | Use warehouse stock on paid jobs | done | v156 sourcefa46164 ready;644tests pass. Same-job holds, shortage-only buying, automatic issue/return/free-stock reconciliation and shared guarded writes.320/390px isolated flow/reopen and live preview checked;17assets/10protected routes verified. See ../qa/2026-10-25-warehouse-stock.md. |
 | 0 | Operations inventory and 30-day material review | done | v154 source3ead870 ready;635tests pass. Private catalogue/costs/quotes/counts, independent30-day checks, derived job movements and order-cost snapshots.320/390px isolated writes/reopen and live preview checked;16assets/10private routes verified. See ../qa/2026-10-25-inventory.md. |

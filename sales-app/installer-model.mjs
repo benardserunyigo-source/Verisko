@@ -1,6 +1,6 @@
-import {canReviewClient,makeClientReview} from './client-review.mjs?v=157';
-import {initialMaterials,applyMaterialCommand,materialProblems,updateMaterialPlan} from './installer-materials.mjs?v=157';
-export {materialBalance,materialProblems,stockManager,UNITS,initialMaterials} from './installer-materials.mjs?v=157';
+import {canReviewClient,makeClientReview} from './client-review.mjs?v=158';
+import {initialMaterials,applyMaterialCommand,materialProblems,updateMaterialPlan} from './installer-materials.mjs?v=158';
+export {materialBalance,materialProblems,stockManager,UNITS,initialMaterials} from './installer-materials.mjs?v=158';
 // Shared installation workflow. Server applies commands, never client snapshots.
 export const TESTS=['live','recording','playback','coverage','remote'];
 export const PARTS=['cable','mount','tests'];
@@ -196,7 +196,7 @@ export function applyCommand(previous,cmd,user,now,source={}){
   if(j.status==='Needs correction')j.status='In progress';
  }else if(cmd.action==='exception'){
   if(!c)throw fail('Camera location not found.');
-  if(!['join','problem'].includes(data.type)||!reasons.includes(data.reason))throw fail('Choose the exception type and reason.');
+  if(!['join','cut','problem'].includes(data.type)||!reasons.includes(data.reason))throw fail('Choose the exception type and reason.');
   if(!evidence(j,data.photos,'exception',c.id))throw fail('Upload an exception photo first.');
   const e={id:cmd.requestId,cameraId:c.id,type:data.type,reason:data.reason,description:requireText(data.description,'Reason detail'),location:requireText(data.location,'Connection/problem location'),proposal:requireText(data.proposal,'Proposed solution'),photos:data.photos,status:'pending',requestedBy:user.id,requestedAt:now,decisions:[]};j.exceptions.push(e);
   if(data.type==='join')c.cable={...(c.cable||{}),joins:'yes'};
