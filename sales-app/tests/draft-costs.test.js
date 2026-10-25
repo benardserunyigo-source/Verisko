@@ -101,3 +101,11 @@ test('legacy cost-only saves keep their stored payment snapshot and can accept a
  const options=old.item.options.map(({id,upfront,monthly})=>({id,upfront,monthly}));options[0].upfront=3000000;
  const updated=await f.api({jobId:'job-a',baseVersion:old.item.version,basisHash:old.basisHash,requestId:'legacy-terms',costs:old.item.costs,options});assert.equal(updated.status,200);assert.equal(updated.item.options[0].total,3000000);assert.equal(updated.item.results[0].belowFloor,true);
 });
+
+test('reviewed suggestion saves and reopens on the same job without changing client quote or payment records',async()=>{
+ const {createDraftCostScenario}=await import('../draft-payment-editor.mjs');const f=fixture(),original=structuredClone(f.workspace),loaded=await f.api();
+ const editor=createDraftCostScenario('operations',loaded.budget,{options:loaded.options});editor.updatePayment('12months','upfront','1500000');editor.updatePayment('12months','monthly','200000');
+ assert.equal(f.store.rows.size,0);assert.equal(editor.read().options[1].monthly,200000);const reviewed=editor.applySuggestion('12months');assert.equal(f.store.rows.size,0);assert.equal(reviewed.estimate.rows[1].belowFloor,false);
+ const saved=await f.api(await f.body({costs:{direct:2200000,care:200000,business:250000},options:reviewed.options.map(({id,upfront,monthly})=>({id,upfront,monthly}))}));assert.equal(saved.status,200);
+ f.restart();const reopened=await f.api();assert.deepEqual(reopened.item.options,reviewed.options);assert.equal(reopened.item.results[1].belowFloor,false);assert.ok(reopened.item.results[1].margin>.26);assert.deepEqual(f.workspace,original);assert.equal(f.store.rows.size,1);
+});

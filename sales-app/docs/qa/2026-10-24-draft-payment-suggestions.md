@@ -1,0 +1,11 @@
+# Suggested draft payments
+
+Operations/Admin can review suggested draft amounts when a payment option is below the 26% before-tax floor. Suggestions keep the entered deposit/setup fee and find a higher monthly amount in UGX 10,000 steps using the existing financing, fees, loss and job-cost model. Cash suggests a single full-payment amount. The review target is 26.01% to avoid a rounded display of 26.00%; the actual quote floor is unchanged. Rental remains a first-12-month estimate, not lifetime profit.
+
+Use these amounts changes only the editor. Save draft separately persists the costs and four plans on the existing private job record. Reset restores the acknowledged save. No feasible automatic result, invalid costs/amounts or unavailable budgets cannot produce invented prices. This is not quote approval and does not update client prices, invoices or plans.
+
+594 tests passed with `node sales-app/tools/verify-portal.mjs`. New checks cover all four options × four package sizes, raw target/rounded pair, previous-step insufficiency, unchanged deposits and other options, missing/denied/invalid/healthy cases, unavailable suggestions, review/reset/acknowledgement and real-handler save/reopen with unchanged source records.
+
+Isolated actual UI and handler at port4427, fictional records only: four-camera 12-month option deposit1.5m/monthly200k was16.12%; suggestion250k monthly kept deposit, total4.5m/profit1,220,607/margin27.12%. Applied, saved and reloaded the same job with other options unchanged. Also applied/saved/reloaded 24-month suggestions on6/8/12 jobs: monthly130k/160k/200k, respective margins26.03%/27.47%/27.35%. Existing source workspace unchanged. No browser errors. Tested320/390px; fixed a demonstrated table overflow with a long negative margin. Apply moves focus to the changed payment input for review.
+
+Evidence: output/audits/draft-payment-suggestions-20261024/ with browser-readback.json, source-check.json and suggestion-phone.png. Authenticated saves use isolated fictional storage. Production save and physical Android acceptance are not claimed. Release verification follows below.

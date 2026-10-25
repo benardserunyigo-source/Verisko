@@ -233,3 +233,16 @@ Owner requested per-option deposit/monthly edits, same-job save, live profit and
 
 
 Release verified: v146 source `6765d667d54ee6844c78d8fb58e6529095ff71fb`, Netlify deploy `6add5f151b10ece423006bac` ready. Twelve asset hashes match, including unchanged current customer catalogue/calculator/PDF/client-link logic. Eight private APIs return JSON401 unsigned. Live Operations preview exposes seven fictional payment inputs, updates inline totals/profit/margins and below26% warnings, with Save disabled and no390px overflow or console errors. Evidence: output/audits/editable-draft-payments-20261024/release-readback.json, live-phone-readback.json and payment-save-phone.png. All authenticated saves used isolated fictional handlers/storage. Actual production saves and Android handset acceptance unclaimed. Final evidence-only commit stays local.
+
+
+## Edit, save and reopen payment-plan demo: 24 October 2026
+
+User requested a phone demo with one option below26%, then save/reopen. Used isolated fictional four-camera job-a, initial sample budget2.2m direct/200k care/250k business and original draft terms (all four margins above26%). Changed only the12-month deposit2m→1.5m and monthly260k→200k: total3.9m, estimated profit628,697, margin16.12%, exactly one low row. Saved, navigated away, reopened; same job, cost/payment fields, timestamp, four-option totals/profit and warning all matched. Source records/customer quote unchanged; no console errors.
+
+Evidence: output/audits/draft-payment-edit-demo-20261024/, readback.json and phone captures. Local four-step captured-screen replay on4426. No source release, real data changes or repeated suite for demo.
+
+## Suggested draft payment review: 24 October 2026
+
+Added below-floor suggestions for all four draft options and4/6/8/12 jobs. Keeps entered deposit/setup fee; recomputes monthly in10k steps with existing job costs/finance/fees. Cash suggests full amount. 26.01% review target avoids rounded26.00%; quote policy unchanged. Use these amounts only applies locally; separate Save draft persists on same private job. No customer prices, invoice/quote terms or company budget updates. Invalid/missing costs fail closed; no automatic suggestion if bounded calculation cannot meet target.
+
+594 tests pass. Isolated real-handler phone review/apply/save/reopen passed on all four sizes, deposits and other plans preserved, source workspace unchanged. 4-camera example16.12%→27.12% by monthly200k→250k while deposit1.5m stays fixed.320/390px checked, long negative margin overflow fixed, no console errors. See ../qa/2026-10-24-draft-payment-suggestions.md and output/audits/draft-payment-suggestions-20261024/. v147 prepared; exact release verification pending.

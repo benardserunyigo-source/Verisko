@@ -1083,3 +1083,9 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 .draft-term-return{font-size:14px;line-height:1.6;margin:12px 0 0;overflow-wrap:anywhere}
 .draft-term-inputs>div:not(:only-child) label{min-height:42px}
 @media(max-width:360px){.draft-term-inputs{grid-template-columns:1fr}.draft-term-inputs>div:not(:only-child) label{min-height:0}}
+
+.draft-suggestion{padding:14px;margin-top:14px;border:1px solid #a9c6e7;border-radius:12px;background:#f0f6fd;color:#182b4d}
+.draft-suggestion h4{font-size:15px;margin:0 0 8px}
+.draft-suggestion p{font-size:14px;margin:8px 0;overflow-wrap:anywhere}
+.draft-suggestion button{width:100%;min-height:48px}
+@media(max-width:440px){.draft-profit table{table-layout:fixed}.draft-profit th,.draft-profit td{white-space:normal;overflow-wrap:anywhere}}
