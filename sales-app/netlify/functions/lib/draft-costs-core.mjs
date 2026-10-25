@@ -29,18 +29,22 @@ export function createDraftCostsHandler({store,loadWorkspace,authorize,baseline,
  if(saved&&(saved.clientKey!==identity(job)||saved.optionsVersion!==versionFor(cameras)||(saved.cameras??4)!==cameras))throw fail('This job or draft comparison changed. Ask Admin to review it.',409);
  const budget=draftCostBudget('operations',saved?.budget||baseline,{cameras});
  if(!budget)throw fail('The private cost budget is unavailable. Reconnect and try again.',503);
- const basisHash=hash(budget),item=saved?{jobId,cameras,version:saved.version,costs:saved.costs,budget,options:saved.options,results:saved.results,savedAt:saved.savedAt,savedBy:saved.savedBy,optionsVersion:saved.optionsVersion}:null;
- if(request.method==='GET')return json({ok:true,item,cameras,budget,basisHash});
+ const options=draftPaymentOptions('operations',{cameras,options:saved?.options});
+ if(options.length!==4)throw fail('Saved draft payment amounts need review. Ask Admin to check this draft.',503);
+ const basisHash=hash({budget,options}),item=saved?{jobId,cameras,version:saved.version,costs:saved.costs,budget,options,results:saved.results,savedAt:saved.savedAt,savedBy:saved.savedBy,optionsVersion:saved.optionsVersion}:null;
+ if(request.method==='GET')return json({ok:true,item,cameras,budget,options,basisHash});
  if(!Number.isSafeInteger(body.baseVersion)||body.baseVersion<0||!validId(body.requestId))throw fail('Reload the saved draft before saving.');
  const costs={};for(const key of ['direct','care','business']){const n=body.costs?.[key];if(typeof n!=='number'||!Number.isSafeInteger(n)||n<0||(key==='direct'&&n===0))throw fail('Enter whole UGX amounts. Materials, delivery and crew must be above 0.');costs[key]=n;}
- const requestHash=hash([jobId,body.baseVersion,body.basisHash,costs]);
- if(saved?.requestId===body.requestId){if(saved.requestHash!==requestHash)throw fail('This save request changed. Reload the draft.',409);return json({ok:true,item,cameras,budget,basisHash});}
+ const nextOptions=draftPaymentOptions('operations',{cameras,options:body.options===undefined?options:body.options});
+ if(nextOptions.length!==4)throw fail('Enter all four draft plans in UGX 10,000 steps. Pay in full has no monthly payment; other plans need a monthly payment above 0.');
+ const requestHash=hash([jobId,body.baseVersion,body.basisHash,costs,nextOptions]);
+ if(saved?.requestId===body.requestId){if(saved.requestHash!==requestHash&&!(body.options===undefined&&saved.requestHash===hash([jobId,body.baseVersion,body.basisHash,costs])))throw fail('This save request changed. Reload the draft.',409);return json({ok:true,item,cameras,budget,options,basisHash});}
  if(body.baseVersion!==(saved?.version||0)||body.basisHash!==basisHash)throw fail('Someone changed this draft or its starting budget. Reload the draft before saving.',409);
  const nextBudget={policy:{...budget.policy,callbacks:costs.care,acquisition:0,overhead:costs.business},packages:{[cameras]:{direct:costs.direct}}};
- const estimate=draftCostEstimate('operations',nextBudget,{cameras});if(!estimate)throw fail('Costs are too large to calculate.');
- const next={jobId,cameras,clientKey:identity(job),version:(saved?.version||0)+1,costs,budget:nextBudget,options:draftPaymentOptions('operations',{cameras}),results:estimate.rows,optionsVersion:versionFor(cameras),savedAt:now(),savedBy:{id:auth.me.id,name:auth.me.name||'Operations'},requestId:body.requestId,requestHash};
+ const estimate=draftCostEstimate('operations',nextBudget,{cameras,options:nextOptions});if(!estimate)throw fail('Costs are too large to calculate.');
+ const next={jobId,cameras,clientKey:identity(job),version:(saved?.version||0)+1,costs,budget:nextBudget,options:nextOptions,results:estimate.rows,optionsVersion:versionFor(cameras),savedAt:now(),savedBy:{id:auth.me.id,name:auth.me.name||'Operations'},requestId:body.requestId,requestHash};
  const written=await store.setJSON('jobs/'+jobId,next,saved?{onlyIfMatch:old.etag}:{onlyIfNew:true});
  if(!written.modified)throw fail('Someone saved another change. Reload the draft before saving.',409);
  const {clientKey,requestHash:ignoreHash,requestId:ignoreId,...out}=next;
- return json({ok:true,item:out,cameras,budget:nextBudget,basisHash:hash(nextBudget)});
- }catch(e){return json({ok:false,error:e.status?e.message:'Could not save draft costs. Try again.'},e.status||500);}};}
+ return json({ok:true,item:out,cameras,budget:nextBudget,options:nextOptions,basisHash:hash({budget:nextBudget,options:nextOptions})});
+ }catch(e){return json({ok:false,error:e.status?e.message:'Could not save the draft. Try again.'},e.status||500);}};}

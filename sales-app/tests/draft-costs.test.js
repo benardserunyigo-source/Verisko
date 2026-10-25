@@ -74,3 +74,30 @@ test('a missing larger-package budget never substitutes four-camera costs or fic
  const handler=createDraftCostsHandler({store:new FieldMemoryStore(),loadWorkspace:async()=>({jobs:[{id:'j',cameraCount:12}]}),authorize:async()=>({me:{id:'ops',role:'operations'}}),baseline:{...baseline,packages:{4:baseline.packages[4]}}});
  const r=await handler(new Request('https://test.local/api/draft-costs?jobId=j'));assert.equal(r.status,503);assert.equal((await r.json()).budget,undefined);
 });
+
+test('edited payments and costs save together on each job and reopen with server-calculated profit',async()=>{
+ const f=fixture(),original=structuredClone(f.workspace);
+ for(const [jobId,cameras] of [['job-a',4],['job-six',6],['job-eight',8],['job-twelve',12]]){
+  const first=await f.api(null,'operations',jobId),options=draftPaymentOptions('operations',{cameras}).map(({id,upfront,monthly})=>({id,upfront,monthly}));options[0].upfront-=100000;options[1].upfront=0;options[1].monthly=10000;options[2].monthly+=10000;options[3].upfront=500000;
+  const request={jobId,baseVersion:0,basisHash:first.basisHash,requestId:'terms-'+cameras,costs:{direct:2200000*cameras/4,care:200000,business:250000},options};
+  const saved=await f.api(request);assert.equal(saved.status,200);assert.equal(saved.item.options[1].upfront,0);assert.equal(saved.item.options[1].monthly,10000);assert.equal(saved.item.results[1].belowFloor,true);assert.deepEqual(saved.item.results,draftCostEstimate('operations',saved.item.budget,{cameras,options:saved.item.options}).rows);assert.deepEqual((await f.api(request)).item,saved.item);
+  f.restart();assert.deepEqual((await f.api(null,'admin',jobId)).item,saved.item);
+  const stale=await f.api({...request,requestId:'stale-'+cameras,options:options.map(p=>({...p,upfront:p.upfront+10000}))});assert.equal(stale.status,409);
+  const next=await f.api(null,'operations',jobId);const oldClient=await f.api({jobId,baseVersion:next.item.version,basisHash:next.basisHash,requestId:'cost-only-'+cameras,costs:{direct:2500000*cameras/4,care:210000,business:250000}});assert.equal(oldClient.status,200);assert.deepEqual(oldClient.item.options,saved.item.options);
+ }
+ assert.deepEqual(f.workspace,original);assert.equal(f.store.rows.size,4);
+});
+test('invalid or forged payment plans cannot be saved or alter any existing private draft',async()=>{
+ const f=fixture(),first=await f.body();await f.api(first);const base=await f.body({requestId:'edit-terms'}),source=draftPaymentOptions('operations').map(({id,upfront,monthly})=>({id,upfront,monthly})),before=structuredClone([...f.store.rows]);
+ const invalid=[null,[],source.slice(1),[source[0],source[0],source[2],source[3]]];
+ for(const patch of [{monthly:-10000},{upfront:5000},{monthly:'10000'},{monthly:0},{months:120},{owns:false},{total:999999},{id:'bad'}]){const options=structuredClone(source);Object.assign(options[1],patch);invalid.push(options);}
+ for(const options of invalid)assert.equal((await f.api({...base,options})).status,400);
+ for(const role of ['sales','teamlead','installer',''])assert.equal((await f.api({...base,options:source},role)).status,role?403:401);
+ assert.deepEqual([...f.store.rows],before);
+});
+test('legacy cost-only saves keep their stored payment snapshot and can accept an edited plan',async()=>{
+ const f=fixture(),a=await f.api(await f.body());delete f.store.rows.get('jobs/job-a').data.cameras;
+ const old=await f.api();assert.deepEqual(old.item.options,a.item.options);assert.deepEqual(old.item.results,a.item.results);
+ const options=old.item.options.map(({id,upfront,monthly})=>({id,upfront,monthly}));options[0].upfront=3000000;
+ const updated=await f.api({jobId:'job-a',baseVersion:old.item.version,basisHash:old.basisHash,requestId:'legacy-terms',costs:old.item.costs,options});assert.equal(updated.status,200);assert.equal(updated.item.options[0].total,3000000);assert.equal(updated.item.results[0].belowFloor,true);
+});

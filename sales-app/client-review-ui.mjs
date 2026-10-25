@@ -1,4 +1,4 @@
-import {canReviewClient} from './client-review.mjs?v=145';
+import {canReviewClient} from './client-review.mjs?v=146';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels={cameras:'All cameras show the agreed areas',tested:'Recording and playback shown',remote:'Phone viewing set up',trained:'Client shown how to use the system',credentials:'Login and warranty given to the client'};
 const input=(key,label,value='',type='text')=>'<label class="review-field">'+label+'<input name="'+key+'" type="'+type+'" value="'+esc(value)+'" maxlength="1000" required></label>';

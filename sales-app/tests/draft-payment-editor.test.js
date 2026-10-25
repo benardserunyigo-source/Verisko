@@ -51,3 +51,18 @@ test('each camera package edits and resets only its own costs, keeping terms fix
  }
  assert.equal(createDraftCostScenario('operations',pricing,{cameras:12}).read().available,false);
 });
+
+test('payment edits update profits, reset to acknowledged terms, and do not change other job scenarios',()=>{
+ for(const cameras of [4,6,8,12]){
+  const budget={...pricing,packages:{[cameras]:{direct:2200000*cameras/4}}},a=createDraftCostScenario('operations',budget,{cameras}),b=createDraftCostScenario('operations',budget,{cameras}),start=a.read();
+  a.updatePayment('12months','upfront','0');const lower=a.updatePayment('12months','monthly','10000');assert.equal(lower.estimate.rows[1].belowFloor,true);assert.ok(lower.estimate.rows[1].financing>start.estimate.rows[1].financing);assert.equal(lower.options[1].total,120000);assert.deepEqual(b.read(),start);
+  a.accept(lower.budget,lower.options);a.updatePayment('12months','monthly','999999');assert.ok(a.read().paymentErrors['12months-monthly']);assert.equal(a.read().estimate,null);assert.equal(a.reset().options[1].monthly,10000);assert.equal(a.read().options[1].upfront,0);
+  assert.deepEqual(a.updatePayment('fake','upfront','1'),a.read());
+ }
+});
+test('blank and malformed payment fields hide totals and profit until fixed',()=>{
+ for(const value of ['', ' ', '-10000','1.5','1e6','5,00,000','1000','5000','Infinity','9007199254740992']){
+  const s=createDraftCostScenario('operations',pricing),r=s.updatePayment('12months','monthly',value);assert.equal(r.estimate,null);assert.equal(r.options,null);assert.ok(r.paymentErrors['12months-monthly']);
+  const html=draftComparisonHtml('operations',{pricing,scenario:r.budget,planError:true});assert.match(html,/Check the draft payment amounts/);assert.doesNotMatch(html,/35.94%|5,120,000/);assert.ok(s.updatePayment('12months','monthly','260000').estimate);
+ }
+});

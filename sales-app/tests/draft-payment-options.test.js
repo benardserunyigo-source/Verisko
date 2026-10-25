@@ -72,3 +72,27 @@ test('4, 6, 8 and 12-camera draft comparisons keep the four-camera terms and rou
  for(const cameras of [0,5,7,9,16,NaN,'6']){assert.deepEqual(draftPaymentOptions('operations',{cameras}),[]);assert.equal(draftCostEstimate('operations',sampleBudget,{cameras,preview:true}),null);}
  assert.deepEqual(sampleBudget,original);assert.equal(draftCostEstimate('operations',sampleBudget,{cameras:6}),null);
 });
+
+test('edited payment amounts drive total, fees, loss reserve and financing for every plan',()=>{
+ const options=[{id:'cash',upfront:3000000,monthly:0},{id:'12months',upfront:1000000,monthly:200000},{id:'24months',upfront:0,monthly:250000},{id:'rental',upfront:500000,monthly:200000}];
+ const plans=draftPaymentOptions('operations',{options}),estimate=draftCostEstimate('operations',sampleBudget,{options}),base=2870000;
+ assert.deepEqual(plans.map(p=>p.total),[3000000,3400000,6000000,2900000]);
+ for(const [i,p] of plans.entries()){
+  const loss=(p.total-p.upfront)*(i===2?.06:p.months?.03:0);let cash=-base,finance=0;
+  if(p.months){finance=base*.02;cash-=finance;cash+=p.upfront*.97-loss;for(let m=0;m<p.months;m++){const interest=Math.max(0,-cash)*.02;finance+=interest;cash+=p.monthly*.97-interest;}}
+  const r=estimate.rows[i];assert.equal(r.cost,Math.round(base+p.total*.03+loss+finance));assert.equal(r.profit,p.total-r.cost);assert.equal(r.belowFloor,r.margin<.26);
+ }
+ assert.equal(estimate.rows[0].belowFloor,true);assert.equal(estimate.rows[1].belowFloor,true);assert.equal(estimate.rows[3].belowFloor,true);
+ const html=draftComparisonHtml('operations',{pricing:sampleBudget,options});assert.match(html,/3,400,000/);assert.match(html,/Pay in full: Below 26%/);assert.equal(draftPaymentOptions('operations')[0].total,4700000);
+});
+test('invalid payments cannot change plan length, ownership, totals or billing increments',()=>{
+ const source=draftPaymentOptions('operations').map(({id,upfront,monthly})=>({id,upfront,monthly}));
+ for(const value of [null,[],[...source,source[0]],source.slice(1),source.map(()=>source[0])])assert.deepEqual(draftPaymentOptions('operations',{options:value}),[]);
+ for(const field of ['upfront','monthly'])for(const bad of [-10000,5000,1000,1.5,'2000000',NaN,Infinity,Number.MAX_SAFE_INTEGER+1]){
+  const options=structuredClone(source);options[1][field]=bad;assert.deepEqual(draftPaymentOptions('operations',{options}),[]);assert.equal(draftCostEstimate('operations',sampleBudget,{options}),null);
+ }
+ for(const patch of [{months:1},{owns:false},{total:1},{id:'unknown'}]){const options=structuredClone(source);Object.assign(options[1],patch);assert.deepEqual(draftPaymentOptions('operations',{options}),[]);}
+ const cashMonthly=structuredClone(source);cashMonthly[0].monthly=10000;assert.deepEqual(draftPaymentOptions('operations',{options:cashMonthly}),[]);
+ const zeroMonthly=structuredClone(source);zeroMonthly[1].monthly=0;assert.deepEqual(draftPaymentOptions('operations',{options:zeroMonthly}),[]);
+ const zeroCash=structuredClone(source);zeroCash[0].upfront=0;assert.deepEqual(draftPaymentOptions('operations',{options:zeroCash}),[]);
+});

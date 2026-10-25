@@ -216,3 +216,17 @@ Owner requested 4/6/8/12-camera saved cost comparisons, current customer pricing
 
 
 Release verified: v145 source `d70f1bddef1356da3acc924026542aa757535e9d`, Netlify deploy `6add576be0d1eb6090e79050` ready. Twelve current asset hashes match; existing customer catalogue/calculator/PDF/client-link logic remains unchanged. Eight private APIs deny unsigned requests with JSON401. Live Operations preview selected all four camera sizes, each with four profit rows, disabled preview Save and no 390px overflow; no console errors. Evidence in output/audits/draft-all-packages-20261024/release-readback.json and live-phone-readback.json. Authenticated save/reopen verified in isolated real handlers/browser with fictional data, not on real production clients. Physical Android acceptance still pending. Final evidence-only commit stays local.
+
+
+## Four-job saved-cost phone demo: 24 October 2026
+
+User requested switching among 4/6/8/12-camera jobs, saving distinct costs, then returning. In isolated actual UI/backend, saved direct/care/business: 4 cameras 2,630,000/200,000/250,000; 6 cameras 3,200,000/220,000/270,000; 8 cameras 4,400,000/240,000/290,000; 12 cameras 6,400,000/280,000/330,000. Navigated away, reopened and checked all four jobs in reverse order. Job IDs, three fields, saved timestamps, four profit rows and payment amounts matched exactly. Source records unchanged, no console errors.
+
+Actual 390px phone captures saved under output/audits/draft-package-switch-demo-20261024/ with readback.json and source-check.json. Local replay on 4424 lets the user select each camera size and Saved/Came back, then scroll through four plans and profit. Screens are clearly marked fictional demo captures. No app source change, real records, customer price change, new deployment or repeated full suite.
+
+
+## Editable saved draft payment amounts: 24 October 2026
+
+Owner requested per-option deposit/monthly edits, same-job save, live profit and below26% flags while customer pricing stays unchanged. Added one cash total and paired deposit/monthly fields for other plans, UGX10,000 validation, inline total/profit/margin, same-job atomic costs+options save/reset, fixed plan length/ownership and independent server recomputation. Legacy cost-only saves preserve stored terms; retry/conflict protections remain. Public preview edits are fictional with Save disabled.
+
+590 tests pass. Isolated real-handler phone checks covered all four edits, save/reopen, care edit with terms, 6/8/12 custom plan persistence, invalid/step validation, reset and stale-session rejection/reload. Source records unchanged. 320/390px inspected with stacked/aligned fields and no overflow/errors. See ../qa/2026-10-24-editable-draft-payments.md. v146 prepared; release pending. No real client records, agreed prices, account access or production save/physical Android acceptance changed or claimed.
