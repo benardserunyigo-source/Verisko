@@ -3,6 +3,11 @@
   functions = "netlify/functions"
 
 [[redirects]]
+  from = "/api/inventory"
+  to = "/.netlify/functions/inventory"
+  status = 200
+
+[[redirects]]
   from = "/api/sales-prices"
   to = "/.netlify/functions/sales-prices"
   status = 200

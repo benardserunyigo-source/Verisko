@@ -75,3 +75,7 @@ Operations/Admin can save package prices for30days; Sales receives the active li
 ## Approved saved client plans
 
 Operations/Admin can now approve a client’s selected saved cash/12/24/rental option on the same job. This is an explicit commercial approval, with one reviewed first-payment date and canonical automatic amounts/calendar schedule. The private client-plan record is authoritative; readers project it onto the existing job and server quote guards preserve it. Prior receipts remain once-only, and Owner funding/receipt approval, installation review and joint client handover remain separate. An approved agreement does not expire when its public link is turned off or expires. Revised scope/terms need a separate reviewed quote; never silently reprice an approved plan.
+
+## Inventory and material reviews
+
+Operations/Admin manage private stock counts, material unit costs and supplier quotes in Inventory. Check stock and price independently every30days; retain overdue prices with a clear warning until a person checks them. Starting stock is unknown until a warehouse count. Derive later movements from existing job arrivals/site issues/usable returns, not a second editable movement ledger. Historical job unit-cost snapshots remain fixed. Inventory costs do not automatically overwrite the approved package budget, Sales offers or client agreements. The inventory balance does not reserve or allocate stock to a new job; job material readiness still follows its existing order/arrival workflow.

@@ -35,3 +35,5 @@ test('Operations and Team Lead open visit requests first under Contacts, with no
 });
 
 test('job summaries are Operations/Admin only and keep the four main buttons',()=>{for(const role of ['operations','admin']){assert.equal(nav.first(role,'work'),'jobsummary');assert.equal(nav.allowed(role,'jobsummary'),true);}for(const role of ['sales','teamlead','installer'])assert.equal(nav.allowed(role,'jobsummary'),false);});
+
+test('inventory is an office-only sub-page without adding primary buttons',()=>{for(const role of ['operations','admin']){assert.equal(nav.allowed(role,'inventory'),true);assert.equal(nav.group(role,'inventory'),'work');assert.equal(nav.sections(role).length,4);}for(const role of ['sales','teamlead','installer'])assert.equal(nav.allowed(role,'inventory'),false);});

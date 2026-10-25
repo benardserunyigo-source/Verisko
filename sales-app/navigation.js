@@ -14,6 +14,7 @@
   {id:'jobsummary',section:'work',label:'Job summaries',roles:office},
   {id:'visits',section:'work',label:'Site visits',roles:staff},
   {id:'installwork',section:'work',label:'Installations',roles:['admin','operations','teamlead','installer'],badge:'installerBadge'},
+  {id:'inventory',section:'work',label:'Inventory',roles:office},
   {id:'materials',section:'work',label:'Materials & buying',roles:office},
   {id:'jobs',section:'work',label:'Job records',roles:office},
   {id:'more',section:'more',label:'Tools & help',roles:staff.concat('installer')},

@@ -1,3 +1,4 @@
+/api/inventory /.netlify/functions/inventory 200
 /api/sales-prices /.netlify/functions/sales-prices 200
 /api/draft-costs /.netlify/functions/draft-costs 200
 /api/client-plan /.netlify/functions/client-plan 200

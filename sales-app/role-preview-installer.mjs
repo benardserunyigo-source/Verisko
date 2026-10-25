@@ -1,5 +1,5 @@
-import {seedDemo,sampleDemoImage,demoActors} from './installer-demo.mjs?v=153';
-import {installerJobView} from './installer-model.mjs?v=153';
+import {seedDemo,sampleDemoImage,demoActors} from './installer-demo.mjs?v=154';
+import {installerJobView} from './installer-model.mjs?v=154';
 // A read-only in-memory client uses the same installer screen and role projection.
 export function previewInstallerClient(context){
  const image=sampleDemoImage(),[ops,installer]=demoActors('role-preview');

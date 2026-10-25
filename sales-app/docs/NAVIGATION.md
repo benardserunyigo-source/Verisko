@@ -34,3 +34,7 @@ The draft comparison adds estimated cost of doing the job, profit before tax and
 ## Edit draft costs (v142)
 
 Operations/Admin can change three totals on Draft payment options and see all four cost/profit/margin estimates update. Saved assumptions stay fixed. Below 26% is flagged; invalid fields hide estimates. Use saved costs restores the starting budget. Edits stay on this page only and disappear when leaving or reloading; no customer price, shared budget or job record is saved. Fictional role preview allows these local calculator controls only, with sample costs and no writes.
+
+## Inventory (v154)
+
+Operations/Admin: **Jobs → Inventory**, also under Home → Other work. Search by item, or choose Needs a check. Open an item to Check stock, Update cost or Add supplier quote. Movement, quote and change history expand below. Stock and price checks each have a30-day due date; overdue means review is needed, not that a price changes automatically. Job materials & buying reuses these item names/units. Record order fills the saved supplier, cost, currency and quote link when the buying country matches. Staff confirm the actual order price; earlier orders remain unchanged. The four primary buttons and other roles' pages stay unchanged.
