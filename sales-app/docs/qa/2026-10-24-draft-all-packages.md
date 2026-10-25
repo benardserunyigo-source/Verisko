@@ -17,4 +17,4 @@ The separate private record stores the actual camera count, selected package bud
 - Twelve-camera high-cost scenario marked all four rows below 26%; reset restored saved costs. Public Operations preview has all four sizes with Save disabled; each shows four profit rows. No console errors. 390px and 320px have no document overflow, selector is 48px high.
 - Evidence: output/audits/draft-all-packages-20261024/ (tests.log, server.mjs, browser-readback.json, store-readback.json, 12-camera-options-phone.png, 12-camera-profit-phone.png). Fictional data only.
 
-Release verification pending. No authenticated production save or physical Android acceptance claimed.
+Release verified: v145 d70f1bddef1356da3acc924026542aa757535e9d; Netlify 6add576be0d1eb6090e79050 ready. Twelve asset hashes match; eight private APIs return JSON401 unsigned. Live Operations preview confirms all four sizes, four rows each, disabled preview Save, no overflow and no console errors. No authenticated production save or physical Android acceptance claimed.
