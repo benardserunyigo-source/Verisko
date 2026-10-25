@@ -23,9 +23,10 @@ export function validateQuotes(stored, incoming, isAdmin, email, now = new Date(
   const previous = new Map((stored || []).map(j => [j.id,j]));
   const records = [...(incoming || [])];
   const ids = new Set(records.map(j=>j.id));
-  for(const j of stored || []) if(won(j.stage) && !ids.has(j.id)) records.push(j);
+  for(const j of stored || []) if((won(j.stage)||j.clientPlanApproval) && !ids.has(j.id)) records.push(j);
   return records.map(job => {
     const prev = previous.get(job.id);
+    if(!prev?.clientPlanApproval&&job.clientPlanApproval){job={...job};delete job.clientPlanApproval;}
     // Keep a saved client acceptance on stale device saves. Do not manufacture
     // acceptance from installer/staff approval, or accept browser attribution.
     if(prev?.clientHandover?.recordedAt){
@@ -47,6 +48,21 @@ export function validateQuotes(stored, incoming, isAdmin, email, now = new Date(
       if(care.handoverErrors(job).length) throw new Error(care.handoverErrors(job).join(' '));
       if(job.serviceStartDate>handoverDay) throw new Error('The actual installation date cannot be in the future at handover.');
       if(prev?.stage==='Handed over' && prev.serviceStartDate!==job.serviceStartDate && !isAdmin) throw new Error('The Owner must correct an already handed-over care start date.');
+    }
+    if(prev?.clientPlanApproval){
+      if(!job.clientPlanApproval)job={...job,paymentPlan:prev.paymentPlan};
+      if(prev.prospectId!==job.prospectId||prev.business!==job.business||prev.ref!==job.ref)throw new Error('Keep the approved plan on the same client and job.');
+      if(signature(prev)!==signature(job))throw new Error('The client plan is approved. Keep its saved equipment and prices.');
+      const a=prev.clientPlanApproval,total=prev.quotedTotal,cost=prev.quoteSnapshot.costOfDoingBusiness;
+      const fundingKey=JSON.stringify([VERSION,total,cost,'client-plan:'+a.id,job.scheduledDate||'']);
+      const prior=prev.fundingApprovedKey===fundingKey&&!!prev.fundingApprovedBy;
+      const funded=prior||(isAdmin&&job.fundingConfirmed===true);
+      if(won(job.stage)&&!job.scheduledDate)throw new Error('Set the installation date before accepting this job.');
+      if(won(job.stage)&&a.offer.months&&!funded)throw new Error('The Owner must confirm funding before accepting this financed job.');
+      return {...job,clientPlanApproval:a,quoteSnapshot:prev.quoteSnapshot,quotedTotal:prev.quotedTotal,paymentSchedule:prev.paymentSchedule,
+        quotedAt:prev.quotedAt,validUntil:prev.validUntil,pricingVerifiedAt:prev.pricingVerifiedAt,
+        costApprovalKey:prev.costApprovalKey,costApprovedBy:prev.costApprovedBy,costApprovedAt:prev.costApprovedAt,
+        fundingConfirmed:funded,fundingApprovedKey:funded?fundingKey:'',fundingApprovedBy:funded?(prior?prev.fundingApprovedBy:email):'',careSchedule:care.schedule(job)};
     }
     // Old agreed records are immutable commercially; lifecycle updates continue.
     if(prev && won(prev.stage)) {

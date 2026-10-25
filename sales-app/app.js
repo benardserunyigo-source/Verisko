@@ -70,6 +70,7 @@
 
   // Turn a saved quote's inputs into every derived figure. Pure — easy to test.
   function computeQuote(q) {
+    if(q.clientPlanApproval&&q.quoteSnapshot)return q.quoteSnapshot;
     if (q.quoteSnapshot && q.pricingVersion && q.pricingVersion !== window.VeriskoPricing.VERSION && q.quoteSnapshot.pricingVersion === q.pricingVersion) return q.quoteSnapshot;
     if (!q.renewQuote && (jobIsDelivery(q.stage) || q.stage === 'Sent') && q.pricingVerifiedAt && q.quoteSnapshot) return q.quoteSnapshot;
     if (q.pricingVersion && (!window.VeriskoPricing || q.pricingVersion !== window.VeriskoPricing.VERSION)) return { pricingVersion: q.pricingVersion, custom: true, pts: 0, tier: 'Simple', cash: 0, lines: [], errors: ['Pricing is unavailable. Reconnect and refresh before quoting.'] };
@@ -110,6 +111,7 @@
   // manual finalPrice only for custom (12+ cam) or an explicit admin override.
   function jobValue(job) {
     if (!job) return 0;
+    if(job.clientPlanApproval)return Number(job.quotedTotal)||0;
     var r = computeQuote(job);
     if (r.custom || job.priceOverride) return Math.max(0, Math.round(Number(job.finalPrice) || 0));
     return r.cash;
@@ -454,10 +456,10 @@
   var pendingInstallationId='';
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=152');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=153');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=152');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=153');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({initialJobId:pendingInstallationId,previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
       pendingInstallationId='';
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
@@ -531,15 +533,15 @@
   }
   async function renderReadyQueue(){
     var id=settings.user.id;setHead('Contacts','Visit requests','Loading contacts…','',false);content.innerHTML='<p role="status">Loading contacts…</p>';
-    try{var m=await import('./ready-leads-ui.mjs?v=152');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,initialFilter:pendingReadyFilter||undefined,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});pendingReadyFilter='';}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
+    try{var m=await import('./ready-leads-ui.mjs?v=153');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,initialFilter:pendingReadyFilter||undefined,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});pendingReadyFilter='';}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
   }
   async function renderJobSummaries(){
     var id=settings.user.id;setHead('Jobs','Job summaries','Progress, payments and what is left to do.','',false);content.innerHTML='<p role="status">Loading job summaries…</p>';
-    try{var m=await import('./job-summary.mjs?v=152');if(view!=='jobsummary'||settings.user?.id!==id)return;readyMounted=m.mountJobSummaries({host:content,user:settings.user,api:readyApi,isCurrent:function(){return view==='jobsummary'&&settings.user?.id===id&&!document.body.classList.contains('locked');},quoteValue:jobValue,onInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},onRecord:function(jobId){openForm('job',jobId);},onDraftCosts:function(jobId){pendingDraftJobId=jobId;view='draftplans';render();},onMaterials:function(choice){pendingMaterialChoice=choice;view='materials';render();}});}catch(e){if(view==='jobsummary'&&settings.user?.id===id)content.innerHTML='<p role="alert">'+esc(e.message)+'</p>';}
+    try{var m=await import('./job-summary.mjs?v=153');if(view!=='jobsummary'||settings.user?.id!==id)return;readyMounted=m.mountJobSummaries({host:content,user:settings.user,api:readyApi,isCurrent:function(){return view==='jobsummary'&&settings.user?.id===id&&!document.body.classList.contains('locked');},quoteValue:jobValue,onInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},onRecord:function(jobId){openForm('job',jobId);},onDraftCosts:function(jobId){pendingDraftJobId=jobId;view='draftplans';render();},onMaterials:function(choice){pendingMaterialChoice=choice;view='materials';render();}});}catch(e){if(view==='jobsummary'&&settings.user?.id===id)content.innerHTML='<p role="alert">'+esc(e.message)+'</p>';}
   }
   async function renderMaterials(){
     var id=settings.user.id;setHead('Jobs','Materials & buying','Use the paid client’s details. Plan, request buying, then record orders and deliveries.','',false);content.innerHTML='<p role="status">Loading paid jobs…</p>';
-    try{var m=await import('./materials-ui.mjs?v=152');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,initialSelected:pendingMaterialChoice,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});pendingMaterialChoice=null;}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
+    try{var m=await import('./materials-ui.mjs?v=153');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,initialSelected:pendingMaterialChoice,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});pendingMaterialChoice=null;}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
   }
   setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
@@ -574,7 +576,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=152'), import('./field-shifts-ui.mjs?v=152'), import('./field-shifts-android.mjs?v=152')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=153'), import('./field-shifts-ui.mjs?v=153'), import('./field-shifts-android.mjs?v=153')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -607,14 +609,14 @@
     setHead('Internal review','Draft payment options','Choose a job. Compare its draft costs and four ways to pay.','',false);
     content.innerHTML='<p role="status">Loading draft options…</p>';
     var userId=settings.user.id,generation=sessionGeneration;
-    try{var m=await import('./draft-cost-workspace.mjs?v=152');var current=function(){return view==='draftplans'&&settings.user?.id===userId&&['admin','operations'].includes(settings.user?.role)&&sessionGeneration===generation&&!document.body.classList.contains('locked');};if(current()){readyMounted=m.mountDraftCostWorkspace({host:content,user:settings.user,pricing:window.VeriskoPricing,jobs:state.jobs||[],initialJobId:pendingDraftJobId,onClientLink:function(source){shareQuote(source.jobId,source);},onUseSales:function(source){pendingSalesDraft=source;view='salesprices';render();},api:readyApi,preview:!!rolePreview,isCurrent:current});pendingDraftJobId='';}}
+    try{var m=await import('./draft-cost-workspace.mjs?v=153');var current=function(){return view==='draftplans'&&settings.user?.id===userId&&['admin','operations'].includes(settings.user?.role)&&sessionGeneration===generation&&!document.body.classList.contains('locked');};if(current()){readyMounted=m.mountDraftCostWorkspace({host:content,user:settings.user,pricing:window.VeriskoPricing,jobs:state.jobs||[],initialJobId:pendingDraftJobId,onClientLink:function(source){shareQuote(source.jobId,source);},onUseSales:function(source){pendingSalesDraft=source;view='salesprices';render();},api:readyApi,preview:!!rolePreview,isCurrent:current});pendingDraftJobId='';}}
     catch(e){if(view==='draftplans'&&settings.user?.id===userId&&sessionGeneration===generation)content.innerHTML='<p role="alert">Could not load draft options. Refresh and try again.</p>';}
   }
   async function renderSalesPriceEditor(){
     if(!['admin','operations'].includes(settings.user?.role))return;
     setHead('Price list','Sales prices','Set prices for the next 30 days.','',false);content.innerHTML='<p role="status">Loading…</p>';
     var id=settings.user.id,generation=sessionGeneration;
-    try{var m=await import('./sales-prices-ui.mjs?v=152');var current=()=>view==='salesprices'&&settings.user?.id===id&&generation===sessionGeneration;if(current())readyMounted=m.mountSalesPrices({host:content,user:settings.user,api:readyApi,jobs:state.jobs||[],initialSource:pendingSalesDraft,onPublished:function(){return loadShared(current);},preview:!!rolePreview,isCurrent:current});pendingSalesDraft=null;}catch(e){if(view==='salesprices')content.textContent='Could not load prices. Refresh and try again.';}
+    try{var m=await import('./sales-prices-ui.mjs?v=153');var current=()=>view==='salesprices'&&settings.user?.id===id&&generation===sessionGeneration;if(current())readyMounted=m.mountSalesPrices({host:content,user:settings.user,api:readyApi,jobs:state.jobs||[],initialSource:pendingSalesDraft,onPublished:function(){return loadShared(current);},preview:!!rolePreview,isCurrent:current});pendingSalesDraft=null;}catch(e){if(view==='salesprices')content.textContent='Could not load prices. Refresh and try again.';}
   }
   var salesPriceStatus=null;
   function renderPackagePrices() {
@@ -680,7 +682,7 @@
   async function mountTeamWork(){
     var host=document.getElementById('activeWorkDashboard'),person=settings.user?.id,generation=sessionGeneration;if(!host)return;
     var current=function(){return settings.user?.id===person&&sessionGeneration===generation&&view==='today'&&host.isConnected&&!document.body.classList.contains('locked');};
-    try{var m=await import('./active-work-ui.mjs?v=152');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
+    try{var m=await import('./active-work-ui.mjs?v=153');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
   }
   /* --------------------------------- TODAY ---------------------------------- */
   function renderToday() {
@@ -1554,8 +1556,8 @@
 
   function costReviewFieldsHtml(source) {
     return '<input id="f_salesPriceVersion" type="hidden" value="'+(salesPriceStatus?.status==='active'?salesPriceStatus.version:source.salesPriceVersion||0)+'"><div class="field full"><label for="f_targetMargin">Profit before tax (%)</label><input id="f_targetMargin" class="quote-input" type="number" inputmode="decimal" min="26" max="50" step="1" value="'+esc(source.targetMargin==null?30:Math.round(source.targetMargin*100))+'"><p class="helper">Choose 26 to 50. The quote covers job costs first.</p></div><div class="field full"><label for="f_costEvidence">Cost evidence / supplier quote and survey reference</label><textarea id="f_costEvidence" class="quote-input" placeholder="Paste folder / quote links and record measured routes, freight weight, crew scope and overhead checks">'+esc(source.costEvidence || '')+'</textarea><label class="chk-item"><input id="f_costConfirmed" type="checkbox" class="quote-input"'+(source.costConfirmed?' checked':'')+'><span>Costs and site scope checked. The mini PC, 12-month callbacks/monitoring and 2-year fault warranty fit within the existing callback allowance. Commission / visit pay are in overhead; add-on costs are separate.</span></label><p class="helper">UGX 4,300/USD. Selected profit target, 26% minimum. Seven-day quote validity. Prices exclude separately applicable VAT; confirm tax treatment before issuing a tax invoice.</p></div>'+
-      '<div class="field full"><label for="f_paymentPlan">Agreed payment plan</label><select id="f_paymentPlan" class="quote-input"><option value="installments"'+(source.paymentPlan!=='cash'?' selected':'')+'>3 months: 40% installation / 30% day 30 / balance day 60</option><option value="cash"'+(source.paymentPlan==='cash'?' selected':'')+'>60% before installation / 40% completion</option></select></div>'+
-      (isAdmin()?'<div class="field full"><label class="chk-item"><input id="f_fundingConfirmed" type="checkbox" class="quote-input"'+(source.fundingConfirmed?' checked':'')+'><span>I have reviewed available cash and open installments, and approve funding this job.</span></label></div>':'<p class="helper">The Owner confirms available funding before a financed job is accepted.</p>');
+      (source.clientPlanApproval?'<div class="field full"><p><strong>Approved client plan: '+esc(source.clientPlanApproval.offer.title)+'</strong></p><p>First payment: '+esc(source.clientPlanApproval.startDate)+'. Saved amounts and dates are locked.</p></div>':'<div class="field full"><label for="f_paymentPlan">Agreed payment plan</label><select id="f_paymentPlan" class="quote-input"><option value="installments"'+(source.paymentPlan!=='cash'?' selected':'')+'>3 months: 40% installation / 30% day 30 / balance day 60</option><option value="cash"'+(source.paymentPlan==='cash'?' selected':'')+'>60% before installation / 40% completion</option></select></div>')+
+      (isAdmin()&&!source.clientPlanApproval?'<div class="field full"><label class="chk-item"><input id="f_fundingConfirmed" type="checkbox" class="quote-input"'+(source.fundingConfirmed?' checked':'')+'><span>I have reviewed available cash and open installments, and approve funding this job.</span></label></div>':'<p class="helper">The Owner confirms available funding before a financed job is accepted.</p>');
   }
 
   function careSetupFieldsHtml(source) {
@@ -1619,13 +1621,16 @@
       ['extraMaterialsCost','extraCrewCost','extraAccessTravelCost'].forEach(function(k){var el=document.getElementById('f_'+k);inputs[k]=el?el.value:'';});
       inputs.crewApprovalKey = saved.crewApprovalKey || '';
     }
-    if (jobIsDelivery(saved.stage)) {
+    if (jobIsDelivery(saved.stage)||saved.clientPlanApproval) {
+      if(saved.clientPlanApproval)inputs.clientPlanApproval=saved.clientPlanApproval;
       inputs.quoteSnapshot=saved.quoteSnapshot; inputs.pricingVerifiedAt=saved.pricingVerifiedAt;
       ['pricingVersion','cameraCount','installationType','rubric','addons','zone','discountPct','priceOverride','finalPrice','directCost','extraCost','extraMaterialsCost','extraCrewCost','extraAccessTravelCost','addonCosts','costConfirmed','costEvidence','paymentPlan','servicePolicyVersion','targetMargin','salesPriceVersion'].forEach(function(k){inputs[k]=saved[k];});
     }
     return inputs;
   }
   function quoteSummaryHtml(r) {
+    if(r.clientPlan)return '<div class="pay-summary"><div class="pay-line pay-grand"><span>'+esc(r.totalLabel||'Total paid')+'</span><strong>'+money(r.cash)+'</strong></div><div class="pay-line"><span>Cost of doing the job</span><strong>'+money(r.costOfDoingBusiness)+'</strong></div><div class="pay-line"><span>Profit before tax</span><strong>'+money(r.netProfit)+' · '+(r.margin*100).toFixed(2)+'%</strong></div></div><h3>'+esc(r.clientPlan.title)+'</h3>'+r.paymentSchedule.map(function(x){return '<p>'+esc(x.label+' · '+x.due)+' · '+money(x.amount)+'</p>';}).join('')+'<p class="helper">'+(r.clientPlan.owns?'Client owns the equipment after full payment.':'Verisko owns the equipment. First 12 months shown; rent keeps going.')+'</p>';
+
     if (r.pricingVersion) {
       var cashPlan = r.paymentPlan === 'cash';
       var careScope = r.servicePolicyVersion ? 'the existing callback allowance (on-site mini PC, 12-month callbacks/status monitoring and 24-month camera/cable fault warranty)' : 'callbacks and aftercare';
@@ -1708,7 +1713,7 @@
     if ((r.errors || []).length) { showFormError(r.errors.join(" ")); return; }
     if (r.pricingVersion === window.VeriskoPricing.VERSION && data.stage !== 'Draft' && (r.releaseErrors || []).length) { showFormError(r.releaseErrors.join(' ')); return; }
     if (jobIsDelivery(data.stage) && !jobIsDelivery(existing.stage) && inputs.pricingVersion === window.VeriskoPricing.VERSION && !inputs.scheduledDate) { showFormError('Set the installation date to create the agreed payment schedule.'); return; }
-    if (jobIsDelivery(data.stage) && !jobIsDelivery(existing.stage) && inputs.paymentPlan === 'installments' && !inputs.fundingConfirmed) { showFormError('The Owner must confirm funding before accepting a financed job. Save a draft for review.'); return; }
+    if (jobIsDelivery(data.stage) && !jobIsDelivery(existing.stage) && (existing.clientPlanApproval?existing.clientPlanApproval.offer.months>0:inputs.paymentPlan === 'installments') && !inputs.fundingConfirmed) { showFormError('The Owner must confirm funding before accepting a financed job. Save a draft for review.'); return; }
     if (!isAdmin() && r.discountPct > 5) { showFormError("A discount above 5% needs the Owner — ask Ben to apply it."); return; }
     if (r.needsApproval && !isAdmin() && (!r.pricingVersion || data.stage !== 'Draft')) { showFormError("Save a draft and ask the Owner to approve the cost or discount before quoting."); return; }
     var stage = JOB_STAGES.indexOf(data.stage) >= 0 ? data.stage : "Draft";
@@ -1732,6 +1737,7 @@
       technicianId: document.getElementById("f_technicianId")?(data.technicianId || ""):(existing.technicianId || ""), materials: document.getElementById("matList")?collectMaterials():(existing.materials || []), checklist: checklist,
       notes: (data.notes || "").trim()
     }, inputs);
+    if(existing.clientPlanApproval)['prospectId','business','contact','phone','location'].forEach(function(k){fields[k]=existing[k];});
     if (r.pricingVersion) fields.quoteSnapshot = r;
     var jobId = editing.id || uid();
     var wasNew = !editing.id;
@@ -1836,6 +1842,7 @@
   // A custom (12+ camera) job needs its final price before it can be quoted.
   function quoteReady(j) {
     if (!j) { toast("That job no longer exists."); return false; }
+    if(j.clientPlanApproval)return quoteModelFor(j).total>0;
     var priced = computeQuote(j);
     if(priced.pricingVersion && priced.needsApproval) { toast('The Owner must approve this cost or discount before sharing a quotation.'); return false; }
     if (!jobIsDelivery(j.stage) && j.servicePolicyVersion !== window.VeriskoCare.VERSION) { toast('Open and save this quote to include the current callback, monitoring and warranty terms.'); return false; }
@@ -1865,7 +1872,10 @@
     if (!savedDraft&&!await pushShared()) { toast('Connect and save the quote first.'); return; }
     var j=job(id); if(!j)return;
     var userId=settings.user?.id,generation=sessionGeneration;
-    try{var m=await import('./client-plan-ui.mjs?v=152');await m.openClientPlan({jobId:id,api:readyApi,phone:jobClient(j).phone,savedDraft,preview:!!rolePreview,onShared:function(detail){if(detail?.mode!=='savedDraft')markQuoteShared(id);},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
+    try{var m=await import('./client-plan-ui.mjs?v=153');await m.openClientPlan({jobId:id,api:readyApi,phone:jobClient(j).phone,savedDraft,preview:!!rolePreview,onApproved:async function(){
+      var sameAccount=function(){return settings.user?.id===userId&&sessionGeneration===generation;};
+      if(localUnsynced){var response=await readyApi('GET',null,'','/api/data');if(!sameAccount())return;var approved=response.data?.jobs?.find(function(x){return x.id===id;});if(approved){var existing=job(id);if(existing){['clientPlanApproval','quoteSnapshot','quotedTotal','paymentSchedule','fundingConfirmed','fundingApprovedKey','fundingApprovedBy','pricingVersion','cameraCount','installationType','rubric','addons','zone','discountPct','priceOverride','finalPrice','directCost','extraCost','extraMaterialsCost','extraCrewCost','extraAccessTravelCost','addonCosts','costConfirmed','costEvidence','paymentPlan','servicePolicyVersion','targetMargin','salesPriceVersion'].forEach(function(k){existing[k]=approved[k];});if(existing.stage==='Draft')existing.stage=approved.stage;}else state.jobs.push(approved);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render();}return;}
+      var result=await loadShared(sameAccount);if(result==='ok')render();else toast('Plan approved. Refresh Jobs to see the saved amounts.');},onShared:function(detail){if(detail?.mode!=='savedDraft')markQuoteShared(id);},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
   }
 
   // Opening WhatsApp records a sharing attempt (not delivery). A Draft moves to Sent, and
@@ -1937,7 +1947,7 @@
       emptyState(ICON_INSTALL, "No jobs yet", "Tap New job to price a site, or start one from a closed sale in Prospects.", "New job", 'data-new="job"');
     content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " job" : " jobs") + "</p>" + list + '<details class="card"><summary>Older job tools</summary><p class="helper">For older manual jobs only. New installations use the assigned Installer account and the linked materials list.</p>'+technicianRosterCard()+'</details>';
     var planUser=settings.user?.id;
-    import('./client-plan-ui.mjs?v=152').then(function(m){m.refreshClientPlanBadges({host:content,api:readyApi,isCurrent:function(){return view==='jobs'&&settings.user?.id===planUser&&!document.body.classList.contains('locked');}});}).catch(function(){});
+    import('./client-plan-ui.mjs?v=153').then(function(m){m.refreshClientPlanBadges({host:content,api:readyApi,isCurrent:function(){return view==='jobs'&&settings.user?.id===planUser&&!document.body.classList.contains('locked');}});}).catch(function(){});
   }
 
   function fundingOverviewHtml(jobs) {
@@ -1960,18 +1970,18 @@
     var tech = j.technicianId ? technician(j.technicianId) : null;
     var delivery = jobIsDelivery(j.stage);
     var priceLine = (r.custom && !val) ? '<div class="item-line"><span class="k">Value</span><span class="v">Custom — Ben quotes</span></div>' :
-      '<div class="item-line"><span class="k">Value</span><span class="v">' + money(val) + "</span></div>";
+      '<div class="item-line"><span class="k">'+esc(j.clientPlanApproval?.totalLabel||'Value')+'</span><span class="v">' + money(val) + "</span></div>";
     var cam = Number(j.cameraCount) || 0;
     var camMeta = r.pricingVersion ? cam + "-cam · " + r.tier : cam >= 12 ? "12+ cam" : (cam >= 2 ? cam + "-cam · " + r.tier : "priced by hand");
     return '<article class="item" data-job-id="' + esc(j.id) + '">' +
       '<div class="item-top"><div><div class="item-title">' + esc(c.business || "Untitled job") + "</div>" +
       '<div class="item-meta">' + esc(j.ref || "") + " · " + esc(camMeta) + "</div></div>" + jobStageChip(j.stage) + "</div>" +
       '<div class="item-lines">' +
-      priceLine +
+      priceLine + (j.clientPlanApproval?'<div class="item-line"><span class="k">Client plan</span><span class="v">'+esc(j.clientPlanApproval.offer.title)+' · approved</span></div>':'')+
       (r.pricingVersion && r.crewApprovalKeyRequired && r.needsApproval ? '<div class="item-line"><span class="k">Extra crew</span><span class="v">Owner approval required</span></div>' : '') +
       (r.pricingVersion && !r.custom ? '<div class="item-line"><span class="k">Budgeted cost of doing business</span><span class="v">' + money(Math.round(r.costOfDoingBusiness)) + '</span></div><div class="item-line"><span class="k">Planned profit before tax</span><span class="v">' + money(Math.round(r.netProfit)) + ' · ' + (r.margin * 100).toFixed(2) + '%</span></div>' : '') +
       (approvedInstall ? '<div class="item-line"><span class="k">Install</span><span class="v">'+(approvedInstall.scheduledDate?dateLabel(approvedInstall.scheduledDate)+' · ':'')+'Installation approved</span></div>' : delivery ? '<div class="item-line"><span class="k">Install</span><span class="v">' + (j.scheduledDate ? dateLabel(j.scheduledDate) + (j.scheduledTime ? " · " + esc(j.scheduledTime) : "") : "Date not set") + " · " + (tech ? esc(tech.name) : '<span style="color:var(--amber)">no technician</span>') + "</span></div>" : "") +
-      ((delivery && (val > 0 || paidForJob(j.id) > 0)) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (val > 0 ? " · " + money(Math.max(0, val - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
+      (((delivery||j.clientPlanApproval) && (val > 0 || paidForJob(j.id) > 0)) ? '<div class="item-line"><span class="k">Paid</span><span class="v">' + money(paidForJob(j.id)) + (val > 0 ? " · " + money(Math.max(0, val - paidForJob(j.id))) + " due" : "") + "</span></div>" : "") +
       (j.stage === "Handed over" || (/progress|installed/i.test(j.stage || "") && checklistDone(j) > 0) ? '<div class="item-line"><span class="k">Checklist</span><span class="v">' + checklistDone(j) + " / " + INSTALL_CHECKLIST.length + (checklistComplete(j.checklist) ? " · done" : "") + "</span></div>" : "") +
       "</div>" + unassignedReceiptHint(j.id) + '<button type="button" class="btn btn-ghost" data-edit="job" data-id="'+esc(j.id)+'">Edit job</button>' + (j.stage==='Installed'?'<p class="helper">Next: show the client the system and record their sign-off.</p><button type="button" class="btn btn-primary" data-client-handover="'+esc(j.id)+'">Client sign-off</button>':clientHandoverSummary(j)) + '<button type="button" class="btn btn-ghost" data-installation-work="'+esc(linkedInstallation?.id||'')+'">Open installation checks</button>' + quoteActionsHtml(j.id) + "</article>";
   }
@@ -3186,7 +3196,7 @@
       // One record for the whole lifecycle. Pricing (the quote) is always shown;
       // delivery fields reveal at "Accepted"; the checklist reveals at handover.
       document.getElementById("dialogTitle").textContent = id ? esc(source.ref || "Job") : "New job";
-      var lockedPricing = jobIsDelivery(source.stage);
+      var lockedPricing = jobIsDelivery(source.stage)||!!source.clientPlanApproval;
       var repricing = !!id && !lockedPricing && (source.pricingVersion !== window.VeriskoPricing.VERSION || (source.validUntil && source.validUntil < today) || source.servicePolicyVersion !== window.VeriskoCare.VERSION);
       var qInputs = id ? Object.assign({},source) : { pricingVersion: window.VeriskoPricing.VERSION, cameraCount: 4, paymentPlan:'installments' };
       if (repricing) { qInputs.pricingVersion=window.VeriskoPricing.VERSION; qInputs.quoteSnapshot=null; qInputs.costConfirmed=false; qInputs.costApprovalKey=''; qInputs.crewApprovalKey=''; qInputs.fundingConfirmed=false; qInputs.quotedAt=''; qInputs.validUntil=''; }
@@ -3235,7 +3245,7 @@
         '</fieldset>' + (lockedPricing?'</details>':'') +
         (id && lockedPricing ? '<div class="field full"><label>Agreed quotation</label>'+quoteActionsHtml(id)+'</div>' : '') +
         // ---- Stage ----
-        field("stage", "Stage", "select", jobStage, { options: JOB_STAGES.filter(function(s){return s!=='Handed over'||jobStage==='Handed over';}), full: true }) +
+        (source.clientPlanApproval&&isAdmin()?'<div class="field full"><label class="chk-item"><input id="f_fundingConfirmed" type="checkbox"'+(source.fundingConfirmed?' checked':'')+'><span>I reviewed and approve funding this job.</span></label></div>':'')+field("stage", "Stage", "select", jobStage, { options: JOB_STAGES.filter(function(s){return s!=='Handed over'||jobStage==='Handed over';}), full: true }) +
         // ---- Delivery (revealed once Accepted) ----
         '<div id="deliveryFields"' + (jobIsDelivery(jobStage) ? "" : " hidden") + ">" +
         field("scheduledDate", "Install date", "date", source.scheduledDate || "") +
@@ -3612,13 +3622,13 @@
   async function openContactVoice(id){
     var userId=settings.user?.id,voiceGeneration=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!p||!['sales','teamlead','operations','admin'].includes(settings.user?.role))return;
-    try{var m=await import('./voice-notes-ui.mjs?v=152');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
+    try{var m=await import('./voice-notes-ui.mjs?v=153');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-voice]');if(b){e.preventDefault();e.stopPropagation();openContactVoice(b.dataset.clientVoice);}},true);
   async function openContactWork(id){
     var userId=settings.user?.id,generation=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!['sales','teamlead','operations','admin'].includes(settings.user?.role)||id&&!p)return;
-    try{var m=await import('./client-work-ui.mjs?v=152');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
+    try{var m=await import('./client-work-ui.mjs?v=153');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-work],[data-client-work-all]');if(b){e.preventDefault();e.stopPropagation();openContactWork(b.dataset.clientWork||'');}},true);
   function followUpHistory(p) {
@@ -4573,7 +4583,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=152");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=153");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-role-preview]")){previewRole();return;}
     if (e.target.closest("[data-howto]")) { replayOnboarding(); return; }

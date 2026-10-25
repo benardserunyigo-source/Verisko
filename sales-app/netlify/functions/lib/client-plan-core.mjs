@@ -1,3 +1,4 @@
+import {planScopeKey,buildPlanApproval} from './client-plan-job.mjs';
 import {reviewSavedClientOffer,selectSavedClientOffer} from './saved-client-offer.mjs';
 import {createHash, timingSafeEqual} from 'node:crypto';
 import {COMMERCIAL, validateQuotes} from './quote-guard.mjs';
@@ -9,8 +10,8 @@ const won=j=>['Accepted','Scheduled','In progress','Installed','Handed over'].in
 const hash=s=>createHash('sha256').update(s).digest('hex');
 const fingerprint=j=>hash(JSON.stringify([j.id,j.prospectId,j.business,j.ref,COMMERCIAL.map(k=>j[k]??null),j.quoteSnapshot,j.quotedTotal,j.quotedAt,j.validUntil,j.scheduledDate,won(j)]));
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'}});
-function current(record,j,now){return !!j&&!['Cancelled','Rejected'].includes(j.stage)&&!record.revokedAt&&Date.parse(record.expiresAt)>Date.parse(now)&&record.fingerprint===fingerprint(j);}
-function status(record,j,now){return {jobId:record.jobId,createdAt:record.createdAt,expiresAt:record.expiresAt,current:current(record,j,now),revoked:!!record.revokedAt,choice:record.choice||null,...(record.mode?{mode:record.mode,draftVersion:record.draftVersion}:{} )};}
+function current(record,j,now){return !!j&&!['Cancelled','Rejected'].includes(j.stage)&&!record.revokedAt&&Date.parse(record.expiresAt)>Date.parse(now)&&(record.fingerprint===fingerprint(j)||record.approval?.scopeKey===planScopeKey(j)&&record.approval?.linkHash===record.tokenHash);}
+function status(record,j,now){return {jobId:record.jobId,createdAt:record.createdAt,expiresAt:record.expiresAt,current:current(record,j,now),revoked:!!record.revokedAt,choice:record.choice||null,approval:record.approval?{approvedAt:record.approval.approvedAt,approvedByName:record.approval.approvedByName,startDate:record.approval.startDate,schedule:record.approval.schedule,offer:record.approval.offer}:null,startDate:j?.clientPlanApproval?.startDate||j?.scheduledDate||'',...(record.mode?{mode:record.mode,draftVersion:record.draftVersion}:{} )};}
 export function clientOffer(j,client,now){
  if(!j.pricingVerifiedAt||!j.quoteSnapshot||['Cancelled','Rejected'].includes(j.stage))throw fail('Save and check this quote before making a client link.',409);
  if(!won(j)&&(!j.validUntil||j.validUntil<now.slice(0,10)))throw fail('This quote has expired. Refresh it first.',409);
@@ -55,13 +56,25 @@ export function createClientPlanHandler({store,loadWorkspace,authorize,loadDraft
  }
  if(!j)throw fail('Job not found.',404);
  if(request.method==='GET')return json({ok:true,item:record?status(record,j,stamp):null});
+ if(body.action==='approve'){
+  if(!record?.choice||!current(record,j,stamp))throw fail('This client reply changed or expired. Reload it before approving.',409);
+  if(body.choiceAt!==record.choice.at||body.checked!==true)throw fail('Review the client choice and tick the check before approving.',409);
+  if(record.approval){if(record.approval.startDate!==body.startDate)throw fail('This plan is already approved. Keep the saved payment dates.',409);return json({ok:true,item:status(record,j,stamp)});}
+  if(won(j))throw fail('This job already has agreed terms. Keep the saved agreement.',409);
+  if(!loadDraft||!pricing)throw fail('Saved costs are unavailable. Reload before approving.',503);
+  const draft=await loadDraft(request,jobId);
+  const approval=buildPlanApproval({job:j,record,draft,pricing,start:body.startDate,actor:auth.me,now:stamp});
+  const next={...record,approval};const write=await store.setJSON(key,next,{onlyIfMatch:old.etag});if(!write.modified)throw fail('This client reply changed. Reload before approving.',409);
+  return json({ok:true,item:status(next,j,stamp)});
+ }
  if(body.action==='revoke'){
   if(!record)return json({ok:true});const write=await store.setJSON(key,{...record,revokedAt:stamp,revokedBy:auth.me.id},{onlyIfMatch:old.etag});if(!write.modified)throw fail('Link changed. Try again.',409);return json({ok:true});
  }
- let review=null;
+ if(record?.approval&&['reviewDraft','createDraft','create'].includes(body.action))throw fail('This client plan is approved. Keep its saved terms and dates.',409);
+ let review=null,sourceDraft=null;
  if(['reviewDraft','createDraft'].includes(body.action)){
   if(!loadDraft||!pricing)throw fail('Saved options are unavailable. Refresh and try again.',503);
-  const draft=await loadDraft(request,jobId),market=loadMarket?await loadMarket():null;
+  const draft=sourceDraft=await loadDraft(request,jobId),market=loadMarket?await loadMarket():null;
   review=reviewSavedClientOffer({job:j,client:(data.prospects||[]).find(p=>p.id===j.prospectId),draft,version:body.draftVersion,pricing,market,now:stamp});
   if(body.action==='reviewDraft')return json({ok:true,review});
   if(!Number.isSafeInteger(body.draftVersion)||body.draftVersion<1)throw fail('Review the saved draft again before creating this link.',400);
@@ -75,7 +88,7 @@ export function createClientPlanHandler({store,loadWorkspace,authorize,loadDraft
  if(record?.tokenHash===hash(body.token)&&current(record,j,stamp)){if(review&&(record.mode!=='savedDraft'||record.draftVersion!==review.draftVersion||JSON.stringify(record.offer.options.map(p=>p.id))!==JSON.stringify(body.optionIds)))throw fail('This link request changed. Review it again.',409);return json({ok:true,item:status(record,j,stamp)});}
  const offer=review?selectSavedClientOffer(review,body.optionIds):clientOffer(j,(data.prospects||[]).find(p=>p.id===j.prospectId),stamp);
  const expiry=review?Date.parse(stamp)+7*86400000:won(j)?Date.parse(stamp)+7*86400000:Math.min(Date.parse(stamp)+7*86400000,Date.parse(j.validUntil+'T23:59:59.999Z'));
- const next={...(review?{mode:'savedDraft',draftVersion:review.draftVersion}:{}),jobId,tokenHash:hash(body.token),fingerprint:fingerprint(j),offer,createdAt:stamp,createdBy:auth.me.id,expiresAt:new Date(expiry).toISOString(),choice:null,previousChoices:[...(record?.previousChoices||[]),...(record?.choice?[record.choice]:[])]};
+ const next={...(review?{mode:'savedDraft',draftVersion:review.draftVersion,costReview:{budget:sourceDraft.item.budget,options:sourceDraft.item.options}}:{}),jobId,tokenHash:hash(body.token),fingerprint:fingerprint(j),offer,createdAt:stamp,createdBy:auth.me.id,expiresAt:new Date(expiry).toISOString(),choice:null,previousChoices:[...(record?.previousChoices||[]),...(record?.choice?[record.choice]:[])]};
  const write=await store.setJSON(key,next,old?{onlyIfMatch:old.etag}:{onlyIfNew:true});if(!write.modified)throw fail('Someone changed this link. Try again.',409);
  return json({ok:true,item:status(next,j,stamp)});
  }catch(e){return json({ok:false,error:e.status?e.message:'Could not save the client choice. Try again.'},e.status||500);}};}

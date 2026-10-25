@@ -1,3 +1,4 @@
+import {loadClientPlans,projectClientPlans} from './lib/client-plan-job.mjs';
 import {salesPriceView} from '../../sales-price-policy.mjs';
 import {loadVoiceNotes,projectVoice,stripVoice} from './lib/voice-notes-core.mjs';
 import {loadInstallationProgress} from './lib/installation-progress.mjs';
@@ -57,7 +58,8 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
     const readyCases=await loadReadyCases(storeFor({name:'verisko-ready-cases',consistency:'strong'}));
     const installationProgress=await loadInstallationProgress(storeFor({name:'verisko-installations',consistency:'strong'}));
     const voiceNotes=await loadVoiceNotes(storeFor({name:'verisko-voice-notes',consistency:'strong'}));
-    data=projectVoice(projectReady(data,readyCases,installationProgress),voiceNotes);
+    const clientPlans=await loadClientPlans(storeFor({name:'verisko-client-plans',consistency:'strong'}));
+    data=projectVoice(projectReady(projectClientPlans(data,clientPlans),readyCases,installationProgress),voiceNotes);
     const isAdmin = bootstrap || (me && me.role === "admin");
     const isTeamLead = !bootstrap && !!me && me.role === "teamlead";
     const isSales = !bootstrap && !!me && me.role !== "admin" && me.role !== "operations" && me.role !== "teamlead";
@@ -237,7 +239,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
         const ready=await storeFor({name:'verisko-ready-cases',consistency:'strong'}).get('cases/'+oldContact.id,{type:'json'});
         if(ready?.contactId===oldContact.id)return json({ok:false,error:'This contact has site visit history. Keep the contact record.'},409,headers);
       }}
-      const saved=projectVoice(projectReady(clean,readyCases,installationProgress),voiceNotes);
+      const saved=projectVoice(projectReady(projectClientPlans(clean,clientPlans),readyCases,installationProgress),voiceNotes);
       await store.setJSON(KEY, saved);
       return json({ ok: true, ...(canReview ? { jobs: saved.jobs } : {}) }, 200, headers);
     }

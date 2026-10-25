@@ -71,3 +71,7 @@ Historical `../CODEX-HANDOFF.md` predates current releases and contains obsolete
 ## 24 October pricing-control update
 
 Operations/Admin can save package prices for30days; Sales receives the active list and expiry, no costs/profit. Expired lists require Operations review, not an automatic invented market adjustment. Saved/agreed client quotes retain their existing commercial lock and quote-validity rules. Operations can select26–50% before-tax quote/draft-option margin, including rental. Ben explicitly chose50% margin maximum for rental instead of100% markup. The26% safety floor remains; draft target edits are not a published price list or a client contract.
+
+## Approved saved client plans
+
+Operations/Admin can now approve a client’s selected saved cash/12/24/rental option on the same job. This is an explicit commercial approval, with one reviewed first-payment date and canonical automatic amounts/calendar schedule. The private client-plan record is authoritative; readers project it onto the existing job and server quote guards preserve it. Prior receipts remain once-only, and Owner funding/receipt approval, installation review and joint client handover remain separate. An approved agreement does not expire when its public link is turned off or expires. Revised scope/terms need a separate reviewed quote; never silently reprice an approved plan.

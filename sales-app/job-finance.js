@@ -3,6 +3,7 @@
   'use strict';
   function addDays(iso,n){var d=new Date(String(iso)+'T12:00:00Z');if(isNaN(d))return '';d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
   function schedule(job,total){
+    if(job.clientPlanApproval)return (job.clientPlanApproval.schedule||[]).map(function(r){return Object.assign({},r);});
     if(!job.scheduledDate || !total || !['cash','installments'].includes(job.paymentPlan))return [];
     var round=function(n){return Math.round(n/10000)*10000;};
     var a=round(total*(job.paymentPlan==='cash'?.6:.4)),b=round(total*.3);

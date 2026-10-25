@@ -98,12 +98,20 @@
     }
     if(quote.pricingVersion) terms.push('Hard drive is included only when listed. Without a compatible hard drive, the system provides live viewing without stored recordings.');
     if(care) terms = terms.concat(care.terms);
+    if(job.clientPlanApproval){
+      var approved=job.clientPlanApproval;
+      total=approved.offer.total;
+      plans=[{title:approved.offer.title,rows:approved.schedule.map(function(r){return {label:r.label+' ('+r.due+')',amount:r.amount};}),note:approved.offer.owns?'Ownership after full payment.':'First 12 months shown. Verisko owns the equipment; rent keeps going.'}];
+      terms=approved.terms.slice();
+      var pricedItems=items.reduce(function(n,i){return n+(Number(i.amount)||0);},0);
+      if(pricedItems!==total)items.push({label:'Agreed payment plan adjustment',detail:approved.offer.title,qty:1,unit:total-pricedItems,amount:total-pricedItems});
+    }
     return {
       ref: clean(job.ref) || "Quotation",
       date: date, validUntil: job.validUntil || addDays(date, validDays),
       preparedBy: clean(opts.preparedBy), stage: clean(job.stage),
       client: { business: clean(client.business), contact: clean(client.contact), phone: clean(client.phone), location: clean(client.location) },
-      items: items, total: total, custom: custom, override: override, plans: plans,
+      items: items, total: total, totalLabel:job.clientPlanApproval?(job.clientPlanApproval.offer.owns?'Agreed total':'First 12 months'):'', custom: custom, override: override, plans: plans,
       notes: clean(job.notes), terms: terms, coverageSummary: care ? care.summary : '', company: COMPANY
     };
   }
@@ -122,7 +130,7 @@
       lines.push("• " + it.label + (it.qty > 1 ? " x" + it.qty : "") + (it.amount == null ? "" : ": " + signedMoney(it.amount)));
     });
     lines.push("");
-    lines.push("*Total (cash): " + (m.total == null ? "to be confirmed" : money(m.total)) + "*");
+    lines.push("*"+(m.totalLabel||"Total (cash)")+": " + (m.total == null ? "to be confirmed" : money(m.total)) + "*");
     if(m.coverageSummary) { lines.push('Included: '+m.coverageSummary); lines.push('Health monitoring only, without access to your footage. Fault warranty excludes accidents and power-surge damage.'); }
     m.plans.forEach(function (p) {
       lines.push(p.title + ": " + p.rows.map(function (r) { return money(r.amount); }).join(" + "));
@@ -204,7 +212,7 @@
     ensure(14);
     y += 2;
     stroke(NAVY); doc.setLineWidth(0.6); doc.line(L, y, R, y);
-    font("bold", 12, NAVY); doc.text("Total (cash)", L + 3, y + 8);
+    font("bold", 12, NAVY); doc.text(m.totalLabel||"Total (cash)", L + 3, y + 8);
     doc.text(m.total == null ? "To be confirmed" : money(m.total), R - 3, y + 8, { align: "right" });
     y += 15;
 
