@@ -26,3 +26,13 @@ test('higher published package prices and targets cannot make hard drive add-ons
 test('quote summary labels the selected 50% target, not the old 30% default',async()=>{
  const fs=await import('node:fs'),vm=await import('node:vm'),app=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8'),start=app.indexOf('  function quoteSummaryHtml(r)'),end=app.indexOf('  function recalcQuoteForm()',start),ctx=vm.createContext({money:n=>'UGX '+n.toLocaleString('en-UG'),esc:s=>s});vm.runInContext(app.slice(start,end),ctx);const r=pricing.compute({cameraCount:4,targetMargin:.5,paymentPlan:'installments'}),html=ctx.quoteSummaryHtml(r);assert.match(html,/50% target, 26% minimum/);assert.doesNotMatch(html,/30% target/);assert.ok(r.margin>=.5);
 });
+
+test('optional simple-to-complex price guides keep 30-day expiry, validate bounds and hide private costs',async()=>{
+ const f=fixture(),range=rows.map(r=>({...r,priceMax:r.price+1000000}));
+ assert.equal((await f.api({version:0,catalogue:range})).httpStatus,200);
+ const rep=await f.api(null,'sales');assert.equal(rep.catalogue[0].priceMax,9000000);assert.equal(rep.catalogue[0].price,8000000);
+ assert.doesNotMatch(JSON.stringify(rep),/direct|profit|overhead|updatedBy/);
+ for(const max of [7999999,8000001,-1,'9000000',null,Infinity]){const g=fixture();assert.equal((await g.api({version:0,catalogue:rows.map(r=>({...r,priceMax:r.cameras===4?max:r.price}))})).httpStatus,400);assert.equal(g.store.rows.size,0);}
+ f.advance(30*86400000);assert.deepEqual((await f.api(null,'sales')).catalogue,[]);
+ assert.equal(pricing.compute({cameraCount:4}).cash,globalThis.createVeriskoPricing(config).compute({cameraCount:4}).cash);
+});

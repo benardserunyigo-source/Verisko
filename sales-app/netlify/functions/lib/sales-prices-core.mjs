@@ -32,6 +32,7 @@ export function createSalesPricesHandler({store,authorize,pricing,loadDraft,now=
   if(body.action!==undefined)throw fail('Use the price form.');
   catalogue=salesPriceRows(body.catalogue).map(row=>{const oldRow=record?.catalogue?.find(p=>p.cameras===row.cameras);if(!oldRow?.offer)return {...row,name:oldRow?.name||row.name};
    if(row.price!==oldRow.price)throw fail('Use another saved draft to change this option and its payment terms.');
+   if(row.priceMax!==undefined)throw fail('Saved payment options keep their exact price. Use another saved draft to change the terms.');
    return {...row,name:oldRow.name,payments:[],offer:oldRow.offer};
   });
  }
@@ -40,4 +41,4 @@ export function createSalesPricesHandler({store,authorize,pricing,loadDraft,now=
  const at=now(),next={version:body.version+1,publishedAt:new Date(at).toISOString(),expiresAt:new Date(at+SALES_PRICE_DAYS*86400000).toISOString(),catalogue,sourceApprovals,updatedBy:me.id};
  const written=await store.setJSON('current',next,record?{onlyIfMatch:old.etag}:{onlyIfNew:true});if(!written.modified)throw fail('Prices changed. Reload before saving.',409);
  return json({ok:true,...salesPriceView(next,at),savedCatalogue:catalogue});
- }catch(e){return json({ok:false,error:e.status?e.message:e.message==='Use whole UGX 10,000 steps, above 0.'||e.message==='Enter prices for 4, 6, 8 and 12 cameras.'?e.message:'Could not save prices. Try again.'},e.status||400);}};}
+ }catch(e){return json({ok:false,error:e.status?e.message:e.message==='Use whole UGX 10,000 steps, above 0.'||e.message==='Enter prices for 4, 6, 8 and 12 cameras.'||e.message==='Complex price must be at least the simple price, in UGX 10,000 steps.'?e.message:'Could not save prices. Try again.'},e.status||400);}};}

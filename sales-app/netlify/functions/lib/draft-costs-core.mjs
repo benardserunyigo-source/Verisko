@@ -28,7 +28,7 @@ export function createDraftCostsHandler({store,loadWorkspace,authorize,baseline,
  const old=await store.getWithMetadata('jobs/'+jobId,{type:'json'}),saved=old?.data;
  if(saved&&(saved.clientKey!==identity(job)||saved.optionsVersion!==versionFor(cameras)||(saved.cameras??4)!==cameras))throw fail('This job or draft comparison changed. Ask Admin to review it.',409);
  const budget=draftCostBudget('operations',saved?.budget||baseline,{cameras});
- if(!budget)throw fail('The private cost budget is unavailable. Reconnect and try again.',503);
+ if(!budget)throw fail('Job costs are not ready. Ask Admin to check the cost setup.',503);
  const options=draftPaymentOptions('operations',{cameras,options:saved?.options});
  if(options.length!==4)throw fail('Saved draft payment amounts need review. Ask Admin to check this draft.',503);
  const basisHash=hash({budget,options}),item=saved?{jobId,cameras,version:saved.version,costs:saved.costs,budget,options,results:saved.results,savedAt:saved.savedAt,savedBy:saved.savedBy,optionsVersion:saved.optionsVersion}:null;

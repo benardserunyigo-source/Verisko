@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | Resolve walkthrough blockers and connect visit to quote | working | Restore the existing private cost input without repricing, same-contact create/open quote from completed visit, simple/complex Sales ranges with 30-day review, clearer supplier-link and application guidance. Preserve current pay. |
 | 0 | Use warehouse stock on paid jobs | done | v156 sourcefa46164 ready;644tests pass. Same-job holds, shortage-only buying, automatic issue/return/free-stock reconciliation and shared guarded writes.320/390px isolated flow/reopen and live preview checked;17assets/10protected routes verified. See ../qa/2026-10-25-warehouse-stock.md. |
 | 0 | Operations inventory and 30-day material review | done | v154 source3ead870 ready;635tests pass. Private catalogue/costs/quotes/counts, independent30-day checks, derived job movements and order-cost snapshots.320/390px isolated writes/reopen and live preview checked;16assets/10private routes verified. See ../qa/2026-10-25-inventory.md. |
 | 0 | Approve client chosen plan | done | v153 source2863701 ready;626 tests pass. Operations canonical approval updates same-job total/plan/deposit/calendar dues; receipts, funding, Owner cost guards and stale/role/privacy locks preserved.320/390px isolated approval/reopen/summary/Job records checked;14 live assets/nine protected APIs verified. See ../qa/2026-10-24-client-plan-approval.md. |
