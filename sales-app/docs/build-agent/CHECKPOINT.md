@@ -186,3 +186,15 @@ All 569 tests pass. Phone 390/320px actual UI checks covered live typing/focus, 
 
 
 Release verified: v142 source `a263d24de9462b096c99f8b564ea1f17200fcc6c`, Netlify deploy `6add4c191f9dc1f6430f091d` ready. Nine asset hashes match, including unchanged customer price calculator/catalogue/PDF/client-link logic; HTML loads v142. Seven private APIs deny unsigned callers with 401. Live Operations preview accepts direct-cost typing and updates all four totals/margins, correctly flagging one Cash row below 26%, with no console errors. Evidence: `output/audits/draft-cost-editor-20261024/release-readback.json` and `live-updated-profit-phone.png`. No real customer, financial or account records changed. Preview is fictional, not an authenticated production or actual Android acceptance claim. Final evidence-only commit stays local to avoid another deployment.
+
+
+## Edit and reset draft costs phone demo: 24 October 2026
+
+User requested Operations change draft costs, see all four profits update with one below 26%, then reset. Used actual live Operations fictional preview at 390px: materials/delivery/crew 2.2m → 2.63m, Cash margin 25.87% with red warning; other plans 26.17% / 27.76% / 26.17%. Use sample costs returned the entire profit table exactly to its starting text, and customer plan amounts stayed identical. No console errors. Captured three actual phone screens and a simple local three-step walkthrough on 4419 at `output/audits/draft-cost-edit-demo-20261024/`; readback.json retains sample before/change/reset evidence. No source code, real records or customer pricing changed. This is a preview demonstration, not authenticated production or physical handset acceptance. Full suite not repeated for a demo.
+
+
+## Saved job draft costs: 24 October 2026
+
+Owner requested persistent internal draft costs on the same job. Implemented separate office-only /api/draft-costs record, snapshot assumptions/options/results, job/client identity, conditional version writes and idempotent retry. Existing four-camera scope preserved. Job summary links directly to its draft; More offers existing job picker. Three fields, Save, reset to acknowledged save and explicit reload. Other-role/unsigned denial remains server-enforced; preview Save disabled.
+
+Full suite 577 passed; isolated real-handler phone save/reopen/reset/separate-job/stale-conflict tested. Source job/customer money unchanged. See ../qa/2026-10-24-saved-draft-costs.md. v143 prepared; release pending. No real records or authenticated production/Android acceptance claim.

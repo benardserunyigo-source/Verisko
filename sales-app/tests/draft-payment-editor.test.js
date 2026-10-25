@@ -37,5 +37,9 @@ test('missing budget does not get substituted; preview edits stay fictional and 
 });
 test('editor has no network or storage writes, and preview exception is scoped to local calculator controls',()=>{
  const code=fs.readFileSync(new URL('../draft-payment-editor.mjs',import.meta.url),'utf8');assert.doesNotMatch(code,/fetch\(|localStorage|sessionStorage|indexedDB|quoteSnapshot|private-budget/);
- const preview=fs.readFileSync(new URL('../role-preview.js',import.meta.url),'utf8');assert.match(preview,/var allowed='\[data-draft-reset\]/);assert.match(preview,/el\.matches\('\[data-draft-cost\]/);
+ const preview=fs.readFileSync(new URL('../role-preview.js',import.meta.url),'utf8');assert.match(preview,/var allowed='[^']*\[data-draft-reset\]/);assert.match(preview,/el\.matches\('\[data-draft-job\],\[data-draft-cost\]/);
+});
+
+test('acknowledged saved costs become the reset baseline without changing the company budget',()=>{
+ const original=structuredClone(pricing),s=createDraftCostScenario('operations',pricing);s.update('direct','2630000');const saved=structuredClone(s.read().budget);s.accept(saved);s.update('care','300000');const reset=s.reset();assert.equal(reset.budget.packages[4].direct,2630000);assert.equal(reset.budget.policy.callbacks,200000);assert.deepEqual(pricing,original);
 });

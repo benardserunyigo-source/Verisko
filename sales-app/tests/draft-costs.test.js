@@ -1,0 +1,52 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import {createDraftCostsHandler} from '../netlify/functions/lib/draft-costs-core.mjs';
+import {FieldMemoryStore} from './helpers/field-fixture.mjs';
+import {draftCostEstimate,draftPaymentOptions} from '../draft-payment-options.mjs';
+const baseline={policy:{contingency:.1,callbacks:200000,acquisition:50000,overhead:200000,processing:.03,monthly:.02},packages:{4:{direct:2200000}}};
+function fixture(){
+ const store=new FieldMemoryStore(),workspace={jobs:[{id:'job-a',prospectId:'client-a',business:'TEST Shop',cameraCount:4,stage:'Accepted',quotedTotal:5280000,paymentPlan:'installments',paymentSchedule:[{amount:2110000,due:'2026-10-24'}],fundingApproved:true},{id:'job-b',prospectId:'client-b',cameraCount:4},{id:'job-six',cameraCount:6}],users:[],transactions:[{id:'paid',amount:2000000,status:'approved'}],prospects:[{id:'client-a'}]};
+ const authorize=async req=>{const role=req.headers.get('authorization');return role?{me:{id:role,name:'TEST '+role,role}}:{status:401};};
+ const create=()=>createDraftCostsHandler({store,loadWorkspace:async()=>workspace,authorize,baseline,now:()=> '2026-10-24T23:30:00.000Z'});
+ let handler=create();
+ async function api(body,role='operations',jobId='job-a',options={}){const r=await handler(new Request('https://test.local/api/draft-costs?jobId='+jobId,{method:body?'POST':'GET',headers:{...(role?{authorization:role}:{}),'Content-Type':'application/json',...options.headers},...(body?{body:JSON.stringify(body)}:{})}));return {status:r.status,cache:r.headers.get('cache-control'),...await r.json()};}
+ async function body(extra={}){const r=await api();return {jobId:'job-a',baseVersion:r.item?.version||0,basisHash:r.basisHash,requestId:'request-'+store.serial,costs:{direct:2630000,care:200000,business:250000},...extra};}
+ return {store,workspace,api,body,restart(){handler=create();}};
+}
+test('saved costs reopen on the same job with all four results and unchanged client money, pricing and source records',async()=>{
+ const f=fixture(),original=structuredClone(f.workspace),prices=draftPaymentOptions('operations');const request=await f.body();
+ const saved=await f.api(request);assert.equal(saved.status,200);assert.equal(saved.item.version,1);assert.equal(saved.item.results.filter(r=>r.belowFloor).length,1);assert.equal(saved.item.savedBy.id,'operations');assert.equal(saved.item.jobId,'job-a');
+ f.restart();const reopened=await f.api(null,'admin');assert.equal(reopened.status,200);assert.deepEqual(reopened.item,saved.item);assert.deepEqual(reopened.item.results,draftCostEstimate('operations',reopened.budget).rows);assert.deepEqual(reopened.item.options,prices);assert.equal(reopened.cache,'no-store');
+ assert.deepEqual(f.workspace,original);assert.equal((await f.api(null,'operations','job-b')).item,null);assert.equal(f.store.rows.size,1);
+});
+test('Sales, Team Lead, Installer, unknown roles and unsigned callers cannot read or write private drafts',async()=>{
+ const f=fixture(),request=await f.body();await f.api(request);const original=structuredClone([...f.store.rows]);
+ for(const role of ['sales','teamlead','installer','unknown',''])for(const body of [null,request]){const r=await f.api(body,role);assert.equal(r.status,role?403:401);assert.equal(r.item,undefined);assert.equal(r.budget,undefined);}
+ assert.deepEqual([...f.store.rows],original);
+});
+test('duplicate retries are idempotent; conflicting edits and request-ID reuse cannot overwrite the saved draft',async()=>{
+ const f=fixture(),first=await f.body(),a=await f.api(first);assert.deepEqual((await f.api(first)).item,a.item);assert.equal(f.store.serial,1);
+ assert.equal((await f.api({...first,costs:{...first.costs,care:1}})).status,409);
+ assert.equal((await f.api({...first,requestId:'another-request'})).status,409);
+ const next=await f.body({requestId:'next-request',costs:{direct:2500000,care:250000,business:300000}});assert.equal((await f.api(next,'admin')).item.version,2);assert.equal((await f.api(first)).status,409);
+ const current=await f.api();assert.equal(current.item.costs.direct,2500000);assert.equal(f.store.serial,2);
+});
+test('simultaneous first saves have exactly one winner',async()=>{
+ const f=fixture(),a=await f.body(),b={...a,requestId:'parallel'};const results=await Promise.all([f.api(a),f.api(b,'admin')]);assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);assert.equal(f.store.rows.size,1);assert.equal(f.store.serial,1);
+});
+test('invalid costs, missing jobs, wrong package sizes and cross-origin writes do not save',async()=>{
+ const f=fixture(),body=await f.body();
+ for(const value of [-1,'2630000',null,Infinity,0,2.5,9007199254740992])assert.equal((await f.api({...body,costs:{...body.costs,direct:value}})).status,400);
+ assert.equal((await f.api({...body,costs:{direct:1,care:0}})).status,400);
+ assert.equal((await f.api(null,'operations','missing')).status,404);assert.equal((await f.api(null,'operations','job-six')).status,409);
+ assert.equal((await f.api(body,'operations','job-a',{headers:{origin:'https://other.invalid'}})).status,403);assert.equal(f.store.rows.size,0);
+});
+test('saved assumptions remain stable; changed job identity or scope blocks access to the old draft',async()=>{
+ const f=fixture();const saved=await f.api(await f.body());baseline.policy.monthly=.025;try{assert.deepEqual((await f.api()).item.results,saved.item.results);}finally{baseline.policy.monthly=.02;}
+ f.workspace.jobs[0].prospectId='different-client';assert.equal((await f.api()).status,409);f.workspace.jobs[0].prospectId='client-a';f.workspace.jobs[0].cameraCount=6;assert.equal((await f.api()).status,409);
+ f.workspace.jobs=[];assert.equal((await f.api()).status,404);
+});
+test('missing company budget fails closed, while both deployment routers expose the private endpoint',async()=>{
+ const handler=createDraftCostsHandler({store:new FieldMemoryStore(),loadWorkspace:async()=>({jobs:[{id:'j',cameraCount:4}]}),authorize:async()=>({me:{role:'operations'}}),baseline:null});
+ assert.equal((await handler(new Request('https://test.local/api/draft-costs?jobId=j'))).status,503);
+ for(const file of ['../_redirects','../netlify.toml'])assert.match(fs.readFileSync(new URL(file,import.meta.url),'utf8'),/\/api\/draft-costs/);
+});
