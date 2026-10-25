@@ -60,3 +60,24 @@ test('saved source jobs link straight to their own draft costs for 4, 6, 8 and 1
  const fallback=build({data:{jobs:[{...source,quoteSnapshot:{cameras:12}}]}})[0];assert.match(summaryCard(fallback),/data-summary-draft="q"/);
  for(const cameras of [0,5,9,16]){const r=build({data:{jobs:[{...source,cameraCount:cameras}]}})[0];assert.doesNotMatch(summaryCard(r),/data-summary-draft/);}
 });
+
+test('summary payment action reuses the saved quote id; unsaved sources still open general cash flow',()=>{
+ const html=summaryCard(build()[0]);assert.match(html,/data-job-pay="q">Payments/);assert.doesNotMatch(html,/data-nav-view="cashflow">Payments/);
+ const fallback=build({data:{jobs:[],prospects:[contact],transactions:[]},cases:[c],installations:[]})[0];assert.match(summaryCard(fallback),/data-nav-view="cashflow">Payments/);assert.doesNotMatch(summaryCard(fallback),/data-job-pay/);
+});
+test('later receipt stays on the selected job through pending save, Admin approval and reload without another contact or commission',async()=>{
+ const f=await journeyFixture();await contactToPaid(f);
+ const before=await f.workspace('operations'),source=before.jobs[0];
+ const receipt={id:'later-demo-receipt',installId:source.id,direction:'in',amount:100000,date:f.day(),category:'Customer payment',method:'Cash',status:'pending',createdByEmail:'operations@test.invalid'};
+ const add=await f.save('operations',d=>d.transactions.push(receipt));assert.equal(add.status,200,add.error);
+ let office=await f.workspace('operations');assert.equal(office.transactions.length,2);let row=buildJobSummaries({user,data:office,cases:(await f.ok('ready','operations')).items})[0];assert.equal(row.pending,100000);assert.equal(row.paid,2000000);
+ const approved=await f.save('admin',d=>{d.transactions.find(t=>t.id===receipt.id).status='approved';});assert.equal(approved.status,200,approved.error);
+ const retry=await f.save('operations',()=>{});assert.equal(retry.status,200,retry.error);
+ for(let n=0;n<2;n++){office=await f.workspace('operations');assert.equal(office.prospects.length,1);assert.equal(office.jobs.length,1);assert.equal(office.transactions.filter(t=>t.id===receipt.id).length,1);row=buildJobSummaries({user,data:office,cases:(await f.ok('ready','operations')).items})[0];assert.equal(row.pending,0);assert.equal(row.paid,2100000);}
+ const sales=await f.workspace('sales');assert.equal(globalThis.VeriskoSalesPay.calculate(sales,globalThis.VeriskoSalesPay.period(f.now()),'sales@test.invalid').total,115000);
+});
+test('the summary payment button opens the existing job receipt form through its selected id',async()=>{
+ let selected;const pay={dataset:{jobPay:'q'}},host={innerHTML:'',querySelector:()=>({addEventListener(){}}),querySelectorAll:s=>s==='[data-job-pay]'?[pay]:[]};
+ const ctl=mountJobSummaries({host,user,isCurrent:()=>true,onPayment:id=>selected=id,api:async(_m,_b,_q,route)=>route==='/api/data'?{data:{jobs:[source],prospects:[contact],transactions:[]}}:route==='/api/ready-leads'?{items:[]}:route==='/api/installer'?{jobs:[]}:{items:[]}});
+ await new Promise(r=>setImmediate(r));pay.onclick();assert.equal(selected,'q');ctl.stop();
+});
