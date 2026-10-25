@@ -1053,5 +1053,14 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 .draft-margin-low{background:#fff0ef;color:#8a1c15;font-weight:700}
 .draft-margin-warning{padding:12px;background:#fff0ef;color:#8a1c15;border-left:4px solid #b52b21;border-radius:6px;font-size:14px}
 .draft-plan dl>.draft-plan-cost{border-top:2px solid #a8b0c2;margin-top:12px}
+.draft-cost-editor{padding:18px;min-width:0}
+.draft-cost-field{display:grid;gap:6px;margin:16px 0}
+.draft-cost-field label{font-size:15px;font-weight:600;color:#252b36}
+.draft-cost-field input{width:100%;min-height:48px;font-size:17px;padding:12px;border:1px solid #8a94a6;border-radius:10px;background:white;color:#17264d;box-sizing:border-box}
+.draft-cost-field input:focus-visible{outline:3px solid #169bd7;outline-offset:2px}
+.draft-cost-field input[aria-invalid=true]{border-color:#b52b21}
+.draft-cost-error{color:#8a1c15}
+.draft-cost-error:empty{display:none}
+.draft-cost-status{font-size:14px;color:#17264d}
 .draft-plan-review summary{padding:8px 0;min-height:44px;cursor:pointer;font-weight:700}
 @media(max-width:600px){.draft-plans-grid{grid-template-columns:1fr}.draft-plan{padding:16px}.draft-plan h2{font-size:21px}.draft-plan-total dd{font-size:18px}.draft-plans-notice{padding:16px}}

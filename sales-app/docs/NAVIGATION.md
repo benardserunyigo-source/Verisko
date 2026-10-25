@@ -29,3 +29,8 @@ This is an internal review page with no selection, save or send action. It conta
 ## Draft costs and profit (v141)
 
 The draft comparison adds estimated cost of doing the job, profit before tax and margin for each plan. Below 26% is flagged in red and text, without changing a price. Actual staff views use only the existing authenticated office budget; public previews use made-up figures. Missing inputs show unavailable. These estimates include saved care and finance allowances, not confirmed supplier costs or a final profit promise. No customer quote or sharing action is changed.
+
+
+## Edit draft costs (v142)
+
+Operations/Admin can change three totals on Draft payment options and see all four cost/profit/margin estimates update. Saved assumptions stay fixed. Below 26% is flagged; invalid fields hide estimates. Use saved costs restores the starting budget. Edits stay on this page only and disappear when leaving or reloading; no customer price, shared budget or job record is saved. Fictional role preview allows these local calculator controls only, with sample costs and no writes.

@@ -45,14 +45,14 @@
  Object.defineProperty(root,'sessionStorage',{value:context.storage,configurable:true});
  Object.defineProperty(root,'indexedDB',{get:function(){throw new Error('Preview does not use device storage.');},configurable:true});
  root.fetch=context.fetch;api.active=context;
- var allowed='[data-summary-open],[data-summary-back],[data-summary-refresh],[data-summary-install],[data-summary-record],[data-summary-materials],[data-open-request-filter],[data-sales-filter],[data-work-refresh],[data-work-role],[data-client-work],[data-client-work-all],[data-client-voice],[data-open],[data-back],[data-refresh],[data-refresh-detail],[data-ready-filter],[data-ready-refresh],[data-pay-week],.package-intro>summary,[data-lead-summary-owner],[data-section],[data-nav-view],[data-view],[data-more],[data-xc-toggle],[data-new],[data-edit-lead],#primaryAction,#iwCancel,[data-installation-work],[data-preview-info],[data-iw-open],[data-iw-back],[data-iw-camera],[data-iw-step],[data-iw-photo],[data-edit],#userChip,[data-close],[data-open-leads],[data-lead-filter],[data-followup-filter]';
+ var allowed='[data-draft-reset],[data-summary-open],[data-summary-back],[data-summary-refresh],[data-summary-install],[data-summary-record],[data-summary-materials],[data-open-request-filter],[data-sales-filter],[data-work-refresh],[data-work-role],[data-client-work],[data-client-work-all],[data-client-voice],[data-open],[data-back],[data-refresh],[data-refresh-detail],[data-ready-filter],[data-ready-refresh],[data-pay-week],.package-intro>summary,[data-lead-summary-owner],[data-section],[data-nav-view],[data-view],[data-more],[data-xc-toggle],[data-new],[data-edit-lead],#primaryAction,#iwCancel,[data-installation-work],[data-preview-info],[data-iw-open],[data-iw-back],[data-iw-camera],[data-iw-step],[data-iw-photo],[data-edit],#userChip,[data-close],[data-open-leads],[data-lead-filter],[data-followup-filter]';
  function block(e){var el=e.target.closest&&e.target.closest('button,a,input,select,textarea');if(!el)return;
   if(el.matches('[data-preview-info]')){e.preventDefault();return;}
   if(el.matches('a')||el.matches('button')&&!el.matches(allowed)){e.preventDefault();e.stopImmediatePropagation();}
  }
  document.addEventListener('click',block,true);
  document.addEventListener('submit',function(e){e.preventDefault();e.stopImmediatePropagation();},true);
- function mark(){document.querySelectorAll('button,input,select,textarea').forEach(function(el){if(el.matches('button')){if(!el.matches(allowed))el.disabled=true;}else if(!el.closest('.filters')&&!el.matches('[data-work-role],[type=search],#iwQueue,#jobFilter,#prospectFilter,#visitFilter'))el.disabled=true;});}
+ function mark(){document.querySelectorAll('button,input,select,textarea').forEach(function(el){if(el.matches('button')){if(!el.matches(allowed))el.disabled=true;}else if(!el.closest('.filters')&&!el.matches('[data-draft-cost],[data-work-role],[type=search],#iwQueue,#jobFilter,#prospectFilter,#visitFilter'))el.disabled=true;});}
  new MutationObserver(mark).observe(document.body,{childList:true,subtree:true});
  var banner=document.createElement('aside');banner.className='role-preview-notice';banner.setAttribute('role','status');banner.textContent='PREVIEW · '+context.label+' · Sample data · View only';document.body.prepend(banner);
  document.body.classList.add('role-preview-active');

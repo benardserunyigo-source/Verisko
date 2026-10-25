@@ -171,3 +171,15 @@ All 563 tests passed; real-handler office/other-role/unsigned scope and unchange
 
 
 Release verified: v141 source `dd3fc220d8a414dd3715299ed43366f6146f871f`, Netlify deploy `6add48e9f5ab53ff624eccdb` ready. Eight asset hashes match, including unchanged customer pricing/catalogue/PDF/client-link logic; HTML loads v141. Seven private APIs return 401 without authentication. Live public Operations preview shows the cost/profit/margin table with fictional values and no console errors. Real office budget results were validated through isolated real-handler tests, not production account impersonation. Evidence: `output/audits/draft-option-profit-20261024/release-readback.json`, `model-check.json` and `live-profit-phone.png`. No real records or customer prices changed. Final evidence-only commit stays local to avoid another deployment.
+
+
+## Operations draft-profit phone demo: 24 October 2026
+
+User requested a simple demo of all four options and one below 26%. Opened the actual live Operations role preview via More → Draft payment options, captured the four-plan cost table at 390px. Built a separate local interactive demo on 4418 using a byte-identical copy of the actual renderer and fictional budgets only. Normal job has no red rows; Higher cost makes Cash 25.87% while 12 months/rental stay 26.17% and 24 months stays 27.76%. Exact one red row and explicit review warning verified, both buttons tested twice, no horizontal overflow or console errors. Demo left on Higher cost. No production or source-code change, real budget/client records, customer price, payment or account change. Full suite not repeated for this demonstration. Evidence: `output/audits/draft-profit-demo-20261024/`, including screenshots, readback and `index.html`. Actual role preview is fictional, not authenticated production acceptance.
+
+
+## Editable draft cost scenarios: 24 October 2026
+
+Owner approved a simple Operations draft cost editor with automatic four-plan profit updates and below-26% flags, current customer pricing unchanged. Implemented three whole-UGX cost fields and reset, no new API/storage or shared budget mutation. Existing fees/finance/contingency remain fixed; care/business replace previous amounts once. Local scenario stops on navigation and account/session guards remain. Public preview permits only these fictional local controls; other writes remain blocked. Invalid fields hide estimates and point to the field error rather than implying a network failure.
+
+All 569 tests pass. Phone 390/320px actual UI checks covered live typing/focus, single below-26% row, blanks/recovery, reset, care/business updates and navigation discarding edits. Evidence: `../qa/2026-10-24-draft-cost-editor.md` and `output/audits/draft-cost-editor-20261024/`. v142 prepared; release pending. No authenticated production mutation or Android acceptance claim.
