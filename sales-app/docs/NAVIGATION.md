@@ -21,4 +21,6 @@ Operations and Admin open **Jobs → Job summaries** first. Search and open a sa
 
 ## Draft payment comparison (v140)
 
-Operations and Admin: More → Draft payment options. Four-camera sample only; cash,12monthly payments,24monthly payments and ongoing rental. A compact comparison table plus plain-language cards show upfront, monthly and total amounts. Rental total is explicitly first12months and equipment stays withVerisko. No selection/save/send action, no private budget or client data, and no connection to current pricing/quote/PDF/client-link functions. Sales/TeamLead/Installer navigation excludes this review page. Sample prices are not confidential; the role guard is for workflow separation, not a claim that public static assets are private. Profit remains unconfirmed until costs and terms are checked.
+Operations and Admin: More → Draft payment options. One four-camera sample compares cash, 12 monthly payments, 24 monthly payments and ongoing rental. A compact table and plain-language cards show upfront, monthly and total amounts. Rental total covers the first 12 months only; equipment stays with Verisko.
+
+This is an internal review page with no selection, save or send action. It contains no private budget or client data and does not change the current quote, PDF or customer-link functions. Sales, Team Lead and Installer navigation excludes it. Sample prices are not confidential; this display guard separates workflows rather than making public assets private. Profit remains unconfirmed until costs and terms are checked.
