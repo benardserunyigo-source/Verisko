@@ -61,7 +61,7 @@
     var crewApprovalKey = extraCrew > 0 ? count + ':' + extraCrew : '';
     var direct = baseDirect + storage + extra;
     var listed=(config.salesCatalogue||[]).find(function(p){return p.cameras===count;});
-    var base = Math.max(minimum(baseDirect, pack.fee,targetValid?target:POLICY.target),listed?listed.price:0), targetPrice = minimum(direct, pack.fee,targetValid?target:POLICY.target), priceFloor = minimum(direct, 0, POLICY.margin);
+    var base = Math.max(minimum(baseDirect, pack.fee,targetValid?target:POLICY.target),listed&&!listed.offer?listed.price:0), targetPrice = minimum(direct, pack.fee,targetValid?target:POLICY.target), priceFloor = minimum(direct, 0, POLICY.margin);
     var lines = [], running = baseDirect, prior = minimum(baseDirect, pack.fee,targetValid?target:POLICY.target);
     storageKeys.forEach(function (k) { running += STORAGE[k]; var total = minimum(running, pack.fee,targetValid?target:POLICY.target), amount = total - prior; lines.push({ key: k, label: k === "hdd2tb" ? "Hard drive 2TB" : k === "hdd4tb" ? "Hard drive 4TB" : "Hard drive 6TB", qty: 1, price: amount, total: amount }); prior = total; });
     otherLines.forEach(function (l) { var total = up(number(l.total)); lines.push(Object.assign({}, l, { price: total / l.qty, total: total })); });
@@ -87,6 +87,7 @@
     var approvalKey = reasons.length ? JSON.stringify([VERSION,count,baseDirect,storage,extra,price,q.costEvidence || '',q.paymentPlan || 'installments',q.scheduledDate || '',q.addons || {},q.addonCosts || {},zone.key || '',installationType].concat(q.targetMargin==null?[]:[q.targetMargin])) : '';
     var approved = !!approvalKey && q.costApprovalKey === approvalKey;
     var releaseErrors = [];
+    if(listed?.offer)releaseErrors.push('This Sales package uses '+listed.offer.title+'. Review a matching quote for these payment terms before sharing. This standard quote cannot replace that offer.');
     if (!q.costConfirmed || !String(q.costEvidence || '').trim()) releaseErrors.push("Confirm supplier prices, chargeable freight, cable routes, crew scope and overhead; add the evidence link or reference.");
     if (!['installments','cash'].includes(q.paymentPlan)) releaseErrors.push("Choose the customer's payment plan.");
     return {

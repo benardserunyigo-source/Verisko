@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | Saved draft option to Sales offer | working | Reuse saved version and exact option terms, review/publish30days without price re-entry, preserve other package rows and agreed quotes, validate both saved/current costs and role/stale guards. |
 | 0 | Quote summary shows selected profit target | done | v149 dff695c ready;606 tests pass. Actual50% quote helper/figures match. Phone four-step price/save/Sales/expiry/quote demo captured; live assets/auth readback verified. See CHECKPOINT.md price-list demo entry. |
 | 0 | Operations 30-day Sales prices and adjustable quote targets | done | v148 source4b97024 ready;605 tests pass. Validated Operations/Admin30-day list, Sales price/expiry projection, stale/expired quote guards and26–50% quote/per-option target including rental. Agreed quotes and private costs protected.320/390px isolated-write and live readback verified; see ../qa/2026-10-24-sales-prices-and-targets.md. |
 | 0 | Suggested draft payment amounts above 26% | done | v147 source abfedf2 ready; 594 tests pass. Current deposit retained, verified monthly/cash suggestion in10k steps, review/apply separate from same-job save.320/390px and all package saves checked. Live assets/routes/preview verified; customer prices unchanged. See ../qa/2026-10-24-draft-payment-suggestions.md. |

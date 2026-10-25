@@ -1089,3 +1089,6 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 .draft-suggestion p{font-size:14px;margin:8px 0;overflow-wrap:anywhere}
 .draft-suggestion button{width:100%;min-height:48px}
 @media(max-width:440px){.draft-profit table{table-layout:fixed}.draft-profit th,.draft-profit td{white-space:normal;overflow-wrap:anywhere}}
+.sales-draft-picker select,.sales-draft-picker button,[data-draft-sales-option]{width:100%;min-width:0;max-width:100%;min-height:48px}
+.sales-draft-picker label{display:block;font-weight:600;margin:16px 0 6px}
+[data-draft-to-sales]{margin-top:12px;min-height:48px}
