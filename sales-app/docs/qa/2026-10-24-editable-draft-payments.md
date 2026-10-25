@@ -14,4 +14,4 @@ The existing private draft store keeps canonical server-validated plans/results,
 - 320px fields stack in one column, 390px fields align in pairs, tap heights at least48px, no horizontal document overflow or console errors. Local full Operations preview permits fictional edits/reset but Save stays disabled.
 - Evidence: output/audits/editable-draft-payments-20261024/ (tests.log, browser-readback.json, store-readback.json, server.mjs and payment-save-phone.png). Fictional data only.
 
-Release verification pending. Authenticated production saves and actual Android acceptance are not claimed.
+Release verified: v146 source6765d667d54ee6844c78d8fb58e6529095ff71fb; Netlify6add5f151b10ece423006bac ready. Twelve asset hashes match and eight private endpoints return JSON401 unsigned. Live Operations preview updates edited totals/profits/warnings, with Save disabled, no overflow and no console errors. Authenticated production saves and actual Android acceptance are not claimed.
