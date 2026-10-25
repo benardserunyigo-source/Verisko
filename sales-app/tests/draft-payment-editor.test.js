@@ -43,3 +43,11 @@ test('editor has no network or storage writes, and preview exception is scoped t
 test('acknowledged saved costs become the reset baseline without changing the company budget',()=>{
  const original=structuredClone(pricing),s=createDraftCostScenario('operations',pricing);s.update('direct','2630000');const saved=structuredClone(s.read().budget);s.accept(saved);s.update('care','300000');const reset=s.reset();assert.equal(reset.budget.packages[4].direct,2630000);assert.equal(reset.budget.policy.callbacks,200000);assert.deepEqual(pricing,original);
 });
+
+test('each camera package edits and resets only its own costs, keeping terms fixed',()=>{
+ for(const cameras of [4,6,8,12]){
+  const pricing={policy:{contingency:.1,callbacks:200000,acquisition:50000,overhead:200000,processing:.03,monthly:.02},packages:{[cameras]:{direct:cameras*500000}}},original=structuredClone(pricing),s=createDraftCostScenario('operations',pricing,{cameras});
+  assert.equal(s.read().fields.direct,String(cameras*500000));const changed=s.update('direct',String(cameras*1000000));assert.equal(changed.estimate.rows.length,4);assert.equal(changed.estimate.rows.every(r=>r.belowFloor),true);s.accept(changed.budget);s.update('direct','1');assert.equal(s.reset().fields.direct,String(cameras*1000000));assert.deepEqual(pricing,original);
+ }
+ assert.equal(createDraftCostScenario('operations',pricing,{cameras:12}).read().available,false);
+});

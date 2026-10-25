@@ -46,3 +46,9 @@ test('summary material link keeps its selected client while the material list lo
 });
 
 test('one overpaid installer cannot hide another installer still owed money',()=>{const r=build({installations:[{...job,installerPayments:[{id:'a',installerId:'a',amount:250000},{id:'b',installerId:'b',amount:100000}],installerPaymentVoids:[]}]})[0];assert.equal(r.crewPaid,r.crewAgreed);assert.equal(r.crewBalance,50000);assert.equal(r.crewOverpaid,50000);assert.ok(r.tasks.some(t=>/above their agreed pay/.test(t.text)));assert.ok(r.tasks.some(t=>/left to pay/.test(t.text)));});
+
+test('saved source jobs link straight to their own draft costs for 4, 6, 8 and 12 cameras only',()=>{
+ for(const cameras of [4,6,8,12]){const r=build({data:{jobs:[{...source,cameraCount:cameras}]}})[0];assert.match(summaryCard(r),/data-summary-draft="q"/);}
+ const fallback=build({data:{jobs:[{...source,quoteSnapshot:{cameras:12}}]}})[0];assert.match(summaryCard(fallback),/data-summary-draft="q"/);
+ for(const cameras of [0,5,9,16]){const r=build({data:{jobs:[{...source,cameraCount:cameras}]}})[0];assert.doesNotMatch(summaryCard(r),/data-summary-draft/);}
+});

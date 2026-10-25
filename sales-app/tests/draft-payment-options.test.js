@@ -42,7 +42,7 @@ test('unavailable or invalid private costs fail closed, not zero or fictional pr
 test('real handlers supply private cost inputs only to office roles and GET never mutates records',async()=>{
  const f=await journeyFixture(),before=await f.raw();
  for(const role of ['sales','teamlead','installer']){const response=await f.ok('data',role);assert.equal(response.pricing,undefined);assert.equal(draftCostEstimate(role,response.pricing),null);}
- for(const role of ['operations','admin']){const response=await f.ok('data',role);assert.ok(response.pricing?.packages?.[4]);const pricing={policy:response.pricing.policy,packages:response.pricing.packages};assert.equal(draftCostEstimate(role,pricing).rows.length,4);}
+ for(const role of ['operations','admin']){const response=await f.ok('data',role);const pricing={policy:response.pricing.policy,packages:response.pricing.packages};for(const cameras of [4,6,8,12]){assert.ok(response.pricing?.packages?.[cameras]);assert.equal(draftCostEstimate(role,pricing,{cameras}).rows.length,4);}}
  assert.equal((await f.api('data','unsigned')).status,401);assert.deepEqual(await f.raw(),before);
 });
 test('draft review is office-only and cannot alter current customer prices or quote rules',()=>{
@@ -56,4 +56,19 @@ test('draft review is office-only and cannot alter current customer prices or qu
 });
 test('rental is not an ownership plan or misleading lifetime total; costs and profit stay unconfirmed',()=>{
  const html=draftComparisonHtml('admin');assert.match(html,/Do not send to a client/);assert.match(html,/Paid in the first 12 months/);assert.match(html,/not refundable/);assert.match(html,/Monthly rent does not buy/);assert.match(html,/Profit is not confirmed/);assert.match(html,/26%/);assert.match(html,/camera price, mini PC and support costs still need checking/);assert.doesNotMatch(html,/<button|<input|<form|<a /);
+});
+
+test('4, 6, 8 and 12-camera draft comparisons keep the four-camera terms and round larger samples to 10k',()=>{
+ const original=structuredClone(sampleBudget);
+ for(const cameras of [4,6,8,12]){
+  const plans=draftPaymentOptions('operations',{cameras});assert.equal(plans.length,4);
+  assert.equal(plans[0].total,Math.ceil(4700000*cameras/4/10000)*10000);
+  for(const p of plans){assert.equal(p.total,p.upfront+p.months*p.monthly);for(const n of [p.upfront,p.monthly,p.total])assert.equal(n%10000,0);}
+  const pricing={policy:sampleBudget.policy,packages:{[cameras]:{direct:2200000*cameras/4}}};
+  const estimate=draftCostEstimate('operations',pricing,{cameras});assert.equal(estimate.rows.length,4);estimate.rows.forEach((r,i)=>assert.equal(r.cost+r.profit,plans[i].total));
+  const html=draftComparisonHtml('operations',{pricing,cameras});assert.match(html,new RegExp('Same '+cameras+'-camera job'));assert.match(html,new RegExp((cameras<=8?8:16)+'-channel recorder'));assert.match(html,new RegExp(cameras*50+' metres of cable'));if(cameras>4)assert.match(html,/Larger-job sample prices/);
+  const exact={policy:{contingency:0,callbacks:0,acquisition:0,overhead:0,processing:0,monthly:0},packages:{[cameras]:{direct:plans[0].total*.74}}};assert.equal(draftCostEstimate('operations',exact,{cameras}).rows[0].belowFloor,false);exact.packages[cameras].direct++;assert.equal(draftCostEstimate('operations',exact,{cameras}).rows[0].belowFloor,true);
+ }
+ for(const cameras of [0,5,7,9,16,NaN,'6']){assert.deepEqual(draftPaymentOptions('operations',{cameras}),[]);assert.equal(draftCostEstimate('operations',sampleBudget,{cameras,preview:true}),null);}
+ assert.deepEqual(sampleBudget,original);assert.equal(draftCostEstimate('operations',sampleBudget,{cameras:6}),null);
 });

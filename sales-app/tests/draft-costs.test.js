@@ -2,9 +2,9 @@ import test from 'node:test';import assert from 'node:assert/strict';import fs f
 import {createDraftCostsHandler} from '../netlify/functions/lib/draft-costs-core.mjs';
 import {FieldMemoryStore} from './helpers/field-fixture.mjs';
 import {draftCostEstimate,draftPaymentOptions} from '../draft-payment-options.mjs';
-const baseline={policy:{contingency:.1,callbacks:200000,acquisition:50000,overhead:200000,processing:.03,monthly:.02},packages:{4:{direct:2200000}}};
+const baseline={policy:{contingency:.1,callbacks:200000,acquisition:50000,overhead:200000,processing:.03,monthly:.02},packages:{4:{direct:2200000},6:{direct:3150000},8:{direct:4100000},12:{direct:5900000}}};
 function fixture(){
- const store=new FieldMemoryStore(),workspace={jobs:[{id:'job-a',prospectId:'client-a',business:'TEST Shop',cameraCount:4,stage:'Accepted',quotedTotal:5280000,paymentPlan:'installments',paymentSchedule:[{amount:2110000,due:'2026-10-24'}],fundingApproved:true},{id:'job-b',prospectId:'client-b',cameraCount:4},{id:'job-six',cameraCount:6}],users:[],transactions:[{id:'paid',amount:2000000,status:'approved'}],prospects:[{id:'client-a'}]};
+ const store=new FieldMemoryStore(),workspace={jobs:[{id:'job-a',prospectId:'client-a',business:'TEST Shop',cameraCount:4,stage:'Accepted',quotedTotal:5280000,paymentPlan:'installments',paymentSchedule:[{amount:2110000,due:'2026-10-24'}],fundingApproved:true},{id:'job-b',prospectId:'client-b',cameraCount:4},{id:'job-six',cameraCount:6},{id:'job-eight',quoteSnapshot:{cameras:8}},{id:'job-twelve',cameraCount:'12'},{id:'job-five',cameraCount:5}],users:[],transactions:[{id:'paid',amount:2000000,status:'approved'}],prospects:[{id:'client-a'}]};
  const authorize=async req=>{const role=req.headers.get('authorization');return role?{me:{id:role,name:'TEST '+role,role}}:{status:401};};
  const create=()=>createDraftCostsHandler({store,loadWorkspace:async()=>workspace,authorize,baseline,now:()=> '2026-10-24T23:30:00.000Z'});
  let handler=create();
@@ -37,7 +37,7 @@ test('invalid costs, missing jobs, wrong package sizes and cross-origin writes d
  const f=fixture(),body=await f.body();
  for(const value of [-1,'2630000',null,Infinity,0,2.5,9007199254740992])assert.equal((await f.api({...body,costs:{...body.costs,direct:value}})).status,400);
  assert.equal((await f.api({...body,costs:{direct:1,care:0}})).status,400);
- assert.equal((await f.api(null,'operations','missing')).status,404);assert.equal((await f.api(null,'operations','job-six')).status,409);
+ assert.equal((await f.api(null,'operations','missing')).status,404);assert.equal((await f.api(null,'operations','job-five')).status,409);
  assert.equal((await f.api(body,'operations','job-a',{headers:{origin:'https://other.invalid'}})).status,403);assert.equal(f.store.rows.size,0);
 });
 test('saved assumptions remain stable; changed job identity or scope blocks access to the old draft',async()=>{
@@ -49,4 +49,28 @@ test('missing company budget fails closed, while both deployment routers expose 
  const handler=createDraftCostsHandler({store:new FieldMemoryStore(),loadWorkspace:async()=>({jobs:[{id:'j',cameraCount:4}]}),authorize:async()=>({me:{role:'operations'}}),baseline:null});
  assert.equal((await handler(new Request('https://test.local/api/draft-costs?jobId=j'))).status,503);
  for(const file of ['../_redirects','../netlify.toml'])assert.match(fs.readFileSync(new URL(file,import.meta.url),'utf8'),/\/api\/draft-costs/);
+});
+
+test('all four camera packages load their own budget, save four estimates, and reopen without changing the quote',async()=>{
+ const f=fixture(),original=structuredClone(f.workspace);
+ for(const [jobId,cameras] of [['job-a',4],['job-six',6],['job-eight',8],['job-twelve',12]]){
+  const loaded=await f.api(null,'operations',jobId);assert.equal(loaded.status,200);assert.equal(loaded.cameras,cameras);assert.equal(loaded.budget.packages[cameras].direct,baseline.packages[cameras].direct);assert.deepEqual(Object.keys(loaded.budget.packages),[String(cameras)]);
+  const direct=baseline.packages[cameras].direct+25000;
+  const saved=await f.api({jobId,baseVersion:0,basisHash:loaded.basisHash,requestId:'package-'+cameras,costs:{direct,care:200000+cameras,business:250000}},'operations',jobId);
+  assert.equal(saved.status,200);assert.equal(saved.item.cameras,cameras);assert.equal(saved.item.results.length,4);assert.deepEqual(saved.item.options,draftPaymentOptions('operations',{cameras}));assert.deepEqual(saved.item.results,draftCostEstimate('operations',saved.item.budget,{cameras}).rows);
+  f.restart();assert.deepEqual((await f.api(null,'admin',jobId)).item,saved.item);
+ }
+ assert.equal(f.store.rows.size,4);assert.deepEqual(f.workspace,original);
+ const loaded=await f.api(null,'operations','job-twelve');const costs={direct:12000000,care:200000,business:250000};
+ const low=await f.api({jobId:'job-twelve',baseVersion:loaded.item.version,basisHash:loaded.basisHash,requestId:'twelve-low',costs});assert.equal(low.status,200);assert.equal(low.item.results.filter(r=>r.belowFloor).length,4);assert.deepEqual(low.item.options,loaded.item.options);
+ for(const role of ['sales','teamlead','installer',''])assert.equal((await f.api(null,role,'job-twelve')).status,role?403:401);
+});
+test('legacy four-camera saves reopen unchanged, but changing count cannot reuse any previous draft',async()=>{
+ const f=fixture(),saved=await f.api(await f.body());delete f.store.rows.get('jobs/job-a').data.cameras;
+ const legacy=await f.api();assert.equal(legacy.status,200);assert.equal(legacy.item.cameras,4);assert.deepEqual(legacy.item.results,saved.item.results);assert.deepEqual(legacy.item.budget,saved.item.budget);
+ const before=structuredClone([...f.store.rows]);f.workspace.jobs[0].cameraCount=12;assert.equal((await f.api()).status,409);assert.equal((await f.api({...await f.body(),requestId:'changed-count'})).status,409);assert.deepEqual([...f.store.rows],before);
+});
+test('a missing larger-package budget never substitutes four-camera costs or fictional values',async()=>{
+ const handler=createDraftCostsHandler({store:new FieldMemoryStore(),loadWorkspace:async()=>({jobs:[{id:'j',cameraCount:12}]}),authorize:async()=>({me:{id:'ops',role:'operations'}}),baseline:{...baseline,packages:{4:baseline.packages[4]}}});
+ const r=await handler(new Request('https://test.local/api/draft-costs?jobId=j'));assert.equal(r.status,503);assert.equal((await r.json()).budget,undefined);
 });

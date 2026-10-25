@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | Saved draft costs for 4/6/8/12 cameras | working | Correct package budget, same-job persistence and four-plan estimates; preserve four-camera saves, reject count mismatch, mobile selection and unchanged customer quotes. |
 | 0 | Save draft costs on the same job | done | v143/stylesheet144 source a9b95e0 ready; 577 tests passed. Separate private job-linked cost snapshot, four-plan estimates, role and stale-save protection, save/reopen/reset plus summary link. 320/390px checks and live readback verified; customer pricing unchanged. See ../qa/2026-10-24-saved-draft-costs.md. |
 | 0 | Editable draft cost scenarios | done | v142 source a263d24 ready; 569 tests pass. Operations/Admin three-field page-only draft editor, four live profit estimates, below-26% warnings, invalid-input handling and reset. Shared budgets/customer pricing unchanged. Phone and live release readback verified; see `../qa/2026-10-24-draft-cost-editor.md`. |
 | 0 | Draft option costs and profit | done | v141 source dd3fc22 ready; 563 tests pass. Private office budget estimates; costs/profit/margin for all four options, unrounded below-26% warnings, unavailable missing costs and fictional preview. Existing customer pricing unchanged. Phone QA and live asset/route/preview readback verified; see `../qa/2026-10-24-draft-option-profit.md`. |

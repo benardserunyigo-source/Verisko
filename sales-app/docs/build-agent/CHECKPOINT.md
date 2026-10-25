@@ -201,3 +201,15 @@ Full suite 577 passed; isolated real-handler phone save/reopen/reset/separate-jo
 
 
 Release verified: source `a9b95e032571336285a188bc9e34f1fcea093290`, Netlify deploy `6add50c41852fc13c5f46653` ready. Main feature v143; stylesheet query v144 refreshes final 48px job picker. All 12 local/live asset hashes match, including unchanged customer catalogue/calculator/PDF/client-link logic. Eight private APIs, including draft-costs, deny unsigned callers with JSON401. Live Operations preview job picker and disabled Save verified at 390px, no overflow. Isolated fixture also checked at 320px without overflow. Source job data unchanged after real-handler fictional saves; no real production saves or physical Android acceptance claimed. Evidence-only final docs commit stays local to avoid another deploy.
+
+
+## Saved-cost return phone demo: 24 October 2026
+
+User requested save → leave → reopen on the same job. Used isolated actual draft-cost controls and backend with DEMO Kampala Shop (job-a), three costs 2,630,000 / 200,000 / 250,000. Saved successfully, navigated away, reopened the same job. Same fields, saved timestamp, all four profit results and draft customer amounts matched exactly. Cash remained 25.87% with warning; other margins 26.17% / 27.76% / 26.17%. No real records or customer pricing changed. Captured phone screens and a three-step local replay on 4422 under output/audits/saved-draft-return-demo-20261024/. No source/app release or repeated suite needed for demo.
+
+
+## Draft costs for all four camera packages: 24 October 2026
+
+Owner requested 4/6/8/12-camera saved cost comparisons, current customer pricing unchanged. Implemented count-specific private budget and persisted record, selected-job count labels, matching sample terms/scope and source-summary links. Four-camera saved data stays compatible; changed count cannot reuse old costs. Larger internal sample amounts scale four-camera draft terms per camera and round to UGX10,000, visibly labelled as unapproved examples; customer catalogue/calculator/quotes unchanged.
+
+583 tests pass. Isolated real-handler phone saves/reopen/reset verified for every size with identical fields/timestamp/four estimates/sample terms. Four source jobs unchanged; legacy four-camera draft loaded. Twelve-camera low-margin warnings and 320/390px layouts checked. Actual Operations preview supports all sizes with Save disabled. See ../qa/2026-10-24-draft-all-packages.md. v145 prepared; release pending. Production authenticated saves and actual Android remain unclaimed.

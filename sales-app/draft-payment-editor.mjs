@@ -1,4 +1,4 @@
-import {draftCostBudget,draftCostEstimate,draftComparisonHtml} from './draft-payment-options.mjs?v=143';
+import {draftCostBudget,draftCostEstimate,draftComparisonHtml} from './draft-payment-options.mjs?v=145';
 const keys=['direct','care','business'];
 function parseCost(value,key){
   const text=String(value).trim();
@@ -6,28 +6,28 @@ function parseCost(value,key){
   const n=Number(text.replaceAll(',',''));
   return Number.isSafeInteger(n)&&n>=0&&(key!=='direct'||n>0)?n:null;
 }
-export function createDraftCostScenario(role,pricing,{preview=false}={}){
-  let base=draftCostBudget(role,pricing,{preview}),changes={},stopped=false;
+export function createDraftCostScenario(role,pricing,{preview=false,cameras=4}={}){
+  let base=draftCostBudget(role,pricing,{preview,cameras}),changes={},stopped=false;
   function read(){
     if(stopped||!base)return {available:false,budget:null,estimate:null,fields:{},errors:{}};
-    const defaults={direct:base.packages[4].direct,care:base.policy.callbacks,business:base.policy.acquisition+base.policy.overhead},fields={},errors={};
+    const defaults={direct:base.packages[cameras].direct,care:base.policy.callbacks,business:base.policy.acquisition+base.policy.overhead},fields={},errors={};
     for(const key of keys){fields[key]=Object.hasOwn(changes,key)?changes[key]:String(Math.round(defaults[key]));if(Object.hasOwn(changes,key)&&parseCost(changes[key],key)===null)errors[key]=key==='direct'?'Enter a whole UGX amount above 0.':'Enter a whole UGX amount. Use 0 if none.';}
     if(Object.keys(errors).length)return {available:true,budget:null,estimate:null,fields,errors};
-    const budget={policy:{...base.policy},packages:{4:{direct:base.packages[4].direct}}};
-    if(Object.hasOwn(changes,'direct'))budget.packages[4].direct=parseCost(changes.direct,'direct');
+    const budget={policy:{...base.policy},packages:{[cameras]:{direct:base.packages[cameras].direct}}};
+    if(Object.hasOwn(changes,'direct'))budget.packages[cameras].direct=parseCost(changes.direct,'direct');
     if(Object.hasOwn(changes,'care'))budget.policy.callbacks=parseCost(changes.care,'care');
     if(Object.hasOwn(changes,'business')){budget.policy.acquisition=0;budget.policy.overhead=parseCost(changes.business,'business');}
-    const estimate=draftCostEstimate(role,budget);
+    const estimate=draftCostEstimate(role,budget,{cameras});
     if(!estimate)errors.direct='Costs are too large to calculate. Enter a smaller amount.';
     return {available:true,budget:estimate?budget:null,estimate,fields,errors};
   }
-  return {read,update(key,value){if(!stopped&&base&&keys.includes(key))changes[key]=String(value);return read();},reset(){changes={};return read();},accept(saved){const next=read();if(next.budget){base=draftCostBudget(role,saved||next.budget);changes={};}return read();},stop(){stopped=true;base=null;changes={};}};
+  return {read,update(key,value){if(!stopped&&base&&keys.includes(key))changes[key]=String(value);return read();},reset(){changes={};return read();},accept(saved){const next=read();if(next.budget){base=draftCostBudget(role,saved||next.budget,{cameras});changes={};}return read();},stop(){stopped=true;base=null;changes={};}};
 }
-export function mountDraftPaymentEditor({host,user,pricing,preview=false,isCurrent=()=>true,onSave}){
+export function mountDraftPaymentEditor({host,user,pricing,preview=false,cameras=4,isCurrent=()=>true,onSave}){
   const role=user?.role;
   if(!['admin','operations'].includes(role)){host.innerHTML='<p role="alert">Operations or Admin access needed.</p>';return {stop(){}};}
-  const model=createDraftCostScenario(role,pricing,{preview}),initial=model.read();let stopped=false;
-  host.innerHTML=draftComparisonHtml(role,{pricing,preview});
+  const model=createDraftCostScenario(role,pricing,{preview,cameras}),initial=model.read();let stopped=false;
+  host.innerHTML=draftComparisonHtml(role,{pricing,preview,cameras});
   if(!initial.available)return {stop(){stopped=true;model.stop();}};
   const editor=document.createElement('section');editor.className='card draft-cost-editor';
   editor.innerHTML='<h2>Edit draft costs</h2><p class="helper">'+(onSave?'Changes stay on this page until you tap Save draft costs. Customer prices and the company budget do not change.':'Try costs for this sample job. Changes stay on this page only. Customer prices and the saved budget do not change.')+'</p>'+[
@@ -38,7 +38,7 @@ export function mountDraftPaymentEditor({host,user,pricing,preview=false,isCurre
   const current=()=>!stopped&&isCurrent();
   function show(next,restore=false){
     if(!current())return;
-    const template=document.createElement('template');template.innerHTML=draftComparisonHtml(role,{pricing,preview,scenario:next.budget,costError:!!Object.keys(next.errors).length});
+    const template=document.createElement('template');template.innerHTML=draftComparisonHtml(role,{pricing,preview,cameras,scenario:next.budget,costError:!!Object.keys(next.errors).length});
     for(const selector of ['.draft-profit','.draft-plans-grid','.draft-plan-review']){
       const old=host.querySelector(selector),replacement=template.content.querySelector(selector);
       if(old?.open)replacement.open=true;
@@ -55,7 +55,7 @@ export function mountDraftPaymentEditor({host,user,pricing,preview=false,isCurre
   async function persist(){
     const next=model.read();if(!current()||saving||preview||!next.budget)return;
     saving=true;save.disabled=true;inputs.forEach(i=>i.disabled=true);reset.disabled=true;status.textContent='Saving draft costs…';
-    try{const saved=await onSave({direct:Math.round(next.budget.packages[4].direct),care:Math.round(next.budget.policy.callbacks),business:Math.round(next.budget.policy.acquisition+next.budget.policy.overhead)});if(!current())return;show(model.accept(saved),true);status.textContent='Draft costs saved on this job. Customer pricing is unchanged.';}
+    try{const saved=await onSave({direct:Math.round(next.budget.packages[cameras].direct),care:Math.round(next.budget.policy.callbacks),business:Math.round(next.budget.policy.acquisition+next.budget.policy.overhead)});if(!current())return;show(model.accept(saved),true);status.textContent='Draft costs saved on this job. Customer pricing is unchanged.';}
     catch(e){if(current())status.textContent=e.message||'Could not save. Your edits are still here. Try again.';}
     finally{saving=false;if(current()){inputs.forEach(i=>i.disabled=false);reset.disabled=false;save.disabled=preview||!model.read().estimate;}}
   }
