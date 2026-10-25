@@ -36,3 +36,7 @@ The user’s open localhost8902 page is stale: UI showed the older multi-button 
 - Sign in as a real authorized Operations/Admin user on live and read a saved quote/draft cost screen; this audit does not invent a session or change account privileges.
 - Actual Android pilot: locked-screen tracking, offline sync, camera/mic/dialer, TalkBack and larger text.
 - Human staff training described in the meeting is operational work; no training meeting or staff message has been sent.
+
+## Verified release
+
+v158 source `de14eccc2b19f4f3f8b3794dce740f496a1d1a09`, Netlify `6ade6761a6eee469e68bf785` ready.650tests pass.24exact liveasset hashes plus application page equality after the previously observed pretty-link-only anchor rewrite.10privateAPIroutesJSON401 unsigned. Live normal app opened in place of stale8902page; sign-in required, no account/session fabricated. No real stock/price/pay/client changes. Evidence output/audits/meeting-check-20261025/deploy.json,release-readback.json,time-readback.json and phone captures. Final evidence-only commit remains local.
