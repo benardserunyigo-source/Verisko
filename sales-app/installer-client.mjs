@@ -1,4 +1,4 @@
-import {applyCommand} from './installer-model.mjs?v=154';
+import {applyCommand} from './installer-model.mjs?v=155';
 export const requestId=()=>crypto.randomUUID();
 // One durable store. Every key is partitioned by the signed-in account.
 export function openOfflineStore(factory=indexedDB){

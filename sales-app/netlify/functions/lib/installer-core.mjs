@@ -11,9 +11,11 @@ export function imageData(value){
  if(bytes.length<8||(m[1]==='jpeg'?bytes[0]!==255||bytes[1]!==216:bytes.subarray(0,8).toString('hex')!=='89504e470d0a1a0a'))throw fail('Invalid photo bytes.');
  return {type:'image/'+m[1],base64:m[2],hash:createHash('sha256').update(bytes).digest('hex')};
 }
-export function createInstallerHandler({store,authorize,now=()=>new Date().toISOString()}){
+export function createInstallerHandler({store,authorize,coordinate=(_,fn)=>fn(),beforeCommand=()=>{},now=()=>new Date().toISOString()}){
  return async request=>{try{
-  const auth=await authorize(request),me=auth.me,ops=['admin','operations'].includes(me?.role);if(!me||!allowed(me))return json({ok:false,error:'Installation access required.'},auth.status||403);
+  let auth=await authorize(request),me=auth.me,ops=['admin','operations'].includes(me?.role);if(!me||!allowed(me))return json({ok:false,error:'Installation access required.'},auth.status||403);
+  return await coordinate(request.method,async()=>{
+  if(request.method==='POST'){auth=await authorize(request);me=auth.me;ops=['admin','operations'].includes(me?.role);if(!me||!allowed(me))throw fail('Installation access required.',auth.status||403);}
   const url=new URL(request.url),id=url.searchParams.get('jobId');
   const viewJob=j=>{const out=installerJobView(j,me),source=(auth.sourceJobs||[]).find(s=>s.id===j.sourceId);if((j.supervisorIds||[]).includes(me.id)&&manager(me)&&source){out.handoverSetup=Object.fromEntries(['servicePolicyVersion','serviceStartDate','monitoringMiniPcRef','monitoringTestEvidence','monitoringCommissioned','clientName'].map(k=>[k,source[k]]));out.handoverSetup.clientName=source.clientName||(auth.prospects||[]).find(p=>p.id===j.readyContactId)?.contact||'';}return out;};
   if(request.method==='GET'){
@@ -59,6 +61,7 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
     if(cmd.action==='clientReview'&&old.data.sourceId&&!(auth.sourceJobs||[]).some(s=>s.id===old.data.sourceId))throw fail('The source job is unavailable. Ask Operations to check it.',409);
     if(cmd.action==='plan'&&cmd.data?.supervisorIds!==undefined&&(!Array.isArray(cmd.data.supervisorIds)||cmd.data.supervisorIds.some(id=>!auth.users.some(u=>u.id===id&&canSuperviseSite(u)))))throw fail('Choose Operations, a Team Lead or Admin for this site.');
     if(cmd.action==='plan'&&(!Array.isArray(cmd.data?.assignees)||cmd.data.assignees.some(id=>!auth.users.some(u=>u.id===id&&u.role==='installer'))))throw fail('Assign Installer accounts only.');
+    if(ops)await beforeCommand({cmd,job:old.data});
     if(cmd.action==='evidence'){
      if(!valid(cmd.data?.id))throw fail('Invalid evidence ID.');const image=imageData(cmd.data.image);
      const imageKey='photos/'+body.jobId+'/'+cmd.data.id;
@@ -72,5 +75,6 @@ export function createInstallerHandler({store,authorize,now=()=>new Date().toISO
    const write=await store.setJSON(key,j,old?{onlyIfMatch:old.etag}:{onlyIfNew:true});if(write.modified)return json({ok:true,job:viewJob(j)});
   }
   throw fail('Someone else updated this job. Sync and try again.',409);
+  });
  }catch(e){return json({ok:false,error:e.message||'Installation request failed.'},e.status||500);}};
 }

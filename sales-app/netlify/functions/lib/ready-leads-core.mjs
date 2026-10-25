@@ -1,3 +1,4 @@
+import {projectWarehouseCase,projectWarehouseCases} from './warehouse-stock.mjs';
 import {contactInstallations} from './installation-progress.mjs';
 import {applyMaterials,paidWork,materialsSummary} from './materials-core.mjs';
 import {firstClientPayment,paymentView,validPaymentDay} from './ready-payments.mjs';
@@ -112,12 +113,14 @@ export function transitionReady(old,body,me,p,users,at,appointments=[],transacti
  c.version++;c.updatedAt=at;c.history.push({id:eventId,type,at,by:me.id,name:me.name||'Staff',toId,toName,note,date:['confirm_visit','reschedule_visit','complete_visit','quote_sent'].includes(action)?body.date:undefined,time:['confirm_visit','reschedule_visit'].includes(action)?body.time:undefined});return c;
 }
 function view(c,p,users,me,transactions=[],jobs=[],installations=[]){const creator=users.find(u=>own(p,u));const safe=structuredClone(c);safe.firstPayment=paymentView(c,p,me,transactions,jobs);safe.materialsStatus=materialsSummary(c.materialPlans);safe.installationProgress=contactInstallations(p.id,jobs,installations);if(office(me))safe.availableQuotes=jobs.filter(j=>j.prospectId===p.id&&!['Draft','Cancelled','Rejected'].includes(j.stage)).map(j=>({id:j.id,ref:j.ref||'Saved quote'}));if(['admin','operations'].includes(me.role))safe.paidWork=paidWork(p,transactions,jobs,c);else delete safe.materialPlans;if(!office(me)){safe.history=safe.history.map(e=>e.type==='payment_queried'?{...e,note:''}:e);if(safe.quoteSent){delete safe.quoteSent.reference;delete safe.quoteSent.byEmail;}if(safe.visit){delete safe.visit.byEmail;delete safe.visit.doneByEmail;}}return {...safe,contact:{id:p.id,business:p.business||'',contact:p.contact||'',phone:p.phone||'',location:p.location||'',leadOnly:p.leadOnly===true,createdBy:p.createdBy||creator?.name||'Sales'},ownerName:users.find(u=>u.id===c.ownerId)?.name||(c.ownerId?'Former team member':'Unassigned'),creatorId:creator?.id||null};}
-export function createReadyHandler({store,authorize,now=()=>new Date().toISOString()}){return async request=>{try{
- const auth=await authorize(request),me=auth?.me;if(!allowed(me))return json({ok:false,error:'Site visit access required.'},auth?.status||403);
+export function createReadyHandler({store,authorize,coordinate=(_,fn)=>fn(),now=()=>new Date().toISOString()}){return async request=>{try{
+ let auth=await authorize(request),me=auth?.me;if(!allowed(me))return json({ok:false,error:'Site visit access required.'},auth?.status||403);
  if(request.headers.get('origin')&&request.headers.get('origin')!==new URL(request.url).origin)return json({ok:false,error:'Use this app to update the queue.'},403);
+ return await coordinate(request.method,async()=>{
+ if(request.method==='POST'){auth=await authorize(request);me=auth?.me;if(!allowed(me))throw fail('Site visit access required.',auth?.status||403);}
  const prospects=auth.prospects||[],users=auth.users||[];
  if(request.method==='GET'){
-  const cases=new Map((await loadReadyCases(store)).map(c=>[c.contactId,c]));
+  const cases=new Map(projectWarehouseCases(await loadReadyCases(store),auth.warehouse).map(c=>[c.contactId,c]));
   for(const p of prospects){if(!cases.has(p.id)){const c=legacyCase(p);if(c)cases.set(p.id,c);}}
   const materials=new URL(request.url).searchParams.get('materials')==='1';
   if(materials){if(!['admin','operations'].includes(me.role))throw fail('Only Operations can open materials and buying.',403);for(const p of prospects){if(!cases.has(p.id)&&paidWork(p,auth.transactions,auth.jobs).length)cases.set(p.id,{contactId:p.id,state:'assigned',ownerId:null,version:0,history:[]});}}
@@ -129,7 +132,7 @@ export function createReadyHandler({store,authorize,now=()=>new Date().toISOStri
  if(Number(request.headers.get('content-length'))>20000)throw fail('Request too large.',413);
  const body=await request.json();if(!valid(body.contactId))throw fail('Choose a saved contact.');
  const p=prospects.find(p=>p.id===body.contactId);if(!p||(!office(me)&&!own(p,me))||(me.role==='teamlead'&&body.action==='request'&&!own(p,me)))throw fail('Contact not found.',404);
- const key='cases/'+p.id,old=await store.getWithMetadata(key,{type:'json'}),previous=old?.data||legacyCase(p);
+ const key='cases/'+p.id,old=await store.getWithMetadata(key,{type:'json'}),previous=projectWarehouseCase(old?.data||legacyCase(p),auth.warehouse);
  if(me.role==='teamlead'&&!own(p,me)&&!previous)throw fail('Contact not found.',404);
  const materialAction=['plan_materials','request_procurement','order_material','receive_material'].includes(body.action);
  if(materialAction&&!['admin','operations'].includes(me.role))throw fail('Only Operations can manage materials and buying.',403);
@@ -138,4 +141,5 @@ export function createReadyHandler({store,authorize,now=()=>new Date().toISOStri
  const next=transitionReady(initial,body,me,p,users,now(),auth.appointments||[],auth.transactions||[],auth.jobs||[]);
  if(next!==initial){const result=await store.setJSON(key,next,old?.etag?{onlyIfMatch:old.etag}:{onlyIfNew:true});if(!result?.modified)throw fail('Someone updated this lead first. Refresh the queue to see its owner.',409);}
  return json({ok:true,item:view(next,p,users,me,auth.transactions||[],auth.jobs||[],auth.installationProgress||[])});
+ });
  }catch(e){return json({ok:false,error:e.status?e.message:'Could not load or save the site visit queue.'},e.status||500);}};}

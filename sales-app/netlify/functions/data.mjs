@@ -1,3 +1,4 @@
+import {projectWarehouseCases} from './lib/warehouse-stock.mjs';
 import {loadClientPlans,projectClientPlans} from './lib/client-plan-job.mjs';
 import {salesPriceView} from '../../sales-price-policy.mjs';
 import {loadVoiceNotes,projectVoice,stripVoice} from './lib/voice-notes-core.mjs';
@@ -55,7 +56,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
       if(request.method!=='GET')return json({ok:false,error:'Use the installation workspace.'},403,headers);
       return json({ok:true,data:{...EMPTY,users:[safeUser(me)]}},200,headers);
     }
-    const readyCases=await loadReadyCases(storeFor({name:'verisko-ready-cases',consistency:'strong'}));
+    const readyCases=projectWarehouseCases(await loadReadyCases(storeFor({name:'verisko-ready-cases',consistency:'strong'})),await storeFor({name:'verisko-inventory',consistency:'strong'}).get('current',{type:'json'})||{});
     const installationProgress=await loadInstallationProgress(storeFor({name:'verisko-installations',consistency:'strong'}));
     const voiceNotes=await loadVoiceNotes(storeFor({name:'verisko-voice-notes',consistency:'strong'}));
     const clientPlans=await loadClientPlans(storeFor({name:'verisko-client-plans',consistency:'strong'}));

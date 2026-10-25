@@ -1,6 +1,6 @@
-import {canReviewClient,makeClientReview} from './client-review.mjs?v=154';
-import {initialMaterials,applyMaterialCommand,materialProblems,updateMaterialPlan} from './installer-materials.mjs?v=154';
-export {materialBalance,materialProblems,stockManager,UNITS,initialMaterials} from './installer-materials.mjs?v=154';
+import {canReviewClient,makeClientReview} from './client-review.mjs?v=155';
+import {initialMaterials,applyMaterialCommand,materialProblems,updateMaterialPlan} from './installer-materials.mjs?v=155';
+export {materialBalance,materialProblems,stockManager,UNITS,initialMaterials} from './installer-materials.mjs?v=155';
 // Shared installation workflow. Server applies commands, never client snapshots.
 export const TESTS=['live','recording','playback','coverage','remote'];
 export const PARTS=['cable','mount','tests'];

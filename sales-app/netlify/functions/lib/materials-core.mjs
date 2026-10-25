@@ -3,7 +3,7 @@ const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 const clean=(v,n=150)=>typeof v==='string'?v.trim().slice(0,n):'';
 const sum=rows=>Math.round((rows||[]).reduce((n,x)=>n+x.quantity,0)*100)/100;
 export const materialTotals=item=>({ordered:sum(item.orders),arrived:sum(item.receipts)});
-export function materialStatus(plan){if(!plan?.items?.length)return 'Not planned';const totals=plan.items.map(materialTotals);if(totals.every((t,i)=>t.arrived>=plan.items[i].planned))return 'All materials arrived';if(totals.some(t=>t.arrived>0))return 'Some materials arrived';if(totals.some(t=>t.ordered>0))return 'Materials ordered';return plan.requestedAt?'Buying requested':'Materials planned';}
+export function materialStatus(plan){if(!plan?.items?.length)return 'Not planned';const totals=plan.items.map(materialTotals);if(totals.every((t,i)=>t.arrived+(plan.items[i].warehouse||0)>=plan.items[i].planned))return 'All materials arrived';if(totals.some((t,i)=>t.arrived>0||(plan.items[i].warehouse||0)>0))return 'Some materials arrived';if(totals.some(t=>t.ordered>0))return 'Materials ordered';return plan.requestedAt?'Buying requested':'Materials planned';}
 export function paidWork(p,transactions=[],jobs=[],c){
  const rows=c?.firstPayment?[...transactions.filter(t=>t.id!==c.firstPayment.id),c.firstPayment]:transactions;
  const allJobs=jobs.filter(j=>j.prospectId===p.id),linked=allJobs.filter(j=>!['Rejected','Cancelled'].includes(j.stage));
@@ -27,16 +27,16 @@ export function applyMaterials(c,body,me,p,transactions,jobs,at){
   if(!Array.isArray(body.items)||!body.items.length||body.items.length>40)throw fail('Add between 1 and 40 materials.');
   const seen=new Set(),ids=new Set();plan.items=body.items.map(i=>{const id=clean(i.id,100),name=clean(i.name),unit=clean(i.unit,10),source=clean(i.source,10);if(!/^[\w-]{1,100}$/.test(id)||ids.has(id))throw fail('Each material needs its own ID.');ids.add(id);if(name.length<2||!['pcs','m','box','roll','sets'].includes(unit)||!['China','Uganda'].includes(source))throw fail('Choose the item, unit and where to buy it.');const key=[name.toLowerCase(),unit,source].join('|');if(seen.has(key))throw fail('This material is listed twice. Change its quantity instead.');seen.add(key);
    const prior=old?.items.find(x=>x.id===id),totals=prior?materialTotals(prior):{ordered:0,arrived:0},planned=quantity(i.planned,unit);
-   if(totals.ordered&&(prior.name!==name||prior.unit!==unit||prior.source!==source))throw fail('Keep an ordered item unchanged. Add a new line for a different item.');if(planned<totals.ordered)throw fail('The planned quantity cannot be below what is ordered.');return {id,name,unit,source,planned,orders:prior?.orders||[],receipts:prior?.receipts||[]};});
-  if(old?.items.some(i=>!ids.has(i.id)&&materialTotals(i).ordered))throw fail('Keep items that have already been ordered.');plan.requestedAt=old&&JSON.stringify(old.items)===JSON.stringify(plan.items)?old.requestedAt||'':'';plan.updatedAt=at;
+   if((totals.ordered||prior?.warehouse)&&(prior.name!==name||prior.unit!==unit||prior.source!==source))throw fail('Keep an ordered item unchanged. Add a new line for a different item.');if(planned<totals.ordered+(prior?.warehouse||0))throw fail('The planned quantity cannot be below what is ordered.');return {id,name,unit,source,planned,...(prior?.warehouse?{warehouse:prior.warehouse}:{}),orders:prior?.orders||[],receipts:prior?.receipts||[]};});
+  if(old?.items.some(i=>!ids.has(i.id)&&(materialTotals(i).ordered||i.warehouse)))throw fail('Keep items that have already been ordered.');plan.requestedAt=old&&JSON.stringify(old.items)===JSON.stringify(plan.items)?old.requestedAt||'':'';plan.updatedAt=at;
  }else{
   if(!old?.items.length)throw fail('Save the materials plan first.',409);
-  if(body.action==='request_procurement'){if(plan.requestedAt)throw fail('Buying has already been requested.',409);plan.requestedAt=at;plan.requestedBy=me.name;}
+  if(body.action==='request_procurement'){if(plan.requestedAt)throw fail('Buying has already been requested.',409);if(!plan.items.some(i=>i.planned-(i.warehouse||0)-materialTotals(i).ordered>0))throw fail('No buying is needed. Use the materials already on this job.',409);plan.requestedAt=at;plan.requestedBy=me.name;}
   else{
    if(!plan.requestedAt)throw fail('Request buying before recording an order or delivery.',409);
    const item=plan.items.find(i=>i.id===body.itemId);if(!item)throw fail('Choose a material.');const q=quantity(body.quantity,item.unit),date=day(body.date,at),totals=materialTotals(item);
    if(body.action==='order_material'){
-    if(q>Math.round((item.planned-totals.ordered)*100)/100)throw fail('This order exceeds the planned quantity. Update the plan first.');
+    if(q>Math.round((item.planned-(item.warehouse||0)-totals.ordered)*100)/100)throw fail('This order exceeds the planned quantity. Update the plan first.');
     const supplier=clean(body.supplier);if(supplier.length<2)throw fail('Add the supplier name.');const link=clean(body.link,1000);if(link){let url;try{url=new URL(link);}catch{throw fail('Paste a full https link for the quote or evidence.');}if(url.protocol!=='https:'||url.username||url.password)throw fail('Use an https link without login details.');}
     let cost={};if(body.unitCost!==undefined&&body.unitCost!==''){const n=Number(body.unitCost);if(typeof body.unitCost==='boolean'||!Number.isFinite(n)||n<=0||n>1e9||!['UGX','USD'].includes(body.currency)||Math.abs(n*100-Math.round(n*100))>1e-6||(body.currency==='UGX'&&!Number.isInteger(n)))throw fail('Enter a valid unit cost and currency.');cost={unitCost:n,currency:body.currency};}
     item.orders.push({...cost,quantity:q,date,supplier,reference:clean(body.reference,100),link,by:me.name,at});
