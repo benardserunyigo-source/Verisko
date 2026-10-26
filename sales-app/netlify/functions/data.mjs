@@ -239,7 +239,8 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
       if(canCash)clean.transactions=guardCallbackCash(storedTx,clean.transactions,callbackCases,me);
       if(canCash)clean.transactions=guardInstallerCash(storedTx,clean.transactions,installerCashJobs,me);
 
-      // Operations records cash; only Admin approves or alters approved entries.
+      // Operations approves receipt-backed expenses up to100K. Admin reviews income,
+      // larger expenses and any correction to an already approved entry.
       if(!isTeamLead)clean.transactions=guardCash(storedTx,clean.transactions,bootstrap?{role:'admin'}:{...me,email});
 
       for(const nextContact of clean.prospects){

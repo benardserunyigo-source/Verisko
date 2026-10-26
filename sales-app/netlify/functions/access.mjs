@@ -34,7 +34,7 @@ export function guardCash(stored,incoming,actor){
   if(old?.status==='approved'){out.push(old);continue;}
   const approve=old&&['pending','query'].includes(old.status)&&t.status==='approved'&&t.direction==='out'&&!t.readyCaseId&&Number.isSafeInteger(t.amount)&&t.amount>0&&t.amount<=100000&&!!t.proofId;
   if(approve){out.push({...t,status:'approved',preapproved:old.preapproved===true,createdBy:old.createdBy||actor.name||'',createdByEmail:old.createdByEmail||actor.email||'',reviewNote:'',reviewedBy:actor.name||actor.id,reviewedAt:new Date().toISOString(),approvedAt:new Date().toISOString()});continue;}
-  out.push({...t,status:(old?.installerPaymentKey||old?.callbackExpenseKey||old?.financeKey)&&old.status==='query'&&t.status==='pending'?'pending':old?.status||'pending',reviewedBy:old?.reviewedBy||'',reviewedAt:old?.reviewedAt||'',reviewNote:old?.reviewNote||'',approvedAt:old?.approvedAt||'',preapproved:old?.preapproved===true,createdBy:old?.createdBy||actor.name||'',createdByEmail:old?.createdByEmail||actor.email||''});
+  out.push({...t,status:old?.status==='query'&&t.status==='pending'?'pending':old?.status||'pending',reviewedBy:old?.reviewedBy||'',reviewedAt:old?.reviewedAt||'',reviewNote:old?.reviewNote||'',approvedAt:old?.approvedAt||'',preapproved:old?.preapproved===true,createdBy:old?.createdBy||actor.name||'',createdByEmail:old?.createdByEmail||actor.email||''});
  }
  for(const old of stored)if(old.status==='approved'&&!seen.has(old.id))out.push(old);
  return out;
