@@ -487,3 +487,6 @@ Release verified:v165 source306c77e58218015a9f4220ce194754c394421870, Netlify6ad
 ## Callback walkthrough and new-record correction:v166
 
 Actual4490Operations opened another callback from the prior closed callback. Found newform incorrectly reused selected callback ID; corrected create/edit request identity, added regression check. Same completed DEMO Simple Journey selected once→technician assigned→Operations receipt/20Ktransportcost→4491technicianstart/fixedphoto/testedreport→Operations viewedphoto+receipt→closed. two-callbacks.json asserts2distinctcallbacks on1job/contact, earlierclosedrecord preserved,1costeach. No client/job/installation/cash rewrite.677tests pass; routine fix release/exactverification next.
+
+
+Releaseverified:v166 sourcede99c25, Netlify6adec6dab57a9fbd3073a4d2ready;677tests/0fail,40assets match (knownapplicationanchornormalizationonly),11privateAPIJSON401. Newcallbackidentitycorrectionlive. Actual2distinctclosedcallbacks remainon1demojob/client with1costeach. Operations4490phone staysonnewclosedcallback, technician4491samecallback. No productionrecords changed. Nextnewrequest/devicepilot; no repeatedaudit needed.

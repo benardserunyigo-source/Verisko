@@ -20,3 +20,6 @@ Release verified: v165 source306c77e58218015a9f4220ce194754c394421870, Netlify6a
 ## v166 walkthrough correction
 
 Starting a new callback while an earlier one was selected reused its record ID and was rejected safely by the server. The new form now creates a fresh ID; edits retain the selected ID/version. Added a behavioral form-target regression test.677tests pass. Actual phone flow demonstrated a second distinct callback on the same source job, Operations recording20Kwithreceipt, technician repairproof and Operations closure. Previous callback unchanged. Evidence two-callbacks.json and demo-proof-review.png/demo-closed.png.
+
+
+v166 release verified: de99c25, Netlify6adec6dab57a9fbd3073a4d2ready;677tests/0fail,40assets/11protectedAPI401. Newrecord correction is live; no real records changed.
