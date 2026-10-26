@@ -1116,3 +1116,9 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 
 /* Operations: one next action, phone-sized controls. */
 .operations-actions h3{margin:0 0 8px}.operations-actions .card{padding:18px}.summary-task{display:block;width:100%;white-space:normal;text-align:left;line-height:1.5;margin:8px 0;min-height:48px}.summary-next{margin:16px 0;padding:16px;border-radius:12px;background:#eaf1ff}.summary-next>.summary-task{background:#172969;color:white}.summary-tools{margin-top:18px}.summary-tools .ready-actions{padding-top:12px}.job-summary-card{overflow-wrap:anywhere}
+
+/* Short quote steps keep the existing inputs and saved values. */
+.quote-step { padding: 16px 0; border-top: 1px solid var(--border, #e3e6ec); min-width: 0; }
+.quote-step h3, .quote-step summary { margin: 0 0 14px; font-size: 17px; font-weight: 700; }
+.quote-step summary { cursor: pointer; min-height: 36px; padding-top: 8px; }
+.quote-step > .form-grid { margin-top: 12px; }

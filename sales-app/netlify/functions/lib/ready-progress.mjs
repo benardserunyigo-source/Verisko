@@ -3,7 +3,7 @@ import {contactInstallations,projectApprovedJobs} from './installation-progress.
 export async function loadReadyCases(store){const out=[];for await(const page of store.list({prefix:'cases/',paginate:true})){for(const b of page.blobs){const c=await store.get(b.key,{type:'json'});if(c)out.push(c);}}return out;}
 export function projectReady(data,cases,installations=[]){
  const out={...data,jobs:projectApprovedJobs(data.jobs||[],installations),prospects:[...(data.prospects||[])],appointments:[...(data.appointments||[])],transactions:[...(data.transactions||[])]};
- for(const c of cases){if(c.firstPayment&&(data.prospects||[]).some(p=>p.id===c.contactId)){out.transactions=out.transactions.filter(t=>t.id!==c.firstPayment.id);const payment={...c.firstPayment,readyCaseId:c.contactId,prospectId:c.contactId};
+ for(const c of cases){if(c.quoteSent?.sourceId)out.jobs=out.jobs.map(j=>j.id===c.quoteSent.sourceId&&j.prospectId===c.contactId&&j.stage==='Draft'?{...j,stage:'Sent'}:j);if(c.firstPayment&&(data.prospects||[]).some(p=>p.id===c.contactId)){out.transactions=out.transactions.filter(t=>t.id!==c.firstPayment.id);const payment={...c.firstPayment,readyCaseId:c.contactId,prospectId:c.contactId};
  // Reuse the quote explicitly chosen in this client's queue. Never allocate
  // a client-level deposit to every quote or create a second cash entry.
  if(!payment.installId&&out.jobs.some(j=>j.id===c.quoteSent?.sourceId&&j.prospectId===c.contactId))payment.installId=c.quoteSent.sourceId;

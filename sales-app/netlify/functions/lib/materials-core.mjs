@@ -13,7 +13,7 @@ export function paidWork(p,transactions=[],jobs=[],c){
  const direct=rows.some(t=>t.direction==='in'&&Number(t.amount)>0&&t.status==='approved'&&t.prospectId===p.id&&!t.installId);
  const priorClientPlan=c?.materialPlans?.some(x=>x.sourceId==='client-'+p.id);
  if(!linked.length||priorClientPlan&&linked.length===1&&direct)return [{id:'client-'+p.id,label:linked[0]?.ref||p.business||'Client order'}];
- const work=linked.filter(j=>direct||rows.some(t=>t.direction==='in'&&Number(t.amount)>0&&t.status==='approved'&&t.installId===j.id)).map(j=>({id:j.id,label:j.ref||j.business||'Client job'}));
+ const work=linked.filter(j=>direct||rows.some(t=>t.direction==='in'&&Number(t.amount)>0&&t.status==='approved'&&t.installId===j.id)).map(j=>({id:j.id,label:j.ref||j.business||'Client job',cameraCount:Number(j.cameraCount||j.quoteSnapshot?.cameras)||0,cableMetres:Number(j.quoteSnapshot?.cableMetres)||0}));
  if(priorClientPlan)work.unshift({id:'client-'+p.id,label:'Existing client order'});return work;
 }
 export function materialsSummary(plans=[]){if(!plans.length)return 'Not planned';const states=plans.map(materialStatus);return states.every(s=>s==='All materials arrived')?'All materials arrived':states.some(s=>s==='Some materials arrived'||s==='All materials arrived')?'Some materials arrived':states.some(s=>s==='Materials ordered')?'Materials ordered':states.some(s=>s==='Buying requested')?'Buying requested':'Materials planned';}

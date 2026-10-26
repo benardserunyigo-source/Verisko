@@ -1,7 +1,7 @@
-import {replyText,choiceDetailsHtml} from './client-plan-ui.mjs?v=163';
-import './job-finance.js?v=163';
-import {installerPaymentSummary} from './installer-model.mjs?v=163';
-import {materialBalance} from './installer-materials.mjs?v=163';
+import {replyText,choiceDetailsHtml} from './client-plan-ui.mjs?v=164';
+import './job-finance.js?v=164';
+import {installerPaymentSummary} from './installer-model.mjs?v=164';
+import {materialBalance} from './installer-materials.mjs?v=164';
 const office=u=>['admin','operations'].includes(u?.role);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>'UGX '+Number(n).toLocaleString('en-UG');
@@ -65,7 +65,7 @@ export function buildJobSummaries({user,data={},cases=[],installations=[],quoteV
    if(r.balance>0)task('Client balance: '+money(r.balance)+'. Review payments before collecting.','payments');
    if(total!=null&&r.balance>0&&!s?.paymentSchedule?.length)task('Save the agreed client payment dates.','record');
    if(r.credit)task('Client receipts are '+money(r.credit)+' above the saved total. Check the records.','payments');
-   if(!legacyDone&&!r.plans.length&&!js.length)task('Plan materials on the same client.','materials');
+   if(!legacyDone&&!r.plans.length&&!js.length&&r.paid>0)task('Plan materials on the same client.','materials');
    for(const plan of r.plans){if(!plan.requestedAt&&plan.items.some(materialShort))task('Request buying for the missing materials.','materials');else if(!plan.items.every(materialReady))task('Finish ordering and receiving the missing materials.','materials');}
    if(!legacyDone&&!js.length&&r.paid)task('Assign an installer once the materials are ready.','materials');
    for(const j of js){if(j.assignment?.status==='pending')task('Wait for the installer to accept the offer.','installation');if(j.assignment?.status==='declined')task('Offer the job to another installer.','materials');if(j.clientReview?.outcome==='fixes')task('Client asked for a fix: '+j.clientReview.issue+' Next: '+j.clientReview.nextAction,'installation');else if(j.status==='Needs correction')task('Installer needs to fix the returned checks.','installation');if(j.status==='Submitted')task('Review the saved checks and photos.','installation');else if(j.status!=='Completed'&&j.assignment?.status==='accepted')task('Installer must finish the checks and send the job for review.','installation');if(j.clientReview?.outcome==='unavailable')task('Client was not available. Next: '+(j.clientReview.nextAction||'Arrange another meeting.'),'installation');if(j.status==='Completed'&&j.clientReview?.outcome!=='accepted')task('Site supervisor must meet the client and sign off together.','installation');}

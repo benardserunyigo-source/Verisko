@@ -456,10 +456,10 @@
   var pendingInstallationId='';
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=163');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=164');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
-      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=163');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
+      if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=164');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
       await installerModule.mountInstaller({initialJobId:pendingInstallationId,previewClient:previewClient,user:installerUser,container:content,head:setHead,toast:toast,isCurrent:function(){return view==='installwork'&&settings.user&&(rolePreview||settings.user.id===installerUser.id)&&!document.body.classList.contains('locked');},token:async function(){if(!settings.user||settings.user.id!==installerUser.id)throw new Error('Account changed. Sign in again before synchronizing this installation.');if(settings.auth&&settings.auth.refresh_token)await refreshSession();return settings.auth&&settings.auth.access_token;}});
       pendingInstallationId='';
     }catch(e){content.innerHTML='<section class="card">'+esc(e.message)+' · Connect once to load the installer workspace.</section>';}
@@ -534,19 +534,19 @@
   }
   async function renderReadyQueue(){
     var id=settings.user.id;setHead('Contacts','Visit requests','Loading contacts…','',false);content.innerHTML='<p role="status">Loading contacts…</p>';
-    try{var m=await import('./ready-leads-ui.mjs?v=163');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,initialFilter:pendingReadyFilter||undefined,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onQuote:function(contactId,jobId){if(!['operations','admin'].includes(settings.user?.role)||!state.prospects.some(function(p){return p.id===contactId;}))return;if(jobId&&!state.jobs.some(function(j){return j.id===jobId&&j.prospectId===contactId;})){toast('Refresh to load this client’s quote.');return;}pendingReadyFilter=settings.user.role==='admin'?'all':'mine';openForm('job',jobId,contactId);},onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});pendingReadyFilter='';}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
+    try{var m=await import('./ready-leads-ui.mjs?v=164');if(view!=='ready'||settings.user?.id!==id)return;readyMounted=m.mountReady({host:content,api:readyApi,user:settings.user,contacts:state.prospects||[],esc:esc,head:setHead,initialFilter:pendingReadyFilter||undefined,preview:!!rolePreview,isCurrent:function(){return view==='ready'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onData:updateReadyData,onQuote:function(contactId,jobId){if(!['operations','admin'].includes(settings.user?.role)||!state.prospects.some(function(p){return p.id===contactId;}))return;if(jobId&&!state.jobs.some(function(j){return j.id===jobId&&j.prospectId===contactId;})){toast('Refresh to load this client’s quote.');return;}pendingReadyFilter=settings.user.role==='admin'?'all':'mine';openForm('job',jobId,contactId);},onProgress:async function(){if(!localUnsynced)await loadShared(function(){return settings.user?.id===id;});}});pendingReadyFilter='';}catch(e){if(view==='ready')content.innerHTML='<section class="card"><p>'+esc(e.message)+'</p></section>';}
   }
   async function renderJobSummaries(){
     var id=settings.user.id;setHead('Jobs','Jobs','Open a job to see its next step, payments and materials.','',false);content.innerHTML='<p role="status">Loading job summaries…</p>';
-    try{var m=await import('./job-summary.mjs?v=163');if(view!=='jobsummary'||settings.user?.id!==id)return;readyMounted=m.mountJobSummaries({host:content,user:settings.user,api:readyApi,isCurrent:function(){return view==='jobsummary'&&settings.user?.id===id&&!document.body.classList.contains('locked');},quoteValue:jobValue,onCashReview:function(id){cashContextJob=job(id)?id:null;view='cashflow';render();},onVisit:function(){pendingReadyFilter='mine';view='ready';render();},onInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},onRecord:function(jobId){openForm('job',jobId);},onPayment:function(jobId){if(!job(jobId)){toast('Refresh the job before recording payment.');return;}txPreset={direction:'in',category:'Customer payment',installId:jobId};openForm('transaction');},onDraftCosts:function(jobId){pendingDraftJobId=jobId;view='draftplans';render();},onMaterials:function(choice){pendingMaterialChoice=choice;view='materials';render();}});}catch(e){if(view==='jobsummary'&&settings.user?.id===id)content.innerHTML='<p role="alert">'+esc(e.message)+'</p>';}
+    try{var m=await import('./job-summary.mjs?v=164');if(view!=='jobsummary'||settings.user?.id!==id)return;readyMounted=m.mountJobSummaries({host:content,user:settings.user,api:readyApi,isCurrent:function(){return view==='jobsummary'&&settings.user?.id===id&&!document.body.classList.contains('locked');},quoteValue:jobValue,onCashReview:function(id){cashContextJob=job(id)?id:null;view='cashflow';render();},onVisit:function(){pendingReadyFilter='mine';view='ready';render();},onInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},onRecord:function(jobId){openForm('job',jobId);},onPayment:function(jobId){if(!job(jobId)){toast('Refresh the job before recording payment.');return;}txPreset={direction:'in',category:'Customer payment',installId:jobId};openForm('transaction');},onDraftCosts:function(jobId){pendingDraftJobId=jobId;view='draftplans';render();},onMaterials:function(choice){pendingMaterialChoice=choice;view='materials';render();}});}catch(e){if(view==='jobsummary'&&settings.user?.id===id)content.innerHTML='<p role="alert">'+esc(e.message)+'</p>';}
   }
   async function renderInventory(){
     var id=settings.user.id;setHead('Jobs','Inventory','Stock, item costs and supplier quotes.','',false);content.innerHTML='<p role="status">Loading inventory…</p>';
-    try{var m=await import('./inventory-ui.mjs?v=163');if(view!=='inventory'||settings.user?.id!==id)return;readyMounted=m.mountInventory({host:content,esc:esc,preview:!!rolePreview,api:function(method,body){return readyApi(method,body,'','/api/inventory');},isCurrent:function(){return view==='inventory'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onJobs:function(){view='materials';render();}});}catch(e){if(view==='inventory'&&settings.user?.id===id)content.innerHTML='<p role="alert">'+esc(e.message)+'</p>';}
+    try{var m=await import('./inventory-ui.mjs?v=164');if(view!=='inventory'||settings.user?.id!==id)return;readyMounted=m.mountInventory({host:content,esc:esc,preview:!!rolePreview,api:function(method,body){return readyApi(method,body,'','/api/inventory');},isCurrent:function(){return view==='inventory'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onJobs:function(){view='materials';render();}});}catch(e){if(view==='inventory'&&settings.user?.id===id)content.innerHTML='<p role="alert">'+esc(e.message)+'</p>';}
   }
   async function renderMaterials(){
     var id=settings.user.id;setHead('Jobs','Materials & buying','Use the paid client’s details. Plan, request buying, then record orders and deliveries.','',false);content.innerHTML='<p role="status">Loading paid jobs…</p>';
-    try{var m=await import('./materials-ui.mjs?v=163');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,inventoryApi:function(method,body){return readyApi(method,body,'','/api/inventory');},openInventory:function(){view='inventory';render();},initialSelected:pendingMaterialChoice,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});pendingMaterialChoice=null;}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
+    try{var m=await import('./materials-ui.mjs?v=164');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,inventoryApi:function(method,body){return readyApi(method,body,'','/api/inventory');},openInventory:function(){view='inventory';render();},initialSelected:pendingMaterialChoice,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});pendingMaterialChoice=null;}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
   }
   setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
@@ -581,7 +581,7 @@
     if (fieldLoading) return fieldLoading;
     fieldLoading = (async function () {
       try {
-        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=163'), import('./field-shifts-ui.mjs?v=163'), import('./field-shifts-android.mjs?v=163')]);
+        var modules = await Promise.all([import('./field-shifts-tracker.mjs?v=164'), import('./field-shifts-ui.mjs?v=164'), import('./field-shifts-android.mjs?v=164')]);
         if (!settings.user || settings.user.id !== personId || document.body.classList.contains('locked')) return;
         if (fieldTracker) fieldTracker.destroy();
         fieldPersonId = personId; fieldUI = modules[1];
@@ -614,14 +614,14 @@
     setHead('Internal review','Draft payment options','Choose a job. Compare its draft costs and four ways to pay.','',false);
     content.innerHTML='<p role="status">Loading draft options…</p>';
     var userId=settings.user.id,generation=sessionGeneration;
-    try{var m=await import('./draft-cost-workspace.mjs?v=163');var current=function(){return view==='draftplans'&&settings.user?.id===userId&&['admin','operations'].includes(settings.user?.role)&&sessionGeneration===generation&&!document.body.classList.contains('locked');};if(current()){readyMounted=m.mountDraftCostWorkspace({host:content,user:settings.user,pricing:window.VeriskoPricing,jobs:state.jobs||[],initialJobId:pendingDraftJobId,onClientLink:function(source){shareQuote(source.jobId,source);},onUseSales:function(source){pendingSalesDraft=source;view='salesprices';render();},api:readyApi,preview:!!rolePreview,isCurrent:current});pendingDraftJobId='';}}
+    try{var m=await import('./draft-cost-workspace.mjs?v=164');var current=function(){return view==='draftplans'&&settings.user?.id===userId&&['admin','operations'].includes(settings.user?.role)&&sessionGeneration===generation&&!document.body.classList.contains('locked');};if(current()){readyMounted=m.mountDraftCostWorkspace({host:content,user:settings.user,pricing:window.VeriskoPricing,jobs:state.jobs||[],initialJobId:pendingDraftJobId,onClientLink:function(source){shareQuote(source.jobId,source);},onUseSales:function(source){pendingSalesDraft=source;view='salesprices';render();},api:readyApi,preview:!!rolePreview,isCurrent:current});pendingDraftJobId='';}}
     catch(e){if(view==='draftplans'&&settings.user?.id===userId&&sessionGeneration===generation)content.innerHTML='<p role="alert">Could not load draft options. Refresh and try again.</p>';}
   }
   async function renderSalesPriceEditor(){
     if(!['admin','operations'].includes(settings.user?.role))return;
     setHead('Price list','Sales prices','Set prices for the next 30 days.','',false);content.innerHTML='<p role="status">Loading…</p>';
     var id=settings.user.id,generation=sessionGeneration;
-    try{var m=await import('./sales-prices-ui.mjs?v=163');var current=()=>view==='salesprices'&&settings.user?.id===id&&generation===sessionGeneration;if(current())readyMounted=m.mountSalesPrices({host:content,user:settings.user,api:readyApi,jobs:state.jobs||[],initialSource:pendingSalesDraft,onPublished:function(){return loadShared(current);},preview:!!rolePreview,isCurrent:current});pendingSalesDraft=null;}catch(e){if(view==='salesprices')content.textContent='Could not load prices. Refresh and try again.';}
+    try{var m=await import('./sales-prices-ui.mjs?v=164');var current=()=>view==='salesprices'&&settings.user?.id===id&&generation===sessionGeneration;if(current())readyMounted=m.mountSalesPrices({host:content,user:settings.user,api:readyApi,jobs:state.jobs||[],initialSource:pendingSalesDraft,onPublished:function(){return loadShared(current);},preview:!!rolePreview,isCurrent:current});pendingSalesDraft=null;}catch(e){if(view==='salesprices')content.textContent='Could not load prices. Refresh and try again.';}
   }
   var salesPriceStatus=null;
   function renderPackagePrices() {
@@ -688,7 +688,7 @@
   async function mountTeamWork(){
     var host=document.getElementById('activeWorkDashboard'),person=settings.user?.id,generation=sessionGeneration;if(!host)return;
     var current=function(){return settings.user?.id===person&&sessionGeneration===generation&&view==='today'&&host.isConnected&&!document.body.classList.contains('locked');};
-    try{var m=await import('./active-work-ui.mjs?v=163');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
+    try{var m=await import('./active-work-ui.mjs?v=164');if(!current())return;activeWorkMounted=m.mountActiveWork({host:host,preview:!!rolePreview,isCurrent:current,api:function(){return voiceApi('GET',null,'?dashboard=1',null,'/api/client-work');}});}catch(e){if(current())host.textContent='Could not load jobs. Refresh the page.';}
   }
   /* --------------------------------- TODAY ---------------------------------- */
   function renderToday() {
@@ -749,7 +749,7 @@
     var me=settings.user;setHead('Operations','Your work today','Open a task. The client and job details come with it.','',false);
     content.innerHTML=idNotice()+idCheckNotice()+'<div class="stack"><section class="card"><h2>New visit requests</h2><p>Take a contact or arrange the next visit.</p><button type="button" class="btn btn-primary" data-open-request-filter="unassigned">Open new requests</button><button type="button" class="btn btn-ghost" data-open-request-filter="mine">My visits</button></section><div id="operationsTasks">Loading job tasks…</div><details class="card"><summary>People on site</summary><section id="activeWorkDashboard"></section></details><button type="button" class="btn btn-ghost" data-nav-view="more">Office tools & help</button></div>';
     mountTeamWork();
-    try{var m=await import('./job-summary.mjs?v=163');if(view!=='today'||settings.user?.id!==me.id)return;
+    try{var m=await import('./job-summary.mjs?v=164');if(view!=='today'||settings.user?.id!==me.id)return;
     var taskHost=document.getElementById('operationsTasks');if(!taskHost)return;readyMounted=m.mountJobSummaries({host:taskHost,user:me,api:readyApi,isCurrent:function(){return view==='today'&&settings.user?.id===me.id&&taskHost.isConnected&&!document.body.classList.contains('locked');},quoteValue:jobValue,tasksOnly:true,onCashReview:function(id){cashContextJob=job(id)?id:null;view='cashflow';render();},onInstallation:function(id){pendingInstallationId=id;view='installwork';render();},onRecord:function(id){openForm('job',id);},onPayment:function(id){txPreset={direction:'in',category:'Customer payment',installId:id};openForm('transaction');},onMaterials:function(choice){pendingMaterialChoice=choice;view='materials';render();},onDraftCosts:function(id){pendingDraftJobId=id;view='draftplans';render();},onVisit:function(){pendingReadyFilter='mine';view='ready';render();}});
     }catch(e){var h=document.getElementById('operationsTasks');if(h)h.textContent='Could not load tasks. Open Jobs and refresh.';}
   }
@@ -1534,7 +1534,7 @@
       roClient = '<div class="field full"><label>Client <span class="optional-tag">from the sales record</span></label>' +
         '<div class="ro-card"><div class="ro-title">' + esc(lp.business) + '</div><div class="item-lines">' + ctx + "</div>" +
         (lp.photoId ? '<button type="button" class="btn btn-ghost btn-sm" data-job-photo="' + esc(lp.photoId) + '" style="margin-top:10px">View business photo</button>' : "") + "</div>" +
-        '<p class="helper">These come from the prospect — edit them in Prospects if they change.</p></div>';
+        '<p class="helper">These come from the prospect — edit them in Contacts if they change.</p></div>';
     }
     var manualClient =
       field("business", "Client / business", "text", source.business, { required: true, full: true, placeholder: "e.g. Acacia Pharmacy" }) +
@@ -1686,7 +1686,7 @@
     if (formInputs.stage !== 'Draft') r.errors=(r.errors || []).concat(r.releaseErrors || []);
     el.innerHTML = quoteSummaryHtml(r);
     var tc = document.getElementById("quoteTier"); if (tc) tc.innerHTML = quoteTierChip(r.tier) + (r.pricingVersion ? '' : ' <span class="quote-pts">' + r.pts + " pts</span>");
-    var extraFields = document.getElementById('extraSiteCosts'); if(extraFields) extraFields.hidden = !r.requiresExtraCosts && !(r.extraCost > 0);
+    var extraFields = document.getElementById('extraSiteCosts'); if(extraFields){extraFields.hidden = !r.requiresExtraCosts && !(r.extraCost > 0);if(r.requiresExtraCosts){var extraSection=extraFields.closest('details.quote-step');if(extraSection){extraSection.open=true;extraSection.querySelector('summary').textContent='Extra site costs and add-ons';}}}
     document.querySelectorAll('[data-addon-cost-row]').forEach(function(el){el.hidden=!formInputs.addons[el.dataset.addonCostRow];});
     var gov = document.getElementById("quoteGov");
     if (gov) gov.innerHTML = (r.errors || []).filter(function(e,i,a){return a.indexOf(e)===i;}).map(function (e) { return '<div class="rev-noproof">' + esc(e) + '</div>'; }).join('') + (r.needsApproval ? '<div class="rev-noproof">' + (r.pricingVersion ? 'Owner approval required: ' + (r.approvalReasons || []).join(', ') + '. Save a draft for review.' : 'Send this custom or Very Complex job to Ben to approve before quoting.') + (isAdmin() ? ' Saving records your approval of these costs and any discount.' : '') + '</div>' : '');
@@ -1890,7 +1890,7 @@
     if (!savedDraft&&!await pushShared()) { toast('Connect and save the quote first.'); return; }
     var j=job(id); if(!j)return;
     var userId=settings.user?.id,generation=sessionGeneration;
-    try{var m=await import('./client-plan-ui.mjs?v=163');await m.openClientPlan({jobId:id,api:readyApi,phone:jobClient(j).phone,savedDraft,preview:!!rolePreview,onApproved:async function(){
+    try{var m=await import('./client-plan-ui.mjs?v=164');await m.openClientPlan({jobId:id,api:readyApi,phone:jobClient(j).phone,savedDraft,preview:!!rolePreview,onApproved:async function(){
       var sameAccount=function(){return settings.user?.id===userId&&sessionGeneration===generation;};
       if(localUnsynced){var response=await readyApi('GET',null,'','/api/data');if(!sameAccount())return;var approved=response.data?.jobs?.find(function(x){return x.id===id;});if(approved){var existing=job(id);if(existing){['clientPlanApproval','quoteSnapshot','quotedTotal','paymentSchedule','fundingConfirmed','fundingApprovedKey','fundingApprovedBy','pricingVersion','cameraCount','installationType','rubric','addons','zone','discountPct','priceOverride','finalPrice','directCost','extraCost','extraMaterialsCost','extraCrewCost','extraAccessTravelCost','addonCosts','costConfirmed','costEvidence','paymentPlan','servicePolicyVersion','targetMargin','salesPriceVersion'].forEach(function(k){existing[k]=approved[k];});if(existing.stage==='Draft')existing.stage=approved.stage;}else state.jobs.push(approved);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render();}return;}
       var result=await loadShared(sameAccount);if(result==='ok')render();else toast('Plan approved. Refresh Jobs to see the saved amounts.');},onShared:function(detail){if(detail?.mode!=='savedDraft')markQuoteShared(id);},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
@@ -1965,7 +1965,7 @@
       emptyState(ICON_INSTALL, "No jobs yet", "Tap New job to price a site, or start one from a closed sale in Prospects.", "New job", 'data-new="job"');
     content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " job" : " jobs") + "</p>" + list + '<details class="card"><summary>Older job tools</summary><p class="helper">For older manual jobs only. New installations use the assigned Installer account and the linked materials list.</p>'+technicianRosterCard()+'</details>';
     var planUser=settings.user?.id;
-    import('./client-plan-ui.mjs?v=163').then(function(m){m.refreshClientPlanBadges({host:content,api:readyApi,isCurrent:function(){return view==='jobs'&&settings.user?.id===planUser&&!document.body.classList.contains('locked');}});}).catch(function(){});
+    import('./client-plan-ui.mjs?v=164').then(function(m){m.refreshClientPlanBadges({host:content,api:readyApi,isCurrent:function(){return view==='jobs'&&settings.user?.id===planUser&&!document.body.classList.contains('locked');}});}).catch(function(){});
   }
 
   function fundingOverviewHtml(jobs) {
@@ -2079,7 +2079,7 @@
     var current=function(){return ticket===cashRenderId&&view==='cashflow'&&settings.user?.id===actor&&!document.body.classList.contains('locked');};
     if(!rolePreview){
       setHead('Operations','Payments','Loading the latest payments…','',false);content.innerHTML='<p role="status">Loading payments…</p>';
-      try{var cashModule=await import('./cash-refresh.mjs?v=163');var result=await cashModule.refreshCash({current:current,pending:function(){return localUnsynced;},wait:function(){return sharedPushQueue;},stamp:function(){return JSON.stringify(state);},load:loadShared});
+      try{var cashModule=await import('./cash-refresh.mjs?v=164');var result=await cashModule.refreshCash({current:current,pending:function(){return localUnsynced;},wait:function(){return sharedPushQueue;},stamp:function(){return JSON.stringify(state);},load:loadShared});
       if(!current())return;
       if(['signin','unauth'].includes(result)){var deniedEmail=settings.auth?.email;signOutLocal();showLogin('Sign in again to view payments.');return;}
       if(result==='idoverdue'){showIdRequired();return;}
@@ -3232,7 +3232,7 @@
     if (type === "job") {
       // One record for the whole lifecycle. Pricing (the quote) is always shown;
       // delivery fields reveal at "Accepted"; the checklist reveals at handover.
-      document.getElementById("dialogTitle").textContent = id ? esc(source.ref || "Job") : "New job";
+      document.getElementById("dialogTitle").textContent = id ? esc(source.ref || "Job") : "Create quote";
       var lockedPricing = jobIsDelivery(source.stage)||!!source.clientPlanApproval;
       var repricing = !!id && !lockedPricing && (source.pricingVersion !== window.VeriskoPricing.VERSION || (source.validUntil && source.validUntil < today) || source.servicePolicyVersion !== window.VeriskoCare.VERSION);
       var qInputs = id ? Object.assign({},source) : { pricingVersion: window.VeriskoPricing.VERSION, cameraCount: 4, paymentPlan:'installments' };
@@ -3309,6 +3309,7 @@
     // and not once a prospect/visit is approved (Sales can't remove audited records).
     if (id && (type === "prospect" || type === "appointment" || type === "job") && canDeleteRecord(type, source)) html += '<button type="button" class="btn btn-danger btn-block delete-record" data-delete>Delete this ' + (type === "appointment" ? "site visit" : type === "job" ? "job" : "prospect") + "</button>";
     formContent.innerHTML = html + "</div>";
+    if(type==="job"&&currentPricing&&!lockedPricing)simplifyQuoteFields(formContent);
     if(type==='transaction'&&source.installerPaymentKey){['direction','amount','date','category','method','installId','prospectId'].forEach(function(name){formContent.querySelectorAll('[name="'+name+'"]').forEach(function(el){if(el.type==='hidden')return;if(el.tagName==='SELECT'&&!Array.from(el.options).some(function(o){return o.value===source[name];})){el.add(new Option(source[name],source[name]));}el.value=source[name]??'';var h=document.createElement('input');h.type='hidden';h.name=name;h.value=source[name]??'';el.disabled=true;el.removeAttribute('name');el.after(h);});});formContent.querySelectorAll('[data-seg-target=direction]').forEach(function(b){b.disabled=true;});}
 
     if (type === "transaction" || type === "prospect") {
@@ -3339,6 +3340,19 @@
     if (first) first.focus();
   }
 
+  function simplifyQuoteFields(root){
+    var box=root.querySelector('fieldset[style*="display:contents"]');if(!box)return;
+    var original=Array.from(box.children),moved=new Set();
+    function item(id){var n=root.querySelector('#'+id);if(!n)return null;while(n.parentElement&&n.parentElement!==box)n=n.parentElement;return n.parentElement===box?n:null;}
+    function section(title,ids,details){var el=document.createElement(details?'details':'section');el.className='field full quote-step';var h=document.createElement(details?'summary':'h3');h.textContent=title;el.append(h);var grid=document.createElement('div');grid.className='form-grid';el.append(grid);for(var id of ids){var n=item(id);if(n&&!moved.has(n)){moved.add(n);grid.append(n);}}return {el,grid};}
+    var scope=section('1. Site and cameras',['f_installationType','f_cameraCount','f_zone']);
+    var costs=section('2. Check job costs',['f_targetMargin','f_costEvidence']);
+    var extras=section('Extra costs and add-ons (optional)',['f_directCost','f_discountPct','f_finalPrice'],true);
+    var price=section('3. Review price and payment',['f_paymentPlan','quoteGov','quoteSummary']);
+    for(var n of original){if(moved.has(n)||n.tagName==='INPUT')continue;if(n.querySelector('[data-quote-share]'))price.grid.append(n);else extras.grid.append(n);}
+    box.append(scope.el,costs.el,extras.el,price.el);
+    root.addEventListener('invalid',function(e){var d=e.target.closest('details');while(d){d.open=true;d=d.parentElement?.closest('details');}},true);
+  }
   function showFormError(msg) { formError.textContent = msg; formError.hidden = false; formError.tabIndex=-1; formError.focus(); }
   function hideFormError() { formError.hidden = true; formError.textContent = ""; }
 
@@ -3662,13 +3676,13 @@
   async function openContactVoice(id){
     var userId=settings.user?.id,voiceGeneration=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!p||!['sales','teamlead','operations','admin'].includes(settings.user?.role))return;
-    try{var m=await import('./voice-notes-ui.mjs?v=163');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
+    try{var m=await import('./voice-notes-ui.mjs?v=164');await m.openVoiceNotes({contactId:id,business:p.business,api:voiceApi,preview:!!rolePreview,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===voiceGeneration&&view===openedView&&!document.body.classList.contains('locked');},onSaved:function(entry){var contact=state.prospects.find(function(p){return p.id===id;});if(contact){contact.followUps=(contact.followUps||[]).filter(function(f){return f.voiceNoteId!==entry.voiceNoteId;}).concat([entry]);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}toast('Voice note saved on this contact.');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-voice]');if(b){e.preventDefault();e.stopPropagation();openContactVoice(b.dataset.clientVoice);}},true);
   async function openContactWork(id){
     var userId=settings.user?.id,generation=sessionGeneration,openedView=view,p=state.prospects.find(function(p){return p.id===id;})||readyData.items.find(function(c){return c.contactId===id;})?.contact;
     if(!['sales','teamlead','operations','admin'].includes(settings.user?.role)||id&&!p)return;
-    try{var m=await import('./client-work-ui.mjs?v=163');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
+    try{var m=await import('./client-work-ui.mjs?v=164');await m.openClientWork({contactId:id||'',business:p?.business||'',preview:!!rolePreview,onAssessment:!rolePreview&&['operations','teamlead','admin'].includes(settings.user.role)?async function(){try{var a=await import('./ready-leads-ui.mjs?v=164');await a.openVisitAssessment({api:readyApi,user:settings.user,contactId:id,esc:esc,isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView;},onSaved:async function(){await refreshReadySummary(true);if(view==='ready')pendingReadyFilter=settings.user.role==='admin'?'all':'mine';render();toast('Site assessment saved.');}});}catch(e){toast(e.message);}}:null,api:function(method,body,query){return voiceApi(method,body,query,null,'/api/client-work');},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&view===openedView&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
   }
   document.addEventListener('click',function(e){var b=e.target.closest('[data-client-work],[data-client-work-all]');if(b){e.preventDefault();e.stopPropagation();openContactWork(b.dataset.clientWork||'');}},true);
   function followUpHistory(p) {
@@ -4624,7 +4638,7 @@
   document.addEventListener("click", function (e) {
     if (!userMenu.hidden && !userMenu.contains(e.target) && !userChip.contains(e.target)) closeUserMenu();
   });
-  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=163");m.openRolePreview();}
+  async function previewRole(){if(!isAdmin()||rolePreview)return;closeUserMenu();var m=await import("./role-preview-shell.mjs?v=164");m.openRolePreview();}
   userMenu.addEventListener("click", function (e) {
     if(e.target.closest("[data-office-tools]")){closeUserMenu();view="more";render();return;}
     if(e.target.closest("[data-role-preview]")){previewRole();return;}

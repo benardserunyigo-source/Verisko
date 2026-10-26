@@ -1,5 +1,5 @@
-import {mountDraftPaymentEditor} from './draft-payment-editor.mjs?v=163';
-import {draftCostBudget,DRAFT_CAMERA_COUNTS} from './draft-payment-options.mjs?v=163';
+import {mountDraftPaymentEditor} from './draft-payment-editor.mjs?v=164';
+import {draftCostBudget,DRAFT_CAMERA_COUNTS} from './draft-payment-options.mjs?v=164';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function mountDraftCostWorkspace({host,user,pricing,jobs=[],initialJobId='',onUseSales,onClientLink,api,preview=false,isCurrent=()=>true}){
  if(!['admin','operations'].includes(user?.role)){host.innerHTML='<p role="alert">Operations or Admin access needed.</p>';return {stop(){}};}

@@ -1,5 +1,6 @@
-import {requestCompleted} from './visit-team-ui.mjs?v=163';
-import {teamRequestCard,requestCounts,readyQuoteAction} from './visit-team-ui.mjs?v=163';
+import {latestAssessmentTime} from './visit-assessment.mjs?v=164';
+import {requestCompleted} from './visit-team-ui.mjs?v=164';
+import {teamRequestCard,requestCounts,readyQuoteAction} from './visit-team-ui.mjs?v=164';
 const office=u=>['admin','operations','teamlead'].includes(u?.role);
 const date=at=>new Date(at).toLocaleString('en-GB',{timeZone:'Africa/Kampala',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
 function dialog({title,body,label,esc,submit}){
@@ -10,6 +11,15 @@ function dialog({title,body,label,esc,submit}){
  d.querySelector('form').onsubmit=async e=>{e.preventDefault();if(busy)return;busy=true;d.querySelectorAll('button').forEach(b=>b.disabled=true);const warning=d.querySelector('[role=alert]');warning.hidden=true;
   try{await submit(new FormData(e.target));d.close();d.remove();}catch(error){warning.textContent=error.message;warning.hidden=false;}finally{busy=false;d.querySelectorAll('button').forEach(b=>b.disabled=false);}};
  document.body.append(d);d.showModal();d.querySelector('select,textarea,input,button')?.focus();return d;
+}
+export async function openVisitAssessment({api,user,contactId,esc,isCurrent=()=>true,onSaved}){
+ const queue=await api('GET');if(!isCurrent())return;
+ const c=queue.items.find(x=>x.contactId===contactId);
+ if(!c?.visit||c.visit.onHoldAt||c.visit.doneAt)throw Error('This visit is not waiting for assessment. Refresh the contact.');
+ if(c.ownerId!==user.id&&user.role!=='admin')throw Error('Only the person handling this visit can confirm the assessment.');
+ let finish=null;try{const work=await api('GET',null,'?contactId='+encodeURIComponent(contactId),'/api/client-work');finish=latestAssessmentTime(work.sessions||[],user.id,contactId);}catch{}if(!isCurrent())return;
+ const now=new Date(Date.now()+3*3600000).toISOString(),day=finish?.date||now.slice(0,10),time=finish?.time||now.slice(11,16);
+ dialog({title:'Confirm site assessment',esc,label:'Assessment is done',body:'<p>Confirm only after the team checked the site for a quote. This earns the completed-visit pay once.</p>'+(finish?'<p>The finish time comes from your saved visit.</p>':'<p>No finished visit time was found. Check the date and time below.</p>')+'<label for="assessmentDay">Date visited</label><input id="assessmentDay" name="date" type="date" required max="'+now.slice(0,10)+'" value="'+day+'"'+(finish?' readonly':'')+'><label for="assessmentTime">Time finished in Uganda</label><input id="assessmentTime" name="time" type="time" required value="'+time+'"'+(finish?' readonly':'')+'>',submit:async f=>{if(!isCurrent())throw Error('Open the contact again.');const r=await api('POST',{contactId,action:'complete_visit',baseVersion:c.version,requestId:crypto.randomUUID(),date:f.get('date'),time:f.get('time')});await onSaved?.(r.item);}});
 }
 export function openReadyRequest({api,user,contacts,selectedId,items=[],esc,onSaved,isCurrent=()=>true}){
  const options=contacts.filter(p=>(p.leadOnly===true||items.some(c=>c.contactId===p.id&&c.state==='returned'))&&(office(user)&&user.role!=='teamlead'||String(p.createdByEmail||'').toLowerCase()===String(user.email||'').toLowerCase())).filter(p=>{const c=items.find(c=>c.contactId===p.id);return !c||c.state==='returned';});
@@ -48,6 +58,7 @@ export function mountReady({host,api,user,contacts,esc,head,isCurrent,onData,onP
  function saved(item){if(!active())return;if(office(user))filter=item.ownerId===user.id?'mine':'all';data.items=[item,...data.items.filter(c=>c.contactId!==item.contactId)];onData?.(data);error='';render();}
  async function refresh(){if(!active()||busy)return;try{const r=await api('GET');if(!active())return;data=r;error='';onData?.(data);}catch(e){error=e.message;}loading=false;render();}
  async function action(type,c){if(!active()||!c||busy)return;
+  if(type==='complete_visit'){try{await openVisitAssessment({api,user,contactId:c.contactId,esc,isCurrent:active,onSaved:async item=>{saved(item);await onProgress?.();}});}catch(e){error=e.message;render();}return;}
   if(type==='open_quote'){
    const q=readyQuoteAction(c,user);if(!q||!onQuote)return;
    if(q.jobs.length<2){onQuote(c.contactId,q.jobs[0]?.id||null);return;}

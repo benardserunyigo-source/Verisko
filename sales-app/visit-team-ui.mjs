@@ -19,6 +19,7 @@ export function requestActions(c,user,people=[]){
  else if(!c.quoteSent)actions.primary=['quote_sent','Record quote sent'];
  else if(!c.firstPayment)actions.primary=['record_payment','Record first payment'];
  else if(c.firstPayment.status==='query'&&!c.firstPayment.legacy)actions.primary=['record_payment','Fix payment details'];
+ if(c.quoteSent&&!c.quoteSent.sourceId&&c.availableQuotes?.length)actions.extra.push(['quote_sent','Link saved quote']);
  actions.returnSales=!!c.creatorId&&!c.firstPayment;
  if(people.some(p=>p.id!==c.ownerId&&p.id!==c.previousOwnerId&&p.id!==user.id))actions.extra.push(['assign','Give to someone else']);
  if(people.some(p=>p.id===c.previousOwnerId))actions.extra.push(['return','Return to previous person']);
