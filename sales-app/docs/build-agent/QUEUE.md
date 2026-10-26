@@ -4,7 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
-| 0 | Approved simplicity redesign | working | One client/job work page, next action/owner/date, fewer daily destinations, combined Money/Contacts and return-to-job context; Grade6 labels, role-safe phone journey and verified release. |
+| 0 | Approved simplicity redesign | done | One client/job work page, next action/owner/date, fewer daily destinations, combined Money/Contacts and return-to-job context; Grade6 labels, role-safe phone journey and verified release. |
 | 0 | Full app end-to-end audit,26October | done | v170 source35cdfbf ready6adf61ed888c66d3c7d02525;700tests pass. Fresh samecontact fullcloseout+callbacks+money+warehouse:onejob/6cashrows/client0/crew0/20mreturn/no officeorjobtasks. Five rolephone checks; fixed missingpaymentreminders/closedWaitingtimer/Admin320pxoverflow;42assets/11API401/livepreview verified. See ../qa/2026-10-26-full-app-end-to-end.md. |
 | 0 | Cash flow end-to-end verification | done | source111cf4b ready6adf5e98a06cc3dfad5deaf5;699tests pass. Fixed regular expense resubmission; fresh real-handler fullmoneyjourney and actual390px correction/approval/reopen, samecashID/once-onlytotals/rolelimits verified.42assets/11API401. See ../qa/2026-10-26-cashflow-end-to-end.md. |
 | 0 | Unified Operations summary | done | v169 sourcee00f8e7 ready6adef8d1990992f0ba6f68af;697tests pass. Approved office cash plus same-job costs/callbacks/tasks; shared funds/weekly Sales pay once, pending costs separate, conflicts flagged;390/320px UI/42assets/11API401/live preview verified. See ../qa/2026-10-26-unified-operations-summary.md. |

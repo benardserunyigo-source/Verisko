@@ -28,3 +28,7 @@ Actual fictional browser sessions:
 No real client/financial/account/stock writes or external messages. Physical Android/background tracking/audio/TalkBack acceptance remains the existing separate handset pilot. Hard reload still follows the app's normal home behavior; job context is retained during in-app navigation, not promised as a cross-device session.
 
 Release source/assets/API checks follow the scoped deployment.
+
+## Release verification
+
+Live v171: source `e6bd730a8072c35bfd79a4c4b087e415b6a38c6f`, ready deploy `6adf6ab45140d2f208defa67`. All 42 assets verified (known apply anchor rewrite normalized); 11 private endpoints return JSON 401 without authentication. Live read-only Operations preview has the new menus and job list. Latest loaded local runtime clears job return text and hides its bar on sign-out. No real client or financial records changed.
