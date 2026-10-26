@@ -1129,3 +1129,4 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 /* Deal health is always written out; colour is a second cue. */
 .deal-health{padding:10px 12px;border-left:4px solid #536078;background:#edf0f5;border-radius:8px;overflow-wrap:anywhere}
 .deal-health-attention{border-color:#9e351f;background:#fff0e9}.deal-health-today{border-color:#946200;background:#fff6dd}.deal-health-track,.deal-health-paid{border-color:#237352;background:#eaf5ef}.deal-health-deferred{border-color:#536697;background:#edf1fb}.deal-counts{display:flex;gap:8px;flex-wrap:wrap}.deal-counts .btn{white-space:normal;min-height:44px}.deal-overview h2{margin-top:0}
+@media(max-width:699px){.lead-contact-summary .item-line{display:grid;grid-template-columns:minmax(0,1fr);gap:2px}.lead-contact-summary .item-line .k{min-width:0}.lead-contact-summary .item-line .v{text-align:left;min-width:0;overflow-wrap:anywhere}}
