@@ -569,3 +569,5 @@ Release verified v172 source `4a9a74701e7fe822f16cedaa06a5033613fc90a6`, Netlify
 
 ## Deferred due/overdue follow-up demo and phone note wrap:v173
 Same fictional Future School ID: Uganda today→yellow Follow up today/count1; yesterday→red Needs attention/count1; Sales saved one Call back later note and10Nov next date/action. Operations reload sees same timestamp/actor/note/date, healthDeferred and attention0. No newcontact/job/commission. Readback verifies one new follow-up. Screens output/audits/pipeline-health-20261026/due-demo/. Found long note overlapping label on phone; scoped contact-summary rows now stack labels over values below700px.710tests pass;390px visual fix verified. CSS+cache only, no business or realdata changes. Releaseverification next.
+
+Phone follow-up wrap release verified v173 source `13dae275eff6de217b319ba010708f098af3586a`, ready deploy `6adfcde6eac9b0d2f2ff7a1c`.44 assets match and11 private APIs JSON401.320px note view has no overflow;390px long-note screenshot verified. Demo remains same contact, one saved conversation and10Nov follow-up. No real records changed.
