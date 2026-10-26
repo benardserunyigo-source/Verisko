@@ -47,3 +47,23 @@ test('sales summary retains former creators and resolves legacy actor names with
  const rows=L.salespersonSummary([{...draft(),followUps:[{at:now,by:'Sam',note:'Called'}]}],[{name:'Sam',email:'one@test',role:'sales'},{name:'Sam',email:'two@test',role:'sales'}]);
  assert.equal(rows.find(r=>r.key==='one@test').followUps,0);assert.equal(rows.find(r=>r.key==='two@test').followUps,0);
 });
+
+test('deferred contacts require a reason and real date, retain the same ID and can resume',()=>{
+ const p={...draft(),leadStatus:'Not ready',deferredReason:'Waiting for next term',followUp:'2026-11-02'};
+ assert.equal(L.deferredError(p),'');assert.match(L.deferredError({...p,deferredReason:''}),/why/);assert.match(L.deferredError({...p,followUp:'2026-02-30'}),/date/);assert.match(L.deferredError({...p,followUp:'bad'}),/date/);
+ assert.throws(()=>L.guard([draft()],[{...p,deferredReason:''}],rep),/why/);
+ const saved=L.guard([draft()],[p],rep)[0];assert.equal(saved.id,draft().id);assert.equal(saved.deferredReason,p.deferredReason);
+ const resumed=L.guard([saved],[{...saved,leadStatus:'Following up'}],rep)[0];assert.equal(resumed.id,saved.id);assert.equal(resumed.followUp,p.followUp);
+});
+test('deal health uses Uganda dates, active ownership and canonical approved payment',()=>{
+ const d='2026-10-26',p={id:'one',leadStatus:'Not ready',deferredReason:'Budget next month',followUp:'2026-11-02'};
+ assert.equal(L.health(p,null,d).key,'deferred');assert.equal(L.health({...p,followUp:d},null,d).key,'today');assert.equal(L.health({...p,followUp:'2026-10-25'},null,d).key,'attention');
+ assert.equal(L.health(p,{state:'assigned',firstPayment:{status:'approved'}},d).key,'paid');assert.equal(L.health(p,{state:'queued'},d).key,'attention');
+ assert.equal(L.health({}, {state:'assigned',ownerId:'ops',visit:{date:'2026-10-27'}},d).key,'track');assert.equal(L.health({}, {state:'assigned',ownerId:'ops',visit:{date:'2026-10-25'}},d).key,'attention');
+ assert.equal(L.health({leadStatus:'Not interested'},null,d).key,'closed');assert.equal(L.health({id:'two'},null,d).reason,'Set the next follow-up date.');
+ const totals=L.healthSummary([p,p,{...p,id:'two',followUp:'2026-10-25'}],[],d);assert.equal(totals.deferred,2);assert.equal(totals.attention,1);
+});
+test('stage totals keep each contact once and move it through the same sales journey',()=>{
+ const p={id:'one',leadStatus:'Following up'},c={contactId:'one',state:'assigned',ownerId:'ops'};
+ for(const [extra,label] of [[{},'Waiting for visit team'],[{visit:{}},'Visit booked'],[{visit:{doneAt:'date'}},'Visit done'],[{quoteSent:{}},'Quote sent'],[{firstPayment:{status:'approved'}},'Client paid']])assert.deepEqual(L.stageSummary([p,p],[{...c,...extra}]),{[label]:1});
+});

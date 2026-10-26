@@ -804,7 +804,7 @@
   function leadTools() { return window.VeriskoLeadPipeline; }
   function renderLeads() {
     var manager = canReviewProspects();
-    var viewer=(settings.user||{}).email;if(viewer!==leadViewer){leadViewer=viewer;leadListMode=['admin','operations','teamlead'].includes(settings.user?.role)?'all':settings.user?.role==='sales'&&['all','followup','returned','sent'].includes(leadListMode)?leadListMode:'mine';leadOwnerFilter='';leadDueFilter='';leadQuery='';}
+    var viewer=(settings.user||{}).email;if(viewer!==leadViewer){leadViewer=viewer;leadListMode=['admin','operations','teamlead'].includes(settings.user?.role)?'all':settings.user?.role==='sales'&&['all','followup','returned','sent','attention','today','deferred'].includes(leadListMode)?leadListMode:'mine';leadOwnerFilter='';leadDueFilter='';leadQuery='';}
     if (!leadListMode) leadListMode = manager ? 'all' : 'mine';
     if(settings.user?.role==='sales')return renderSalesContacts();
     setHead('Contacts','Contacts','Open a contact to see the next step.','Save a contact',true);
@@ -813,32 +813,39 @@
     if(leadOwnerFilter&&!ownerOptions[leadOwnerFilter])leadOwnerFilter='';
     if(!manager){leadOwnerFilter='';leadDueFilter='';}
     var operationsFilters=manager?'<div class="field-inline"><label for="leadOwnerFilter">Salesperson</label><select id="leadOwnerFilter"><option value="">All salespeople</option>'+Object.keys(ownerOptions).sort(function(a,b){return ownerOptions[a].localeCompare(ownerOptions[b]);}).map(function(key){return '<option value="'+esc(key)+'">'+esc(ownerOptions[key])+'</option>';}).join('')+'</select></div><div class="field-inline"><label for="leadDueFilter">Follow-ups</label><select id="leadDueFilter"><option value="">All follow-ups</option><option value="today">Due today</option><option value="overdue">Overdue</option><option value="upcoming">Upcoming</option><option value="unscheduled">Not scheduled</option></select></div>':'';
-    content.innerHTML = (manager?'<details class="card"><summary>Sales team follow-ups</summary>'+leadSalespersonSummary()+'</details>':'')+'<section class="card"><div class="toolbar lead-toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Find a contact" value="'+esc(leadQuery)+'"></div><div class="filter-row lead-filter-row"><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="all">All contacts</option><option value="mine">My contacts</option><option value="sent">Sent for a visit</option><option value="inbox">Ready for a visit</option>'+'</select></div>'+(manager?'<details class="contact-filters"><summary>Salesperson and follow-up dates</summary>'+operationsFilters+'</details>':'')+'</div></div>'+(manager?'<button class="btn btn-ghost btn-sm" data-reset-lead-filters>Clear filters</button>':'')+'<p class="helper">Operations can see these contacts. Sending a contact marks it ready; it does not book a visit.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
+    content.innerHTML = dealHealthOverview()+(manager?'<details class="card"><summary>Sales team follow-ups</summary>'+leadSalespersonSummary()+'</details>':'')+'<section class="card"><div class="toolbar lead-toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Find a contact" value="'+esc(leadQuery)+'"></div><div class="filter-row lead-filter-row"><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="all">All contacts</option><option value="attention">Needs attention</option><option value="today">Due today</option><option value="deferred">Deferred contacts</option><option value="mine">My contacts</option><option value="sent">Sent for a visit</option><option value="inbox">Ready for a visit</option>'+'</select></div>'+(manager?'<details class="contact-filters"><summary>Salesperson and follow-up dates</summary>'+operationsFilters+'</details>':'')+'</div></div>'+(manager?'<button class="btn btn-ghost btn-sm" data-reset-lead-filters>Clear filters</button>':'')+'<p class="helper">Operations can see these contacts. Sending a contact marks it ready; it does not book a visit.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
     document.getElementById('leadMode').value = leadListMode;
     if(manager){document.getElementById('leadOwnerFilter').value=leadOwnerFilter;document.getElementById('leadDueFilter').value=leadDueFilter;}
     updateLeadGrid();
   }
+  function dealContacts(){var rows=(state.prospects||[]).slice(),ids=new Set(rows.map(function(p){return p.id;}));if(readyUser===settings.user?.id)readyData.items.forEach(function(c){if(c.contact&&!ids.has(c.contactId)){rows.push({...c.contact,id:c.contactId});ids.add(c.contactId);}});return rows;}
+  function dealHealthLine(p,c){var h=leadTools().health(p,c);return '<p class="deal-health deal-health-'+h.key+'"><strong>'+esc(h.label)+'</strong> · '+esc(h.reason)+'</p>';}
+  function dealHealthOverview(){
+    var me=settings.user,records=dealContacts().filter(function(p){return me.role!=='sales'||window.VeriskoSalesWorkspace.own(p,me);}),cases=readyUser===me.id?readyData.items:[],totals=leadTools().healthSummary(records,cases);
+    return '<section class="card deal-overview" id="dealOverview"><h2>Sales progress</h2><p>One contact stays with the deal. Check the next date and who owns it.</p><div class="deal-counts">'+[['attention','Needs attention'],['today','Due today'],['deferred','Deferred contacts']].map(function(x){return '<button type="button" class="btn btn-ghost" data-sales-filter="'+x[0]+'">'+x[1]+' · '+totals[x[0]]+'</button>';}).join('')+'</div><details><summary>Where deals are</summary>'+Object.entries(leadTools().stageSummary(records,cases)).map(function(x){return '<p>'+esc(x[0])+': '+x[1]+'</p>';}).join('')+'<p>Needs attention means a missed date, no next date, or no visit owner. It does not mean the deal is lost.</p></details></section>';
+  }
   function renderSalesContacts(){
     setHead('Contacts','My contacts','Tap Send for site visit when the client is ready.','Save a contact',true);
-    content.innerHTML='<section class="sales-contact-list"><div class="card sales-contact-tools"><label for="leadSearch">Find a contact<input id="leadSearch" type="search" placeholder="Name, phone or area" value="'+esc(leadQuery)+'"></label><label for="leadMode">Show<select id="leadMode"><option value="all">All contacts</option><option value="followup">Follow up</option><option value="returned">Sent back to me</option><option value="sent">Sent for site visit</option></select></label><p class="result-note" id="leadCount"></p></div><div class="stack" id="leadGrid"></div></section>';
-    if(!['all','followup','returned','sent'].includes(leadListMode))leadListMode='all';document.getElementById('leadMode').value=leadListMode;updateLeadGrid();
+    content.innerHTML=dealHealthOverview()+'<section class="sales-contact-list"><div class="card sales-contact-tools"><label for="leadSearch">Find a contact<input id="leadSearch" type="search" placeholder="Name, phone or area" value="'+esc(leadQuery)+'"></label><label for="leadMode">Show<select id="leadMode"><option value="all">All contacts</option><option value="attention">Needs attention</option><option value="today">Due today</option><option value="deferred">Deferred contacts</option><option value="followup">Follow up</option><option value="returned">Sent back to me</option><option value="sent">Sent for site visit</option></select></label><p class="result-note" id="leadCount"></p></div><div class="stack" id="leadGrid"></div></section>';
+    if(!['all','followup','returned','sent','attention','today','deferred'].includes(leadListMode))leadListMode='all';document.getElementById('leadMode').value=leadListMode;updateLeadGrid();
   }
   function updateSalesContactGrid(){
     var S=window.VeriskoSalesWorkspace,me=settings.user,items=readyUser===me.id?readyData.items:[],search=document.getElementById('leadSearch').value.toLowerCase(),day=leadTools().kampalaDay();
-    var rows=(state.prospects||[]).filter(function(p){if(!S.own(p,me))return false;var c=items.find(function(c){return c.contactId===p.id;});return (leadListMode==='all'||leadListMode==='returned'&&S.returned(c)||leadListMode==='sent'&&c&&!S.returned(c)||leadListMode==='followup'&&(!c||S.returned(c)))&&[p.business,p.contact,p.phone,p.location].join(' ').toLowerCase().includes(search);}).sort(function(a,b){return (a.followUp||'9999').localeCompare(b.followUp||'9999');});
-    document.getElementById('leadCount').textContent=rows.length+' contact'+(rows.length===1?'':'s');document.getElementById('leadGrid').innerHTML=rows.map(function(p){return S.contactCard({p:p,c:items.find(function(c){return c.contactId===p.id;}),user:me,esc:esc,call:callBtn(p.phone),voice:voiceButton(p.id),dateLabel:dateLabel,sending:!!salesSending[me.id+':'+p.id]});}).join('')||'<section class="card"><p>No contacts here yet. Tap Save a contact to add one.</p></section>';
+    var rows=(state.prospects||[]).filter(function(p){if(!S.own(p,me))return false;var c=items.find(function(c){return c.contactId===p.id;});return (leadListMode==='all'||['attention','today'].includes(leadListMode)&&leadTools().health(p,c,day).key===leadListMode||leadListMode==='deferred'&&leadTools().deferred(p)&&(!c||S.returned(c))||leadListMode==='returned'&&S.returned(c)||leadListMode==='sent'&&c&&!S.returned(c)||leadListMode==='followup'&&(!c||S.returned(c)))&&[p.business,p.contact,p.phone,p.location].join(' ').toLowerCase().includes(search);}).sort(function(a,b){return (a.followUp||'9999').localeCompare(b.followUp||'9999');});
+    document.getElementById('leadCount').textContent=rows.length+' contact'+(rows.length===1?'':'s');document.getElementById('leadGrid').innerHTML=rows.map(function(p){return S.contactCard({p:p,c:items.find(function(c){return c.contactId===p.id;}),user:me,esc:esc,call:callBtn(p.phone),voice:voiceButton(p.id),dateLabel:dateLabel,sending:!!salesSending[me.id+':'+p.id]});}).join('')||'<section class="card"><p>'+(leadListMode!=='all'||search?'No contacts match. Choose All contacts or clear your search. Do not add the contact again.':'No contacts here yet. Tap Save a contact to add one.')+'</p></section>';
   }
   function leadSalespersonSummary() {
     var rows=leadTools().salespersonSummary(state.prospects,state.users);
     return '<section class="card lead-team-summary"><h2>Salesperson summary</h2><p class="helper">See each person’s contacts and follow-ups. Tap a name to filter. Dates use Uganda time.</p><div class="lead-summary-scroll"><table class="lead-summary-table"><caption class="sr-only">Salesperson prospecting activity</caption><thead><tr><th scope="col">Salesperson</th><th scope="col">Contacts added</th><th scope="col">Follow-ups done</th><th scope="col">Due today</th><th scope="col">Overdue</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><th scope="row"><button class="btn btn-ghost btn-sm" data-lead-summary-owner="'+esc(r.key)+'">'+esc(r.name)+'</button></th><td>'+r.contacts+'</td><td>'+r.followUps+'</td><td'+(r.today?' class="lead-summary-today"':'')+'>'+r.today+'</td><td'+(r.overdue?' class="lead-summary-overdue"':'')+'>'+r.overdue+'</td></tr>';}).join('')+'</tbody></table></div><div class="lead-summary-cards">'+rows.map(function(r){return '<article class="salesperson-summary-card"><h3><button type="button" data-lead-summary-owner="'+esc(r.key)+'">'+esc(r.name)+' <span aria-hidden="true">→</span></button></h3><dl><div><dt>Contacts added</dt><dd>'+r.contacts+'</dd></div><div><dt>Follow-ups done</dt><dd>'+r.followUps+'</dd></div><div'+(r.today?' class="due-today"':'')+'><dt>Due today</dt><dd>'+r.today+'</dd></div><div'+(r.overdue?' class="due-overdue"':'')+'><dt>Overdue</dt><dd>'+r.overdue+'</dd></div></dl></article>';}).join('')+'</div>'+(!rows.length?'<p class="helper">Salespeople will appear here when staff or contacts are added.</p>':'')+'</section>';
   }
   function updateLeadGrid() {
+    var overview=document.getElementById('dealOverview');if(overview)overview.outerHTML=dealHealthOverview();
     if(settings.user?.role==='sales')return updateSalesContactGrid();
     var L=leadTools(), me=settings.user||{}, search=(document.getElementById('leadSearch').value||'').toLowerCase(), dueToday=L.kampalaDay();
-    var rows=(state.prospects||[]).filter(function(p){
+    var rows=dealContacts().filter(function(p){
       if(!p?.id)return false;
       var request=readyUser===me.id?readyData.items.find(function(c){return c.contactId===p.id;}):null,sent=request?request.state!=='returned':!!p.handoffAt;
-      var inList=leadListMode==='all'?true:leadListMode==='inbox'?sent&&!request?.visit?.doneAt:leadListMode==='sent'?sent:L.own(p,me);
+      var inList=['attention','today'].includes(leadListMode)?L.health(p,request,dueToday).key===leadListMode:leadListMode==='deferred'?L.deferred(p)&&(!request||request.state==='returned'):leadListMode==='all'?true:leadListMode==='inbox'?sent&&!request?.visit?.doneAt:leadListMode==='sent'?sent:L.own(p,me);
       return inList&&L.matchesFilters(p,{owner:leadOwnerFilter,due:leadDueFilter,today:dueToday})&&[p.business,p.contact,p.phone,p.location,p.createdBy,p.notes,p.nextAction].join(' ').toLowerCase().indexOf(search)!==-1;
     }).sort(function(a,b){return (a.followUp||'9999').localeCompare(b.followUp||'9999');});
     document.getElementById('leadCount').textContent=rows.length+' '+(rows.length===1?'contact':'contacts');
@@ -846,9 +853,9 @@
       var queueItem=readyUser===me.id?readyData.items.find(function(c){return c.contactId===p.id;}):null;
       var mine=L.own(p,me), receive=L.canManage(p,me), overdue=L.followUpBucket(p,dueToday)==='overdue';
       return xCard({key:'l:'+p.id,cls:overdue?'tone-amber':'tone-navy',title:esc(p.business),chip:chip(window.VeriskoSalesWorkspace.progress(queueItem,p),queueItem||p.handoffAt?'cyan':'grey'),meta:esc([p.contact,p.location].filter(Boolean).join(' · ')),
-       next:{tone:overdue?'amber':'muted',text:(p.followUp?'Follow up '+dateLabel(p.followUp)+' · ':'')+(p.nextAction||'Plan your next conversation')},
-       summary:leadContactSummary(p),
-       quick:'<button type="button" class="btn btn-primary btn-sm" data-open-contact="'+esc(p.id)+'">Open contact</button>'+callBtn(p.phone)+voiceButton(p.id)+'<button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button>',
+       next:{tone:overdue?'amber':'muted',text:(p.followUp?'Follow up '+dateLabel(p.followUp)+' · ':'')+(L.deferred(p)?p.deferredReason||'Add the reason for waiting':p.nextAction||'Plan your next conversation')},
+       summary:dealHealthLine(p,queueItem)+leadContactSummary(p),
+       quick:'<button type="button" class="btn btn-primary btn-sm" data-open-contact="'+esc(p.id)+'">Open contact</button>'+callBtn(p.phone)+voiceButton(p.id)+(prospect(p.id)?'<button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button>':''),
        lines:line('Contact status',esc(p.leadStatus||'New contact'))+line('Phone',esc(p.phone))+line('Notes',esc(p.notes||'No notes yet'))+(p.handoffAt?line('Handover',esc((p.handoffBy||p.createdBy||'Sales')+' · '+dateLabel(p.handoffAt.slice(0,10))))+line('Request',esc(p.handoffNote||'Contact is ready for the team to follow up')):'')+followUpSummaryLine(p),
        more:(mine?'<button class="btn btn-sm btn-ghost" data-edit-lead="'+esc(p.id)+'">Edit contact</button>':'')+
         ((mine&&(!queueItem||queueItem.state==='returned'))?'<button class="btn btn-sm btn-primary" data-lead-send="operations" data-lead-id="'+esc(p.id)+'">Ready for site visit</button>':'')+
@@ -875,6 +882,7 @@
       field('location','Area or landmark','text',p.location,{full:true})+
       field('leadStatus','What did they say?','select',p.leadStatus||'New contact',{full:true,options:leadTools().STATUSES})+
       field('followUp','Next follow-up','date',p.followUp,{full:true})+
+      '<div id="deferredFields" class="full"'+(leadTools().deferred(p)?'':' hidden')+'>'+field('deferredReason','Why are they waiting?','text',p.deferredReason,{full:true})+'<p class="helper">Choose a follow-up date above. This stays on the same contact.</p></div>'+
       '<details class="full"><summary>Extra notes (optional)</summary>'+field('contact','Person you spoke with','text',p.contact,{full:true})+
       field('nextAction','What will you do next?','text',p.nextAction,{full:true,placeholder:'Call on Friday to discuss cameras'})+
       field('notes','Notes','textarea',p.notes,{full:true})+'</details>';
@@ -3428,6 +3436,7 @@
   });
 
   form.addEventListener("change", function (e) {
+    if(e.target.id==='f_leadStatus'){var d=document.getElementById('deferredFields');if(d)d.hidden=e.target.value!=='Not ready';}
     // Picking the client on a new job re-renders the form with it.
     if (e.target.id === "f_clientPick") {
       var v = e.target.value;
@@ -5290,6 +5299,7 @@
     if(summaryOwner&&canReviewProspects()){leadOwnerFilter=summaryOwner.dataset.leadSummaryOwner;leadDueFilter='';leadQuery='';leadListMode='all';renderLeads();document.getElementById('leadCount').scrollIntoView({block:'center',behavior:'smooth'});return;}
     if(e.target.closest('[data-reset-lead-filters]')){leadOwnerFilter='';leadDueFilter='';leadQuery='';renderLeads();return;}
     if(e.target.closest('[data-open-leads]')){view='leads';leadListMode='all';leadViewer=(settings.user||{}).email;render();return;}
+    var defer=e.target.closest('[data-defer-contact]');if(defer){var p=prospect(defer.dataset.deferContact);if(!p||!ownProspect(p))return;openForm('prospect',p.id,'__lead__');var status=document.getElementById('f_leadStatus');status.value=leadTools().deferred(p)?'Following up':'Not ready';document.getElementById('deferredFields').hidden=status.value!=='Not ready';return;}
     var leadEdit=e.target.closest('[data-edit-lead]');if(leadEdit){openForm('prospect',leadEdit.dataset.editLead);return;}
     var leadSave=e.target.closest('[data-save-lead]');if(leadSave){openForm('prospect',null,'__lead__');return;}
     var openRequests=e.target.closest('[data-open-request-filter]');if(openRequests){pendingReadyFilter=openRequests.dataset.openRequestFilter;view='ready';render();return;}

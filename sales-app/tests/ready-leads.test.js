@@ -115,3 +115,9 @@ test('visit completion saves the stated Uganda time and actual record time, reje
  for(const time of ['25:00','12:65','junk','15:01'])assert.equal((await f.call('ops','complete_visit',{baseVersion:3,date:'2026-10-22',time})).status,400);
  const r=await f.call('ops','complete_visit',{baseVersion:3,date:'2026-10-22',time:'14:45'});assert.equal(r.status,200);assert.equal(r.item.visit.doneAt,'2026-10-22T14:45:00+03:00');assert.equal(r.item.visit.doneTime,'14:45');assert.equal(r.item.visit.doneRecordedAt,'2026-10-22T12:00:00.000Z');assert.equal(r.item.history.at(-1).time,'14:45');assert.equal((await f.call('sales')).items[0].visit.doneTime,'14:45');
 });
+
+test('a deferred contact must resume before entering the queue, keeping one original contact',async()=>{
+ const f=fixture();Object.assign(f.prospects[0],{leadStatus:'Not ready',deferredReason:'Budget next term',followUp:'2026-11-10'});
+ assert.equal((await f.call('sales','request')).status,409);assert.equal((await f.call('ops','request')).status,409);assert.equal((await f.call('sales')).items.length,0);
+ f.prospects[0].leadStatus='Following up';assert.equal((await f.call('sales','request')).status,200);assert.equal((await f.call('sales')).items[0].contactId,'contact');assert.equal(f.prospects.filter(p=>p.id==='contact').length,1);
+});

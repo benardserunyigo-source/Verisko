@@ -1125,3 +1125,7 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 
 /* One saved job across office pages; keep phone actions short and visible. */
 #jobReturnBar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 0;margin-bottom:12px}#jobReturnBar[hidden]{display:none}.journey-owner{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:12px 0}.journey-owner dt{font-size:13px;color:var(--muted)}.journey-owner dd{margin:0;overflow-wrap:anywhere}.journey-owner+.summary-task{width:100%}
+
+/* Deal health is always written out; colour is a second cue. */
+.deal-health{padding:10px 12px;border-left:4px solid #536078;background:#edf0f5;border-radius:8px;overflow-wrap:anywhere}
+.deal-health-attention{border-color:#9e351f;background:#fff0e9}.deal-health-today{border-color:#946200;background:#fff6dd}.deal-health-track,.deal-health-paid{border-color:#237352;background:#eaf5ef}.deal-health-deferred{border-color:#536697;background:#edf1fb}.deal-counts{display:flex;gap:8px;flex-wrap:wrap}.deal-counts .btn{white-space:normal;min-height:44px}.deal-overview h2{margin-top:0}

@@ -23,6 +23,7 @@ export function transitionReady(old,body,me,p,users,at,appointments=[],transacti
  if(['plan_materials','request_procurement','order_material','receive_material'].includes(action)){
   applyMaterials(c,body,me,p,transactions,jobs,at);type=action;note='';
  }else if(action==='request'){
+  if(p.leadStatus==='Not ready')throw fail('Open this deferred contact and mark it Following up before sending it for a visit.',409);
   if(!own(p,me)&&!['admin','operations'].includes(me.role))throw fail('Only the contact creator or Operations can send it.',403);
   if(p.leadOnly!==true&&old?.state!=='returned')throw fail('This contact already has a visit. Open its queue entry.',409);
   if(old&&old.state!=='returned')throw fail('This contact is already in the site visit queue.',409);

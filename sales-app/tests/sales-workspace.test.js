@@ -20,3 +20,9 @@ test('contact card keeps send visible outside details, safely escapes notes and 
 test('account changes and already-sent contacts never start a new request',async()=>{
  let calls=0;const api=()=>{calls++;};await assert.rejects(S.sendContact({api,user,contact,isCurrent:()=>false}),/Sign in/);await assert.rejects(S.sendContact({api,user,contact,item:{state:'assigned'}}),/already sent/);assert.equal(calls,0);
 });
+
+test('deferred contacts do not send until the same contact is resumed',async()=>{
+ const p={...contact,leadStatus:'Not ready'};assert.equal(S.canSend(p,null,user),false);
+ let called=false;await assert.rejects(S.sendContact({api:async()=>{called=true;},user,contact:p,requestId:'deferred-request'}));assert.equal(called,false);
+ assert.equal(S.canSend({...p,leadStatus:'Following up'},null,user),true);
+});
