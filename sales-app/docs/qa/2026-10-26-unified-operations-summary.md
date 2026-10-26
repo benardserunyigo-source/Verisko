@@ -15,3 +15,6 @@ Shared office funds and weekly Sales pay are shown once at office level. Job pay
 
 ## Boundaries
 All interactions used isolated fictional data. No actual money transfers or production record changes. Phone viewport testing does not establish physical Android or TalkBack acceptance. Exact live source/assets and unauthenticated API denial are checked separately after release.
+
+## Live release
+v169 source e00f8e759b84ade07329b2723718330c13962885, deploy6adef8d1990992f0ba6f68af ready.42assets verified againstsource (existingapply.html anchor rewrite normalized);11private APIs denied unauthenticated access withJSON401. LiveOperationsreadonlypreview loads Jobs summary and existing fictionalrecords without callbackAPI errors. Authenticated realproductionrecords were not used or changed.
