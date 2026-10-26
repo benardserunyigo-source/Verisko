@@ -17,3 +17,5 @@ Verification:
 - Phone320/390px visual/overflow and live exact-source verification recorded in CHECKPOINT. Real Android/TalkBack/locked-screen acceptance remains a separate handset trial. No production client, financial, stock or privilege writes.
 
 Evidence: output/audits/new-hire-journey-20261025/{fixed-server.mjs,fixed-prepare.mjs,fixed-finish.mjs,fixed-closed-state.json,03-fixed-quote.png}; release readback will be saved alongside this evidence. Unrelated root AGENTS.md and .gitignore changes preserved.
+
+Live release verified: source b4423f5208482452b67ab1f4b485c160982ba437, Netlify 6adeb5336a4eac40362d55ef ready. 38 raw-exact assets plus the known application-anchor rewrite, 10 private API JSON401 responses. Live phone sample preview uses v164; authenticated production writes were not used for QA.
