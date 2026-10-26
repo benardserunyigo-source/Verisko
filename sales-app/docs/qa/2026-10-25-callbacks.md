@@ -14,4 +14,4 @@ Validation:
 - Reload retained record/cost;320px document width equals scroll width;390px screenshot visually checked. Uploads have keyboard-focusable buttons. All changes use existing four primary navigation groups.
 - Evidence output/audits/callbacks-20261025/{final-state.json,closed-phone.png}; fictional local storage only.
 
-Release: pending final full-suite and exact Netlify source/assets/API readback. Existing v164 remains live until verified.
+Release verified: v165 source306c77e58218015a9f4220ce194754c394421870, Netlify6adec56ac04d090a1d6a4193 ready.676tests passed/0failed.40liveassets match source (39 raw exact plus the known apply.html anchor normalization);11private APIs return JSON401, including callbacks. Live Operations view-only preview loads Jobs/Callbacks at390px with no overflow; this is not authenticated production-write acceptance. No real callback/client/cash writes.
