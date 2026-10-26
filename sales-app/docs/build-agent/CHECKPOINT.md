@@ -443,3 +443,39 @@ Ownerrequestedfreshfulljourney/funnel/easeaudit. v163 unchanged;667fulltestspass
 Twohandofffixes,visitassessmentwithsavedownfinishtime,three-sectionquoteformandreviewablequotequantitiesinmaterialsimplemented.672testspass/5newbehaviorchecks. Actual4484freshSalescontact/send→Opsownership/visitstartfinish→savedtimeassessment→groupedquotesave→savedquoteSentID→pendingreceiptshowsAdminwaiting/noplanCTA→approvedpayment→4camera/200mcableprefilledplan saved. SamefreshIDscontinuedrealhandlersstock50monlyorder/arrival→assignment/accept→22evidence/fourchecks→submission→return20/retry→technicalapproval/jointsignoff,1contact/visit/quote/plan/install/receipt. MaterialIDsreused. No policy/customerpricechange. Audit ../qa/2026-10-25-simple-handoffs.md. PhoneQAandscopedrelease/exactreadbacknext; noproductiondatawrites.
 
 Releaseverified:v164 sourceb4423f5208482452b67ab1f4b485c160982ba437, Netlify6adeb5336a4eac40362d55efready. Final672testspass/0fail.39assetschecked:38rawexact+singleobservedapplicationanchorrewrite;10privateAPIJSON401. Actualfresh4484onecontact/visit/quote/materialplan/install/receipt/signoff and20mcablereturn verified; quoteSentsourcefilled/projectedSent. Phone320/390pxnooverflow; liveOperationssample390pxshows?v164/fourprimarybuttons. Evidence output/audits/new-hire-journey-20261025/{fixed-closed-state.json,03-fixed-quote.png,04-live-phone.png,release-readback.json}. ActualtimeconfirmationUI reusedsavedfinish; caughtandfixedintermediatefilterreturntonewrequests bypreservingmine. Complexcostsauto-open; prices/roles/contractsunchanged. No real client/stock/money/access/messagewrites. RootAGENTS.md/.gitignoreunrelatededits preserved. ApprovedqueuecompleteexceptactualAndroidhandset/userusabilitypilot; nextnewinstruction/deviceevidence, donotrepeataudits.
+
+
+### 2026-10-25 — Phone demo: visit → quote → payment approval → materials
+- Fictional local demo on 4486 (Operations), 4487 (Admin); no production changes or supplier messages.
+- Sales saved DEMO Simple Journey once. Operations took it, confirmed and finished the visit, reused saved finish time, created the quote and reused its number when recording it sent.
+- Pending UGX 2,110,000 receipt kept Plan materials hidden; Admin approval revealed the action on the same job and updated balance from UGX 5,280,000 to UGX 3,170,000.
+- Materials starter reused 4 cameras and 200m cable. Operations selected camera type/source and saved one linked plan.
+- Readback assertions: one prospect, one job, one shared case and one material plan; quote source ID equals job and plan source IDs. Evidence: output/audits/simple-handoff-demo-20261025/{final-state.json,01-pending.png,02-approved.png,03-prefilled-materials.png}.
+- Demo only; v164 unchanged. Next action remains the existing device acceptance checks; no new feature added.
+
+
+### 2026-10-25 — Same-job warehouse-to-installer phone demo
+- Continued 4486 actual Operations UI, DEMO Simple Journey / J-2026-0001; no new contact/job/plan.
+- Counted fictional usable warehouse stock: 4 cameras,150m cable. Reserved those quantities; only50m cable requested/ordered. Recorded one50m arrival; Assign installer appeared only at Materials ready.
+- Offered same linked materials to DEMO installer, UGX350K, Operations site staff and4positions. Status Waiting for installer reply. No material issue yet and no actual purchase/message.
+- Readback assertions one contact/job/installation/plan, no camera orders, exactly one cable order/arrival. Warehouse4cameras/200m cable held once,0available,0issued. Evidence assigned-state.json/04-only-missing.png/05-installer-offered.png in output/audits/simple-handoff-demo-20261025.
+- Demo only, v164 unchanged. Next user step can be installer acceptance/material issue; physical Android acceptance remains separate.
+
+
+### 2026-10-25 — Same-job installer acceptance and material handout
+- Actual 4488Installer accepted same4486Operations job and saw350Kpay plus4cameras/200mcable; no new contact/material entry.
+- Operations recorded4cameras and200mcable taken to site, confirmed full demo list. Two materialIssue movements total. Stock now0/held0/free0; site issue4/200, not deducted during reservation.
+- Replayed each original issue request twice through local handler:200 each, still exactly two movements and unchanged stock. Saved issue-retry-state.json plus06/07installer/08material screenshots under output/audits/simple-handoff-demo-20261025.
+- Fictional local data only; no code change/release/real stock or financial writes. Next request can continue installer checks and returns.
+
+
+### 2026-10-25 — Same-job installer checks and submission phone demo
+- Actual4488installer Startjob/sampleGPS→fourcamera routes/mounting/five-tests viaUI,20labelledsamplecameraimages uploaded throughchooser. Saved4camerasfitted/180mcableused/20goodleft/0damagedmissing. ActualFinishjob savedtime/location.
+- Finalstaffreport plus samplehandoverphoto saved; Operations confirmed demo workrules anduploadedreference (22photos total). ActualSendtoOperations→Submitted/Waitingforapproval;4of4checks/2of2materials counted.
+- Canonical submitted-state.json asserts1contact/job/install,22evidence,alltestsPass,warehouse0/0returns (20m remainsatsite). NoOperationsapproval/clientsignoff/returnreceipt performed. Screenshot09-installer-submitted.png. All underoutput/audits/simple-handoff-demo-20261025.
+- Local fictional demo only; no sourcechange/release or real record changes. Next user step:Operations review/receive20m, thenapproval andjointsignoff.
+
+
+## Completed-job callbacks implementation:v165
+
+Owner requested Operations callback management: same completed job, any active staff/self assignment, incurred costs and proof of repair. Implemented private callbacks API/store and Jobs subpage for assigned staff. Versioned once-only writes; completed-installation source IDs retained; receipt-backed UGX costs with dates/cancellation history; fixphoto/tests/costcheck before report; Operations close/return/reopen, freshproof gate and explicit online-save/cost-log boundaries.676tests pass/0fail. Actual4490Operations→4491Installer→repairphoto/20Kreceipt/report→Operationsproofreview/close; reload/320px/390px checked. Newcallbackroles/photos have negative tests. No real records/accounts/cash/warranty/pricing changed. Evidence ../qa/2026-10-25-callbacks.md and output/audits/callbacks-20261025. Routine release/exactsource/assets/APIverification next.

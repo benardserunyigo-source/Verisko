@@ -17,7 +17,7 @@ test('Sales and Team Lead cannot navigate into office finance or administration'
 });
 test('installers see only own-job entry points and help, no contacts, sales tracking or finance',()=>{
  assert.equal(nav.sections('installer').map(s=>s.label).join(','),'Home,Jobs,More');
- assert.equal(nav.views('installer').map(p=>p.id).join(','),'installerhome,installwork,more,installerhelp');
+ assert.equal(nav.views('installer').map(p=>p.id).join(','),'installerhome,installwork,callbacks,more,installerhelp');
  for(const p of ['today','dashboard','field','leads','prospects','prices','visits','cashflow','jobs','settings','support'])assert.equal(nav.allowed('installer',p),false);
 });
 test('unknown and removed roles have no navigation access',()=>{

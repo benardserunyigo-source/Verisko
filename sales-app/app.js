@@ -498,6 +498,7 @@
     else if (view === "dashboard") renderDashboard();
     else if (view === "leads") renderLeads();
     else if (view === "ready") renderReadyQueue();
+    else if (view === "callbacks") renderCallbacks();
     else if (view === "inventory") renderInventory();
     else if (view === "materials") renderMaterials();
     else if (view === "jobsummary") renderJobSummaries();
@@ -515,6 +516,11 @@
     if(view==='today'&&settings.user?.role==='admin')mountTeamWork();
     if (view !== 'field' && fieldTracker && fieldUI) updateFieldUI();
     if(view!=='ready'&&view!=='materials'&&!installationRole())refreshReadySummary();
+  }
+
+  async function renderCallbacks(){
+    setHead('Jobs','Callbacks','Check and fix problems on completed jobs.','',false);content.innerHTML='<p>Loading callbacks…</p>';var id=settings.user?.id;
+    try{var m=await import('./callbacks-ui.mjs?v=165');if(view!=='callbacks'||settings.user?.id!==id)return;readyMounted=m.mountCallbacks({host:content,user:settings.user,preview:!!rolePreview,isCurrent:function(){return view==='callbacks'&&settings.user?.id===id&&!document.body.classList.contains('locked');},api:function(method,body,query){return readyApi(method,body,query,'/api/callbacks');}});}catch(e){if(view==='callbacks'&&settings.user?.id===id)content.textContent=e.message;}
   }
 
   var pendingMaterialChoice=null,pendingReadyFilter='',readyMounted=null,readyData={items:[],people:[]},readyUser='',readyLoadedAt=0,readyLoading=false;
@@ -659,7 +665,7 @@
       if(active)b.setAttribute('aria-current','true');else b.removeAttribute('aria-current');
     });
     var sub=document.getElementById('sectionNav');sub.setAttribute('aria-label',(visible.find(function(s){return s.id===section;})||{label:'Work'}).label+' pages');
-    var officeRole=['operations','admin'].includes(role);var subPages=navigation.views(role,section).filter(function(p){if(officeRole)return ({home:['today','field'],work:['jobsummary'],more:['inventory','salesprices']})[section]?.includes(p.id)||section==='contacts'&&['ready','leads','prospects'].includes(p.id);if(['operations','teamlead'].includes(role)&&section==='contacts')return ['ready','leads','prospects'].includes(p.id);return role!=='sales'||{home:['today'],contacts:['leads'],work:['ready','field'],more:['dashboard','more']}[section]?.includes(p.id);});sub.hidden=subPages.length<2;
+    var officeRole=['operations','admin'].includes(role);var subPages=navigation.views(role,section).filter(function(p){if(officeRole)return ({home:['today','field'],work:['jobsummary','callbacks'],more:['inventory','salesprices']})[section]?.includes(p.id)||section==='contacts'&&['ready','leads','prospects'].includes(p.id);if(['operations','teamlead'].includes(role)&&section==='contacts')return ['ready','leads','prospects'].includes(p.id);return role!=='sales'||{home:['today'],contacts:['leads'],work:['ready','field','callbacks'],more:['dashboard','more']}[section]?.includes(p.id);});sub.hidden=subPages.length<2;
     sub.innerHTML=subPages.map(function(p){return '<button type="button" class="section-tab'+(view===p.id?' is-active':'')+'" data-nav-view="'+p.id+'"'+(view===p.id?' aria-current="page"':'')+'>'+esc(p.label)+(p.badge?'<span class="section-count" id="'+p.badge+'" hidden></span>':'')+'</button>';}).join('');
     var ib=document.getElementById('installerBadge'),count=installationAlerts.pendingIds.length+installationAlerts.submitted+(installationAlerts.handover||0);
     if(ib){ib.hidden=!count;ib.textContent=count;}

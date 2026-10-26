@@ -1,0 +1,11 @@
+# Callbacks on completed jobs
+
+Open **Jobs → Callbacks**. Operations/Admin can select an existing technically completed installation, record the problem, choose any active staff member (including themselves) and set a visit date. Client/job IDs, address and site staff are copied from the existing installation; no new client or installation is made. Original installation checks and client sign-off remain unchanged.
+
+The assigned staff member sees only callbacks assigned to them, starts the check, adds problem/fixed-work photos, records costs already incurred with receipt photos, and sends a tested fix to Operations. No cost is also a valid result, explicitly confirmed on sending. Operations reviews proof and costs, closes the callback or asks for more work with a reason. A return or reopen requires fresh fix evidence. Operations can change the person/date or cancel an incorrect cost with a reason. History remains saved.
+
+Costs here are a callback cost log, not a payment instruction or duplicate cash-book entry. No money moves, cash approval is not implied, and customer prices/warranty terms are unchanged. Existing office cash controls still apply. A saved cost has amount/date/reason/receipt and an audit trail. Photos are private and are fetched only after server authorization.
+
+Role rules: Operations/Admin manage all callbacks. All other active staff roles may read and work only on their explicitly assigned callback; they receive no completed-job catalogue, roster, installation record, internal job price or other clients. Only Operations/Admin can assign or review/close. Removed/demoted sessions are checked by the normal live authentication path. Same-record saves use versions and per-person request IDs; stale writes fail and retries do not duplicate costs or photos.
+
+Use data to save callbacks. Unlike installation checks, this first callback screen does not queue offline changes. Errors remain on screen so the person can retry. Phone camera/gallery and real device accessibility acceptance still require a handset trial.
