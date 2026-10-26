@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | Unified Operations summary | working | One office money rollup, job-linked actual costs/callbacks/tasks, shared Sales pay clearly separate, no re-entry/duplicate totals; phone tests and release. |
 | 0 | Operations money, Sales pay, material payments and fund requests | done | v168 source849f94f ready6adef0e393fb3521aacd31f5;690tests pass. One source-linked funding receipt/Sales weekly payout/material order payment; Admin-reviewed requests separate from cash; Ops receipt-backed expenses<=100K/Adminabove100K; private own Sales status. Actual390px flow/reopen/320px nooverflow;41assets/11API401verified. See ../qa/2026-10-26-operations-money.md. |
 | 0 | Callback expenses linked to Cash flow | done | v167 source598dedf ready6adee190015d6850a6f964cf;682tests pass. Same cost/receipt, Admin-only approval, immutable source/legacy reconciliation/retry/void/stale-save protection. Actual390px20Kapproved once/80Kbalance;320px no overflow;40assets/11API401 verified. See ../qa/2026-10-25-callback-cash.md. |
 | 0 | Completed-job callbacks | done | v166 sourcede99c25 deployedready6adec6dab57a9fbd3073a4d2;677tests pass. Newcallbackform preserves priorselectedrecord. Same completed job, anyactive staff/self assignment, private photos/receipt costs, tested repair report, Operations close/return/reopen with freshproof.390/320px actual phoneflow,40assets/11API401 verified. See ../qa/2026-10-25-callbacks.md. |
