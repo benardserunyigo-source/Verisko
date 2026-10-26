@@ -1,7 +1,7 @@
-import {replyText,choiceDetailsHtml} from './client-plan-ui.mjs?v=162';
-import './job-finance.js?v=162';
-import {installerPaymentSummary} from './installer-model.mjs?v=162';
-import {materialBalance} from './installer-materials.mjs?v=162';
+import {replyText,choiceDetailsHtml} from './client-plan-ui.mjs?v=163';
+import './job-finance.js?v=163';
+import {installerPaymentSummary} from './installer-model.mjs?v=163';
+import {materialBalance} from './installer-materials.mjs?v=163';
 const office=u=>['admin','operations'].includes(u?.role);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>'UGX '+Number(n).toLocaleString('en-UG');
