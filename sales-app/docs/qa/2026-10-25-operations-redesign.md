@@ -1,4 +1,4 @@
-# Operations redesign — v161
+# Operations redesign — v162
 
 Owner approved the25October audit plan, starting with warehouse buying and installer cash links, then simpler Operations screens.
 
@@ -12,10 +12,12 @@ Owner approved the25October audit plan, starting with warehouse buying and insta
 
 ## Verification
 
-663 automated checks passed, including9 new tests covering all-stock/mixed readiness; once-only expense projection/approval; source-field tampering/deletion/duplicate prevention; prior-expense linking; void/correction/resubmission; office privacy; completed counts; and task context. Existing full-journey, commission, stock, client acceptance and role tests pass.
+664 automated checks passed, including10 new tests covering all-stock/mixed readiness; once-only expense projection/approval; source-field tampering/deletion/duplicate prevention; prior-expense linking; void/correction/resubmission; office privacy; completed counts; and task context. Existing full-journey, commission, stock, client acceptance and role tests pass.
 
 Actual isolated app at4469: fictional existing closed job; Operations Today→same-job→job cash book showed installer350,000 once pending, approved cash5,280,000 and after-recorded balance4,930,000. Linked form amount/date/direction/category/method are locked and correct. Contacts shows With me0/Completed1; Stock loads. 390px and320px checks, no horizontal overflow. Fresh final browser tab has no console errors. Earlier intermediate null-host race was caught by browser QA and fixed by keeping ready-data refresh from replacing Operations Home and checking the task host/lifecycle. Its earlier log remains in evidence, separate from clean final results.
 
 Evidence: `output/audits/operations-redesign-20261025/` contains phone screenshots, clean final measurements and local QA server. Existing actual end-to-end fictional state reused; no production records, accounts, stock, payments or messages changed for QA. Tests do not establish real Android locked-screen or TalkBack acceptance.
 
-Release: prepared at v161; exact source/deploy/live readback recorded in CHECKPOINT after release gates.
+Release: prepared at v162; exact source/deploy/live readback recorded in CHECKPOINT after release gates.
+
+Live-preview follow-up: v161 showed an unassigned contact with a premature future-payment task. Final v162 keeps these contacts in the visit queue and prioritises visit/quote tasks before payment for a saved draft job. Added a regression; final664tests pass.

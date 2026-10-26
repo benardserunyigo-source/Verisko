@@ -28,7 +28,7 @@ test('completed visits stay in history but do not inflate My visits count',()=>{
  const done={ownerId:'ops',installationProgress:[{stage:'Client signed off'}]},active={ownerId:'ops'},newRequest={ownerId:null};assert.equal(requestCompleted(done),true);assert.deepEqual(requestCounts([done,active,newRequest],{id:'ops'}),{new:1,mine:1});
 });
 test('Operations today highlights actionable jobs, not completed jobs; task buttons retain source context',async()=>{
- const html=operationsTasks([{id:'closed',tasks:[]},{id:'fix',business:'DEMO fix',reference:'Q',stage:'Fix needed',tasks:[{text:'Review the saved checks and photos.',action:'installation'}]}]);assert.doesNotMatch(html,/closed/);assert.match(html,/data-summary-task="fix"/);
+ const html=operationsTasks([{id:'closed',tasks:[]},{id:'fix',source:{id:'fix'},business:'DEMO fix',reference:'Q',stage:'Fix needed',tasks:[{text:'Review the saved checks and photos.',action:'installation'}]}]);assert.doesNotMatch(html,/closed/);assert.match(html,/data-summary-task="fix"/);
  let selected;const b={dataset:{summaryTask:'q',taskAction:'materials'}},host={innerHTML:'',querySelector:()=>({addEventListener(){}}),querySelectorAll:s=>s==='[data-summary-task]'?[b]:[]};const ctl=mountJobSummaries({host,user:{role:'operations'},isCurrent:()=>true,tasksOnly:true,onMaterials:x=>selected=x,api:async(_m,_b,_q,route)=>route==='/api/data'?{data:{jobs:[{id:'q',prospectId:'c'}]}}:route==='/api/installer'?{jobs:[]}:{items:[]}});await new Promise(r=>setImmediate(r));b.onclick();assert.deepEqual(selected,{contactId:'c',sourceId:'q'});ctl.stop();
 });
 test('actual data API projects crew expenses privately and preserves Admin-only approval through save/reload',async()=>{
@@ -50,4 +50,9 @@ test('Admin links a matching earlier expense without another cash entry or losin
  const review=projectInstallerCash({transactions:[old]},[j]).transactions[0];const e=review.installerCashCandidates[0];const linked={...old,installerPaymentKey:e.installerPaymentKey,installerJobId:e.installerJobId,installerPaymentId:e.installerPaymentId,installerId:e.installerId};
  assert.throws(()=>guardInstallerCash([old],[linked],[j],{role:'operations'}),/Admin/);assert.equal(guardInstallerCash([old],[linked],[j],{role:'admin'}).length,1);
  const reopened=projectInstallerCash({transactions:[linked]},[j]).transactions;assert.equal(reopened.length,1);assert.equal(reopened[0].id,'legacy');assert.equal(reopened[0].status,'approved');assert.equal(reopened[0].proofId,'earlier-proof');
+});
+
+test('Today keeps unassigned contacts in the visit queue and never leads a new job with a payment task',()=>{
+ const source={id:'q',prospectId:'c',stage:'Draft',quotedTotal:1000};const rows=buildJobSummaries({user:{role:'operations'},data:{jobs:[source]},cases:[{contactId:'c',contact:{business:'DEMO new quote'},ownerId:'ops'}]});const html=operationsTasks(rows);assert.ok(html.indexOf('Arrange or finish the site visit.')>=0);assert.ok(!html.includes('data-task-action="payments"'));
+ const queued=buildJobSummaries({user:{role:'operations'},data:{},cases:[{contactId:'new',contact:{business:'DEMO queued'},ownerId:null}]});assert.doesNotMatch(operationsTasks(queued),/DEMO queued/);
 });
