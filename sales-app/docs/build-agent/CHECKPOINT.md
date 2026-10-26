@@ -501,3 +501,5 @@ Releaseverified:v166 sourcede99c25, Netlify6adec6dab57a9fbd3073a4d2ready;677test
 ## Callback expenses linked to Cash flow: 25 October2026
 
 Implemented one canonical callback expense/receipt → one pending cash entry. Admin-only approval, callback status readback, immutable source fields, older manual-entry reconciliation, duplicate/stale-save and reasoned cancellation safeguards. Operations opens the same job Cash flow without re-entry. Assigned workers receive their own callback status only.682tests pass. Actual390px isolated app flow approved20K once;100K funding minus20K left80K.320px no horizontal overflow. Evidence: ../qa/2026-10-25-callback-cash.md. Release verification follows below.
+
+Release verified: v167 source `598dedf75c92b94b879407ff1f47bb7dcd71daca`, Netlify `6adee190015d6850a6f964cf` ready.40 live assets matched (known application anchor normalization only);11 private APIs returned JSON401. Readback: `output/audits/callback-cash-20261025/release-readback.json`. No production data changed. Next: new approved request or actual Android pilot; do not repeat this successful test without new evidence.
