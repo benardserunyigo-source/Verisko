@@ -5,9 +5,9 @@ import fs from 'node:fs';
 const ctx={};vm.createContext(ctx);vm.runInContext(fs.readFileSync(new URL('../navigation.js',import.meta.url),'utf8'),ctx);const nav=ctx.VeriskoNavigation;
 test('staff have four stable sections; every page belongs to one section',()=>{
  for(const role of ['admin','operations','teamlead','sales']){
-  assert.equal(nav.sections(role).map(s=>s.label).join(','),role==='sales'?'Home,Contacts,My work,My pay':'Home,Contacts,Jobs,More');
+  assert.equal(nav.sections(role).map(s=>s.label).join(','),role==='sales'?'Home,Contacts,My work,My pay':['admin','operations'].includes(role)?'Today,Contacts,Jobs,Stock':'Home,Contacts,Jobs,More');
   for(const s of nav.sections(role)){assert.ok(nav.allowed(role,nav.first(role,s.id)));for(const p of nav.views(role,s.id))assert.equal(nav.group(role,p.id),s.id);}
-  assert.equal(nav.group(role,'field'),role==='sales'?'work':'home');assert.equal(nav.group(role,'prices'),'contacts');assert.equal(nav.group(role,'visits'),'work');assert.equal(nav.group(role,'support'),'more');
+  assert.equal(nav.group(role,'field'),role==='sales'?'work':'home');assert.equal(nav.group(role,'prices'),'contacts');assert.equal(nav.group(role,'visits'),'work');assert.equal(nav.group(role,'support'),['operations','admin'].includes(role)?'tools':'more');
  }
 });
 test('Sales and Team Lead cannot navigate into office finance or administration',()=>{
@@ -36,4 +36,4 @@ test('Operations and Team Lead open visit requests first under Contacts, with no
 
 test('job summaries are Operations/Admin only and keep the four main buttons',()=>{for(const role of ['operations','admin']){assert.equal(nav.first(role,'work'),'jobsummary');assert.equal(nav.allowed(role,'jobsummary'),true);}for(const role of ['sales','teamlead','installer'])assert.equal(nav.allowed(role,'jobsummary'),false);});
 
-test('inventory is an office-only sub-page without adding primary buttons',()=>{for(const role of ['operations','admin']){assert.equal(nav.allowed(role,'inventory'),true);assert.equal(nav.group(role,'inventory'),'work');assert.equal(nav.sections(role).length,4);}for(const role of ['sales','teamlead','installer'])assert.equal(nav.allowed(role,'inventory'),false);});
+test('inventory is an office-only sub-page without adding primary buttons',()=>{for(const role of ['operations','admin']){assert.equal(nav.allowed(role,'inventory'),true);assert.equal(nav.group(role,'inventory'),'more');assert.equal(nav.first(role,'more'),'inventory');assert.equal(nav.sections(role).length,4);}for(const role of ['sales','teamlead','installer'])assert.equal(nav.allowed(role,'inventory'),false);});

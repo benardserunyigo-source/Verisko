@@ -1,4 +1,4 @@
-import {planSchedule} from './client-plan-schedule.mjs?v=160';
+import {planSchedule} from './client-plan-schedule.mjs?v=161';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>'UGX '+Number(n).toLocaleString('en-UG');
 export function replyText(item){return item?.choice?(item.approval?'Client plan: ':item.current?'Client chose: ':'Earlier client choice: ')+item.choice.title+' · '+(item.choice.totalLabel==='First 12 months'?'First 12 months: ':'')+money(item.choice.total)+' · '+item.choice.name+(item.approval?' · Plan approved.':item.current?' · Review before confirming.':' · Quote or link has changed.'):item?.current?'Client link ready · waiting for a reply.':'';}

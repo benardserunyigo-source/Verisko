@@ -1,3 +1,4 @@
+import {loadInstallerCash,projectInstallerCash,guardInstallerCash} from './lib/installer-cash.mjs';
 import {projectWarehouseCases} from './lib/warehouse-stock.mjs';
 import {loadClientPlans,projectClientPlans} from './lib/client-plan-job.mjs';
 import {salesPriceView} from '../../sales-price-policy.mjs';
@@ -61,6 +62,8 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
     const voiceNotes=await loadVoiceNotes(storeFor({name:'verisko-voice-notes',consistency:'strong'}));
     const clientPlans=await loadClientPlans(storeFor({name:'verisko-client-plans',consistency:'strong'}));
     data=projectVoice(projectReady(projectClientPlans(data,clientPlans),readyCases,installationProgress),voiceNotes);
+    const installerCashJobs=['admin','operations'].includes(me?.role)?await loadInstallerCash(storeFor({name:'verisko-installations',consistency:'strong'})):[];
+    if(['admin','operations'].includes(me?.role))data=projectInstallerCash(data,installerCashJobs);
     const isAdmin = bootstrap || (me && me.role === "admin");
     const isTeamLead = !bootstrap && !!me && me.role === "teamlead";
     const isSales = !bootstrap && !!me && me.role !== "admin" && me.role !== "operations" && me.role !== "teamlead";
@@ -224,6 +227,8 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
         }
         catch(error) { return json({ok:false,error:error.message},400,headers); }
       }
+
+      if(canCash)clean.transactions=guardInstallerCash(storedTx,clean.transactions,installerCashJobs,me);
 
       // Operations records cash; only Admin approves or alters approved entries.
       if(!isTeamLead)clean.transactions=guardCash(storedTx,clean.transactions,bootstrap?{role:'admin'}:{...me,email});

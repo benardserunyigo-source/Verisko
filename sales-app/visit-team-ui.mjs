@@ -1,6 +1,7 @@
 // Presentation only. Existing request commands and server role checks remain authoritative.
 const office=u=>['operations','teamlead','admin'].includes(u?.role);
-export function requestCounts(items,user){return {new:items.filter(c=>!c.ownerId&&c.state!=='returned').length,mine:items.filter(c=>c.ownerId===user.id&&c.state!=='returned').length};}
+export const requestCompleted=c=>(c.installationProgress||[]).some(i=>i.stage==='Client signed off');
+export function requestCounts(items,user){return {new:items.filter(c=>!c.ownerId&&c.state!=='returned'&&!requestCompleted(c)).length,mine:items.filter(c=>c.ownerId===user.id&&c.state!=='returned'&&!requestCompleted(c)).length};}
 export function requestLabel(c){
  if(c.state==='returned')return 'Back with Sales';
  if(c.installationProgress?.length)return c.installationProgress.at(-1).stage;

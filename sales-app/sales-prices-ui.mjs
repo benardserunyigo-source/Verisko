@@ -1,6 +1,6 @@
-import {mountSalesDraftPicker} from './sales-draft-picker.mjs?v=160';
-import {salesOfferText} from './sales-draft-offer.mjs?v=160';
-import {salesPriceRows} from './sales-price-policy.mjs?v=160';
+import {mountSalesDraftPicker} from './sales-draft-picker.mjs?v=161';
+import {salesOfferText} from './sales-draft-offer.mjs?v=161';
+import {salesPriceRows} from './sales-price-policy.mjs?v=161';
 export function mountSalesPrices({host,user,api,jobs=[],initialSource,onPublished,preview=false,isCurrent=()=>true}){
  let stopped=false,version=0,busy=false;const current=()=>!stopped&&isCurrent();
  if(!['operations','admin'].includes(user?.role)){host.textContent='Operations access is needed.';return {stop(){}};}

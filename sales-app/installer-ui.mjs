@@ -1,7 +1,7 @@
-import {clientReviewPanel,openClientReview} from './client-review-ui.mjs?v=160';
-import {elapsed} from './client-work-ui.mjs?v=160';
-import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=160';
-import {manager,TESTS,PARTS,reasons,readiness,installationProgress,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady,installerPaymentSummary,PAYMENT_METHODS} from './installer-model.mjs?v=160';
+import {clientReviewPanel,openClientReview} from './client-review-ui.mjs?v=161';
+import {elapsed} from './client-work-ui.mjs?v=161';
+import {InstallerClient,cameraPhoto,requestId,captureWorkLocation} from './installer-client.mjs?v=161';
+import {manager,TESTS,PARTS,reasons,readiness,installationProgress,JOB_NEEDS,MATERIALS,materialBalance,materialProblems,stockManager,UNITS,initialMaterials,crewPay,payReady,installerPaymentSummary,PAYMENT_METHODS} from './installer-model.mjs?v=161';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>'UGX '+Number(v).toLocaleString('en-UG');
 const time=v=>new Date(v).toLocaleString('en-GB',{timeZone:'Africa/Kampala'});
@@ -22,7 +22,7 @@ export async function mountInstaller(ctx){
 async function showDemo(role='operations'){
  if(!realContext||!manager(realContext.user))return;
  if(active?.client.queue.length){realContext.toast('Send saved work before changing views.');return;}
- if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=160');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
+ if(!demoController||demoController.ownerId!==realContext.user.id){const module=await import('./installer-demo.mjs?v=161');demoController={ownerId:realContext.user.id,module,transport:await module.browserDemo(realContext.user.id)};}
  if(active)active.stop();const actor=demoController.transport.actors[role==='installer'?1:0];
  active=new InstallerView({...realContext,user:actor,demo:true,demoRole:role,initialJobId:'demo-installation',fetcher:demoController.transport.fetcher(role),token:async()=>''});await active.start();
 }
@@ -89,7 +89,7 @@ class InstallerView {
   if(!j.cameras.some(c=>c.id===this.cameraId))this.cameraId=j.cameras[0]?.id||'';
   const cl=this.client,locked=['Submitted','Completed'].includes(j.status),workLocked=locked||this.user.role!=='installer',c=j.cameras.find(c=>c.id===this.cameraId),missing=readiness(j),pending=cl.queue.some(q=>q.jobId===j.id);
   let html='<section class="card iw-card">'+button('data-iw-back','← All installations')+'<h2>'+esc(j.business)+' <span class="iw-status">'+esc(j.status)+'</span></h2><p>'+esc(j.address)+'<br>Verisko staff at site: '+esc(j.siteStaff?.name||'Operations must add the Verisko site staff contact')+' · '+esc(j.siteStaff?.phone||'')+'</p><p><strong>Scheduled:</strong> '+esc(j.scheduledDate)+' · '+esc(j.assignees.map(id=>this.name(id)).join(', '))+'</p>'+(!j.assignment||j.assignment.status==='accepted'?'<details><summary>Job plan and materials</summary>':'')+'<h3>Job needs and materials</h3><p class="iw-pre">'+esc(j.scope)+'\n'+esc(j.equipment)+'</p><h3>Work notes</h3><p class="iw-pre">'+esc(j.instructions||'No extra notes')+'</p>'+(!j.assignment||j.assignment.status==='accepted'?'</details>':'');
-  if(j.status==='Completed')html+='<p>Technical approval: '+esc(this.name(j.approval.by))+' · '+esc(j.approval.at)+' · '+esc(j.approval.comment)+'</p>';
+  if(j.status==='Completed')html+='<p>Technical approval: '+esc(this.name(j.approval.by))+' · '+esc(time(j.approval.at))+' · '+esc(j.approval.comment)+'</p>';
   html+='<p><strong>Site supervisor:</strong> '+esc((j.supervisorIds||[]).length?(j.supervisorIds||[]).map(id=>this.name(id)).join(', '):'Not assigned yet')+'</p>';
   if(['admin','operations','teamlead'].includes(this.user.role)&&!locked&&!(j.supervisorIds||[]).includes(this.user.id))html+=button('data-iw-supervise-self="'+esc(j.id)+'"','Assign me as site supervisor');
   if(stockManager(this.user)&&!locked)html+=button('data-iw-plan','Edit job setup')+button('data-iw-pilot','Work rules and who can approve');
@@ -179,7 +179,7 @@ class InstallerView {
  }catch(error){this.ctx.toast(error.message);}}
  paymentActions(d,j){
   if(d.iwRecordPayment){const id=d.iwRecordPayment,b=installerPaymentSummary(j,id),today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Kampala',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-   this.modal('Record payment · '+this.name(id),'<p>Balance left: <strong>'+esc(money(b.balance))+'</strong>. Record money already paid.</p>'+field('amount','Amount paid (UGX)','','number').replace('type="number"','type="number" min="1" max="'+b.balance+'" step="1" required')+field('paidOn','Date paid',today,'date')+'<label>How you paid<select name="method">'+options(PAYMENT_METHODS)+'</select></label>'+field('reference','Payment reference (optional for cash)')+field('note','Extra payment note (optional)','','textarea'),f=>this.client.online(j.id,{action:'installerPayment',baseVersion:j.versions.installerPay||0,data:{installerId:id,amount:Number(f.get('amount')),paidOn:f.get('paidOn'),method:f.get('method'),reference:f.get('reference'),note:f.get('note')}}));return true;
+   this.modal('Record payment · '+this.name(id),'<p>Balance left: <strong>'+esc(money(b.balance))+'</strong>. Record money already paid. It appears once in the cash book, waiting for Admin to check. Do not add it again.</p>'+field('amount','Amount paid (UGX)','','number').replace('type="number"','type="number" min="1" max="'+b.balance+'" step="1" required')+field('paidOn','Date paid',today,'date')+'<label>How you paid<select name="method">'+options(PAYMENT_METHODS)+'</select></label>'+field('reference','Payment reference (optional for cash)')+field('note','Extra payment note (optional)','','textarea'),f=>this.client.online(j.id,{action:'installerPayment',baseVersion:j.versions.installerPay||0,data:{installerId:id,amount:Number(f.get('amount')),paidOn:f.get('paidOn'),method:f.get('method'),reference:f.get('reference'),note:f.get('note')}}));return true;
   }
   if(d.iwVoidPayment){const p=j.installerPayments.find(p=>p.id===d.iwVoidPayment);if(!p)return true;
    this.modal('Correct a payment entry','<p>Remove '+esc(money(p.amount))+' from the paid total for '+esc(this.name(p.installerId))+'. The original entry stays in the history. This changes the app record only.</p>'+field('reason','Why was this entry wrong?','','textarea'),f=>this.client.online(j.id,{action:'installerPaymentVoid',baseVersion:j.versions.installerPay||0,data:{paymentId:p.id,reason:f.get('reason')}}));return true;

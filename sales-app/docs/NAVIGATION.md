@@ -42,3 +42,9 @@ Operations/Admin: **Jobs → Inventory**, also under Home → Other work. Search
 ## Use warehouse stock (v155)
 
 Operations/Admin: **Jobs → Materials & buying → Open materials** on the same paid job. Each item shows Needed, From warehouse, Still to buy and Still to arrive. Use warehouse stock opens one quantity, prefilled with the available amount. Save amount holds it for this job. Change warehouse amount can reduce it before assignment. Request buying covers the remainder; orders cannot exceed it. If everything is in stock, no buying request is needed and Assign installer is available. Arrivals plus warehouse amounts flow into the same installer list. Inventory shows physical stock, free stock and held stock separately. Preview writes remain disabled; four primary buttons unchanged.
+
+## Operations workspace (v161)
+
+Operations/Admin now use **Today · Contacts · Jobs · Stock**. Today shows new visit requests and jobs with a next action; completed visits sit in Completed rather than With me. Jobs opens the same-job workspace with the next task first, money totals and expandable history/materials/actions. Tasks keep the client/job context, including the job cash book. Stock opens inventory and Sales prices. Less frequent tools, full office cash book and Admin settings remain under **Account → Office tools & help** (and the Today shortcut). Old allowed routes remain compatible; hiding a sub-page does not expand or replace server access checks. Sales, Team Lead and Installer keep their role-specific navigation.
+
+Installer payments appear once as linked pending expenses. Admin still reviews proof and approves. Matching older expenses are flagged rather than added a second time; Admin can explicitly link the existing receipt, preserving its identity, proof and approval. Installer corrections void an unapproved linked expense; an approved expense needs Admin's reasoned correction. No transfer happens in the app.

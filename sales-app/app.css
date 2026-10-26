@@ -1113,3 +1113,6 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 .inventory-figures{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:18px 0}.inventory-figures span,.inventory-figures strong{display:block;overflow-wrap:anywhere}.inventory-figures span{font-size:13px;color:#5b6471}.inventory-figures strong{font-size:20px;margin-top:6px}
 .inventory-quote{padding:16px 0;border-bottom:1px solid #e0e4eb}.inventory-quote button{display:block;margin-top:10px}.inventory-price-fields{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:12px}.inventory-workspace details p{overflow-wrap:anywhere}
 @media(max-width:360px){.inventory-figures{grid-template-columns:1fr}.inventory-row{gap:8px}}
+
+/* Operations: one next action, phone-sized controls. */
+.operations-actions h3{margin:0 0 8px}.operations-actions .card{padding:18px}.summary-task{display:block;width:100%;white-space:normal;text-align:left;line-height:1.5;margin:8px 0;min-height:48px}.summary-next{margin:16px 0;padding:16px;border-radius:12px;background:#eaf1ff}.summary-next>.summary-task{background:#172969;color:white}.summary-tools{margin-top:18px}.summary-tools .ready-actions{padding-top:12px}.job-summary-card{overflow-wrap:anywhere}
