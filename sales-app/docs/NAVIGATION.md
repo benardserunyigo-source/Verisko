@@ -1,3 +1,9 @@
+## Current navigation: v171 simplicity update
+
+Operations/Admin: **Today · Contacts · Jobs · Money**. Contacts is one scoped directory with Visit requests alongside. Jobs opens the client work page; Stock and Fixes are sub-pages. Money groups Payments, Requests & pay and Needs approval. Prices and other office tools remain reachable in Help & office tools and from the existing quote context. Sales retains Home/Contacts/My work/My pay; Team Lead retains its permitted client/visit/site-review views.
+
+Open a contact to reuse its existing job or visit; multiple jobs for one contact are offered explicitly. Job details show Next step/With/When first. Return to this job keeps the selected source during in-app navigation and clears on sign-out. Historical notes below describe earlier versions and do not supersede this grouping. See qa/2026-10-26-simplicity-redesign.md.
+
 # Simple navigation
 
 The four main sections stay in the same order on phones and computers. Sales calls them Home, Contacts, My work and My pay. Other staff use Home, Contacts, Jobs and More. Related pages appear as sub-buttons above the page. Home keeps the existing field-shift banner, including Sales check-in.

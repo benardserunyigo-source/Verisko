@@ -1122,3 +1122,6 @@ summary{min-height:44px;padding-block:10px;cursor:pointer}
 .quote-step h3, .quote-step summary { margin: 0 0 14px; font-size: 17px; font-weight: 700; }
 .quote-step summary { cursor: pointer; min-height: 36px; padding-top: 8px; }
 .quote-step > .form-grid { margin-top: 12px; }
+
+/* One saved job across office pages; keep phone actions short and visible. */
+#jobReturnBar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 0;margin-bottom:12px}#jobReturnBar[hidden]{display:none}.journey-owner{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:12px 0}.journey-owner dt{font-size:13px;color:var(--muted)}.journey-owner dd{margin:0;overflow-wrap:anywhere}.journey-owner+.summary-task{width:100%}

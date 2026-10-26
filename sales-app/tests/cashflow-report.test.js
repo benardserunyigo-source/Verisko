@@ -42,3 +42,8 @@ test("returns zero totals for an empty period and ignores invalid records", () =
   assert.equal(report.used, 0);
   assert.equal(report.net, 0);
 });
+
+test('approval list keeps older pending entries visible without changing period cash totals',()=>{
+ const entries=[{id:'old',date:'2026-09-30',direction:'out',amount:25000,status:'pending'},{id:'now',date:'2026-10-26',direction:'out',amount:15000,status:'approved'},{id:'query',date:'2026-09-30',direction:'out',amount:1,status:'query'}],range=cashflowPeriod('2026-10-26','month'),before=JSON.stringify(entries);
+ assert.deepEqual(Array.from(context.VeriskoCashflowReport.visibleEntries(entries,range,'pending'),t=>t.id),['old']);assert.deepEqual(Array.from(context.VeriskoCashflowReport.visibleEntries(entries,range,'all'),t=>t.id),['now']);assert.equal(buildCashflowPeriod(entries,'2026-10-26','month').used,15000);assert.equal(JSON.stringify(entries),before);
+});

@@ -55,6 +55,7 @@
     cashflowPeriod: cashflowPeriod,
     shiftCashflowAnchor: shiftCashflowAnchor,
     inCashflowPeriod: inCashflowPeriod,
+    visibleEntries: function(rows,range,status){return (rows||[]).filter(function(t){return (status==="pending"||inCashflowPeriod(t.date,range))&&(status==="all"||t.status===status);});},
     buildCashflowPeriod: buildCashflowPeriod
   };
 }(typeof window !== "undefined" ? window : globalThis));
