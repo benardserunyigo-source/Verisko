@@ -15,3 +15,8 @@ Validation:
 - Evidence output/audits/callbacks-20261025/{final-state.json,closed-phone.png}; fictional local storage only.
 
 Release verified: v165 source306c77e58218015a9f4220ce194754c394421870, Netlify6adec56ac04d090a1d6a4193 ready.676tests passed/0failed.40liveassets match source (39 raw exact plus the known apply.html anchor normalization);11private APIs return JSON401, including callbacks. Live Operations view-only preview loads Jobs/Callbacks at390px with no overflow; this is not authenticated production-write acceptance. No real callback/client/cash writes.
+
+
+## v166 walkthrough correction
+
+Starting a new callback while an earlier one was selected reused its record ID and was rejected safely by the server. The new form now creates a fresh ID; edits retain the selected ID/version. Added a behavioral form-target regression test.677tests pass. Actual phone flow demonstrated a second distinct callback on the same source job, Operations recording20Kwithreceipt, technician repairproof and Operations closure. Previous callback unchanged. Evidence two-callbacks.json and demo-proof-review.png/demo-closed.png.

@@ -482,3 +482,8 @@ Owner requested Operations callback management: same completed job, any active s
 
 
 Release verified:v165 source306c77e58218015a9f4220ce194754c394421870, Netlify6adec56ac04d090a1d6a4193 ready.676tests/0fail;40assets checked (39rawexact plus known applicationanchor normalization),11privateAPIJSON401 includingcallbacks. ActualisolatedOps/assignedInstallerrepair/receipt/close andliveview-onlyOperationsJobs→Callbacks checked;320/390pxnooverflow. Exactreadback output/audits/callbacks-20261025/release-readback.json. Newstore doesnotwriteclient/installation/financialrecords;callbackcostlog doesnotautoentercashbook or changeprices/warranty. Callbackofflinequeue/actualAndroidtrialnotclaimed. Rootunrelatedchangespreserved. Approvedqueuecompleteexceptexistinghandsetpilot; nextdirectrequest/deviceevidence.
+
+
+## Callback walkthrough and new-record correction:v166
+
+Actual4490Operations opened another callback from the prior closed callback. Found newform incorrectly reused selected callback ID; corrected create/edit request identity, added regression check. Same completed DEMO Simple Journey selected once→technician assigned→Operations receipt/20Ktransportcost→4491technicianstart/fixedphoto/testedreport→Operations viewedphoto+receipt→closed. two-callbacks.json asserts2distinctcallbacks on1job/contact, earlierclosedrecord preserved,1costeach. No client/job/installation/cash rewrite.677tests pass; routine fix release/exactverification next.

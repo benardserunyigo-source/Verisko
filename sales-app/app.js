@@ -520,7 +520,7 @@
 
   async function renderCallbacks(){
     setHead('Jobs','Callbacks','Check and fix problems on completed jobs.','',false);content.innerHTML='<p>Loading callbacks…</p>';var id=settings.user?.id;
-    try{var m=await import('./callbacks-ui.mjs?v=165');if(view!=='callbacks'||settings.user?.id!==id)return;readyMounted=m.mountCallbacks({host:content,user:settings.user,preview:!!rolePreview,isCurrent:function(){return view==='callbacks'&&settings.user?.id===id&&!document.body.classList.contains('locked');},api:function(method,body,query){return readyApi(method,body,query,'/api/callbacks');}});}catch(e){if(view==='callbacks'&&settings.user?.id===id)content.textContent=e.message;}
+    try{var m=await import('./callbacks-ui.mjs?v=166');if(view!=='callbacks'||settings.user?.id!==id)return;readyMounted=m.mountCallbacks({host:content,user:settings.user,preview:!!rolePreview,isCurrent:function(){return view==='callbacks'&&settings.user?.id===id&&!document.body.classList.contains('locked');},api:function(method,body,query){return readyApi(method,body,query,'/api/callbacks');}});}catch(e){if(view==='callbacks'&&settings.user?.id===id)content.textContent=e.message;}
   }
 
   var pendingMaterialChoice=null,pendingReadyFilter='',readyMounted=null,readyData={items:[],people:[]},readyUser='',readyLoadedAt=0,readyLoading=false;
