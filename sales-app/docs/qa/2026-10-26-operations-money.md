@@ -1,0 +1,13 @@
+# Operations money connections
+
+Funds & team pay is under Office tools and linked from Cash flow, Sales pay and Materials. Operations requests funds with amount/reason; Admin approves or rejects with reason. Approval alone never changes cash. After funds arrive, record one incoming receipt using the approved amount and transfer reference, then Admin reviews it. No transfer occurs in the app.
+
+Sales payouts use saved Monday earnings, unchanged15Kvisit/50Kweeklybonus/100Kfirstapprovedpayment. One full payment per person/week, due Monday, with receipt. Material payments reuse saved supplier order/source IDs and cost estimate (USD estimate uses4300); staff confirms actual UGX payment. One full payment per order. Orders, stock allocation and arrivals create no automatic cash spending. Existing callback and installer cash links remain once-only. Source guards reject duplicate keys, swapped sources, wrong Sales totals, pending fund use, stale erasure and likely earlier manual duplicates. Sales receives only its own payout metadata, no office finance.
+
+Owner confirmed100Kthreshold. Operations can approve existing receipt-backed money-out at<=100K; above100K and money-in needAdmin. Approved entries remain protected. Admin still controls receipt waiver.
+
+690tests passed, zero failed. Added source, approval-boundary99999/100000/100001, fund review/stale preservation, material/sales identity, Monday timing, duplicate/manual matching, private Sales projection and real-data-handler integration checks. Updated callback role regression to use200001 under the newly authorized policy.
+
+Actual isolated phone app: ports4496Ops/4497Admin, same fictional DEMO Simple Journey. Requested250K, Admin approved request with no cash added, Ops recorded same250Kreference once, Admin approved incoming receipt. Ops saved15KSalespay with sampleproof then approved it; material order estimate100K became actual150Kwithproof. Ops form had noapprovalaction for150K; Admin approved sameentry. Sales4498MyPay→previousweek showed15KApproved without supplier/financecontrols. Reopen and repeated APIreads retained1request and3unique linkedentries.320px documentwidth320,390px screenshots inspected. No productionclient/financial/accessrecords changed. Sourcechanges after localserverstartup were verified by final tests and live release.
+
+Evidence: output/audits/operations-money-20261026/readback.json, linked-payments-phone.png and fund-request-phone.png. Actual Android/TalkBack and real staff cross-device acceptance remain separate. Live source/assets/API readback recorded after release in CHECKPOINT.md.

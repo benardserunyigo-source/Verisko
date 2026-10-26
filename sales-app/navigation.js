@@ -22,6 +22,7 @@
   {id:'salesprices',section:'more',label:'Sales prices',roles:office},
   {id:'draftplans',section:'more',label:'Draft payment options',roles:office},
   {id:'support',section:'more',label:'Support videos',roles:staff},
+  {id:'money',section:'tools',label:'Funds & team pay',roles:office},
   {id:'cashflow',section:'more',label:'Payments',roles:office,badge:'cashBadge'},
   {id:'applications',section:'more',label:'Applications',roles:office},
   {id:'settings',section:'more',label:'Team & settings',roles:['admin']},

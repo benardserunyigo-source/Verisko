@@ -1,3 +1,4 @@
+import {guardFundRequests,guardOperationsCash,ownSalesPay,operationsMoneyView} from './lib/operations-cash.mjs';
 import {callbackRecords} from './lib/callbacks-core.mjs';
 import {projectCallbackCash,guardCallbackCash} from './lib/callback-cash.mjs';
 import {loadInstallerCash,projectInstallerCash,guardInstallerCash} from './lib/installer-cash.mjs';
@@ -30,7 +31,7 @@ const KEY = "app-data";
 // `jobs` is the merged quote+installation record. `quotes`/`installations` are
 // kept (normally empty) so a mid-transition client still holding them isn't
 // rejected; they're deprecated and folded into `jobs` client-side on load.
-const EMPTY = { prospects: [], appointments: [], users: [], transactions: [], jobs: [], technicians: [], quotes: [], installations: [], config: {}, training: {} };
+const EMPTY = { fundRequests: [], prospects: [], appointments: [], users: [], transactions: [], jobs: [], technicians: [], quotes: [], installations: [], config: {}, training: {} };
 
 export function createDataHandler({storeFor=getStore,identifyRequest=identify}={}){return async (request) => {
   const headers = {
@@ -78,7 +79,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
     const catalogue=marketRecord?salesPrices.catalogue:pricing.publicPackages();
     if (request.method === "GET") {
       // A salesperson only ever receives their own records (scope.mjs).
-      if (isSales) return json({ ok: true, salesPrices, catalogue, data: { ...EMPTY, ...scopeForSales(data, email) } }, 200, headers);
+      if (isSales) return json({ ok: true, salesPrices, catalogue, data: { ...EMPTY, ...scopeForSales(data, email), salesPayReceipts:ownSalesPay(data.transactions,email) } }, 200, headers);
       if (isTeamLead) return json({ ok: true, salesPrices, catalogue, data: { ...EMPTY, ...scopeForTeamLead(data, email) } }, 200, headers);
       const out = { ...EMPTY, ...Object.fromEntries(Object.keys(EMPTY).filter(k=>data[k]!==undefined).map(k=>[k,data[k]])), prospects: (data.prospects||[]).filter(p=>globalThis.VeriskoLeadPipeline.canSee(p,me)) };
       // Owner/Operations: staff sign-ups waiting for approval (no ID photos —
@@ -90,6 +91,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
         const keys=["pettyLimit","commissionPerSale","commissionPerQualified","commissionTarget","commissionRule","payScheme","schemeStart","perVisit","floatAmount","floatMinBookings","floatGraceDays","floatStart"];
         out.config=Object.fromEntries(keys.filter(k=>out.config[k]!==undefined).map(k=>[k,out.config[k]]));
       }
+      out.operationsMoney=operationsMoneyView(data,readyCases);
       out.users=visibleRoster(users,me||{role:"admin"});
       return json({ ok: true, pricing: pricingInputs?{...pricingInputs,...(marketRecord?{salesCatalogue:catalogue}:{})}:null, salesPrices, catalogue, data: out }, 200, headers);
     }
@@ -106,6 +108,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
       const storedTechs = Array.isArray(data.technicians) ? data.technicians : [];
       const storedConfig = data.config && typeof data.config === "object" && !Array.isArray(data.config) ? data.config : {};
       const clean = {
+        fundRequests:guardFundRequests(data.fundRequests,incoming.fundRequests,me),
         prospects: Array.isArray(incoming.prospects) ? incoming.prospects : [],
         appointments: Array.isArray(incoming.appointments) ? incoming.appointments : [],
         users: Array.isArray(incoming.users) ? incoming.users : [],
@@ -232,6 +235,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
         catch(error) { return json({ok:false,error:error.message},400,headers); }
       }
 
+      if(canCash)clean.transactions=guardOperationsCash(storedTx,clean.transactions,{data,cases:readyCases,fundRequests:clean.fundRequests,actor:me,today:new Date(Date.now()+10800000).toISOString().slice(0,10)});
       if(canCash)clean.transactions=guardCallbackCash(storedTx,clean.transactions,callbackCases,me);
       if(canCash)clean.transactions=guardInstallerCash(storedTx,clean.transactions,installerCashJobs,me);
 

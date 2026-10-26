@@ -222,6 +222,7 @@
     prospects: [],
     appointments: [],
     users: [],
+    fundRequests: [], salesPayReceipts: [], operationsMoney: {},
     transactions: [],
     jobs: [],
     technicians: [],
@@ -506,6 +507,7 @@
     else if (view === "visits") renderVisits();
     else if (view === "jobs") renderJobs();
     else if (view === "cashflow") renderCashflow();
+    else if (view === "money") renderOperationsMoney();
     else if (view === "settings") renderSettings();
     else if (view === "support") renderSupport();
     else if (view === "prices") renderPackagePrices();
@@ -518,9 +520,14 @@
     if(view!=='ready'&&view!=='materials'&&!installationRole())refreshReadySummary();
   }
 
+  async function renderOperationsMoney(){
+    setHead('Operations','Funds & team pay','Use one record for each payment.','',false);content.innerHTML='<p>Loading money records…</p>';var actor=settings.user?.id;
+    try{if(!rolePreview){await sharedPushQueue;var moneyLoad=await loadShared();if(moneyLoad!=='ok')throw new Error('Connect to load the latest money records.');}if(view!=='money'||settings.user?.id!==actor)return;var m=await import('./operations-money-ui.mjs?v=168');if(view!=='money'||settings.user?.id!==actor||document.body.classList.contains('locked'))return;readyMounted=m.mountOperationsMoney({host:content,data:state,user:settings.user,today:today,preview:!!rolePreview,onRecord:function(source){txPreset={date:today,method:TX_METHODS[0],...source};openForm('transaction');},onCash:function(t){if(t)openForm('transaction',t.id);},onRequest:async function(){var r=await openSheet({title:'Ask Admin for funds',body:'How much is needed? Add the reason below.',input:{placeholder:'Amount in UGX'},requireValue:true,confirmLabel:'Next'});if(!r)return;var n=Number(r.text);if(!Number.isSafeInteger(n)||n<=0){toast('Enter a valid amount.');return;}var why=await openSheet({title:'What is the money for?',input:{placeholder:'Reason for funds'},requireValue:true,confirmLabel:'Send request'});if(!why)return;(state.fundRequests||(state.fundRequests=[])).push({id:uid(),amount:n,reason:why.text,status:'requested',sourceId:''});saveData('Fund request sent to Admin.');await sharedPushQueue;render();},onReview:async function(id,action){if(!isAdmin())return;var r=state.fundRequests.find(r=>r.id===id);if(!r)return;var note='';if(action==='reject'){var answer=await openSheet({title:'Why send this request back?',input:{placeholder:'Reason'},requireValue:true,confirmLabel:'Send back'});if(!answer)return;note=answer.text;}else if(!(await confirmSheet('Approve this fund request?',money(r.amount)+' for '+r.reason+'. This records approval only. It does not send money.','Approve request')))return;r.status=action==='approve'?'approved':'rejected';r.reviewNote=note;saveData('Fund request reviewed.');await sharedPushQueue;render();}});}catch(e){if(view==='money')content.innerHTML='<p role="alert">'+esc(e.message)+'</p>';}
+  }
+
   async function renderCallbacks(){
     setHead('Jobs','Callbacks','Check and fix problems on completed jobs.','',false);content.innerHTML='<p>Loading callbacks…</p>';var id=settings.user?.id;
-    try{var m=await import('./callbacks-ui.mjs?v=167');if(view!=='callbacks'||settings.user?.id!==id)return;readyMounted=m.mountCallbacks({host:content,user:settings.user,preview:!!rolePreview,isCurrent:function(){return view==='callbacks'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onCashFlow:function(source){cashContextJob=job(source)?source:null;view='cashflow';render();},api:function(method,body,query){return readyApi(method,body,query,'/api/callbacks');}});}catch(e){if(view==='callbacks'&&settings.user?.id===id)content.textContent=e.message;}
+    try{var m=await import('./callbacks-ui.mjs?v=168');if(view!=='callbacks'||settings.user?.id!==id)return;readyMounted=m.mountCallbacks({host:content,user:settings.user,preview:!!rolePreview,isCurrent:function(){return view==='callbacks'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onCashFlow:function(source){cashContextJob=job(source)?source:null;view='cashflow';render();},api:function(method,body,query){return readyApi(method,body,query,'/api/callbacks');}});}catch(e){if(view==='callbacks'&&settings.user?.id===id)content.textContent=e.message;}
   }
 
   var pendingMaterialChoice=null,pendingReadyFilter='',readyMounted=null,readyData={items:[],people:[]},readyUser='',readyLoadedAt=0,readyLoading=false;
@@ -552,7 +559,7 @@
   }
   async function renderMaterials(){
     var id=settings.user.id;setHead('Jobs','Materials & buying','Use the paid client’s details. Plan, request buying, then record orders and deliveries.','',false);content.innerHTML='<p role="status">Loading paid jobs…</p>';
-    try{var m=await import('./materials-ui.mjs?v=164');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,inventoryApi:function(method,body){return readyApi(method,body,'','/api/inventory');},openInventory:function(){view='inventory';render();},initialSelected:pendingMaterialChoice,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});pendingMaterialChoice=null;}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
+    try{var m=await import('./materials-ui.mjs?v=168');if(view!=='materials'||settings.user?.id!==id)return;readyMounted=m.mountMaterials({host:content,inventoryApi:function(method,body){return readyApi(method,body,'','/api/inventory');},openInventory:function(){view='inventory';render();},initialSelected:pendingMaterialChoice,api:function(method,body){return readyApi(method,body,'?materials=1');},installerApi:function(method,body){return readyApi(method,body,'','/api/installer');},openInstallation:function(jobId){pendingInstallationId=jobId;view='installwork';render();},esc:esc,preview:!!rolePreview,isCurrent:function(){return view==='materials'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onChanged:function(){refreshReadySummary(true);}});pendingMaterialChoice=null;}catch(e){content.innerHTML='<section class="card">'+esc(e.message)+'</section>';}
   }
   setInterval(function(){if(settings.user&&!document.hidden&&!document.body.classList.contains('locked')&&view!=='ready'&&['today','leads'].includes(view))refreshReadySummary();},30000);
 
@@ -677,7 +684,7 @@
     setHead('More','Tools & help','Choose what you need.','',false);
     var toolRole=(settings.user||{}).role;var pages=navigation.views(toolRole).filter(function(p){return p.id!=='more'&&p.section===(['operations','admin'].includes(toolRole)?'tools':'more');});
     var notes={salesprices:'Set the prices Sales can offer for 30 days.',draftplans:'Compare plans, then review prices or a client link.',support:'Watch training videos and find quick answers.',cashflow:'Review money in, money out and balances.',applications:'Review people who want to join the team.',settings:'Manage team access and app settings.',installerhelp:'Get help with your assigned installation.'};
-    content.innerHTML='<div class="nav-tool-grid">'+pages.map(function(p){return '<button type="button" class="nav-tool" data-nav-view="'+p.id+'"><strong>'+esc(p.label)+'</strong><span>'+esc(notes[p.id]||'')+'</span><span class="nav-tool-arrow" aria-hidden="true">→</span></button>';}).join('')+'</div>';
+    content.innerHTML='<div class="nav-tool-grid">'+pages.map(function(p){return '<button type="button" class="nav-tool" data-nav-view="'+p.id+'"><strong>'+esc(p.label)+'</strong><span>'+esc(notes[p.id]||(p.id==='money'?'Request funds and record linked Sales or material payments.':''))+'</span><span class="nav-tool-arrow" aria-hidden="true">→</span></button>';}).join('')+'</div>';
   }
   function renderInstallerHome(){
     setHead('Installer workspace','Your work today','Your jobs, site checks and payments in one place.','',false);
@@ -1276,6 +1283,8 @@
     var previous=P.period(Date.now(),commWeekShift-1).start>=new Date(policy.effectiveFrom+'T00:00:00+03:00');
     var html='<section class="card"><div class="iw-row"><button type="button" class="btn btn-ghost btn-sm" data-pay-week="-1"'+(!previous?' hidden':'')+'>Previous week</button><strong>'+label(week.start)+' – '+label(new Date(week.end.getTime()-1))+'</strong><button type="button" class="btn btn-ghost btn-sm" data-pay-week="1"'+(commWeekShift>=0?' hidden':'')+'>Next week</button></div><p class="helper">Payday: Monday '+label(week.payday)+'. Uganda time.</p><p class="dash-big">'+money(result.total)+'</p><p class="helper">Earnings recorded so far. This is not confirmation that money has been sent.</p></section>'+(office?'<section class="card current-pay-rules"><h2>The three pay amounts</h2>':'<details class="card current-pay-rules"><summary>How my pay works</summary>')+'<dl><div><dt>Each completed client visit</dt><dd>'+money(policy.perVisit)+'</dd></div><div><dt>Bonus at 3 completed visits in the week</dt><dd>'+money(policy.weeklyBonus)+'</dd></div><div><dt>Client’s first confirmed payment</dt><dd>'+money(policy.perDeposit)+'</dd></div></dl><p class="helper">Paid every Monday. Fewer than 3 visits: no weekly bonus. Three visits earn UGX 95,000 before payment commissions. Each client counts once for a completed visit and once for their first approved payment.</p>'+(office?'</section>':'</details>')+'<div class="list">';
     html+=result.reps.map(function(r){return '<article class="card"><h2>'+esc(office?r.name:'Your breakdown')+'</h2><div class="item-line"><span>Completed client visits · '+r.visits.length+'</span><strong>'+money(r.visitAmount)+'</strong></div><div class="item-line"><span>Weekly bonus</span><strong>'+money(r.bonusAmount)+'</strong></div><div class="item-line"><span>First client payments · '+r.deposits.length+'</span><strong>'+money(r.depositAmount)+'</strong></div><div class="item-line pay-total"><span>Total earned</span><strong>'+money(r.total)+'</strong></div><p class="helper">'+(r.visitsNeeded?r.visitsNeeded+' more completed client visit'+(r.visitsNeeded===1?'':'s')+' needed for the weekly bonus.':'Weekly visit target reached.')+'</p><details class="pay-evidence"><summary>What earned this pay?</summary>'+(r.visits.map(v=>'<p>Visit: '+esc(v.business)+'</p>').join('')||'<p>No qualifying completed visits yet.</p>')+r.deposits.map(v=>'<p>First payment confirmed: '+esc(v.business)+'</p>').join('')+'</details></article>';}).join('');
+    if(!office)html+='<section class="card"><h2>Payments recorded for you</h2>'+((state.salesPayReceipts||[]).filter(p=>p.week===new Date(+week.start+10800000).toISOString().slice(0,10)).map(p=>'<p>'+money(p.amount)+' · '+esc(p.date)+' · '+(p.status==='approved'?'Approved':p.status==='query'?'Needs checking':p.status==='void'?'Cancelled':'Waiting for approval')+'</p>').join('')||'<p>No payment recorded for this week yet.</p>')+'</section>';
+    else if(canCashflow())html+='<button type="button" class="btn btn-ghost" data-nav-view="money">Record Sales pay</button>';
     html+='</div><details class="card pay-history-note"><summary>Earlier pay history</summary><p>This policy starts on 19 October 2026. Earlier records keep the previous rules. Operations must reconcile any earlier unpaid earnings before the first Monday payout. No payout record is created by this screen.</p></details>';
     content.innerHTML='<div class="stack">'+html+'</div>';
   }
@@ -2094,7 +2103,7 @@
       }catch(e){if(!current())return;cashNotice='Could not load the latest payments. Connect and try again.';}
     }
     var cashJob=cashContextJob?job(cashContextJob):null;
-    setHead("Operations", cashJob?"Job cash book":"Office cash book", cashJob?(jobClient(cashJob).business+" · "+cashJob.ref):"Record money received and paid. Admin checks each entry.", "Add money", true);
+    setHead("Operations", cashJob?"Job cash book":"Office cash book", cashJob?(jobClient(cashJob).business+" · "+cashJob.ref):"Record money received and paid. Operations checks expenses up to UGX 100,000. Admin checks larger expenses and money received.", "Add money", true);
     var txs = (state.transactions || []).filter(function(t){return !cashJob||t.installId===cashJob.id;});
     var sumBy = function (dir) { return txs.filter(function (t) { return t.status === "approved" && t.direction === dir; }).reduce(function (s, t) { return s + Number(t.amount || 0); }, 0); };
     var approvedIn = sumBy("in"), approvedOut = sumBy("out"), balance = approvedIn - approvedOut;
@@ -2125,8 +2134,8 @@
     // Admins get a review queue pinned at the top — approve or send back as
     // entries come in, oldest first, with the receipt shown on the card.
     var review = "";
-    if (isAdmin()) {
-      var queue = txs.filter(function (t) { return t.status === "pending"; })
+    if (canCashflow()) {
+      var queue = txs.filter(function (t) { return t.status === "pending" && canApproveCash(t); })
         .sort(function (a, b) { return (a.createdAt || "").localeCompare(b.createdAt || "") || (a.date || "").localeCompare(b.date || ""); });
       if (queue.length) {
         review = '<section class="review-section"><h2 class="review-head">Needs your review <span class="review-count">' + queue.length + "</span></h2>" +
@@ -2144,7 +2153,7 @@
     var list = rows.length ? '<div class="list">' + rows.map(txCard).join("") + "</div>" :
       emptyState(ICON_CASH, "No entries yet", "Tap Add money to record your first cash movement.", "Add money", 'data-new="transaction"');
 
-    content.innerHTML = (cashNotice?'<section class="card" role="status"><p>'+esc(cashNotice)+'</p><button type="button" class="btn btn-ghost" data-refresh-cash>Refresh payments</button></section>':'')+(cashJob?'<button type="button" class="btn btn-ghost" data-all-cash>All cash entries</button>':'')+ summary + (txs.some(function(t){return t.installerCashReview&&!t.installerPaymentKey||t.installerPaymentVoided&&t.status==='approved';})?'<p class="card">Installer payments are linked here once. Older matching expenses need checking before you add another. A cancelled installer entry does not reverse an approved cash expense; ask Admin to check it.</p>':'') + periodControls + periodSummary + review + '<h2 class="ledger-head">Entries for this ' + cashPeriodMode + '</h2>' + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " entry" : " entries") + "</p>" + list;
+    content.innerHTML = '<button type="button" class="btn btn-ghost" data-nav-view="money">Funds, Sales pay &amp; materials</button><p class="helper">Operations: approve expenses up to UGX 100,000. Above that: Admin approval.</p>'+(cashNotice?'<section class="card" role="status"><p>'+esc(cashNotice)+'</p><button type="button" class="btn btn-ghost" data-refresh-cash>Refresh payments</button></section>':'')+(cashJob?'<button type="button" class="btn btn-ghost" data-all-cash>All cash entries</button>':'')+ summary + (txs.some(function(t){return t.installerCashReview&&!t.installerPaymentKey||t.installerPaymentVoided&&t.status==='approved';})?'<p class="card">Installer payments are linked here once. Older matching expenses need checking before you add another. A cancelled installer entry does not reverse an approved cash expense; ask Admin to check it.</p>':'') + periodControls + periodSummary + review + '<h2 class="ledger-head">Entries for this ' + cashPeriodMode + '</h2>' + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " entry" : " entries") + "</p>" + list;
     hydrateProofThumbs();
   }
 
@@ -2153,7 +2162,7 @@
     var p = t.prospectId ? prospect(t.prospectId) : null;
     var j = t.installId ? job(t.installId) : null;
     var jc = j ? jobClient(j) : null;
-    var bits = [esc(t.category || "Uncategorised")];if(t.installerPaymentKey)bits.push("Linked installer payment");if(t.callbackExpenseKey)bits.push("Linked callback cost · "+esc(t.callbackBusiness||''));if(t.callbackCashReview)bits.push(esc(t.callbackCashReview));if(t.callbackVoided)bits.push("Callback cost cancelled: Admin must check cash record");if(t.installerCashReview)bits.push(esc(t.installerCashReview));if(t.installerPaymentVoided)bits.push(t.status==="void"?"Cancelled installer entry":"Installer entry cancelled: Admin must check cash record");
+    var bits = [esc(t.category || "Uncategorised")];if(t.financeKind)bits.push('Linked '+({sales:'Sales pay',material:'supplier order',fund:'fund request'})[t.financeKind]);if(t.installerPaymentKey)bits.push("Linked installer payment");if(t.callbackExpenseKey)bits.push("Linked callback cost · "+esc(t.callbackBusiness||''));if(t.callbackCashReview)bits.push(esc(t.callbackCashReview));if(t.callbackVoided)bits.push("Callback cost cancelled: Admin must check cash record");if(t.installerCashReview)bits.push(esc(t.installerCashReview));if(t.installerPaymentVoided)bits.push(t.status==="void"?"Cancelled installer entry":"Installer entry cancelled: Admin must check cash record");
     if (t.method) bits.push(esc(t.method));
     if (jc && jc.business) bits.push("Job: " + esc(jc.business));
     else if (p && p.business) bits.push(esc(p.business));
@@ -2177,7 +2186,7 @@
       proof +
       '<div class="rev-actions">' +
       '<button type="button" class="btn btn-primary" data-approve-id="' + t.id + '"' + (needsProof(t) ? " disabled" : "") + ">Approve</button>" +
-      '<button type="button" class="btn btn-ghost" data-sendback-id="' + t.id + '">Send back</button></div></article>';
+      (isAdmin()?'<button type="button" class="btn btn-ghost" data-sendback-id="' + t.id + '">Send back</button>':'')+'</div></article>';
   }
 
   // Fill in the receipt thumbnails after the queue is on screen.
@@ -2265,7 +2274,7 @@
     var amount = Math.round(Number(data.amount) || 0);
     if (amount <= 0) { showFormError("Enter an amount greater than zero."); return; }
     var direction = data.direction === "out" ? "out" : "in";
-    var linkedPayment=(state.transactions||[]).find(function(t){return t.id===editing.id&&(t.installerPaymentKey||t.callbackExpenseKey);});
+    var linkedPayment=(state.transactions||[]).find(function(t){return t.id===editing.id&&(t.installerPaymentKey||t.callbackExpenseKey||t.financeKey);});
     var method = linkedPayment?linkedPayment.method:TX_METHODS.indexOf(data.method) >= 0 ? data.method : TX_METHODS[0];
     // Money out can never exceed the cash on hand — the float can't go negative.
     if (direction === "out" && !linkedPayment) {
@@ -2312,13 +2321,13 @@
     if (editing.id) {
       var idx = state.transactions.findIndex(function (x) { return x.id === editing.id; });
       var prev = state.transactions[idx];
-      var upd = Object.assign({}, prev, { direction: direction, amount: amount, date: data.date, category: data.category, method: method, prospectId: prospectId, note: note, proofId: proofId, preapproved: preapproved, installId: data.installId || prev.installId || "" });
+      var upd = Object.assign({}, prev, { direction: direction, amount: amount, date: data.date, category: data.category, method: method, prospectId: prospectId, note: note, proofId: proofId, preapproved: preapproved, reference:data.reference||prev.reference||"", installId: data.installId || prev.installId || "" });
       if (!isAdmin() && prev.status === "query") { upd.status = "pending"; upd.reviewNote = ""; } // resubmit after a send-back
       state.transactions[idx] = upd;
     } else {
       state.transactions.push({
-        id: txId, direction: direction, amount: amount, date: data.date || today, category: data.category, method: method,
-        prospectId: prospectId, note: note, proofId: proofId, preapproved: preapproved, installId: data.installId || "",
+        ...editing.finance, id: txId, direction: direction, amount: amount, date: data.date || today, category: data.category, method: method,
+        prospectId: prospectId, note: note, proofId: proofId, preapproved: preapproved, reference:data.reference||"", installId: data.installId || "",
         createdBy: (settings.user && settings.user.name) || "", createdByEmail: (settings.user && settings.user.email) || "",
         createdAt: today, recordedAt: nowIso(), status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: ""
       });
@@ -2407,9 +2416,10 @@
     try{var d=await readyApi('GET'),c=d.items.find(function(c){return c.firstPayment?.id===t.id;});if(!c)throw new Error('Refresh the payment before approving.');var r=await readyApi('POST',{action:'approve_payment',contactId:c.contactId,baseVersion:c.version,requestId:crypto.randomUUID()});updateReadyData({items:d.items.map(function(c){return c.contactId===r.item.contactId?r.item:c;}),people:d.people});if(dialog.open)dialog.close();await loadShared();toast('Payment approved. Eligible Sales commission added once.');render();}catch(e){toast(e.message);}
   }
   function approveTransaction() {
-    if (!editing || !editing.id || !isAdmin()) return;
+    if (!editing || !editing.id || !canCashflow()) return;
     var t = state.transactions.find(function (x) { return x.id === editing.id; });
     if (!t) return;
+    if(!canApproveCash(t))return;
     if(t.callbackVoided){toast("This callback cost was cancelled. Check its cash record.");return;}
     if(t.installerPaymentVoided){toast("This installer payment was cancelled. Check its cash record.");return;}
     if(t.readyCaseId){approveReadyPayment(t);return;}
@@ -2422,10 +2432,12 @@
     if (await sendBackTx(editing.id)) dialog.close();
   }
   // Inline approve/send-back used by the review queue (no dialog open).
+  function canApproveCash(t){return isAdmin()||(settings.user?.role==='operations'&&t?.direction==='out'&&!t.readyCaseId&&t.amount>0&&t.amount<=100000);}
   function approveTx(id) {
-    if (!isAdmin()) return;
+    if (!canCashflow()) return;
     var t = state.transactions.find(function (x) { return x.id === id; });
     if (!t) return;
+    if(!canApproveCash(t))return;
     if(t.callbackVoided){toast("This callback cost was cancelled. Check its cash record.");return;}
     if(t.installerPaymentVoided){toast("This installer payment was cancelled. Check its cash record.");return;}
     if(t.readyCaseId){approveReadyPayment(t);return;}
@@ -3092,6 +3104,8 @@
     var collection = state[type + "s"];
     if(type === "prospect" && id && leadTools().isLead(prospect(id))) editing.lead = true;
     var source = id ? (collection.find(function (x) { return x.id === id; }) || {}) : {};
+    if(type==='transaction'&&!id&&txPreset)source={...txPreset};
+    editing.finance=type==='transaction'?Object.fromEntries(['financeKey','financeKind','salesPayEmail','payWeek','fundRequestId'].filter(k=>source[k]!==undefined).map(k=>[k,source[k]])):{};
     document.getElementById("dialogEyebrow").textContent = id ? "Update record" : "New record";
 
     var html = '<div class="form-grid">';
@@ -3233,11 +3247,12 @@
         '<label class="chk-item preapprove-row"><input type="checkbox" id="f_preapproved" name="preapproved"' + (source.preapproved ? " checked" : "") + (isAdmin() ? "" : " disabled") + '><span>Already pre-approved by the cash-flow team — submit without a receipt</span></label>' +
         "</div></div>" +
         '<input type="hidden" name="installId" value="' + esc(linkInstall) + '">';
-      if(source.callbackExpenseKey)html+='<p class="field full helper">Linked callback cost. The amount, date, job and receipt come from the callback. Admin approves this same entry once.</p>';
-      if(source.installerPaymentKey)html+='<p class="field full helper">Linked installer payment. Amount, date and job come from the installation. Add the receipt here; Admin approves it once.</p>';
+      if(source.callbackExpenseKey)html+='<p class="field full helper">Linked callback cost. The amount, date, job and receipt come from the callback. Operations approves up to UGX 100,000; Admin approves larger costs.</p>';
+      if(source.installerPaymentKey)html+='<p class="field full helper">Linked installer payment. Amount, date and job come from the installation. Add the receipt here. Operations approves up to UGX 100,000; Admin approves larger costs.</p>';
+      if(source.financeKey)html+=field("reference","Payment reference","text",source.reference||"",{full:true,required:source.financeKind==='fund'});
       txPreset = null; // preset consumed
-      if (id && isAdmin() && source.status !== "approved") {
-        html += '<div class="field full tx-review"><button type="button" class="btn btn-primary btn-block" data-approve>Approve entry</button><button type="button" class="btn btn-ghost btn-block" data-sendback>Send back with a note</button></div>';
+      if (id && canApproveCash(source) && source.status !== "approved") {
+        html += '<div class="field full tx-review"><button type="button" class="btn btn-primary btn-block" data-approve>Approve entry</button>'+(isAdmin()?'<button type="button" class="btn btn-ghost btn-block" data-sendback>Send back with a note</button>':'')+'</div>';
       }
     }
     if (type === "job") {
@@ -3321,7 +3336,8 @@
     if (id && (type === "prospect" || type === "appointment" || type === "job") && canDeleteRecord(type, source)) html += '<button type="button" class="btn btn-danger btn-block delete-record" data-delete>Delete this ' + (type === "appointment" ? "site visit" : type === "job" ? "job" : "prospect") + "</button>";
     formContent.innerHTML = html + "</div>";
     if(type==="job"&&currentPricing&&!lockedPricing)simplifyQuoteFields(formContent);
-    if(type==='transaction'&&(source.installerPaymentKey||source.callbackExpenseKey)){['direction','amount','date','category','method','installId','prospectId'].forEach(function(name){formContent.querySelectorAll('[name="'+name+'"]').forEach(function(el){if(el.type==='hidden')return;if(el.tagName==='SELECT'&&!Array.from(el.options).some(function(o){return o.value===source[name];})){el.add(new Option(source[name],source[name]));}el.value=source[name]??'';var h=document.createElement('input');h.type='hidden';h.name=name;h.value=source[name]??'';el.disabled=true;el.removeAttribute('name');el.after(h);});});formContent.querySelectorAll('[data-seg-target=direction]').forEach(function(b){b.disabled=true;});}
+    if(type==='transaction'&&(source.installerPaymentKey||source.callbackExpenseKey||source.financeKey)){['direction','amount','date','category','method','installId','prospectId'].forEach(function(name){formContent.querySelectorAll('[name="'+name+'"]').forEach(function(el){if(el.type==='hidden')return;if(el.tagName==='SELECT'&&!Array.from(el.options).some(function(o){return o.value===source[name];})){el.add(new Option(source[name],source[name]));}el.value=source[name]??'';var h=document.createElement('input');h.type='hidden';h.name=name;h.value=source[name]??'';el.disabled=true;el.removeAttribute('name');el.after(h);});});if(!id&&source.financeKey){['date','method',...(source.financeKind==='material'?['amount']:[])].forEach(function(name){var hidden=formContent.querySelector('input[type=hidden][name="'+name+'"]'),el=formContent.querySelector('#f_'+name);if(hidden&&el){hidden.remove();el.disabled=false;el.name=name;}});}
+    formContent.querySelectorAll('[data-seg-target=direction]').forEach(function(b){b.disabled=true;});}
 
     if(type==='transaction'&&source.callbackExpenseKey){var callbackProofPick=formContent.querySelector('[data-proof-pick]');if(callbackProofPick)callbackProofPick.remove();}
 
@@ -4030,7 +4046,7 @@
       if (result.pricing) window.VeriskoPricing = window.createVeriskoPricing(result.pricing);
       else window.VeriskoPricing = window.createVeriskoPricing({version:window.VeriskoPriceCatalogue.version,catalogue:result.catalogue || window.VeriskoPriceCatalogue.catalogue});
       if (result.data && result.data.prospects) {
-        state = { prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], jobs: result.data.jobs, installations: result.data.installations || [], quotes: result.data.quotes || [], technicians: result.data.technicians || [], config: normalizeConfig(result.data.config), training: result.data.training || {}, signups: result.data.signups || [] };
+        state = { fundRequests:result.data.fundRequests||[],salesPayReceipts:result.data.salesPayReceipts||[],operationsMoney:result.data.operationsMoney||{}, prospects: result.data.prospects || [], appointments: result.data.appointments || [], users: result.data.users || [], transactions: result.data.transactions || [], jobs: result.data.jobs, installations: result.data.installations || [], quotes: result.data.quotes || [], technicians: result.data.technicians || [], config: normalizeConfig(result.data.config), training: result.data.training || {}, signups: result.data.signups || [] };
         migrateToJobs(state);              // fold any legacy quotes/installations the server still holds
         if (!state.jobs) state.jobs = [];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
