@@ -20,3 +20,6 @@ Actual isolated Operations4514/Admin4515,390px viewport: Admin returns25K travel
 
 ## Validation and boundaries
 Complete portal suite:699passed,0failed. Existing boundary tests cover99,999/100,000/100,001 UGX, receipt denial, source immutability, cancelled/legacy records, stale saves, private media and role denial. All writes were fictional in-memory QA; no production records, transfers, privileges or customer terms changed. Browser phone sizing is not a physical Android acceptance trial. Live source/deploy/API verification follows release.
+
+## Verified release
+Backend-only source111cf4b2e36989ceb987afaeeda78bf9b0bfc58c deployedready6adf5e98a06cc3dfad5deaf5. Existingv169frontend unchanged.42assets verified, knownapplyanchoronlynormalization,11privateAPIJSON401. Evidenceoutput/audits/cashflow-e2e-20261026/release-readback.json. Real authenticated production cash records were not modified to test approval.
