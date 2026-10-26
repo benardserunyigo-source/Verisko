@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | Full app end-to-end audit,26October | working | Fresh same-contact fulljourney, callbacks/cash/stock closeout, allrole server suite, phone screens and live version checks. |
 | 0 | Cash flow end-to-end verification | done | source111cf4b ready6adf5e98a06cc3dfad5deaf5;699tests pass. Fixed regular expense resubmission; fresh real-handler fullmoneyjourney and actual390px correction/approval/reopen, samecashID/once-onlytotals/rolelimits verified.42assets/11API401. See ../qa/2026-10-26-cashflow-end-to-end.md. |
 | 0 | Unified Operations summary | done | v169 sourcee00f8e7 ready6adef8d1990992f0ba6f68af;697tests pass. Approved office cash plus same-job costs/callbacks/tasks; shared funds/weekly Sales pay once, pending costs separate, conflicts flagged;390/320px UI/42assets/11API401/live preview verified. See ../qa/2026-10-26-unified-operations-summary.md. |
 | 0 | Operations money, Sales pay, material payments and fund requests | done | v168 source849f94f ready6adef0e393fb3521aacd31f5;690tests pass. One source-linked funding receipt/Sales weekly payout/material order payment; Admin-reviewed requests separate from cash; Ops receipt-backed expenses<=100K/Adminabove100K; private own Sales status. Actual390px flow/reopen/320px nooverflow;41assets/11API401verified. See ../qa/2026-10-26-operations-money.md. |

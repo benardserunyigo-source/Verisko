@@ -1,4 +1,4 @@
-import {buildOperationsSummary,jobMoneySummary,operationsSummaryHtml,jobMoneyHtml} from './operations-summary.mjs?v=169';
+import {buildOperationsSummary,jobMoneySummary,operationsSummaryHtml,jobMoneyHtml} from './operations-summary.mjs?v=170';
 import {replyText,choiceDetailsHtml} from './client-plan-ui.mjs?v=164';
 import './job-finance.js?v=164';
 import {installerPaymentSummary} from './installer-model.mjs?v=164';
