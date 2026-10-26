@@ -490,3 +490,14 @@ Actual4490Operations opened another callback from the prior closed callback. Fou
 
 
 Releaseverified:v166 sourcede99c25, Netlify6adec6dab57a9fbd3073a4d2ready;677tests/0fail,40assets match (knownapplicationanchornormalizationonly),11privateAPIJSON401. Newcallbackidentitycorrectionlive. Actual2distinctclosedcallbacks remainon1demojob/client with1costeach. Operations4490phone staysonnewclosedcallback, technician4491samecallback. No productionrecords changed. Nextnewrequest/devicepilot; no repeatedaudit needed.
+
+
+### 2026-10-25 — Callback return/fresh-proof/review phone demo
+- Continued same Poor picture callback on same DEMO Simple Journey (4490Ops/4491Installer), reopened priorclosedrecord for demonstration. Technician submitted check; Ops Askforafix required reason:checkrecordedplayback/newclearfullviewphoto. Technician sawNeedsfix+reason.
+- Attemptedpreviousproof rejected: Addafinished-workphotoforthisfix. Actualfilechooser freshsamplephoto+newreport thenOps viewedlatestphoto/confirmed/closed. returned-closed-state.json asserts samecallback/job/contact, freshproof afterreturn, 20Kexpenseunchanged, no extra callbacks created. Screens returned-reason.png/returned-fixed-closed.png inoutput/audits/callbacks-20261025.
+- Demo only; v166 unchanged, no newcode/fullsuite/release orrealrecordwrites. Nextdirectrequest/devicepilot.
+
+
+## Callback expenses linked to Cash flow: 25 October2026
+
+Implemented one canonical callback expense/receipt → one pending cash entry. Admin-only approval, callback status readback, immutable source fields, older manual-entry reconciliation, duplicate/stale-save and reasoned cancellation safeguards. Operations opens the same job Cash flow without re-entry. Assigned workers receive their own callback status only.682tests pass. Actual390px isolated app flow approved20K once;100K funding minus20K left80K.320px no horizontal overflow. Evidence: ../qa/2026-10-25-callback-cash.md. Release verification follows below.

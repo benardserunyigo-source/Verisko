@@ -1,3 +1,4 @@
+import {callbackProofKey,callbackCashStatus} from './callback-cash.mjs';
 import {imageData} from './installer-core.mjs';
 const json=(v,status=200)=>new Response(JSON.stringify(v),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const fail=(m,status=400)=>{throw Object.assign(new Error(m),{status});};
@@ -12,8 +13,9 @@ export function createCallbacksHandler({store,authorize,loadJobs,now=()=>new Dat
  const auth=await authorize(req),me=auth.me;if(!active(me))return json({ok:false,error:'Sign in to open callbacks.'},auth.status||403);
  const url=new URL(req.url);const id=url.searchParams.get('id');
  if(req.method==='GET'){
-  if(id){if(!valid(id))fail('Invalid callback.');const c=await store.get('cases/'+id,{type:'json'});if(!c||!read(c,me))fail('Callback not found or not assigned.',404);const photo=url.searchParams.get('photo');if(photo){if(!valid(photo)||!c.photos.some(p=>p.id===photo))fail('Photo not found.',404);const p=await store.get('photos/'+id+'/'+photo,{type:'json'});if(!p)fail('Photo unavailable.',404);return json({ok:true,image:'data:'+p.type+';base64,'+p.base64});}return json({ok:true,item:c});}
-  const items=(await callbackRecords(store)).filter(c=>read(c,me));const jobs=office(me)?(await loadJobs()).filter(j=>j.status==='Completed').map(j=>({id:j.id,business:j.business,address:j.address||'',sourceId:j.sourceId||'',contactId:j.readyContactId||''})):[];
+  if(url.searchParams.has('cashProof')){if(!office(me))fail('Cash receipt access required.',403);const proof=url.searchParams.get('cashProof');const cases=await callbackRecords(store);for(const c of cases){const e=c.expenses.find(e=>callbackProofKey(c,e)===proof);if(e){const p=await store.get('photos/'+c.id+'/'+e.proofId,{type:'json'});if(!p)fail('Receipt unavailable.',404);return json({ok:true,image:'data:'+p.type+';base64,'+p.base64});}}fail('Receipt not found.',404);}
+  if(id){if(!valid(id))fail('Invalid callback.');const c=await store.get('cases/'+id,{type:'json'});if(!c||!read(c,me))fail('Callback not found or not assigned.',404);const photo=url.searchParams.get('photo');if(photo){if(!valid(photo)||!c.photos.some(p=>p.id===photo))fail('Photo not found.',404);const p=await store.get('photos/'+id+'/'+photo,{type:'json'});if(!p)fail('Photo unavailable.',404);return json({ok:true,image:'data:'+p.type+';base64,'+p.base64});}return json({ok:true,item:callbackCashStatus(c,auth.transactions)});}
+  const items=(await callbackRecords(store)).filter(c=>read(c,me)).map(c=>callbackCashStatus(c,auth.transactions));const jobs=office(me)?(await loadJobs()).filter(j=>j.status==='Completed').map(j=>({id:j.id,business:j.business,address:j.address||'',sourceId:j.sourceId||'',contactId:j.readyContactId||''})):[];
   return json({ok:true,items,jobs,people:office(me)?auth.users.filter(active).map(u=>({id:u.id,name:u.name,role:u.role})):[]});
  }
  if(req.method!=='POST')return json({ok:false,error:'Method not allowed.'},405);

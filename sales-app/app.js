@@ -520,7 +520,7 @@
 
   async function renderCallbacks(){
     setHead('Jobs','Callbacks','Check and fix problems on completed jobs.','',false);content.innerHTML='<p>Loading callbacks…</p>';var id=settings.user?.id;
-    try{var m=await import('./callbacks-ui.mjs?v=166');if(view!=='callbacks'||settings.user?.id!==id)return;readyMounted=m.mountCallbacks({host:content,user:settings.user,preview:!!rolePreview,isCurrent:function(){return view==='callbacks'&&settings.user?.id===id&&!document.body.classList.contains('locked');},api:function(method,body,query){return readyApi(method,body,query,'/api/callbacks');}});}catch(e){if(view==='callbacks'&&settings.user?.id===id)content.textContent=e.message;}
+    try{var m=await import('./callbacks-ui.mjs?v=167');if(view!=='callbacks'||settings.user?.id!==id)return;readyMounted=m.mountCallbacks({host:content,user:settings.user,preview:!!rolePreview,isCurrent:function(){return view==='callbacks'&&settings.user?.id===id&&!document.body.classList.contains('locked');},onCashFlow:function(source){cashContextJob=job(source)?source:null;view='cashflow';render();},api:function(method,body,query){return readyApi(method,body,query,'/api/callbacks');}});}catch(e){if(view==='callbacks'&&settings.user?.id===id)content.textContent=e.message;}
   }
 
   var pendingMaterialChoice=null,pendingReadyFilter='',readyMounted=null,readyData={items:[],people:[]},readyUser='',readyLoadedAt=0,readyLoading=false;
@@ -2153,7 +2153,7 @@
     var p = t.prospectId ? prospect(t.prospectId) : null;
     var j = t.installId ? job(t.installId) : null;
     var jc = j ? jobClient(j) : null;
-    var bits = [esc(t.category || "Uncategorised")];if(t.installerPaymentKey)bits.push("Linked installer payment");if(t.installerCashReview)bits.push(esc(t.installerCashReview));if(t.installerPaymentVoided)bits.push(t.status==="void"?"Cancelled installer entry":"Installer entry cancelled: Admin must check cash record");
+    var bits = [esc(t.category || "Uncategorised")];if(t.installerPaymentKey)bits.push("Linked installer payment");if(t.callbackExpenseKey)bits.push("Linked callback cost · "+esc(t.callbackBusiness||''));if(t.callbackCashReview)bits.push(esc(t.callbackCashReview));if(t.callbackVoided)bits.push("Callback cost cancelled: Admin must check cash record");if(t.installerCashReview)bits.push(esc(t.installerCashReview));if(t.installerPaymentVoided)bits.push(t.status==="void"?"Cancelled installer entry":"Installer entry cancelled: Admin must check cash record");
     if (t.method) bits.push(esc(t.method));
     if (jc && jc.business) bits.push("Job: " + esc(jc.business));
     else if (p && p.business) bits.push(esc(p.business));
@@ -2201,7 +2201,7 @@
       '<div class="item-meta">' + txMeta(t) + "</div></div>" + txStatusChip(t.status) + "</div>" +
       '<div class="item-lines"><div class="item-line"><span class="k">Date</span><span class="v">' + dateLabel(t.date) + (t.createdBy ? " · " + esc(t.createdBy) : "") + "</span></div>" +
       (t.status === "query" && t.reviewNote ? '<div class="item-line"><span class="k">Sent back</span><span class="v" style="color:var(--red)">' + esc(t.reviewNote) + "</span></div>" : "") +
-      (t.direction === "out" ? '<div class="item-line"><span class="k">Proof</span><span class="v">' + (t.proofId ? "Attached" : (hasQueuedPhoto(t.id) ? '<span style="color:var(--muted)">Photo waiting to upload</span>' : (t.preapproved ? '<span style="color:var(--muted)">Pre-approved — no receipt</span>' : '<span style="color:var(--amber)">No proof yet</span>'))) + "</span></div>" : "") + "</div>"+(isAdmin()&&t.installerCashCandidates?.length&&!t.installerPaymentKey?'<button type="button" class="btn btn-primary" data-link-crew-cash="'+esc(t.id)+'">Link installer payment</button>':'')+(isAdmin()&&t.installerPaymentVoided&&t.status==='approved'?'<button type="button" class="btn btn-danger" data-cancel-crew-cash="'+esc(t.id)+'">Cancel this cash entry</button>':'')+"</article>";
+      (t.direction === "out" ? '<div class="item-line"><span class="k">Proof</span><span class="v">' + (t.proofId ? "Attached" : (hasQueuedPhoto(t.id) ? '<span style="color:var(--muted)">Photo waiting to upload</span>' : (t.preapproved ? '<span style="color:var(--muted)">Pre-approved — no receipt</span>' : '<span style="color:var(--amber)">No proof yet</span>'))) + "</span></div>" : "") + "</div>"+(isAdmin()&&t.installerCashCandidates?.length&&!t.installerPaymentKey?'<button type="button" class="btn btn-primary" data-link-crew-cash="'+esc(t.id)+'">Link installer payment</button>':'')+(isAdmin()&&t.installerPaymentVoided&&t.status==='approved'?'<button type="button" class="btn btn-danger" data-cancel-crew-cash="'+esc(t.id)+'">Cancel this cash entry</button>':'')+(isAdmin()&&t.callbackCashCandidates?.length&&!t.callbackExpenseKey?'<button type="button" class="btn btn-primary" data-link-callback-cash="'+esc(t.id)+'">Link callback cost</button>':'')+(isAdmin()&&t.callbackVoided&&t.status==='approved'?'<button type="button" class="btn btn-danger" data-cancel-callback-cash="'+esc(t.id)+'">Cancel this cash entry</button>':'')+"</article>";
   }
 
   /* -------- Receipt photo helpers -------- */
@@ -2235,7 +2235,7 @@
   async function fetchProof(id) {
     var generation=sessionGeneration;
     try {
-      var res = await fetch("/api/receipt?id=" + encodeURIComponent(id), { headers: { Authorization: "Bearer " + (settings.auth ? settings.auth.access_token : "") } });
+      var res = await fetch((id.startsWith("callback-proof-")?"/api/callbacks?cashProof=":"/api/receipt?id=") + encodeURIComponent(id), { headers: { Authorization: "Bearer " + (settings.auth ? settings.auth.access_token : "") } });
       var j = await res.json(); return generation===sessionGeneration&&settings.auth&&res.ok&&j.ok?j.image:null;
     } catch (e) { return null; }
   }
@@ -2265,7 +2265,7 @@
     var amount = Math.round(Number(data.amount) || 0);
     if (amount <= 0) { showFormError("Enter an amount greater than zero."); return; }
     var direction = data.direction === "out" ? "out" : "in";
-    var linkedPayment=(state.transactions||[]).find(function(t){return t.id===editing.id&&t.installerPaymentKey;});
+    var linkedPayment=(state.transactions||[]).find(function(t){return t.id===editing.id&&(t.installerPaymentKey||t.callbackExpenseKey);});
     var method = linkedPayment?linkedPayment.method:TX_METHODS.indexOf(data.method) >= 0 ? data.method : TX_METHODS[0];
     // Money out can never exceed the cash on hand — the float can't go negative.
     if (direction === "out" && !linkedPayment) {
@@ -2410,6 +2410,7 @@
     if (!editing || !editing.id || !isAdmin()) return;
     var t = state.transactions.find(function (x) { return x.id === editing.id; });
     if (!t) return;
+    if(t.callbackVoided){toast("This callback cost was cancelled. Check its cash record.");return;}
     if(t.installerPaymentVoided){toast("This installer payment was cancelled. Check its cash record.");return;}
     if(t.readyCaseId){approveReadyPayment(t);return;}
     if (t.direction === "out" && !t.proofId && !pendingProof && !t.preapproved) { showFormError("Attach a receipt before approving — or the recorder can mark it pre-approved by the cash-flow team."); return; }
@@ -2425,6 +2426,7 @@
     if (!isAdmin()) return;
     var t = state.transactions.find(function (x) { return x.id === id; });
     if (!t) return;
+    if(t.callbackVoided){toast("This callback cost was cancelled. Check its cash record.");return;}
     if(t.installerPaymentVoided){toast("This installer payment was cancelled. Check its cash record.");return;}
     if(t.readyCaseId){approveReadyPayment(t);return;}
     if (needsProof(t)) { toast("Add a proof photo before approving."); return; }
@@ -2432,6 +2434,8 @@
     saveData("Entry approved"); render();
   }
   async function linkCrewCash(id){if(!isAdmin())return;var t=state.transactions.find(function(t){return t.id===id;});var candidates=t?.installerCashCandidates||[];if(!candidates.length)return;var labels=candidates.map(function(e,i){var u=(state.users||[]).find(function(u){return u.id===e.installerId;});return (i+1)+'. '+(u?.name||'Installer')+' · '+money(e.amount)+' · '+dateLabel(e.date);});var r=await openSheet({title:'Link the earlier expense',body:'Choose the installer payment covered by this receipt. This keeps the same expense and its approval. No extra money is added.',choices:labels,requireChoice:true,confirmLabel:'Link this payment'});if(!r)return;var c=candidates[labels.indexOf(r.choice)];if(!c)return;['installerPaymentKey','installerJobId','installerPaymentId','installerId'].forEach(function(k){t[k]=c[k];});delete t.installerCashReview;delete t.installerCashCandidates;saveData('Installer payment linked to the existing expense.');render();}
+  async function linkCallbackCash(id){if(!isAdmin())return;var t=state.transactions.find(t=>t.id===id),rows=t?.callbackCashCandidates||[];if(!rows.length)return;var labels=rows.map((e,i)=>(i+1)+'. '+(e.callbackBusiness||'Callback')+' · '+money(e.amount)+' · '+dateLabel(e.date)+' · '+e.note);var r=await openSheet({title:'Link the existing callback cost',body:'Choose the cost already covered by this entry. Its amount and approval stay the same. Nothing is added twice.',choices:labels,requireChoice:true,confirmLabel:'Link this cost'});if(!r)return;var e=rows[labels.indexOf(r.choice)];if(!e)return;['callbackExpenseKey','callbackId','callbackExpenseId','callbackBusiness','callbackVoided','callbackReceiptId'].forEach(k=>t[k]=e[k]);if(!t.proofId)t.proofId=e.proofId;delete t.callbackCashCandidates;delete t.callbackCashReview;saveData('Callback cost linked once.');render();}
+  async function cancelCallbackCash(id){if(!isAdmin())return;var t=state.transactions.find(t=>t.id===id);if(!t?.callbackVoided||t.status!=='approved')return;var r=await openSheet({title:'Correct the cash entry',body:'The callback cost was cancelled. Cancel this linked entry too? This does not move money.',input:{placeholder:'Reason'},requireValue:true,confirmLabel:'Cancel cash entry'});if(!r)return;t.status='void';t.cashVoidReason=combineNote(r);t.cashVoidedAt=nowIso();t.cashVoidedBy=settings.user.id;saveData('Callback cash entry cancelled.');render();}
   async function cancelCrewCash(id){if(!isAdmin())return;var t=state.transactions.find(function(t){return t.id===id;});if(!t?.installerPaymentVoided||t.status!=='approved')return;var r=await openSheet({title:'Correct the cash book',body:'The installer payment was cancelled as an incorrect entry. Cancel the linked cash entry too? This does not move any money.',input:{placeholder:'Why was this record wrong?'},requireValue:true,confirmLabel:'Cancel cash entry'});if(!r)return;t.status='void';t.cashVoidReason=combineNote(r);t.cashVoidedAt=nowIso();t.cashVoidedBy=settings.user.id;saveData('Cash entry cancelled; original approval stays in its history.');render();}
   async function sendBackTx(id) {
     if (!isAdmin()) return false;
@@ -3229,6 +3233,7 @@
         '<label class="chk-item preapprove-row"><input type="checkbox" id="f_preapproved" name="preapproved"' + (source.preapproved ? " checked" : "") + (isAdmin() ? "" : " disabled") + '><span>Already pre-approved by the cash-flow team — submit without a receipt</span></label>' +
         "</div></div>" +
         '<input type="hidden" name="installId" value="' + esc(linkInstall) + '">';
+      if(source.callbackExpenseKey)html+='<p class="field full helper">Linked callback cost. The amount, date, job and receipt come from the callback. Admin approves this same entry once.</p>';
       if(source.installerPaymentKey)html+='<p class="field full helper">Linked installer payment. Amount, date and job come from the installation. Add the receipt here; Admin approves it once.</p>';
       txPreset = null; // preset consumed
       if (id && isAdmin() && source.status !== "approved") {
@@ -3316,7 +3321,9 @@
     if (id && (type === "prospect" || type === "appointment" || type === "job") && canDeleteRecord(type, source)) html += '<button type="button" class="btn btn-danger btn-block delete-record" data-delete>Delete this ' + (type === "appointment" ? "site visit" : type === "job" ? "job" : "prospect") + "</button>";
     formContent.innerHTML = html + "</div>";
     if(type==="job"&&currentPricing&&!lockedPricing)simplifyQuoteFields(formContent);
-    if(type==='transaction'&&source.installerPaymentKey){['direction','amount','date','category','method','installId','prospectId'].forEach(function(name){formContent.querySelectorAll('[name="'+name+'"]').forEach(function(el){if(el.type==='hidden')return;if(el.tagName==='SELECT'&&!Array.from(el.options).some(function(o){return o.value===source[name];})){el.add(new Option(source[name],source[name]));}el.value=source[name]??'';var h=document.createElement('input');h.type='hidden';h.name=name;h.value=source[name]??'';el.disabled=true;el.removeAttribute('name');el.after(h);});});formContent.querySelectorAll('[data-seg-target=direction]').forEach(function(b){b.disabled=true;});}
+    if(type==='transaction'&&(source.installerPaymentKey||source.callbackExpenseKey)){['direction','amount','date','category','method','installId','prospectId'].forEach(function(name){formContent.querySelectorAll('[name="'+name+'"]').forEach(function(el){if(el.type==='hidden')return;if(el.tagName==='SELECT'&&!Array.from(el.options).some(function(o){return o.value===source[name];})){el.add(new Option(source[name],source[name]));}el.value=source[name]??'';var h=document.createElement('input');h.type='hidden';h.name=name;h.value=source[name]??'';el.disabled=true;el.removeAttribute('name');el.after(h);});});formContent.querySelectorAll('[data-seg-target=direction]').forEach(function(b){b.disabled=true;});}
+
+    if(type==='transaction'&&source.callbackExpenseKey){var callbackProofPick=formContent.querySelector('[data-proof-pick]');if(callbackProofPick)callbackProofPick.remove();}
 
     if (type === "transaction" || type === "prospect") {
       pendingProof = null;
@@ -5246,6 +5253,8 @@
   content.addEventListener("click", function (e) {
     if(e.target.closest("[data-refresh-cash]")){renderCashflow();return;}
     if(e.target.closest("[data-all-cash]")){cashContextJob=null;renderCashflow();return;}
+    var callbackLink=e.target.closest('[data-link-callback-cash]');if(callbackLink){e.stopPropagation();linkCallbackCash(callbackLink.dataset.linkCallbackCash);return;}
+    var callbackCancel=e.target.closest('[data-cancel-callback-cash]');if(callbackCancel){e.stopPropagation();cancelCallbackCash(callbackCancel.dataset.cancelCallbackCash);return;}
     var crewLink=e.target.closest('[data-link-crew-cash]');if(crewLink){linkCrewCash(crewLink.dataset.linkCrewCash);return;}
     var crewCancel=e.target.closest('[data-cancel-crew-cash]');if(crewCancel){e.stopPropagation();cancelCrewCash(crewCancel.dataset.cancelCrewCash);return;}
 

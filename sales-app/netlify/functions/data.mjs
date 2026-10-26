@@ -1,3 +1,5 @@
+import {callbackRecords} from './lib/callbacks-core.mjs';
+import {projectCallbackCash,guardCallbackCash} from './lib/callback-cash.mjs';
 import {loadInstallerCash,projectInstallerCash,guardInstallerCash} from './lib/installer-cash.mjs';
 import {projectWarehouseCases} from './lib/warehouse-stock.mjs';
 import {loadClientPlans,projectClientPlans} from './lib/client-plan-job.mjs';
@@ -64,6 +66,8 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
     data=projectVoice(projectReady(projectClientPlans(data,clientPlans),readyCases,installationProgress),voiceNotes);
     const installerCashJobs=['admin','operations'].includes(me?.role)?await loadInstallerCash(storeFor({name:'verisko-installations',consistency:'strong'})):[];
     if(['admin','operations'].includes(me?.role))data=projectInstallerCash(data,installerCashJobs);
+    const callbackCases=['admin','operations'].includes(me?.role)?await callbackRecords(storeFor({name:'verisko-callbacks',consistency:'strong'})):[];
+    if(['admin','operations'].includes(me?.role))data=projectCallbackCash(data,callbackCases);
     const isAdmin = bootstrap || (me && me.role === "admin");
     const isTeamLead = !bootstrap && !!me && me.role === "teamlead";
     const isSales = !bootstrap && !!me && me.role !== "admin" && me.role !== "operations" && me.role !== "teamlead";
@@ -228,6 +232,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
         catch(error) { return json({ok:false,error:error.message},400,headers); }
       }
 
+      if(canCash)clean.transactions=guardCallbackCash(storedTx,clean.transactions,callbackCases,me);
       if(canCash)clean.transactions=guardInstallerCash(storedTx,clean.transactions,installerCashJobs,me);
 
       // Operations records cash; only Admin approves or alters approved entries.

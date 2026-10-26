@@ -149,3 +149,6 @@ Inventory writes, ready-lead material writes and installer writes share a condit
 ## Completed-job callbacks (v165)
 
 Operations/Admin can open callbacks against technically completed installations and assign any active staff member, including themselves. The assigned person can read only that callback, add fix/receipt photos and costs and send the fix for review. Only Operations/Admin can reassign, cancel incorrect costs, return/reopen or close. A callback does not grant access to the underlying installation, full client record or finances. Unassigned users cannot read callback details or photos. Completed-job catalogue and assignment roster are office-only. Existing client sign-off and installation records are preserved. See CALLBACKS.md for cost-log and online-save boundaries.
+
+
+Callback costs: each saved expense projects one linked Cash flow entry with its private receipt. Operations records/opens it; only Admin approves. Canonical amount, date, job and receipt cannot be changed in Cash flow. Assigned callback workers see their own cost review status and receipt, not the cash ledger. Legacy matches require explicit Admin linking; approved cancellations require a reason.

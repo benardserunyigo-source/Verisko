@@ -32,7 +32,7 @@ export function guardCash(stored,incoming,actor){
  const byId=new Map(stored.map(t=>[t.id,t])),seen=new Set();const out=[];
  for(const t of incoming){if(!t?.id||seen.has(t.id))continue;seen.add(t.id);const old=byId.get(t.id);
   if(old?.status==='approved'){out.push(old);continue;}
-  out.push({...t,status:old?.installerPaymentKey&&old.status==='query'&&t.status==='pending'?'pending':old?.status||'pending',reviewedBy:old?.reviewedBy||'',reviewedAt:old?.reviewedAt||'',reviewNote:old?.reviewNote||'',approvedAt:old?.approvedAt||'',preapproved:old?.preapproved===true,createdBy:old?.createdBy||actor.name||'',createdByEmail:old?.createdByEmail||actor.email||''});
+  out.push({...t,status:(old?.installerPaymentKey||old?.callbackExpenseKey)&&old.status==='query'&&t.status==='pending'?'pending':old?.status||'pending',reviewedBy:old?.reviewedBy||'',reviewedAt:old?.reviewedAt||'',reviewNote:old?.reviewNote||'',approvedAt:old?.approvedAt||'',preapproved:old?.preapproved===true,createdBy:old?.createdBy||actor.name||'',createdByEmail:old?.createdByEmail||actor.email||''});
  }
  for(const old of stored)if(old.status==='approved'&&!seen.has(old.id))out.push(old);
  return out;
