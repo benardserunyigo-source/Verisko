@@ -34,3 +34,6 @@ Fresh owner-requested full journey and complete automated suite. Used isolated i
 These are server-handler and browser viewport tests. No actual WhatsApp was sent, bank transfer made, real client agreement accepted or staff privilege changed. Physical Android locked-screen tracking, OEM battery restrictions, real recording/playback, notifications, larger system text and TalkBack require the existing handset pilot. Do not claim full physical-device acceptance.
 
 Routine release verification follows: exact source deployment, changed assets, private API denial and live preview.
+
+## Verified live release
+v170 source35cdfbf718915fbed476a6f18c8efd4689bd0f19, readydeploy6adf61ed888c66d3c7d02525.42assets compared tosource (knownapplyanchoronlynormalization),11privateAPIJSON401. LiveOperationsreadonlypreview Jobs summary loaded with no consoleerrors. Evidenceoutput/audits/full-app-20261026/release-readback.json. Real authenticated production records were not changed for QA.
