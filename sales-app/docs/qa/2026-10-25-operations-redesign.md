@@ -18,6 +18,6 @@ Actual isolated app at4469: fictional existing closed job; Operations Today→sa
 
 Evidence: `output/audits/operations-redesign-20261025/` contains phone screenshots, clean final measurements and local QA server. Existing actual end-to-end fictional state reused; no production records, accounts, stock, payments or messages changed for QA. Tests do not establish real Android locked-screen or TalkBack acceptance.
 
-Release: prepared at v162; exact source/deploy/live readback recorded in CHECKPOINT after release gates.
+Release verified: v162 source `0ea1770c534acf9152911f92870468b92540bbb3`, Netlify `6ade9adff3fe0d5454f5e989` ready.35 exact live assets plus the observed application anchor rewrite match; ten private APIs deny unsigned requests with JSON401. Live Operations and other role previews are phone-safe; no authenticated production writes were used.
 
 Live-preview follow-up: v161 showed an unassigned contact with a premature future-payment task. Final v162 keeps these contacts in the visit queue and prioritises visit/quote tasks before payment for a saved draft job. Added a regression; final664tests pass.
