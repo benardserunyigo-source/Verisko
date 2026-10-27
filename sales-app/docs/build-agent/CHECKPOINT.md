@@ -575,3 +575,5 @@ Phone follow-up wrap release verified v173 source `13dae275eff6de217b319ba010708
 
 ## Standard plan choice/approval and Sales deal health:27October
 Same fictional Future School/J-2026-0001 client selected3months, Operationsapproved1Nov2.11m/1Dec1.58m/31Dec1.59m, SalesPaymentplanapproved/Ontrack; samecontact/job, no new receipt/100Kcommission,15Kvisitpayretained. Found olderstandardlinksnoapprovalbutton; connected guarded exact-amount/day schedule and safe Salesprogress. Two-part completiondaterequired; currentcostfloor/Ownerreview/role/stale/idempotency protected; pending/query receipts outrankplanstatus.716tests0fail,390pxactualUI screenshots. See ../qa/2026-10-27-standard-plan-approval.md. Releaseverificationnext.
+
+Release verifiedv174 source `856940ffe89cd3d8f45bc39e660e73bcea33550f`, Netlifyready `6ae12ba62b1499c637825cd8`.45assetsmatch(knownapplyanchoronlynormalization);11privateAPIJSON401. Live readonly OperationsContactsloads/no consoleerrors. Sales/client320pxnooverflow;390pxframe screenshotsverified. No realrecords/terms/payment/accesschanges or physicalAndroidclaim. Next approvedrequest or existinghandsetpilot.

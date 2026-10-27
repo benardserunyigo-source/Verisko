@@ -4,7 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
-| 0 | Standard client plan approval and Sales progress | working | Same school quote: client choice, Operations exact amounts/dates, Sales safe progress and health; no payment or commission created; phone QA and scoped release. |
+| 0 | Standard client plan approval and Sales progress | done | v174 source856940f ready6ae12ba62b1499c637825cd8;716tests, exact standard plan/day schedules, same contact/quote, safe Sales health, no new receipt/commission.390px screenshots,45assets/11API401 and live read-only Contacts verified. See ../qa/2026-10-27-standard-plan-approval.md. |
 | 0 | Deal health and deferred contacts | done | Same-contact health counts and filters, reasons/date for deferred contacts, safe reactivation, role privacy and phone release. |
 | 0 | Approved simplicity redesign | done | One client/job work page, next action/owner/date, fewer daily destinations, combined Money/Contacts and return-to-job context; Grade6 labels, role-safe phone journey and verified release. |
 | 0 | Full app end-to-end audit,26October | done | v170 source35cdfbf ready6adf61ed888c66d3c7d02525;700tests pass. Fresh samecontact fullcloseout+callbacks+money+warehouse:onejob/6cashrows/client0/crew0/20mreturn/no officeorjobtasks. Five rolephone checks; fixed missingpaymentreminders/closedWaitingtimer/Admin320pxoverflow;42assets/11API401/livepreview verified. See ../qa/2026-10-26-full-app-end-to-end.md. |
