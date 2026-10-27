@@ -85,6 +85,7 @@
    }
    if(c.firstPayment?.status==='pending')return result('waiting','Waiting for approval','Admin needs to check the payment.');
   }
+  if(p.planProgress&&(!c||c.state!=='returned'&&c.quoteSent?.sourceId===p.planProgress.sourceId)){const plan=p.planProgress;if(plan.status==='chosen')return result('waiting','Waiting for approval','Operations needs to review the client’s plan choice.');if(plan.firstDue<today)return result('attention','Needs attention','The agreed first payment date has passed. Check the payment.');if(plan.firstDue===today)return result('today','Payment due today','Check whether the client has paid.');return result('track','On track','Payment plan approved. Waiting for the first payment.');}
   if(bucket==='overdue')return result('attention','Needs attention','Follow-up is overdue.');
   if(bucket==='today')return result('today','Follow up today',p.nextAction||'Call and record the next step.');
   if(bucket==='unscheduled')return result('attention','Needs attention','Set the next follow-up date.');
@@ -95,6 +96,7 @@
   if(c?.firstPayment?.status==='approved')return 'Client paid';
   if(p.stage==='Lost'||p.leadStatus==='Not interested')return 'Not going ahead';
   if(c?.firstPayment)return 'Payment being checked';
+  if(p.planProgress&&(!c||c.state!=='returned'&&c.quoteSent?.sourceId===p.planProgress.sourceId))return p.planProgress.status==='approved'?'Payment plan approved':'Client chose a plan';
   if(c?.quoteSent)return 'Quote sent';
   if(c?.visit?.doneAt)return 'Visit done';
   if(c?.visit?.onHoldAt)return 'Visit needs a new date';

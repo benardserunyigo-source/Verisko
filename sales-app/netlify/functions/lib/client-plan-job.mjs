@@ -1,11 +1,23 @@
-import {planSchedule} from '../../../client-plan-schedule.mjs';
+import {planSchedule,standardPlanOffer} from '../../../client-plan-schedule.mjs';
 export {planSchedule} from '../../../client-plan-schedule.mjs';
 import {createHash} from 'node:crypto';
-import {COMMERCIAL} from './quote-guard.mjs';
+import {COMMERCIAL,validateQuotes} from './quote-guard.mjs';
 import {draftCostEstimate,draftCostBudget} from '../../../draft-payment-options.mjs';
+export const clientQuoteFingerprint=j=>createHash('sha256').update(JSON.stringify([j.id,j.prospectId,j.business,j.ref,COMMERCIAL.map(k=>j[k]??null),j.quoteSnapshot,j.quotedTotal,j.quotedAt,j.validUntil,j.scheduledDate,['Accepted','Scheduled','In progress','Installed','Handed over'].includes(j.stage)])).digest('hex');
 export const planScopeKey=j=>createHash('sha256').update(JSON.stringify([j.id,j.prospectId,j.business,j.ref,COMMERCIAL.map(k=>k==='paymentPlan'&&j.clientPlanApproval?j.clientPlanApproval.previousPaymentPlan??null:j[k]??null)])).digest('hex');
 const fail=(s,status=409)=>Object.assign(Error(s),{status});
-export function buildPlanApproval({job,record,draft,pricing,start,actor,now}){
+function standardApproval({job,record,pricing,start,completionDate,actor,now}){
+ if(job.quoteSnapshot?.needsApproval||job.quoteSnapshot?.errors?.length)throw fail('The Owner must review the job costs before approving this plan.');
+ const chosen=record.offer.options.find(p=>p.id===record.choice.plan);if(!chosen||record.offer.existingAgreement)throw fail('Keep the saved agreement.');
+ const offer=standardPlanOffer(chosen);
+ let checked;try{checked=validateQuotes([job],[{...job,paymentPlan:offer.id,stage:'Sent',renewQuote:true}],false,'',now,pricing)[0];}catch(e){throw fail(e.message);}
+ const snapshot=checked.quoteSnapshot,cost=Math.max(Number(job.quoteSnapshot?.costOfDoingBusiness)||0,Number(snapshot.costOfDoingBusiness)||0),target=Math.max(.26,Number(job.targetMargin)||0,Number(snapshot.targetMargin)||0),margin=(offer.total-cost)/offer.total;
+ if(!cost||snapshot.needsApproval||snapshot.errors?.length||snapshot.releaseErrors?.length||margin+1e-12<target)throw fail('This plan needs cost review before approval. Keep the client amounts and review the quote.');
+ const schedule=planSchedule(offer,start,completionDate);
+ return {id:createHash('sha256').update(job.id+'|'+record.tokenHash+'|'+record.choice.at).digest('hex'),jobId:job.id,contactId:job.prospectId,scopeKey:planScopeKey(job),linkHash:record.tokenHash,choiceAt:record.choice.at,previousPaymentPlan:job.paymentPlan??null,approvedAt:now,approvedBy:actor.id,approvedByName:actor.name||'Operations',startDate:start,...(offer.id==='cash'?{completionDate}:{}),offer,ownership:'You own the equipment after full payment.',terms:chosen.terms,totalLabel:'Agreed total',schedule,financials:{targetMargin:target,cost,profit:offer.total-cost,margin,financing:snapshot.financing},sourceJob:structuredClone(job)};
+}
+export function buildPlanApproval({job,record,draft,pricing,start,completionDate,actor,now}){
+ if(record.mode!=='savedDraft')return standardApproval({job,record,pricing,start,completionDate,actor,now});
  const chosen=record.offer.options.find(p=>p.id===record.choice?.plan),offer=chosen?.offer;
  if(job.quoteSnapshot?.needsApproval)throw fail('The Owner must approve the job costs before this client plan can be approved.');
  if(job.quoteSnapshot?.errors?.length)throw fail('The job costs or equipment need review before approving this plan.');
@@ -20,8 +32,8 @@ export function buildPlanApproval({job,record,draft,pricing,start,actor,now}){
  const result=results.reduce((a,b)=>b.cost>a.cost?b:a),schedule=planSchedule(offer,start);
  return {id:createHash('sha256').update(job.id+'|'+record.tokenHash+'|'+record.choice.at).digest('hex'),jobId:job.id,contactId:job.prospectId,scopeKey:planScopeKey(job),linkHash:record.tokenHash,choiceAt:record.choice.at,previousPaymentPlan:job.paymentPlan??null,approvedAt:now,approvedBy:actor.id,approvedByName:actor.name||'Operations',startDate:start,offer,ownership:chosen.ownership,terms:chosen.terms,totalLabel:chosen.totalLabel,schedule,financials:{targetMargin:target,cost:result.cost,profit:offer.total-result.cost,margin:result.margin,financing:result.financing},sourceJob:structuredClone(job)};
 }
-export function publicPlanApproval(a){if(!a)return null;return Object.fromEntries(['id','jobId','contactId','scopeKey','linkHash','choiceAt','previousPaymentPlan','approvedAt','approvedBy','approvedByName','startDate','offer','ownership','terms','totalLabel','schedule'].map(k=>[k,a[k]]));}
-export async function loadClientPlans(store){const out=[];for await(const page of store.list({prefix:'jobs/',paginate:true}))for(const b of page.blobs){const r=await store.get(b.key,{type:'json'});if(r?.approval)out.push(r);}return out;}
+export function publicPlanApproval(a){if(!a)return null;return Object.fromEntries(['id','jobId','contactId','scopeKey','linkHash','choiceAt','previousPaymentPlan','approvedAt','approvedBy','approvedByName','startDate','completionDate','offer','ownership','terms','totalLabel','schedule'].map(k=>[k,a[k]]));}
+export async function loadClientPlans(store){const out=[];for await(const page of store.list({prefix:'jobs/',paginate:true}))for(const b of page.blobs){const r=await store.get(b.key,{type:'json'});if(r?.approval||r?.choice)out.push(r);}return out;}
 export function projectClientPlans(data,plans=[]){
  const jobs=[...(data.jobs||[])];
  for(const r of plans){const a=r.approval;if(!a)continue;let index=jobs.findIndex(j=>j.id===a.jobId),j=index<0?a.sourceJob:jobs[index];
@@ -32,5 +44,6 @@ export function projectClientPlans(data,plans=[]){
  ...(!retained?{fundingConfirmed:false,fundingApprovedKey:'',fundingApprovedBy:''}:{})};
  if(index<0)jobs.push(next);else jobs[index]=next;
  }
- return {...data,jobs};
+ const prospects=(data.prospects||[]).map(p=>{const next={...p};delete next.planProgress;const matches=plans.filter(r=>r.choice&&jobs.some(j=>j.id===r.jobId&&j.prospectId===p.id&&(r.approval?planScopeKey(j)===r.approval.scopeKey:!r.revokedAt&&Date.parse(r.expiresAt)>Date.now()&&r.fingerprint===clientQuoteFingerprint(j))));if(matches.length===1){const r=matches[0];next.planProgress={sourceId:r.jobId,status:r.approval?'approved':'chosen',...(r.approval?{firstDue:r.approval.schedule[0].due}:{})};}return next;});
+ return {...data,jobs,prospects};
 }

@@ -1920,7 +1920,7 @@
     if (!savedDraft&&!await pushShared()) { toast('Connect and save the quote first.'); return; }
     var j=job(id); if(!j)return;
     var userId=settings.user?.id,generation=sessionGeneration;
-    try{var m=await import('./client-plan-ui.mjs?v=164');await m.openClientPlan({jobId:id,api:readyApi,phone:jobClient(j).phone,savedDraft,preview:!!rolePreview,onApproved:async function(){
+    try{var m=await import('./client-plan-ui.mjs?v=174');await m.openClientPlan({jobId:id,api:readyApi,phone:jobClient(j).phone,savedDraft,preview:!!rolePreview,onApproved:async function(){
       var sameAccount=function(){return settings.user?.id===userId&&sessionGeneration===generation;};
       if(localUnsynced){var response=await readyApi('GET',null,'','/api/data');if(!sameAccount())return;var approved=response.data?.jobs?.find(function(x){return x.id===id;});if(approved){var existing=job(id);if(existing){['clientPlanApproval','quoteSnapshot','quotedTotal','paymentSchedule','fundingConfirmed','fundingApprovedKey','fundingApprovedBy','pricingVersion','cameraCount','installationType','rubric','addons','zone','discountPct','priceOverride','finalPrice','directCost','extraCost','extraMaterialsCost','extraCrewCost','extraAccessTravelCost','addonCosts','costConfirmed','costEvidence','paymentPlan','servicePolicyVersion','targetMargin','salesPriceVersion'].forEach(function(k){existing[k]=approved[k];});if(existing.stage==='Draft')existing.stage=approved.stage;}else state.jobs.push(approved);localStorage.setItem(STORAGE_KEY,JSON.stringify(state));render();}return;}
       var result=await loadShared(sameAccount);if(result==='ok')render();else toast('Plan approved. Refresh Jobs to see the saved amounts.');},onShared:function(detail){if(detail?.mode!=='savedDraft')markQuoteShared(id);},isCurrent:function(){return settings.user?.id===userId&&sessionGeneration===generation&&!document.body.classList.contains('locked');}});}catch(e){toast(e.message);}
@@ -1995,7 +1995,7 @@
       emptyState(ICON_INSTALL, "No jobs yet", "Tap New job to price a site, or start one from a closed sale in Prospects.", "New job", 'data-new="job"');
     content.innerHTML = summary + filterBar + '<p class="result-note">' + rows.length + (rows.length === 1 ? " job" : " jobs") + "</p>" + list + '<details class="card"><summary>Older job tools</summary><p class="helper">For older manual jobs only. New installations use the assigned Installer account and the linked materials list.</p>'+technicianRosterCard()+'</details>';
     var planUser=settings.user?.id;
-    import('./client-plan-ui.mjs?v=164').then(function(m){m.refreshClientPlanBadges({host:content,api:readyApi,isCurrent:function(){return view==='jobs'&&settings.user?.id===planUser&&!document.body.classList.contains('locked');}});}).catch(function(){});
+    import('./client-plan-ui.mjs?v=174').then(function(m){m.refreshClientPlanBadges({host:content,api:readyApi,isCurrent:function(){return view==='jobs'&&settings.user?.id===planUser&&!document.body.classList.contains('locked');}});}).catch(function(){});
   }
 
   function fundingOverviewHtml(jobs) {

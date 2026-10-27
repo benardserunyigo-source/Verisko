@@ -8,6 +8,7 @@
   if(returned(c))return 'Needs your follow-up';
   if(c?.installationProgress?.length)return c.installationProgress.at(-1).stage;
   if(c?.firstPayment)return c.firstPayment.status==='approved'?'Client paid':c.firstPayment.status==='query'?'Team is checking the payment':'Payment waiting for approval';
+  if(p.planProgress&&(!c||c.state!=='returned'&&c.quoteSent?.sourceId===p.planProgress.sourceId))return p.planProgress.status==='approved'?'Payment plan approved':'Client chose a plan';
   if(c?.quoteSent)return 'Quote sent';if(c?.visit?.doneAt)return 'Site visit done';if(c?.visit?.onHoldAt)return 'Waiting for a new visit time';if(c?.visit)return 'Site visit booked';if(c)return 'Sent for site visit';
   return p.readyProgress||(p.leadStatus==='Not ready'?'Deferred':p.leadStatus)||'Follow up';
  }

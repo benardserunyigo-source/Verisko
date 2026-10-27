@@ -1,17 +1,18 @@
-import {planScopeKey,buildPlanApproval} from './client-plan-job.mjs';
+import {standardPlanOffer} from '../../../client-plan-schedule.mjs';
+import {planScopeKey,buildPlanApproval,clientQuoteFingerprint} from './client-plan-job.mjs';
 import {reviewSavedClientOffer,selectSavedClientOffer} from './saved-client-offer.mjs';
 import {createHash, timingSafeEqual} from 'node:crypto';
-import {COMMERCIAL, validateQuotes} from './quote-guard.mjs';
+import {validateQuotes} from './quote-guard.mjs';
 import '../../../quote-pdf.js';
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 const valid=id=>typeof id==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(id);
 const office=me=>['admin','operations'].includes(me?.role);
 const won=j=>['Accepted','Scheduled','In progress','Installed','Handed over'].includes(j.stage);
 const hash=s=>createHash('sha256').update(s).digest('hex');
-const fingerprint=j=>hash(JSON.stringify([j.id,j.prospectId,j.business,j.ref,COMMERCIAL.map(k=>j[k]??null),j.quoteSnapshot,j.quotedTotal,j.quotedAt,j.validUntil,j.scheduledDate,won(j)]));
+const fingerprint=clientQuoteFingerprint;
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'}});
 function current(record,j,now){return !!j&&!['Cancelled','Rejected'].includes(j.stage)&&!record.revokedAt&&Date.parse(record.expiresAt)>Date.parse(now)&&(record.fingerprint===fingerprint(j)||record.approval?.scopeKey===planScopeKey(j)&&record.approval?.linkHash===record.tokenHash);}
-function status(record,j,now){return {jobId:record.jobId,createdAt:record.createdAt,expiresAt:record.expiresAt,current:current(record,j,now),revoked:!!record.revokedAt,choice:record.choice||null,approval:record.approval?{approvedAt:record.approval.approvedAt,approvedByName:record.approval.approvedByName,startDate:record.approval.startDate,schedule:record.approval.schedule,offer:record.approval.offer}:null,startDate:j?.clientPlanApproval?.startDate||j?.scheduledDate||'',...(record.mode?{mode:record.mode,draftVersion:record.draftVersion}:{} )};}
+function status(record,j,now){return {jobId:record.jobId,createdAt:record.createdAt,expiresAt:record.expiresAt,current:current(record,j,now),revoked:!!record.revokedAt,choice:record.choice?{...record.choice,...(!record.choice.offer?{offer:standardPlanOffer(record.choice)}:{})}:null,approval:record.approval?{approvedAt:record.approval.approvedAt,approvedByName:record.approval.approvedByName,startDate:record.approval.startDate,completionDate:record.approval.completionDate,schedule:record.approval.schedule,offer:record.approval.offer}:null,startDate:j?.clientPlanApproval?.startDate||j?.scheduledDate||'',...(record.mode?{mode:record.mode,draftVersion:record.draftVersion}:{} )};}
 export function clientOffer(j,client,now){
  if(!j.pricingVerifiedAt||!j.quoteSnapshot||['Cancelled','Rejected'].includes(j.stage))throw fail('Save and check this quote before making a client link.',409);
  if(!won(j)&&(!j.validUntil||j.validUntil<now.slice(0,10)))throw fail('This quote has expired. Refresh it first.',409);
@@ -46,7 +47,7 @@ export function createClientPlanHandler({store,loadWorkspace,authorize,loadDraft
  if(publicAction){
   if(!/^[A-Za-z0-9_-]{43}$/.test(body.token||'')||!record||!timingSafeEqual(Buffer.from(hash(body.token),'hex'),Buffer.from(record.tokenHash,'hex')))throw fail('Link not found.',404);
   if(!current(record,j,stamp))throw fail('This link is no longer active. Ask Verisko for a new link.',410);
-  if(body.action==='view')return json({ok:true,offer:record.offer,choice:record.choice||null,expiresAt:record.expiresAt});
+  if(body.action==='view')return json({ok:true,offer:record.offer,choice:record.choice?{...record.choice,...(!record.choice.offer?{offer:standardPlanOffer(record.choice)}:{})}:null,expiresAt:record.expiresAt});
   const plan=record.offer.options.find(p=>p.id===body.plan),name=typeof body.name==='string'?body.name.trim():'';
   if(!plan||body.confirmed!==true||name.length<2||name.length>100||/[\x00-\x1f]/.test(name))throw fail('Choose a plan, enter your name and tick Yes.');
   if(record.choice){if(record.choice.plan===plan.id&&record.choice.name===name)return json({ok:true,choice:record.choice});throw fail('Your choice is already saved. Please contact Verisko to change it.',409);}
@@ -59,11 +60,11 @@ export function createClientPlanHandler({store,loadWorkspace,authorize,loadDraft
  if(body.action==='approve'){
   if(!record?.choice||!current(record,j,stamp))throw fail('This client reply changed or expired. Reload it before approving.',409);
   if(body.choiceAt!==record.choice.at||body.checked!==true)throw fail('Review the client choice and tick the check before approving.',409);
-  if(record.approval){if(record.approval.startDate!==body.startDate)throw fail('This plan is already approved. Keep the saved payment dates.',409);return json({ok:true,item:status(record,j,stamp)});}
+  if(record.approval){if(record.approval.startDate!==body.startDate||(record.approval.completionDate||'')!==(body.completionDate||''))throw fail('This plan is already approved. Keep the saved payment dates.',409);return json({ok:true,item:status(record,j,stamp)});}
   if(won(j))throw fail('This job already has agreed terms. Keep the saved agreement.',409);
-  if(!loadDraft||!pricing)throw fail('Saved costs are unavailable. Reload before approving.',503);
-  const draft=await loadDraft(request,jobId);
-  const approval=buildPlanApproval({job:j,record,draft,pricing,start:body.startDate,actor:auth.me,now:stamp});
+  if(!pricing||record.mode==='savedDraft'&&!loadDraft)throw fail('Saved costs are unavailable. Reload before approving.',503);
+  const draft=record.mode==='savedDraft'?await loadDraft(request,jobId):null;
+  const approval=buildPlanApproval({job:j,record,draft,pricing,start:body.startDate,completionDate:body.completionDate,actor:auth.me,now:stamp});
   const next={...record,approval};const write=await store.setJSON(key,next,{onlyIfMatch:old.etag});if(!write.modified)throw fail('This client reply changed. Reload before approving.',409);
   return json({ok:true,item:status(next,j,stamp)});
  }
