@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | Cash saves after linked installation completion | done | Same-school350Kpayment demo exposed repeated quote-acceptance date gate. Existing completed-stage cash saves now keep locked pricing without repeating acceptance; new acceptance/date changes retain funding guards.725tests and actual Operations proof/Admin approval/Installerzero balance verified; sourcec9dbf0d ready6ae17e37bbc8b76236187f53;47assets/12privateAPI401 verified. |
 | 0 | Guided site photos and camera position plan | done | v175 source08353f1 ready6ae152e6c2ffaddde781fdac;724tests. Four Sales prompts, numbered camera views/mount/routes, same-contact private photos, all-position readiness, reusable job names, assigned Installer read-only.390/320px checked;47assets/12API401; live read-only preview verified. See ../qa/2026-10-27-guided-site-photos.md. |
 | 0 | Standard client plan approval and Sales progress | done | v174 source856940f ready6ae12ba62b1499c637825cd8;716tests, exact standard plan/day schedules, same contact/quote, safe Sales health, no new receipt/commission.390px screenshots,45assets/11API401 and live read-only Contacts verified. See ../qa/2026-10-27-standard-plan-approval.md. |
 | 0 | Deal health and deferred contacts | done | Same-contact health counts and filters, reasons/date for deferred contacts, safe reactivation, role privacy and phone release. |
