@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | Guided site photos and camera position plan | working | Sales site guide, Operations numbered camera photos/aim/cable route, same-contact private storage, reuse names at assignment, phone QA and role-safe release. |
 | 0 | Standard client plan approval and Sales progress | done | v174 source856940f ready6ae12ba62b1499c637825cd8;716tests, exact standard plan/day schedules, same contact/quote, safe Sales health, no new receipt/commission.390px screenshots,45assets/11API401 and live read-only Contacts verified. See ../qa/2026-10-27-standard-plan-approval.md. |
 | 0 | Deal health and deferred contacts | done | Same-contact health counts and filters, reasons/date for deferred contacts, safe reactivation, role privacy and phone release. |
 | 0 | Approved simplicity redesign | done | One client/job work page, next action/owner/date, fewer daily destinations, combined Money/Contacts and return-to-job context; Grade6 labels, role-safe phone journey and verified release. |

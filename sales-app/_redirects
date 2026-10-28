@@ -1,3 +1,4 @@
+/api/site-photos /.netlify/functions/site-photos 200
 /api/callbacks /.netlify/functions/callbacks 200
 /api/inventory /.netlify/functions/inventory 200
 /api/sales-prices /.netlify/functions/sales-prices 200
