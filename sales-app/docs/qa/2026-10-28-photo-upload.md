@@ -12,4 +12,4 @@ Actual390px UI: invalid JPEG rejected; existing receipt stays visible on a delib
 
 Evidence output/audits/photo-upload-20261028/: failure-case-snapshot.json, e2e-check.json, final-snapshot.json.gz, saved-proof-phone.png; local server includes real private receipt and site-photo handlers plus an explicit lost-response fixture. Image is a clearly fictional school illustration, not installation quality evidence.
 
-Actual Android hardware camera/file chooser, locked-screen/offline device behavior and TalkBack still require the existing handset pilot. Browser/handler tests do not establish handset acceptance. Release verification pending.
+Actual Android hardware camera/file chooser, locked-screen/offline device behavior and TalkBack still require the existing handset pilot. Browser/handler tests do not establish handset acceptance. Released v176 source2c20e2b669b035296751911e1ea932664dd2244a, ready deploy6ae1816c4e468318502304cf.47publicassets match;12APIs return JSON401 and private receipt endpoint JSON403. Live read-only Operations preview loads with no console errors.
