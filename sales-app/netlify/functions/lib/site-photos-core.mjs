@@ -30,7 +30,7 @@ export function createSitePhotosHandler({store,authorize,now=()=>new Date().toIS
  const id=body.requestId;if(!valid(id)||id.length<8)throw fail('A save ID is needed.');
  const digest=hash({...body,version:undefined}),repeat=item.requests.find(r=>r.id===id);
  if(repeat){if(repeat.by!==me.id||repeat.hash!==digest)throw fail('This save ID was already used.',409);return json({ok:true,item:replyItem(item)});}
- if(body.version!==item.version)throw fail('This site changed. Tap Refresh, then check your save again.',409);
+ if(body.version!==item.version)throw fail('This site changed. Your work is kept. Check it, then tap Save again.',409);
  const next=structuredClone(item),at=now();
  if(body.action==='archive_position'){
   if(!['operations','admin','teamlead'].includes(me.role))throw fail('Operations makes the camera plan.',403);const position=next.positions.find(p=>p.id===body.positionId&&!p.archivedAt);if(!position)throw fail('Camera spot not found.',404);position.archivedAt=at;position.archivedBy=me.id;

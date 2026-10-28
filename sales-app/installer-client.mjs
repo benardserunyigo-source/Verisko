@@ -66,8 +66,8 @@ export class InstallerClient {
  async cachePhotos(){for(const j of this.jobs)for(const e of j.evidence)try{await this.photo(j.id,e.id);}catch{} }
 }
 export async function cameraPhoto(file){
- if(!file||!file.type.startsWith('image/'))throw new Error('Choose an image.');
- const image=await createImageBitmap(file,{imageOrientation:'from-image'});const scale=Math.min(1,1400/Math.max(image.width,image.height));const canvas=document.createElement('canvas');canvas.width=Math.round(image.width*scale);canvas.height=Math.round(image.height*scale);canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);image.close();
+ if(!file||!file.type.startsWith('image/')||file.size>25000000)throw new Error('Choose a photo under 25 MB.');
+ let image;try{image=await createImageBitmap(file,{imageOrientation:'from-image'});}catch{throw new Error('This photo could not open. Try another photo.');}const scale=Math.min(1,1400/Math.max(image.width,image.height));const canvas=document.createElement('canvas');canvas.width=Math.round(image.width*scale);canvas.height=Math.round(image.height*scale);canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);image.close();
  const data=canvas.toDataURL('image/jpeg',.78);if(data.length>1500000)throw new Error('Photo too large. Retake it closer or choose a smaller image.');return data;
 }
 

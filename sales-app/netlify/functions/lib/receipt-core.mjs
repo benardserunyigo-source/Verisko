@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import '../../../lead-pipeline.js';
 import {ROLES} from '../access.mjs';
 const headers={'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
@@ -17,7 +18,14 @@ export function createReceiptHandler({store,authorize}){
   if(request.method==='POST'){
    const body=await request.json(),image=body?.image||'';
    if(typeof image!=='string'||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image)||image.length>3000000)return json({ok:false,error:'Use a JPEG, PNG or WebP image under 2 MB.'},400);
-   const id=crypto.randomUUID();await store.set(id,image);await store.setJSON('owner/'+id,{userId:me.id,role:me.role,at:new Date().toISOString()});return json({ok:true,id});
+   // A retried upload of the same photo by the same role/account reuses its
+   // private record, even if the first response was lost on a weak connection.
+   const id='receipt-'+createHash('sha256').update(JSON.stringify([me.id,me.email||'',me.role,image])).digest('hex');
+   const saved=await store.get(id,{type:'text'});
+   if(saved!==image)await store.set(id,image);
+   const owner=await store.get('owner/'+id,{type:'json'});
+   if(!owner)await store.setJSON('owner/'+id,{userId:me.id,role:me.role,at:new Date().toISOString()});
+   return json({ok:true,id});
   }
   if(request.method==='GET'){
    const id=new URL(request.url).searchParams.get('id');if(!/^[a-zA-Z0-9-]{1,100}$/.test(id||''))return json({ok:false,error:'not_found'},404);

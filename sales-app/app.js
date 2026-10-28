@@ -462,7 +462,7 @@
 
   async function renderInstallerWork(){
     content.innerHTML='<p class="helper">Loading installation workspace…</p>';
-    try{installerModule=await import('./installer-ui.mjs?v=175');if(view!=='installwork'||!canInstallWork())return;
+    try{installerModule=await import('./installer-ui.mjs?v=176');if(view!=='installwork'||!canInstallWork())return;
       var installerUser=settings.user;
       var previewClient;
       if(rolePreview){var previewModule=await import('./role-preview-installer.mjs?v=164');previewClient=previewModule.previewInstallerClient(rolePreview);installerUser=previewClient.user;}
@@ -1246,6 +1246,7 @@
   var cashFilter = "all";
   var cashPeriodMode = "month";
   var cashPeriodAnchor = today;
+  var photoUploadVersion=0;
   var pendingProof = null; // resized photo chosen in the form, not yet uploaded
   var pendingGeo = null;   // site GPS pin captured in the prospect form
   var cashRenderId=0;
@@ -2220,17 +2221,19 @@
 
   function txCard(t) {
     var sign = t.direction === "in" ? "+" : "−";
+    var proofLabel=hasQueuedPhoto(t.id)?(t.proofId?"Replacement waiting to upload; saved proof kept":"Photo waiting to upload"):(t.proofId?"Attached":t.preapproved?"Pre-approved — no receipt":"No proof yet");
     return '<article class="item tx-item" data-edit="transaction" data-id="' + t.id + '">' +
       '<div class="item-top"><div><div class="item-title"><span class="tx-dir ' + (t.direction === "in" ? "in" : "out") + '">' + (t.direction === "in" ? "In" : "Out") + "</span> " + sign + money(t.amount) + "</div>" +
       '<div class="item-meta">' + txMeta(t) + "</div></div>" + txStatusChip(t.status) + "</div>" +
       '<div class="item-lines"><div class="item-line"><span class="k">Date</span><span class="v">' + dateLabel(t.date) + (t.createdBy ? " · " + esc(t.createdBy) : "") + "</span></div>" +
       (t.status === "query" && t.reviewNote ? '<div class="item-line"><span class="k">Sent back</span><span class="v" style="color:var(--red)">' + esc(t.reviewNote) + "</span></div>" : "") +
-      (t.direction === "out" ? '<div class="item-line"><span class="k">Proof</span><span class="v">' + (t.proofId ? "Attached" : (hasQueuedPhoto(t.id) ? '<span style="color:var(--muted)">Photo waiting to upload</span>' : (t.preapproved ? '<span style="color:var(--muted)">Pre-approved — no receipt</span>' : '<span style="color:var(--amber)">No proof yet</span>'))) + "</span></div>" : "") + "</div>"+(isAdmin()&&t.installerCashCandidates?.length&&!t.installerPaymentKey?'<button type="button" class="btn btn-primary" data-link-crew-cash="'+esc(t.id)+'">Link installer payment</button>':'')+(isAdmin()&&t.installerPaymentVoided&&t.status==='approved'?'<button type="button" class="btn btn-danger" data-cancel-crew-cash="'+esc(t.id)+'">Cancel this cash entry</button>':'')+(isAdmin()&&t.callbackCashCandidates?.length&&!t.callbackExpenseKey?'<button type="button" class="btn btn-primary" data-link-callback-cash="'+esc(t.id)+'">Link callback cost</button>':'')+(isAdmin()&&t.callbackVoided&&t.status==='approved'?'<button type="button" class="btn btn-danger" data-cancel-callback-cash="'+esc(t.id)+'">Cancel this cash entry</button>':'')+"</article>";
+      (t.direction === "out" ? '<div class="item-line"><span class="k">Proof</span><span class="v">' + proofLabel + "</span></div>" : "") + "</div>"+(isAdmin()&&t.installerCashCandidates?.length&&!t.installerPaymentKey?'<button type="button" class="btn btn-primary" data-link-crew-cash="'+esc(t.id)+'">Link installer payment</button>':'')+(isAdmin()&&t.installerPaymentVoided&&t.status==='approved'?'<button type="button" class="btn btn-danger" data-cancel-crew-cash="'+esc(t.id)+'">Cancel this cash entry</button>':'')+(isAdmin()&&t.callbackCashCandidates?.length&&!t.callbackExpenseKey?'<button type="button" class="btn btn-primary" data-link-callback-cash="'+esc(t.id)+'">Link callback cost</button>':'')+(isAdmin()&&t.callbackVoided&&t.status==='approved'?'<button type="button" class="btn btn-danger" data-cancel-callback-cash="'+esc(t.id)+'">Cancel this cash entry</button>':'')+"</article>";
   }
 
   /* -------- Receipt photo helpers -------- */
   function resizeImage(file, maxDim, quality) {
     return new Promise(function (resolve, reject) {
+      if(!file || !file.type?.startsWith("image/") || file.size>25000000){reject(new Error("Choose a photo under 25 MB."));return;}
       var reader = new FileReader();
       reader.onload = function () {
         var img = new Image();
@@ -2252,7 +2255,7 @@
     if(generation!==sessionGeneration||!settings.auth)throw new Error("Account changed. Sign in again.");
     var res = await fetch("/api/receipt", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + (settings.auth ? settings.auth.access_token : "") }, body: JSON.stringify({ image: dataUrl }) });
     var j = await res.json().catch(function () { return {}; });
-    if (!res.ok || !j.ok) throw new Error(j.error === "Image too large — please retake it." ? j.error : "Couldn't upload the photo. Check your connection.");
+    if (!res.ok || !j.ok || typeof j.id!=="string" || !/^[a-zA-Z0-9-]{1,100}$/.test(j.id)) throw new Error(j.error === "Image too large — please retake it." ? j.error : "Couldn't upload the photo. Check your connection.");
     if(generation!==sessionGeneration)throw new Error("Account changed.");
     return j.id;
   }
@@ -2274,14 +2277,23 @@
   }
   async function onProofPick() {
     var file = this.files && this.files[0]; if (!file) return;
-    var pv = document.getElementById("proofPreview");
-    if (pv) pv.innerHTML = '<span class="proof-none">Processing…</span>';
+    var pv = document.getElementById("proofPreview"), generation=sessionGeneration, input=this, pick={};
+    input.photoPick=pick;
+    var save=document.getElementById("saveButton"), pickButton=document.querySelector("[data-proof-pick]");
+    if(save&&!save.photoBusy)save.photoWasDisabled=save.disabled;
+    if(save)save.photoBusy=true;
+    if(pickButton)pickButton.disabled=true;
+    pendingProof=null;
+    if(save)save.disabled=true;
+    if (pv) pv.innerHTML = '<span class="proof-none">Preparing photo…</span>';
     try {
-      pendingProof = await resizeImage(file, 1200, 0.7);
+      var image=await resizeImage(file, 1200, 0.7);
+      if(input.photoPick!==pick||generation!==sessionGeneration||pv!==document.getElementById("proofPreview"))return;
+      pendingProof=image;
       if (pv) pv.innerHTML = '<img src="' + pendingProof + '" alt="Proof photo" class="proof-img">';
       var btn = document.querySelector("[data-proof-pick]"); if (btn) btn.textContent = "Replace photo";
-    } catch (e) { if (pv) pv.innerHTML = '<span class="proof-none">Couldn\'t read that image</span>'; }
-    this.value = "";
+    } catch (e) { if (generation===sessionGeneration&&pv===document.getElementById("proofPreview")&&pv) pv.innerHTML = '<span class="proof-none">Could not open this photo. Choose another photo.</span>'; }
+    finally{if(input.photoPick===pick&&pv===document.getElementById("proofPreview")){if(save){save.disabled=save.photoWasDisabled;save.photoBusy=false;}if(pickButton)pickButton.disabled=false;}this.value="";}
   }
 
   /* -------- Save / approve / send back a cash entry -------- */
@@ -2331,7 +2343,7 @@
         queuePhoto = true; // no signal — keep the photo locally
       }
     }
-    if (queuePhoto) proofId = ""; // photo isn't on the server yet
+    // Keep the saved receipt visible until its queued replacement is uploaded.
 
     if (editing.id) {
       var idx = state.transactions.findIndex(function (x) { return x.id === editing.id; });
@@ -2347,7 +2359,7 @@
         createdAt: today, recordedAt: nowIso(), status: "pending", reviewedBy: "", reviewedAt: "", reviewNote: ""
       });
     }
-    if (queuePhoto) await queueUpload(txId, pendingProof);
+    if (queuePhoto) await queueUpload(txId, pendingProof, proofId);
     pendingProof = null;
     saveBtn.disabled = false;
     hideFormError(); dialog.close();
@@ -2377,7 +2389,7 @@
         catch (e) { if (/too large/i.test(e.message || "")) { saveBtn.disabled = false; saveBtn.textContent = isNew ? "Save" : "Save changes"; showFormError(e.message); return; } queuePhoto = true; }
       } else queuePhoto = true;
     }
-    if (queuePhoto) photoId = "";
+    // Keep an existing business photo while its replacement waits to upload.
 
     if (editing.id) {
       var idx = state.prospects.findIndex(function (x) { return x.id === editing.id; });
@@ -2419,7 +2431,7 @@
       if (data.followUp || data.nextAction) stampPlan(state.prospects[state.prospects.length - 1]);
     }
     window.VeriskoCommission.qualificationRequest(state.prospects.find(function (x) { return x.id === pid; }), nowIso());
-    if (queuePhoto) await queueUpload(pid, pendingProof);
+    if (queuePhoto) await queueUpload(pid, pendingProof, photoId);
     pendingProof = null;
     saveBtn.disabled = false;
     hideFormError(); dialog.close();
@@ -4051,7 +4063,7 @@
 
   // Returns "ok", "signin" (session invalid), "unauth" (not on team), "offline".
   async function loadShared(guardApply) {
-    var generation=sessionGeneration;
+    var generation=sessionGeneration, photoVersion=photoUploadVersion;
     try {
       var res = await apiData("GET");
       if (res.status === 401) return "signin";
@@ -4064,6 +4076,7 @@
       if (!result.ok) return "unauth";
       if(generation!==sessionGeneration||!settings.auth)return "unchanged";
       if (guardApply && !guardApply()) return "unchanged";
+      if(photoVersion!==photoUploadVersion)return "unchanged"; // an upload finished after this refresh began
       salesPriceStatus=result.salesPrices||null;
       if (result.pricing) window.VeriskoPricing = window.createVeriskoPricing(result.pricing);
       else window.VeriskoPricing = window.createVeriskoPricing({version:window.VeriskoPriceCatalogue.version,catalogue:result.catalogue || window.VeriskoPriceCatalogue.catalogue});
@@ -4159,7 +4172,7 @@
       });
     });
   }
-  function idbPut(id, dataUrl) { return idbRun("readwrite", function (s) { s.put({ id: id, dataUrl: dataUrl }); }); } // put replaces — one photo per id
+  function idbPut(id, dataUrl, replaceId) { return idbRun("readwrite", function (s) { s.put({ id: id, dataUrl: dataUrl, replaceId: replaceId || "" }); }); } // put replaces — one photo per id
   function idbDelete(id) { return idbRun("readwrite", function (s) { s.delete(id); }); }
   function idbGet(id) { return idbRun("readonly", function (s, set) { var r = s.get(id); r.onsuccess = function () { set(r.result || null); }; }); }
   function idbGetAll() { return idbRun("readonly", function (s, set) { var r = s.getAll(); r.onsuccess = function () { set(r.result || []); }; }); }
@@ -4167,8 +4180,8 @@
   function pendingUploadCount() { return pendingSet.size; }
   function hasQueuedPhoto(id) { return pendingSet.has(id); }
   function getQueuedPhoto(id) { return idbGet(id).then(function (r) { return r ? r.dataUrl : null; }).catch(function () { return null; }); }
-  async function queueUpload(id, dataUrl) {
-    try { await idbPut(id, dataUrl); pendingSet.add(id); }
+  async function queueUpload(id, dataUrl, replaceId) {
+    try { await idbPut(id, dataUrl, replaceId); pendingSet.add(id); }
     catch (e) { toast("Couldn't save the photo on this device."); }
   }
 
@@ -4200,8 +4213,17 @@
       var tx = (state.transactions || []).find(function (x) { return x.id === item.id; });
       var pr = tx ? null : (state.prospects || []).find(function (x) { return x.id === item.id; });
       var target = tx || pr, field = tx ? "proofId" : "photoId";
-      if (!target || target[field]) { await idbDelete(item.id); pendingSet.delete(item.id); continue; } // orphan / already set
-      try { target[field] = await uploadProof(item.dataUrl); await idbDelete(item.id); pendingSet.delete(item.id); uploaded++; }
+      if (!target || (target[field] && target[field]!==item.replaceId)) { await idbDelete(item.id); pendingSet.delete(item.id); continue; } // orphan / already set
+      try {
+        var savedPhoto=await uploadProof(item.dataUrl);
+        // A refresh can replace state while the image is uploading. Attach to
+        // the current record, not the old object kept before the await.
+        var current=(tx?state.transactions:state.prospects||[]).find(function(x){return x.id===item.id;});
+        if(!current||(current[field]&&current[field]!==item.replaceId)){await idbDelete(item.id);pendingSet.delete(item.id);continue;}
+        current[field]=savedPhoto;photoUploadVersion++;localUnsynced=true;localStorage.setItem(STORAGE_KEY+"_pending","1");
+        localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+        await idbDelete(item.id);pendingSet.delete(item.id);uploaded++;
+      }
       catch (e) { /* still offline / failing — keep for next time */ }
     }
     if (uploaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
