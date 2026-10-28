@@ -57,8 +57,11 @@ export function validateQuotes(stored, incoming, isAdmin, email, now = new Date(
       const fundingKey=JSON.stringify([VERSION,total,cost,'client-plan:'+a.id,job.scheduledDate||'']);
       const prior=prev.fundingApprovedKey===fundingKey&&!!prev.fundingApprovedBy;
       const funded=prior||(isAdmin&&job.fundingConfirmed===true);
-      if(won(job.stage)&&!job.scheduledDate)throw new Error('Set the installation date before accepting this job.');
-      if(won(job.stage)&&a.offer.months&&!funded)throw new Error('The Owner must confirm funding before accepting this financed job.');
+      // Linked installation progress may already project a won stage. A cash-only
+      // save must not re-accept that job or require its dates to be entered twice.
+      const accepting=won(job.stage)&&(!won(prev.stage)||job.scheduledDate!==prev.scheduledDate);
+      if(accepting&&!job.scheduledDate)throw new Error('Set the installation date before accepting this job.');
+      if(accepting&&a.offer.months&&!funded)throw new Error('The Owner must confirm funding before accepting this financed job.');
       return {...job,clientPlanApproval:a,quoteSnapshot:prev.quoteSnapshot,quotedTotal:prev.quotedTotal,paymentSchedule:prev.paymentSchedule,
         quotedAt:prev.quotedAt,validUntil:prev.validUntil,pricingVerifiedAt:prev.pricingVerifiedAt,
         costApprovalKey:prev.costApprovalKey,costApprovedBy:prev.costApprovedBy,costApprovedAt:prev.costApprovedAt,

@@ -69,3 +69,13 @@ test('approval refresh keeps unrelated unsaved work and stops when the account c
 test('plan approval preserves Owner cost checks and includes the known direct cost of this job',async()=>{
  for(const reason of ['owner','direct']){const f=await fixture();if(reason==='owner')f.job.quoteSnapshot.needsApproval=true;else f.job.quoteSnapshot.direct=20000000;await f.api(f.create());await f.api({action:'choose',jobId:'saved-job',token,plan:'12months',name:'DEMO Client',confirmed:true},'');const result=await approve(f);assert.equal(result.status,409);assert.match(result.error,reason==='owner'?/Owner/:/profit target/);assert.equal((await f.store.get('jobs/saved-job')).approval,undefined);}
 });
+
+test('already completed linked jobs allow unrelated cash saves without repeating acceptance, but still guard new acceptance and date changes',async()=>{
+ const f=await chosen();await approve(f);const d=projectClientPlans(f.workspace,await loadClientPlans(f.store)),j=d.jobs[0];
+ const completed={...j,stage:'Installed',scheduledDate:''};
+ const saved=validateQuotes([completed],[{...completed}],false,'ops@test.invalid')[0];
+ assert.equal(saved.stage,'Installed');assert.equal(saved.fundingConfirmed,false);assert.deepEqual(saved.paymentSchedule,j.paymentSchedule);assert.equal(saved.quotedTotal,j.quotedTotal);
+ assert.throws(()=>validateQuotes([j],[{...j,stage:'Accepted'}],false,'ops@test.invalid'),/installation date/);
+ assert.throws(()=>validateQuotes([completed],[{...completed,scheduledDate:'2027-01-31'}],false,'ops@test.invalid'),/Owner/);
+ assert.throws(()=>validateQuotes([completed],[{...completed,cameraCount:6}],false,'ops@test.invalid'),/approved/);
+});
