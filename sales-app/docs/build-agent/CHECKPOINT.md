@@ -646,3 +646,5 @@ Release verified v178 source325844a ready6ae3699a72ef3dfc1b08ddcc;48assets/12API
 
 ## Contact upload end-to-end readiness
 Fresh user-requested audit reproduced invalidphones/secondaryduplicates/same-namewrongphone overwrite. Fixed both-phone validation and dedupe; ambiguous saved matches skipped with row reasons; unknown source Other. ActualAdminCSV2new/1update/4skip; exactreimport0new and samecontacts; actualExcelreimportsamepreview. Real-handler samebrowsercontact Opscall+onevoice+Adminemail, 3officerolesread3history/1voiceexactbytes, nootherSales/Installeraccess, nojob/cash.745tests. BlankExcelhuman template generated/rendered/reopenedwithappreader. Privateevidence output/audits/import-readiness-20261029/. No realproductiondatachanges. v179 releaseverificationnext.
+
+Release verified v179 sourcec49f2b7 ready6ae37292984cffa3dc83c063;48assets/12APIJSON401+receipt403. Contact upload ready for owner Admin sign-in and a real supplied file. Blanktemplate output at outputs/contact-upload-20261029/Verisko-Contact-Import-Template.xlsx; noexample rows. No real contact/media/finance/account writes. Existing handsetpilot separate.

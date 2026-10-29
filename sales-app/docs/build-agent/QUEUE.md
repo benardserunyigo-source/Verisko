@@ -4,7 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
-| 0 | Contact upload readiness test | working | Fresh Admin file upload/reimport; reject invalid phones/secondary duplicates and ambiguous name matches; same-contact cross-role notes/status; blank template and release verification. |
+| 0 | Contact upload readiness test | done | v179 sourcec49f2b7 ready6ae37292984cffa3dc83c063;745tests. ActualCSV2new/1update/4skip, CSV+Excelreimport0new, same-contact office text/voice/email and private-role readback. BlankExceltemplate verified.48assets/13protected routes. See ../qa/2026-10-29-import-readiness.md. |
 | 0 | Extra phone numbers and simple contact activity | done | v178 source325844a ready6ae3699a72ef3dfc1b08ddcc;743tests, actual390px second-number save and contacted-filter transition, final320px nooverflow.48assets/13protected routes verified. See ../qa/2026-10-29-contact-simplicity.md. |
 | 0 | Admin import and shared phone prospecting | done | v177 source73e10ec ready6ae3635bda6ca3c5d51fc9a1;738tests, actual390px CSV duplicate skip and shared Admin/TeamLead notes, office voice/readback and role privacy.48assets/13protected routes verified. See ../qa/2026-10-29-contact-import.md. |
 | 0 | Clear verified test data and preserve real records | done | Removed2verifiedtestcontacts/1visit/1worksession/1voicenote/1explicitTESTONLYapplication+video;6linkedkeys. Recoverycopy+conditionalwrite; retained7contacts/6jobs/3cash/6staff/inventory/realapplications+media unchanged. Exact-ID stale-phone blocker734tests sourceea4aa41 ready6ae2b9941814af2ae5f83cee;47assets/13routes and live sign-in verified. Privateaudit output/audits/test-cleanup-20261028/. |
