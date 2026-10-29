@@ -813,7 +813,7 @@
     if(leadOwnerFilter&&!ownerOptions[leadOwnerFilter])leadOwnerFilter='';
     if(!manager){leadOwnerFilter='';leadDueFilter='';}
     var operationsFilters=manager?'<div class="field-inline"><label for="leadOwnerFilter">Salesperson</label><select id="leadOwnerFilter"><option value="">All salespeople</option>'+Object.keys(ownerOptions).sort(function(a,b){return ownerOptions[a].localeCompare(ownerOptions[b]);}).map(function(key){return '<option value="'+esc(key)+'">'+esc(ownerOptions[key])+'</option>';}).join('')+'</select></div><div class="field-inline"><label for="leadDueFilter">Follow-ups</label><select id="leadDueFilter"><option value="">All follow-ups</option><option value="today">Due today</option><option value="overdue">Overdue</option><option value="upcoming">Upcoming</option><option value="unscheduled">Not scheduled</option></select></div>':'';
-    content.innerHTML = dealHealthOverview()+(manager?'<details class="card"><summary>Sales team follow-ups</summary>'+leadSalespersonSummary()+'</details>':'')+'<section class="card"><div class="toolbar lead-toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Find a contact" value="'+esc(leadQuery)+'"></div><div class="filter-row lead-filter-row"><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="all">All contacts</option><option value="attention">Needs attention</option><option value="today">Due today</option><option value="deferred">Deferred contacts</option><option value="mine">My contacts</option><option value="sent">Sent for a visit</option><option value="inbox">Ready for a visit</option>'+'</select></div>'+(manager?'<details class="contact-filters"><summary>Salesperson and follow-up dates</summary>'+operationsFilters+'</details>':'')+'</div></div>'+(manager?'<button class="btn btn-ghost btn-sm" data-reset-lead-filters>Clear filters</button>':'')+'<p class="helper">Operations can see these contacts. Sending a contact marks it ready; it does not book a visit.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
+    content.innerHTML = (isAdmin()?'<section class="card"><h2>Add a contact list</h2><p>Upload Excel or CSV. Operations and Team Lead can call from the same list. You can handle emails.</p><div class="button-row"><button class="btn btn-primary" data-import-leads>Import contact list</button><button class="btn btn-ghost" data-lead-template>Download template</button></div></section>':'')+dealHealthOverview()+(manager?'<details class="card"><summary>Sales team follow-ups</summary>'+leadSalespersonSummary()+'</details>':'')+'<section class="card"><div class="toolbar lead-toolbar"><div class="search"><input id="leadSearch" type="search" placeholder="Search name, phone or area" aria-label="Find a contact" value="'+esc(leadQuery)+'"></div><div class="filter-row lead-filter-row"><div class="field-inline"><label for="leadMode">Show</label><select id="leadMode"><option value="all">All contacts</option><option value="imported">Imported call list</option><option value="attention">Needs attention</option><option value="today">Due today</option><option value="deferred">Deferred contacts</option><option value="mine">My contacts</option><option value="sent">Sent for a visit</option><option value="inbox">Ready for a visit</option>'+'</select></div>'+(manager?'<details class="contact-filters"><summary>Salesperson and follow-up dates</summary>'+operationsFilters+'</details>':'')+'</div></div>'+(manager?'<button class="btn btn-ghost btn-sm" data-reset-lead-filters>Clear filters</button>':'')+'<p class="helper">Operations, Team Lead and Admin share this contact and its updates. Tap Call, then add a note or voice note. Ben handles emails.</p><p class="result-note" id="leadCount"></p><div class="card-grid" id="leadGrid"></div></section>';
     document.getElementById('leadMode').value = leadListMode;
     if(manager){document.getElementById('leadOwnerFilter').value=leadOwnerFilter;document.getElementById('leadDueFilter').value=leadDueFilter;}
     updateLeadGrid();
@@ -845,7 +845,7 @@
     var rows=dealContacts().filter(function(p){
       if(!p?.id)return false;
       var request=readyUser===me.id?readyData.items.find(function(c){return c.contactId===p.id;}):null,sent=request?request.state!=='returned':!!p.handoffAt;
-      var inList=['attention','today'].includes(leadListMode)?L.health(p,request,dueToday).key===leadListMode:leadListMode==='deferred'?L.deferred(p)&&(!request||request.state==='returned'):leadListMode==='all'?true:leadListMode==='inbox'?sent&&!request?.visit?.doneAt:leadListMode==='sent'?sent:L.own(p,me);
+      var inList=leadListMode==='imported'?window.VeriskoLeadImport.callList(p):['attention','today'].includes(leadListMode)?L.health(p,request,dueToday).key===leadListMode:leadListMode==='deferred'?L.deferred(p)&&(!request||request.state==='returned'):leadListMode==='all'?true:leadListMode==='inbox'?sent&&!request?.visit?.doneAt:leadListMode==='sent'?sent:L.own(p,me);
       return inList&&L.matchesFilters(p,{owner:leadOwnerFilter,due:leadDueFilter,today:dueToday})&&[p.business,p.contact,p.phone,p.location,p.createdBy,p.notes,p.nextAction].join(' ').toLowerCase().indexOf(search)!==-1;
     }).sort(function(a,b){return (a.followUp||'9999').localeCompare(b.followUp||'9999');});
     document.getElementById('leadCount').textContent=rows.length+' '+(rows.length===1?'contact':'contacts');
@@ -855,8 +855,8 @@
       return xCard({key:'l:'+p.id,cls:overdue?'tone-amber':'tone-navy',title:esc(p.business),chip:chip(window.VeriskoSalesWorkspace.progress(queueItem,p),queueItem||p.handoffAt?'cyan':'grey'),meta:esc([p.contact,p.location].filter(Boolean).join(' · ')),
        next:{tone:overdue?'amber':'muted',text:(p.followUp?'Follow up '+dateLabel(p.followUp)+' · ':'')+(L.deferred(p)?p.deferredReason||'Add the reason for waiting':p.nextAction||'Plan your next conversation')},
        summary:dealHealthLine(p,queueItem)+leadContactSummary(p),
-       quick:'<button type="button" class="btn btn-primary btn-sm" data-open-contact="'+esc(p.id)+'">Open contact</button>'+callBtn(p.phone)+voiceButton(p.id)+(prospect(p.id)?'<button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button>':''),
-       lines:line('Contact status',esc(p.leadStatus||'New contact'))+line('Phone',esc(p.phone))+line('Notes',esc(p.notes||'No notes yet'))+(p.handoffAt?line('Handover',esc((p.handoffBy||p.createdBy||'Sales')+' · '+dateLabel(p.handoffAt.slice(0,10))))+line('Request',esc(p.handoffNote||'Contact is ready for the team to follow up')):'')+followUpSummaryLine(p),
+       quick:'<button type="button" class="btn btn-primary btn-sm" data-open-contact="'+esc(p.id)+'">Open contact</button>'+callBtn(p.phone)+(isAdmin()&&window.VeriskoLeadImport.emailHref(p.email)?'<a class="btn btn-sm btn-ghost" href="'+esc(window.VeriskoLeadImport.emailHref(p.email))+'">Email</a>':'')+voiceButton(p.id)+(prospect(p.id)?'<button class="btn btn-sm btn-ghost" data-log-followup="'+esc(p.id)+'">Follow-up</button>':''),
+       lines:line('Contact status',esc(p.leadStatus||'New contact'))+line('Phone',esc(p.phone))+line('Email',esc(p.email||'Not saved'))+line('Notes',esc(p.notes||'No notes yet'))+(p.handoffAt?line('Handover',esc((p.handoffBy||p.createdBy||'Sales')+' · '+dateLabel(p.handoffAt.slice(0,10))))+line('Request',esc(p.handoffNote||'Contact is ready for the team to follow up')):'')+followUpSummaryLine(p),
        more:(mine?'<button class="btn btn-sm btn-ghost" data-edit-lead="'+esc(p.id)+'">Edit contact</button>':'')+
         ((mine&&(!queueItem||queueItem.state==='returned'))?'<button class="btn btn-sm btn-primary" data-lead-send="operations" data-lead-id="'+esc(p.id)+'">Ready for site visit</button>':'')+
         (receive&&(!queueItem||queueItem.ownerId===me.id||me.role==='admin')?'<button class="btn btn-sm btn-ghost" data-lead-convert="'+esc(p.id)+'">Move to Prospects</button>':'')});
@@ -883,14 +883,14 @@
       field('leadStatus','What did they say?','select',p.leadStatus||'New contact',{full:true,options:leadTools().STATUSES})+
       field('followUp','Next follow-up','date',p.followUp,{full:true})+
       '<div id="deferredFields" class="full"'+(leadTools().deferred(p)?'':' hidden')+'>'+field('deferredReason','Why are they waiting?','text',p.deferredReason,{full:true})+'<p class="helper">Choose a follow-up date above. This stays on the same contact.</p></div>'+
-      '<details class="full"><summary>Extra notes (optional)</summary>'+field('contact','Person you spoke with','text',p.contact,{full:true})+
+      '<details class="full"><summary>Extra notes (optional)</summary>'+field('contact','Person you spoke with','text',p.contact,{full:true})+field('email','Email (optional)','email',p.email,{full:true})+
       field('nextAction','What will you do next?','text',p.nextAction,{full:true,placeholder:'Call on Friday to discuss cameras'})+
       field('notes','Notes','textarea',p.notes,{full:true})+'</details>';
   }
   function saveLead(data) {
     var L=leadTools(),prev=editing.id?prospect(editing.id):null;
     var error=L.check(data,state.prospects||[],editing.id);if(error){showFormError(error);return;}
-    if(prev&&!ownProspect(prev)){showFormError('Only the salesperson who saved this contact can edit its details.');return;}
+    if(prev&&!ownProspect(prev)&&!isAdmin()){showFormError('Only the salesperson who saved this contact can edit its details.');return;}
     var me=settings.user||{},p=Object.assign({},prev||{},data,{id:editing.id||uid(),leadOnly:prev?prev.leadOnly===true:true,phone:window.VeriskoLeadImport.normalizePhone(data.phone),stage:prev?.stage||'New prospect',reviewStatus:prev?.reviewStatus||'draft',qualStatus:prev?.qualStatus||'',created:prev?prev.created:today,createdBy:prev?prev.createdBy:me.name,createdByEmail:prev?prev.createdByEmail:me.email,followUps:prev?prev.followUps:[]});
     stampPlan(p);
     if(prev)state.prospects[state.prospects.findIndex(function(x){return x.id===p.id;})]=p;else state.prospects.push(p);
@@ -2578,7 +2578,7 @@
     var li = state.config && state.config.lastImport;
     return '<section class="card settings-card"><h2>Import leads from Excel</h2>' +
       "<p>Upload a call list (.xlsx, .xls or .csv) — for example businesses found on Instagram or Google search. Each row becomes a lead for the Team lead and Operations to call. A row whose phone number (or business name) is already in the app updates that lead's details instead — its stage, owner and call history stay. Imported leads earn no commission.</p>" +
-      '<p class="settings-note">First row = headings: <strong>Business name, Contact name, Phone, Location, Category, Source, Notes, Assigned to</strong>. Only Phone is required; similar headings (Client, Mobile, WhatsApp, Area…) are recognised.</p>' +
+      '<p class="settings-note">First row = headings: <strong>Business name, Contact name, Phone, Email, Location, Category, Source, Notes, Assigned to</strong>. Only Phone is required; similar headings (Client, Mobile, WhatsApp, Area…) are recognised.</p>' +
       '<div class="button-row"><button class="btn btn-primary" data-import-leads>Choose Excel file…</button>' +
       '<button class="btn btn-ghost" data-lead-template>Download template</button></div>' +
       (li ? '<p class="settings-note">Last import: ' + esc(li.file || "file") + " · " + esc(dateTimeLabel(li.at)) + " · " + (li.added || 0) + " new, " + (li.updated || 0) + " updated by " + esc(li.by || "—") +
@@ -2592,6 +2592,7 @@
   async function readLeadFile(file) {
     if (!file || !isAdmin()) return;
     if (file.size > 5 * 1024 * 1024) { toast("That file is over 5 MB — split it and import it in parts."); return; }
+    var importUser=settings.user?.id,importGeneration=sessionGeneration;
     toast("Reading " + file.name + "…");
     var rows;
     try {
@@ -2600,6 +2601,7 @@
       var ws = wb.Sheets[wb.SheetNames[0]];
       rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "", blankrows: true });
     } catch (e) { toast((e && /load/i.test(e.message || "")) ? e.message : "Couldn't read that file. Save it as .xlsx or .csv and try again."); return; }
+    if(!isAdmin()||settings.user?.id!==importUser||sessionGeneration!==importGeneration)return;
     var I = window.VeriskoLeadImport;
     var parsed = I.parseRows(rows);
     if (parsed.error) { toast(parsed.error); return; }
@@ -2610,22 +2612,23 @@
     var I = window.VeriskoLeadImport;
     var users = state.users || [];
     var byRole = function (r) { return users.filter(function (u) { return normRole(u.role) === r; }); };
-    var owners = byRole("teamlead").concat(byRole("sales"), byRole("operations"), byRole("admin"));
+    var owners = byRole("operations").concat(byRole("teamlead"), byRole("admin"));
     if (!owners.length) owners = [settings.user || {}];
+    var importUser=settings.user?.id,importGeneration=sessionGeneration;
     var fresh = plan.filter(function (x) { return !x.match; }), updates = plan.filter(function (x) { return x.match; });
     var unknown = {};
-    if (parsed.map.assignedTo !== undefined) fresh.forEach(function (x) { if (x.lead.assignedTo && !I.findUser(users, x.lead.assignedTo)) unknown[x.lead.assignedTo] = true; });
+    if (parsed.map.assignedTo !== undefined) fresh.forEach(function (x) { if (x.lead.assignedTo && !I.findUser(owners, x.lead.assignedTo)) unknown[x.lead.assignedTo] = true; });
     var unknownList = Object.keys(unknown);
     var dlg = document.getElementById("askDialog");
     var line = function (n, text) { return '<div class="item-line"><span class="k">' + n + '</span><span class="v">' + text + "</span></div>"; };
-    dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Import leads</h2><p class="ask-body">' + esc(fileName) + "</p></div>" +
+    dlg.innerHTML = '<div class="ask-head"><h2 id="askTitle">Import contacts</h2><p class="ask-body">' + esc(fileName) + "</p></div>" +
       '<div class="item-lines" style="margin-bottom:10px">' +
         line(fresh.length, "new " + (fresh.length === 1 ? "lead" : "leads") + " to call") +
         line(updates.length, "existing " + (updates.length === 1 ? "lead" : "leads") + " updated (phone, contact, location…)") +
         line(parsed.skipped.length, "rows skipped") + "</div>" +
       (parsed.skipped.length ? '<p class="ask-body" style="font-size:.85em">' + parsed.skipped.slice(0, 6).map(function (k) { return "Row " + k.row + ": " + esc(k.reason); }).join("<br>") + (parsed.skipped.length > 6 ? "<br>…and " + (parsed.skipped.length - 6) + " more" : "") + "</p>" : "") +
       (fresh.length ? '<p class="ask-body" style="font-size:.85em;color:var(--muted)">' + fresh.slice(0, 3).map(function (x) { return esc(x.lead.business) + " · " + esc(x.lead.phone); }).join("<br>") + (fresh.length > 3 ? "<br>…" : "") + "</p>" : "") +
-      '<div class="field"><label for="impOwner">Give new leads to</label><select id="impOwner">' + owners.map(function (u, i) {
+      '<div class="field"><label for="impOwner">Person making the first calls</label><select id="impOwner">' + owners.map(function (u, i) {
         return '<option value="' + esc(u.email || "") + '"' + (i === 0 ? " selected" : "") + ">" + esc((u.name || u.email || "Me") + " · " + roleName(u)) + "</option>";
       }).join("") + "</select>" + (parsed.map.assignedTo !== undefined ? '<p class="helper">Rows with an “Assigned to” name or email go to that person instead.</p>' : "") + "</div>" +
       (unknownList.length ? '<p class="ask-body" style="color:var(--amber)">Not on the team, so those rows go to the person above: ' + esc(unknownList.slice(0, 5).join(", ")) + (unknownList.length > 5 ? "…" : "") + "</p>" : "") +
@@ -2637,6 +2640,7 @@
     dlg.querySelector("#askCancel").addEventListener("click", onCancel);
     dlg.addEventListener("cancel", onCancel, { once: true });
     dlg.querySelector("#askOk").addEventListener("click", function () {
+      if(!isAdmin()||settings.user?.id!==importUser||sessionGeneration!==importGeneration){dlg.close();return;}
       var owner = dlg.querySelector("#impOwner").value, src = dlg.querySelector("#impSource").value, date = dlg.querySelector("#impDate").value || today;
       dlg.close();
       applyLeadImport(fileName, plan, owner, src, date);
@@ -2649,11 +2653,12 @@
     var me = settings.user || {}, users = state.users || [];
     var lc = function (v) { return String(v || "").toLowerCase(); };
     var owner = users.find(function (u) { return lc(u.email) === lc(ownerEmail); }) || me;
+    plan=I.plan(plan.map(function(x){return x.lead;}),state.prospects||[]);
     var batch = uid(), at = nowIso(), added = 0, updated = 0;
     plan.forEach(function (x) {
       var l = x.lead;
       if (x.match) { if (I.applyUpdate(x.match, l).length) updated++; return; }
-      var who = (l.assignedTo && I.findUser(users, l.assignedTo)) || owner;
+      var who = (l.assignedTo && I.findUser(users.filter(function(u){return ["admin","operations","teamlead"].includes(normRole(u.role));}), l.assignedTo)) || owner;
       var p = {
         id: uid(), business: l.business, vertical: l.vertical || "Other", contact: l.contact, phone: l.phone, phone2: l.phone2, email: l.email,
         location: l.location, decisionMaker: "Unknown", concern: "", existing: "", areas: "", budget: "",
@@ -2668,7 +2673,7 @@
     if (!state.config || typeof state.config !== "object") state.config = defaultConfig();
     state.config.lastImport = { id: batch, at: at, by: me.name || "", file: fileName, added: added, updated: updated };
     saveData("Imported " + added + " new " + (added === 1 ? "lead" : "leads") + (updated ? " · updated " + updated : "") + " — ready to call");
-    render();
+    view='leads';leadListMode='imported';leadQuery='';leadOwnerFilter='';leadDueFilter='';render();
   }
   async function undoLeadImport() {
     var li = state.config && state.config.lastImport;
@@ -3762,7 +3767,7 @@
   // One sheet for every role: what happened on the call, notes, and when to
   // follow up next. Reps on their own prospect also stamp their GPS (proof of
   // visit); Team lead / Operations calls from the office don't need it.
-  var FOLLOW_OUTCOMES = ["Answered", "No answer", "Call back later", "Not interested", "Visited", "Messaged", "Quoted"];
+  var FOLLOW_OUTCOMES = ["Email sent", "Email reply", "Answered", "No answer", "Call back later", "Not interested", "Visited", "Messaged", "Quoted"];
   function logFollowUp(id) {
     var p = prospect(id);
     if (!p || !p.id) return;
@@ -3778,8 +3783,8 @@
         return '<div class="followup-item"><div class="followup-meta">' + esc(dateTimeLabel(f.at)) + " · " + esc(f.by || "—") + '</div><div class="followup-note">' + esc(f.note || "") + (f.voiceNoteId?voiceButton(p.id):'')+"</div></div>";
       }).join("") + "</div>" : "") +
       (tries >= 2 && canDisqualify(p) ? '<p class="ask-body" style="color:var(--red)">' + tries + " unanswered calls so far — you can disqualify this lead from its card.</p>" : "") +
-      '<div class="ask-choices" role="group" aria-label="What happened">' + FOLLOW_OUTCOMES.map(function (c) { return '<button type="button" class="ask-chip" data-choice="' + esc(c) + '">' + esc(c) + "</button>"; }).join("") + "</div>" +
-      '<label for="fuNote">Conversation notes</label><textarea class="ask-input" id="fuNote" rows="3" placeholder="Call notes — what did they say?"></textarea>' +
+      '<div class="ask-choices" role="group" aria-label="What happened">' + FOLLOW_OUTCOMES.filter(function(c){return isAdmin()||!/^Email /.test(c);}).map(function (c) { return '<button type="button" class="ask-chip" data-choice="' + esc(c) + '">' + esc(c) + "</button>"; }).join("") + "</div>" +
+      '<label for="fuNote">What happened?</label><textarea class="ask-input" id="fuNote" rows="3" placeholder="Write a short call, email or visit update"></textarea>' +
       '<div class="field"><label for="fuDate">Next follow-up</label><input id="fuDate" type="date" value="' + esc(nextDate) + '"></div>' +
       '<div class="field"><label for="fuAction">Next action</label><input id="fuAction" type="text" list="fuActionList" autocomplete="off" placeholder="Tap a suggestion or type" value="' + esc(p.nextAction || "") + '">' +
       '<datalist id="fuActionList">' + NEXT_ACTIONS.map(function (a) { return "<option>" + esc(a) + "</option>"; }).join("") + "</datalist></div>" +

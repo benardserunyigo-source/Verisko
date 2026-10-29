@@ -22,7 +22,7 @@
     website: ["website", "link", "url", "instagram", "instagram link", "instagram handle", "handle", "ig handle", "profile", "google maps", "maps link"],
     supplied: ["date supplied", "date", "date received", "enquiry date"]
   };
-  var TEMPLATE = ["Business name", "Contact name", "Phone", "Location", "Category", "Source", "Notes", "Assigned to"];
+  var TEMPLATE = ["Business name", "Contact name", "Phone", "Email", "Location", "Category", "Source", "Notes", "Assigned to"];
   // Same list as the prospect form (app.js VERTICALS).
   var VERTICALS = ["Pharmacy", "Clinic", "Hospital", "Mobile money", "Retail shop", "Supermarket", "School", "Office", "Warehouse", "Residence", "Other"];
 
@@ -60,6 +60,20 @@
   // Comparable phone: the last 9 digits.
   function phoneKey(v) { var d = String(v || "").replace(/\D/g, ""); return d.length >= 9 ? d.slice(-9) : ""; }
   function nameKey(v) { return key(v); }
+
+  function emailHref(v) {
+    var email = clean(v);
+    return /^[^\s@<>?&#]+@[^\s@<>?&#]+\.[^\s@<>?&#]+$/.test(email) ? "mailto:" + encodeURIComponent(email) : "";
+  }
+  function callList(p) { return !!p && p.imported === true; }
+  function guardImports(stored, incoming, user) {
+    if (user && user.role === "admin") return;
+    var known = new Map((stored || []).map(function(p){return [p.id,p];}));
+    (incoming || []).forEach(function(p){
+      var prev=known.get(p.id);
+      if (p.imported && (!prev || !prev.imported)) throw new Error("Only Admin can import a contact list.");
+    });
+  }
 
   function guessVertical(v) {
     var k = key(v);
@@ -169,7 +183,7 @@
   }
 
   var api = { COLUMNS: COLUMNS, TEMPLATE: TEMPLATE, mapHeaders: mapHeaders, normalizePhone: normalizePhone, phoneKey: phoneKey,
-    guessVertical: guessVertical, guessSource: guessSource, parseRows: parseRows, plan: plan, applyUpdate: applyUpdate, findUser: findUser };
+    emailHref: emailHref, callList: callList, guardImports: guardImports, guessVertical: guessVertical, guessSource: guessSource, parseRows: parseRows, plan: plan, applyUpdate: applyUpdate, findUser: findUser };
   root.VeriskoLeadImport = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

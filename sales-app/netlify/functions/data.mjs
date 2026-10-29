@@ -12,6 +12,7 @@ import {firstClientPayment} from './lib/ready-payments.mjs';
 import {loadReadyCases,projectReady} from './lib/ready-progress.mjs';
 import {ROLES,guardRoster,visibleRoster,guardCash,checkPhotoLinks,safeUser} from './access.mjs';
 import '../../lead-pipeline.js';
+import '../../lead-import.js';
 // Verisko Sales Visit Planner — shared data API backed by Netlify Blobs.
 //
 // Every request must carry a session (Authorization: Bearer <token>): either a
@@ -140,6 +141,8 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
         clean.installations = Array.isArray(data.installations) ? data.installations : [];
       }
 
+      try { globalThis.VeriskoLeadImport.guardImports(storedProspects,clean.prospects,me); }
+      catch(error) { return json({ok:false,error:error.message},403,headers); }
       try { clean.prospects = globalThis.VeriskoLeadPipeline.guard(storedProspects,clean.prospects,{...me,email},clean.appointments,canReview?clean.jobs:storedJobs); }
       catch(error) { return json({ok:false,error:error.message},400,headers); }
 

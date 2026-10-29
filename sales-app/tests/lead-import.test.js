@@ -98,3 +98,45 @@ test("headings under a title row are found; handle, enquiry and date go into not
   assert.equal(r.leads[0].notes, "Door-camera enquiry; asked how to order · IG @rajesh.pathak.37604 · Supplied 8 Sep 2026");
   assert.equal(r.leads[0].row, 6);
 });
+
+test('call-list template includes email and safe mail links cannot inject mail headers',()=>{
+ assert.ok(I.TEMPLATE.includes('Email'));
+ assert.equal(I.emailHref('hello@example.com'),'mailto:hello%40example.com');
+ for(const v of ['x@example.com?bcc=secret@example.com','a@b.com\nBcc: x@y.com','bad','javascript:alert(1)'])assert.equal(I.emailHref(v),'');
+});
+test('only Admin adds imports; office staff retain existing shared imported contacts',()=>{
+ const p={id:'p',imported:true,stage:'New prospect',followUps:[]};
+ assert.doesNotThrow(()=>I.guardImports([], [p],{role:'admin'}));
+ for(const role of ['operations','teamlead','sales','installer']){
+  assert.throws(()=>I.guardImports([], [p],{role}),/Only Admin/);
+  assert.throws(()=>I.guardImports([{id:'p'}],[p],{role}),/Only Admin/);
+  assert.doesNotThrow(()=>I.guardImports([p],[{...p,followUps:[{note:'Called'}]}],{role}));
+ }
+ assert.equal(I.callList(p),true);assert.equal(I.callList({imported:false}),false);
+});
+test('replanning the same file uses the original contact and keeps text, voice, owner and stage',()=>{
+ const lead=I.parseRows([['Business name','Phone','Email'],['Sample Shop','0772000111','shop@example.com']]).leads[0];
+ const p={...lead,id:'same',imported:true,createdByEmail:'operations@example.com',stage:'Appointment confirmed',followUps:[{note:'Called',byEmail:'lead@example.com'},{voiceNoteId:'voice-1'}]};
+ const original=structuredClone(p);
+ const plan=I.plan([lead],[p]);assert.equal(plan[0].match.id,'same');I.applyUpdate(plan[0].match,lead);assert.deepEqual(p,original);
+});
+
+test('imported contact stays shared across office roles with one text and voice history',async()=>{
+ const {journeyFixture}=await import('./helpers/journey-fixture.mjs');const f=await journeyFixture();
+ const p={id:'call-list-one',business:'SAMPLE Call Shop',phone:'+256 772 000 111',email:'sample@example.com',imported:true,importBatch:'sample-list',createdByEmail:'operations@test.invalid',createdBy:'TEST operations',stage:'New prospect',followUps:[]};
+ assert.equal((await f.save('operations',d=>d.prospects.push(p))).status,403);
+ assert.equal((await f.save('admin',d=>d.prospects.push(p))).status,200);
+ for(const role of ['admin','operations','teamlead'])assert.equal((await f.workspace(role)).prospects.length,1);
+ assert.equal((await f.workspace('sales')).prospects.length,0);
+ assert.equal((await f.workspace('installer')).prospects.length,0);
+ for(const role of ['operations','teamlead','admin'])assert.equal((await f.save(role,d=>{d.prospects[0].followUps.push({at:new Date().toISOString(),byEmail:role+'@test.invalid',by:role,outcome:role==='admin'?'Email sent':'Answered',note:role+' update'});})).status,200);
+ const audio=Buffer.concat([Buffer.from('1a45dfa3','hex'),Buffer.alloc(20)]).toString('base64');
+ const body={contactId:p.id,requestId:'sample-import-voice',audio,mimeType:'audio/webm',durationSeconds:5,caption:'Sample call update'};
+ assert.equal((await f.api('voice','operations',body)).status,200);
+ assert.equal((await f.api('voice','operations',body)).status,200);
+ for(const role of ['admin','operations','teamlead']){
+  const notes=await f.api('voice',role,null,'?contactId='+p.id);assert.equal(notes.notes.length,1);
+  const d=await f.workspace(role);assert.equal(d.prospects.length,1);assert.equal(d.prospects[0].followUps.length,4);
+ }
+ const d=await f.raw();assert.equal(d.jobs.length,0);assert.equal(d.transactions.length,0);assert.equal(d.prospects[0].createdByEmail,p.createdByEmail);
+});
