@@ -641,3 +641,5 @@ Release verified v177 source73e10ec, Netlifyready6ae3635bda6ca3c5d51fc9a1.48asse
 
 ## Two phone numbers and progressive contact detail
 Owner requested more than one number, clear contacted/not-yet view and progressive disclosure. Main+optional phone2 form/template/search/call links, saved-history-derived Contacted/Not contacted filter, no dialler-open inference. Compact office Call/Add update/Details; extra voice/email/site tools/history only in Details; short contact edit form and reports below list. Sales keeps one-tap send and hides optional controls.743tests and actual390px secondary save/filter transition, final320px nooverflow. No production data changes; v178 release verification next. See ../qa/2026-10-29-contact-simplicity.md.
+
+Release verified v178 source325844a ready6ae3699a72ef3dfc1b08ddcc;48assets/12APIJSON401+receipt403. Contact list before optional reports, clean320px/390px interactions. No real contacts/calls/messages changed. Next approved request or existing Android device pilot.

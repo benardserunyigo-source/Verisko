@@ -8,4 +8,4 @@ Office cards show name/status, area, next date and Call / Add update / Details. 
 
 743 tests pass, including second-number validation/duplicate/readback across office roles, text/voice activity classification, import/reimport and closed Sales details. Actual390px Operations: change second number, save on same ID, filter Not contacted → save No answer note → same contact appears once under Contacted. Final320px phone layout checked, width320/scrollWidth320, no sideways overflow; second number is a tel link inside Details. Sample-only localhost evidence in output/audits/contact-simplicity-20261029. No real records/messages/calls modified. Existing Android handset pilot remains separate.
 
-Release verification pending.
+Released v178 source325844a, Netlify ready6ae3699a72ef3dfc1b08ddcc.48public assets match,12private APIJSON401+receiptJSON403. No real contact/financial/account writes or handset acceptance claim.
