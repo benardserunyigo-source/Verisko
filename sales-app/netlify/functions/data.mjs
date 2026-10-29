@@ -1,3 +1,4 @@
+import {withoutRetiredTests} from './lib/retired-test-records.mjs';
 import {guardFundRequests,guardOperationsCash,ownSalesPay,operationsMoneyView} from './lib/operations-cash.mjs';
 import {callbackRecords} from './lib/callbacks-core.mjs';
 import {projectCallbackCash,guardCallbackCash} from './lib/callback-cash.mjs';
@@ -43,6 +44,8 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
     // 1) Load data and identify the caller (email or staff PIN session).
     const store = storeFor({name:STORE,consistency:'strong'});
     let data = (await store.get(KEY, { type: "json" })) || EMPTY;
+    const retiredTests=await storeFor({name:'verisko-maintenance',consistency:'strong'}).get('retired-test-records',{type:'json'})||{};
+    data=withoutRetiredTests(data,retiredTests);
     const users = Array.isArray(data.users) ? data.users : [];
     const who = await identifyRequest(request, data, { authStore: storeFor({name:AUTH_STORE,consistency:'strong'}), now: Date.now(), supabaseUser });
     if (who.error) return json({ ok: false, error: who.error }, who.status, headers);
@@ -61,6 +64,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
       return json({ok:true,data:{...EMPTY,users:[safeUser(me)]}},200,headers);
     }
     const readyCases=projectWarehouseCases(await loadReadyCases(storeFor({name:'verisko-ready-cases',consistency:'strong'})),await storeFor({name:'verisko-inventory',consistency:'strong'}).get('current',{type:'json'})||{});
+    readyCases.splice(0,readyCases.length,...readyCases.filter(c=>!(retiredTests.prospects||[]).includes(c.contactId)));
     const installationProgress=await loadInstallationProgress(storeFor({name:'verisko-installations',consistency:'strong'}));
     const voiceNotes=await loadVoiceNotes(storeFor({name:'verisko-voice-notes',consistency:'strong'}));
     const clientPlans=await loadClientPlans(storeFor({name:'verisko-client-plans',consistency:'strong'}));
@@ -99,7 +103,7 @@ export function createDataHandler({storeFor=getStore,identifyRequest=identify}={
     if (request.method === "POST") {
       const payload = await request.json().catch(() => ({}));
       if (!payload || !payload.data) throw new Error("Missing application data.");
-      const incoming = stripVoice(payload.data);
+      const incoming = withoutRetiredTests(stripVoice(payload.data),retiredTests);
       data=stripVoice(data);
       const storedTx = Array.isArray(data.transactions) ? data.transactions : [];
       const storedProspects = Array.isArray(data.prospects) ? data.prospects : [];

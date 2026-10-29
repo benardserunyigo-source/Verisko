@@ -127,3 +127,8 @@ test('queue payment cannot be approved or duplicated through a general workspace
  body.transactions.push({id:'duplicate-payment',direction:'in',prospectId:'mine',amount:2000000,status:'pending'});assert.equal((await f.post(body)).status,409);
  }
 });
+test('a stale phone cannot restore exact retired test contacts through the shared API',async()=>{
+ const f=fixture(sales),stale=f.read();f.photos.set('retired-test-records',{prospects:['mine']});
+ const first=await(await f.get()).json();assert.equal(first.data.prospects.some(p=>p.id==='mine'),false);
+ const response=await f.post(stale);assert.equal(response.status,200,(await response.clone().text()));assert.equal(f.read().prospects.some(p=>p.id==='mine'),false);assert.equal(f.read().prospects.some(p=>p.id==='other'),true);assert.equal(f.read().transactions.length,stale.transactions.length);
+});

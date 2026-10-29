@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {withoutRetiredTests} from '../netlify/functions/lib/retired-test-records.mjs';
+test('exact test IDs are removed from stale saves without guessing from names or changing real records',()=>{
+ const real={id:'real-a',business:'Test equipment company',phone:'demo business name is not deletion permission'},testRow={id:'test-a',business:'Test'},cash={id:'real-cash',amount:100000},user={id:'owner',role:'admin'},data={prospects:[real,testRow],appointments:[{id:'test-visit'},{id:'real-visit'}],transactions:[cash],users:[user],config:{perVisit:15000}};
+ const cleaned=withoutRetiredTests(data,{prospects:['test-a'],appointments:['test-visit']});assert.deepEqual(cleaned.prospects,[real]);assert.deepEqual(cleaned.appointments,[{id:'real-visit'}]);assert.equal(cleaned.prospects[0],real);assert.equal(cleaned.transactions,data.transactions);assert.equal(cleaned.users,data.users);assert.equal(cleaned.config,data.config);assert.equal(data.prospects.length,2);assert.deepEqual(withoutRetiredTests(cleaned,{prospects:['test-a']}),cleaned);
+});
+test('missing cleanup list does not filter any customer, job, cash or staff record',()=>{const data={prospects:[{id:'demo'}],jobs:[{id:'test'}],transactions:[{id:'cash'}],users:[{id:'test-user'}]};assert.deepEqual(withoutRetiredTests(data),data);assert.deepEqual(withoutRetiredTests(data,{prospects:'not a list'}),data);});
