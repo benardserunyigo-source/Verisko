@@ -112,7 +112,10 @@
  function check(data,records,id){
   if(String(data.business||'').trim().length<2)return 'Add the business or contact name.';
   if(!/^\+?\d[\d\s()-]{7,20}$/.test(String(data.phone||'').trim())||phoneKey(data.phone).length!==9)return 'Add a valid phone number so you can follow up.';
-  if((records||[]).some(p=>p.id!==id&&phoneKey(p.phone)===phoneKey(data.phone)))return 'This phone number is already saved. Open the existing contact instead.';
+  if(data.phone2&&!/^\+?\d[\d\s()-]{7,20}$/.test(String(data.phone2).trim()))return 'Add a valid other phone number, or leave it empty.';
+  if(data.phone2&&phoneKey(data.phone2).length!==9)return 'Add a valid other phone number, or leave it empty.';
+  if(data.phone2&&phoneKey(data.phone2)===phoneKey(data.phone))return 'The two phone numbers are the same. Keep it once.';
+  if((records||[]).some(p=>p.id!==id&&[p.phone,p.phone2].some(n=>phoneKey(n)&&[data.phone,data.phone2].some(v=>phoneKey(v)&&phoneKey(n)===phoneKey(v)))))return 'This phone number is already saved. Open the existing contact instead.';
   return deferredError(data);
  }
  // Other reps' saved contacts survive older or scoped workspace writes.
@@ -130,8 +133,8 @@
     if(isLead(next)&&prev.handoffAt&&(!next.handoffTo||!next.handoffAt||next.handoffAt<prev.handoffAt))next={...next,handoffAt:prev.handoffAt,handoffTo:prev.handoffTo,handoffBy:prev.handoffBy,handoffByEmail:prev.handoffByEmail,handoffNote:prev.handoffNote};
    }
    if(isLead(next)){
-    if(!prev||phoneKey(prev.phone)!==phoneKey(next.phone)){
-     const duplicate=(stored||[]).some(x=>x.id!==next.id&&phoneKey(x.phone)===phoneKey(next.phone));
+    if(!prev||phoneKey(prev.phone)!==phoneKey(next.phone)||phoneKey(prev.phone2)!==phoneKey(next.phone2)){
+     const duplicate=(stored||[]).some(x=>x.id!==next.id&&[x.phone,x.phone2].some(n=>phoneKey(n)&&[next.phone,next.phone2].some(v=>phoneKey(v)&&phoneKey(n)===phoneKey(v))));
      const error=check(next,[],next.id);if(error||duplicate)throw new Error(duplicate?'This phone is already recorded. Ask your manager to check the existing contact.':error);
     }
     const legacyManager=next.handoffTo==='manager'&&prev?.handoffTo==='manager';

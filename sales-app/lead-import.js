@@ -22,7 +22,7 @@
     website: ["website", "link", "url", "instagram", "instagram link", "instagram handle", "handle", "ig handle", "profile", "google maps", "maps link"],
     supplied: ["date supplied", "date", "date received", "enquiry date"]
   };
-  var TEMPLATE = ["Business name", "Contact name", "Phone", "Email", "Location", "Category", "Source", "Notes", "Assigned to"];
+  var TEMPLATE = ["Business name", "Contact name", "Phone", "Phone 2", "Email", "Location", "Category", "Source", "Notes", "Assigned to"];
   // Same list as the prospect form (app.js VERTICALS).
   var VERTICALS = ["Pharmacy", "Clinic", "Hospital", "Mobile money", "Retail shop", "Supermarket", "School", "Office", "Warehouse", "Residence", "Other"];
 
@@ -65,6 +65,11 @@
     var email = clean(v);
     return /^[^\s@<>?&#]+@[^\s@<>?&#]+\.[^\s@<>?&#]+$/.test(email) ? "mailto:" + encodeURIComponent(email) : "";
   }
+  function contacted(p) {
+    if ((p && Array.isArray(p.followUps) ? p.followUps : []).some(function(f){return f && (f.note || f.outcome || f.voiceNoteId) && Number.isFinite(Date.parse(f.at));})) return true;
+    return !!p && (/^(Contact attempted|Qualified|Appointment proposed|Appointment confirmed|Site visit done|Quote sent|Quoted|In progress|Installed|Handed over|Closed sale)$/.test(p.stage || '') || !!p.readyProgress || !!p.handoffAt);
+  }
+  function matchesContacted(p,mode) { return mode === 'contacted' ? contacted(p) : mode === 'uncontacted' ? !contacted(p) : true; }
   function callList(p) { return !!p && p.imported === true; }
   function guardImports(stored, incoming, user) {
     if (user && user.role === "admin") return;
@@ -183,7 +188,7 @@
   }
 
   var api = { COLUMNS: COLUMNS, TEMPLATE: TEMPLATE, mapHeaders: mapHeaders, normalizePhone: normalizePhone, phoneKey: phoneKey,
-    emailHref: emailHref, callList: callList, guardImports: guardImports, guessVertical: guessVertical, guessSource: guessSource, parseRows: parseRows, plan: plan, applyUpdate: applyUpdate, findUser: findUser };
+    contacted: contacted, matchesContacted: matchesContacted, emailHref: emailHref, callList: callList, guardImports: guardImports, guessVertical: guessVertical, guessSource: guessSource, parseRows: parseRows, plan: plan, applyUpdate: applyUpdate, findUser: findUser };
   root.VeriskoLeadImport = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

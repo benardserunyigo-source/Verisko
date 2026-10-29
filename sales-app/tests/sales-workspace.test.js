@@ -26,3 +26,9 @@ test('deferred contacts do not send until the same contact is resumed',async()=>
  let called=false;await assert.rejects(S.sendContact({api:async()=>{called=true;},user,contact:p,requestId:'deferred-request'}));assert.equal(called,false);
  assert.equal(S.canSend({...p,leadStatus:'Following up'},null,user),true);
 });
+
+test('secondary number and voice controls stay inside closed contact details',()=>{
+ const html=S.contactCard({p:contact,c:null,user,esc:s=>String(s||''),call:'CALL',numbers:'OTHER_PHONE',voice:'VOICE_CONTROL',dateLabel:s=>s});
+ assert.ok(html.indexOf('CALL')<html.indexOf('<details>'));assert.ok(html.indexOf('data-log-followup')<html.indexOf('<details>'));
+ assert.ok(html.indexOf('OTHER_PHONE')>html.indexOf('<details>'));assert.ok(html.indexOf('VOICE_CONTROL')>html.indexOf('<details>'));assert.ok(!html.includes('<details open'));
+});

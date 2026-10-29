@@ -140,3 +140,27 @@ test('imported contact stays shared across office roles with one text and voice 
  }
  const d=await f.raw();assert.equal(d.jobs.length,0);assert.equal(d.transactions.length,0);assert.equal(d.prospects[0].createdByEmail,p.createdByEmail);
 });
+
+test('contacted filters use recorded updates, not opening the dialler or setting a date',()=>{
+ const p={stage:'New prospect',phone:'0772000111',phone2:'0772000222',followUp:'2026-11-01',notes:'Call tomorrow'};
+ assert.equal(I.contacted(p),false);assert.equal(I.matchesContacted(p,'uncontacted'),true);
+ assert.equal(I.contacted({...p,followUps:[{at:'2026-10-29T12:00:00Z',note:'No answer',outcome:'No answer'}]}),true);
+ assert.equal(I.contacted({...p,followUps:[{at:'2026-10-29T12:00:00Z',voiceNoteId:'audio-one'}]}),true);
+ assert.equal(I.contacted({...p,followUps:[{at:'bad',note:'x'}]}),false);
+ assert.equal(I.contacted({...p,stage:'Appointment confirmed'}),true);assert.equal(I.contacted({...p,stage:'Site visit done'}),true);
+ assert.equal(I.matchesContacted(p,'contacted'),false);
+});
+test('two phone numbers import and reimport onto the same contact',()=>{
+ const row=I.parseRows([['Name','Phone','Phone 2'],['SAMPLE Shop','0772000111','0772000222']]).leads[0];
+ assert.equal(row.phone2,'+256 772 000 222');assert.ok(I.TEMPLATE.includes('Phone 2'));
+ const stored={...row,id:'one'};assert.equal(I.plan([{business:'Other name',phone:'0772000222'}],[stored])[0].match.id,'one');
+ assert.deepEqual(I.applyUpdate(stored,row),[]);
+});
+
+test('two saved numbers survive office updates and contacted state comes from the shared history',async()=>{
+ const {journeyFixture}=await import('./helpers/journey-fixture.mjs');const f=await journeyFixture();const p={id:'phone-two',business:'SAMPLE Shop',phone:'0772000111',phone2:'0772000222',imported:true,createdByEmail:'operations@test.invalid',stage:'New prospect',followUps:[]};
+ assert.equal((await f.save('admin',d=>d.prospects.push(p))).status,200);
+ assert.equal(I.contacted((await f.workspace('teamlead')).prospects[0]),false);
+ assert.equal((await f.save('teamlead',d=>d.prospects[0].followUps.push({at:'2026-10-29T12:00:00Z',byEmail:'teamlead@test.invalid',note:'No answer',outcome:'No answer'}))).status,200);
+ for(const role of ['admin','operations','teamlead']){const row=(await f.workspace(role)).prospects[0];assert.equal(row.phone2,p.phone2);assert.equal(I.contacted(row),true);assert.equal(row.followUps.length,1);}
+});

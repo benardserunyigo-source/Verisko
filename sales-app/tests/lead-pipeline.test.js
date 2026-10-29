@@ -69,3 +69,12 @@ test('stage totals keep each contact once and move it through the same sales jou
 });
 
 test('client plan choice and approval show safe progress, payment dates and later receipt review still wins',()=>{const p={...draft(),followUp:'2026-11-10',planProgress:{sourceId:'quote-1',status:'chosen'}},c={state:'assigned',ownerId:'operations',quoteSent:{sourceId:'quote-1'}};assert.equal(L.stage(p,c),'Client chose a plan');assert.equal(L.health(p,c,'2026-10-28').key,'waiting');p.planProgress={sourceId:'quote-1',status:'approved',firstDue:'2026-11-01'};assert.equal(L.stage(p,c),'Payment plan approved');assert.equal(L.health(p,c,'2026-10-28').key,'track');assert.equal(L.health(p,c,'2026-11-01').key,'today');assert.equal(L.health(p,c,'2026-11-02').key,'attention');c.firstPayment={status:'pending'};assert.equal(L.stage(p,c),'Payment being checked');assert.equal(L.health(p,c,'2026-10-28').key,'waiting');c.firstPayment.status='query';assert.match(L.health(p,c,'2026-10-28').reason,/sent back/);c.firstPayment.status='approved';assert.equal(L.stage(p,c),'Client paid');assert.equal(L.health(p,c,'2026-10-28').key,'paid');});
+
+test('a second phone number saves and cannot duplicate a phone on another contact',()=>{
+ const p={...draft(),phone2:'0772000333'};assert.equal(L.check(p,[]),'');assert.equal(L.guard([],[p],rep)[0].phone2,p.phone2);
+ assert.match(L.check({...p,phone2:p.phone},[]),/same/);
+ assert.match(L.check({...p,phone2:'bad'},[]),/valid other/);
+ const other={id:'other',phone:'0772000444',phone2:p.phone2};
+ assert.match(L.check(p,[other]),/already saved/);
+ assert.throws(()=>L.guard([other],[p],rep),/already recorded/);
+});
