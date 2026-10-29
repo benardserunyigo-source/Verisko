@@ -182,6 +182,9 @@ export function createAuthHandler({storeFor=getStore,identifyRequest=identify,cl
 
     if(action==='createAdminPin'||action==='disableAdminPin'){
       const r=await adminPinCommand({action,body,request,auth,users:data.users||[],me,now});
+      if(r.body.ok&&action==='createAdminPin'&&r.body.userId===me.id){
+        return reply({...r.body,...await session(me.id,r.body.version,me,'admin-pin')});
+      }
       return reply(r.body,r.status);
     }
 

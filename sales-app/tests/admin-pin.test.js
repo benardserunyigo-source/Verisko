@@ -66,3 +66,11 @@ test('a second Admin cannot create a PIN for the protected workspace owner',asyn
  assert.equal((await f.call('createAdminPin',{userId:'admin'},'second-admin')).status,403);
  assert.equal((await f.call('createAdminPin',{userId:'second-admin'},'second-admin')).status,200);
 });
+test('Admin replacing their own PIN keeps this window signed in with a fresh session',async()=>{
+ const f=await fixture(),first=await f.call('createAdminPin',{userId:'admin'},'admin');
+ assert(first.token);assert.equal((await f.identity(first.token)).me.id,'admin');
+ const next=await f.call('createAdminPin',{userId:'admin'},'admin');
+ assert.equal((await f.identity(first.token)).status,401);assert.equal((await f.identity(next.token)).me.id,'admin');
+ assert.equal((await f.call('loginAdminPin',{pin:first.pin})).status,401);
+ assert.equal((await f.call('loginAdminPin',{pin:next.pin})).status,200);
+});

@@ -4552,7 +4552,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v180";
+  var APP_VERSION = "v181";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -5163,6 +5163,7 @@
     var r=await authApi({action:'createAdminPin',userId:userId},true);
     if(generation!==sessionGeneration||actor!==settings.user?.id||!isAdmin())return;
     if(!r.ok){toast(r.error||'Could not create a PIN.');return;}
+    if(r.token&&r.userId===settings.user?.id){settings.auth={access_token:r.token,expires_at:r.expiresAt,email:r.user.email,kind:'pin'};saveSettings();}
     var dlg=document.getElementById('askDialog');
     dlg.innerHTML='<div class="ask-head"><h2 id="askTitle">PIN for '+esc(r.name)+'</h2><p>Give this PIN only to '+esc(r.name)+'. It is shown once. You can create a new one if it is lost.</p></div><p class="pin-input" style="text-align:center;font-size:2rem;letter-spacing:.15em">'+esc(r.pin)+'</p><p class="settings-note">Open the Verisko app and enter this PIN. No phone number or email is needed.</p><div class="ask-actions"><button type="button" class="btn btn-primary" id="closeAdminPin">Done</button></div>';
     var close=function(){dlg.close();dlg.innerHTML='';};dlg.querySelector('#closeAdminPin').addEventListener('click',close);dlg.addEventListener('cancel',function(e){e.preventDefault();close();},{once:true});dlg.showModal();

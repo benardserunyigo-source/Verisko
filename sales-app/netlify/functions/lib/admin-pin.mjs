@@ -56,5 +56,5 @@ export async function adminPinCommand({action,body,request,auth,users,me,now}){
  if(!saved.modified){await auth.delete('admin-pin-key/'+lookup);return result(409,{ok:false,error:'This PIN changed. Open the person and try again.'});}
  if(old?.data?.lookup)await auth.delete('admin-pin-key/'+old.data.lookup);
  // Plain PIN is returned once to the creating Admin, never saved in shared data.
- return result(200,{ok:true,pin,name:user.name,userId:uid});
+ return result(200,{ok:true,pin,name:user.name,userId:uid,version});
 }
