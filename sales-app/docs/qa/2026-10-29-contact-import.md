@@ -8,4 +8,4 @@ Server rejects non-Admin creation of imported contacts. Office roles retain exis
 
 Verification: 738 tests passed, including real-handler Admin import → Operations/Team Lead read and text updates → one voice upload/retry → all three roles read the same four history entries. Sales/Installer denial and no new job/cash verified. Actual 390px app: uploaded a fictional CSV with three rows, preview skipped one duplicate, created two contacts, Admin saved an email update, Team Lead saw it and saved a call update. Evidence stays in output/audits/contact-import-20261029. No real contacts/messages/money modified. Physical Android microphone acceptance remains separate.
 
-Release verification pending.
+Released v177, source73e10ec, Netlify ready6ae3635bda6ca3c5d51fc9a1.48public assets match,12private APIJSON401 and receiptJSON403. Live app remains at normal sign-in; authenticated production record creation was not attempted. No real contact list was supplied or imported.
