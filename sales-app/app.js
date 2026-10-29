@@ -2561,7 +2561,7 @@
   // new lead for the Team lead / Operations to call, or updates the existing
   // lead with the same phone (else business name). Imported leads earn no
   // commission (commission.js skips `imported`). Parsing: lead-import.js.
-  var IMPORT_SOURCES = ["Instagram", "Google search", "Facebook", "Referral", "Other"];
+  var IMPORT_SOURCES = ["Other", "Instagram", "Google search", "Facebook", "Referral"];
   var xlsxLoading = null;
   function loadXlsx() {
     if (window.XLSX && window.XLSX.read) return Promise.resolve(window.XLSX);
@@ -2608,7 +2608,9 @@
     var parsed = I.parseRows(rows);
     if (parsed.error) { toast(parsed.error); return; }
     if (parsed.leads.length > 3000) { toast("That's " + parsed.leads.length + " rows — import at most 3,000 at a time."); return; }
-    openImportPreview(file.name, parsed, I.plan(parsed.leads, state.prospects || []));
+    var importPlan=I.plan(parsed.leads,state.prospects||[]);
+    importPlan.filter(function(x){return x.conflict;}).forEach(function(x){parsed.skipped.push({row:x.lead.row,reason:x.conflict});});
+    openImportPreview(file.name, parsed, importPlan.filter(function(x){return !x.conflict;}));
   }
   function openImportPreview(fileName, parsed, plan) {
     var I = window.VeriskoLeadImport;
@@ -2656,6 +2658,8 @@
     var lc = function (v) { return String(v || "").toLowerCase(); };
     var owner = users.find(function (u) { return lc(u.email) === lc(ownerEmail); }) || me;
     plan=I.plan(plan.map(function(x){return x.lead;}),state.prospects||[]);
+    var importConflicts=plan.filter(function(x){return x.conflict;}).length;
+    plan=plan.filter(function(x){return !x.conflict;});
     var batch = uid(), at = nowIso(), added = 0, updated = 0;
     plan.forEach(function (x) {
       var l = x.lead;
@@ -2674,7 +2678,7 @@
     });
     if (!state.config || typeof state.config !== "object") state.config = defaultConfig();
     state.config.lastImport = { id: batch, at: at, by: me.name || "", file: fileName, added: added, updated: updated };
-    saveData("Imported " + added + " new " + (added === 1 ? "lead" : "leads") + (updated ? " · updated " + updated : "") + " — ready to call");
+    saveData("Imported " + added + " new " + (added === 1 ? "lead" : "leads") + (updated ? " · updated " + updated : "") + " — ready to call"+(importConflicts?" · "+importConflicts+" changed rows skipped; review your file.":""));
     view='leads';leadListMode='imported';leadQuery='';leadOwnerFilter='';leadDueFilter='';render();
   }
   async function undoLeadImport() {

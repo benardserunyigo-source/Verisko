@@ -164,3 +164,15 @@ test('two saved numbers survive office updates and contacted state comes from th
  assert.equal((await f.save('teamlead',d=>d.prospects[0].followUps.push({at:'2026-10-29T12:00:00Z',byEmail:'teamlead@test.invalid',note:'No answer',outcome:'No answer'}))).status,200);
  for(const role of ['admin','operations','teamlead']){const row=(await f.workspace(role)).prospects[0];assert.equal(row.phone2,p.phone2);assert.equal(I.contacted(row),true);assert.equal(row.followUps.length,1);}
 });
+
+test('invalid phones and duplicate secondary numbers are skipped with spreadsheet row reasons',()=>{
+ const parsed=I.parseRows([['Name','Phone','Phone 2'],['SAMPLE Shop','0772000111','0772000222'],['SAMPLE Duplicate','0772000222',''],['SAMPLE Invalid','not-a-phone',''],['SAMPLE Other','0772000333','0772000111'],['SAMPLE Same','0772000444','0772000444']]);
+ assert.equal(parsed.leads.length,2);assert.deepEqual(parsed.skipped.map(x=>x.row),[3,4,5]);assert.match(parsed.skipped[0].reason,/row 2/);assert.equal(parsed.leads[1].phone2,'');
+});
+test('same name with a different phone and phones belonging to two contacts require review',()=>{
+ const rows=[{id:'one',business:'SAMPLE Branch',phone:'0772000111'},{id:'two',business:'SAMPLE Other',phone:'0772000222'}];
+ const a=I.plan([{business:'SAMPLE Branch',phone:'0772000333'}],rows)[0];assert.equal(a.match,null);assert.match(a.conflict,/different number/);
+ const b=I.plan([{business:'SAMPLE Combined',phone:'0772000111',phone2:'0772000222'}],rows)[0];assert.equal(b.match,null);assert.match(b.conflict,/different saved/);
+ assert.equal(I.plan([{business:'New spelling',phone:'0772000111'}],rows)[0].match.id,'one');
+ assert.equal(rows[0].phone,'0772000111');
+});

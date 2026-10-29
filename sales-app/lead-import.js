@@ -59,6 +59,10 @@
   }
   // Comparable phone: the last 9 digits.
   function phoneKey(v) { var d = String(v || "").replace(/\D/g, ""); return d.length >= 9 ? d.slice(-9) : ""; }
+  function validPhone(v) {
+    var n=normalizePhone(v),digits=n.replace(/\D/g,'');
+    return /^\+?[\d\s()-]+$/.test(n) && digits.length>=9 && digits.length<=15;
+  }
   function nameKey(v) { return key(v); }
 
   function emailHref(v) {
@@ -146,9 +150,12 @@
       if (!lead.phone && !lead.phone2) { skipped.push({ row: row, reason: "No phone number — nothing to call" }); return; }
       if (!lead.phone) { lead.phone = lead.phone2; lead.phone2 = ""; }
       if (!lead.business) lead.business = lead.phone;
-      var dup = phoneKey(lead.phone) || nameKey(lead.business);
-      if (seen[dup]) { skipped.push({ row: row, reason: "Same phone as row " + seen[dup] }); return; }
-      seen[dup] = row;
+      if (!validPhone(lead.phone) || (lead.phone2 && !validPhone(lead.phone2))) { skipped.push({row:row,reason:'Phone number is not valid. Check both phone columns.'}); return; }
+      if(phoneKey(lead.phone2)===phoneKey(lead.phone))lead.phone2='';
+      var keys=[phoneKey(lead.phone),phoneKey(lead.phone2)].filter(Boolean);
+      var duplicate=keys.find(function(k){return seen[k];});
+      if (duplicate) { skipped.push({ row: row, reason: "Same phone as row " + seen[duplicate] }); return; }
+      keys.forEach(function(k){seen[k]=row;});
       leads.push(lead);
     });
     return { map: map, leads: leads, skipped: skipped };
@@ -158,11 +165,18 @@
   function plan(leads, prospects) {
     var byPhone = {}, byName = {};
     (prospects || []).forEach(function (p) {
-      [p.phone, p.phone2].forEach(function (ph) { var k = phoneKey(ph); if (k && !byPhone[k]) byPhone[k] = p; });
-      var n = nameKey(p.business); if (n && !byName[n]) byName[n] = p;
+      [p.phone, p.phone2].forEach(function (ph) { var k = phoneKey(ph); if (k) { if(!byPhone[k])byPhone[k]=[]; if(!byPhone[k].some(function(x){return x.id===p.id;}))byPhone[k].push(p); } });
+      var n = nameKey(p.business); if (n) { if(!byName[n])byName[n]=[];byName[n].push(p); }
     });
     return (leads || []).map(function (l) {
-      var match = byPhone[phoneKey(l.phone)] || (l.phone2 && byPhone[phoneKey(l.phone2)]) || byName[nameKey(l.business)] || null;
+      var matches=[...(byPhone[phoneKey(l.phone)]||[]),...(byPhone[phoneKey(l.phone2)]||[])];
+      matches=matches.filter(function(p,i){return matches.findIndex(function(x){return x.id===p.id;})===i;});
+      if(matches.length>1)return {lead:l,match:null,conflict:'These numbers belong to different saved contacts. Check the existing contacts first.'};
+      var match=matches[0]||null,names=byName[nameKey(l.business)]||[];
+      if(!match&&names.length){
+        if(names.length!==1||validPhone(names[0].phone)||validPhone(names[0].phone2))return {lead:l,match:null,conflict:'This name is already saved with a different number. Check the existing contact first.'};
+        match=names[0];
+      }
       return { lead: l, match: match };
     });
   }
@@ -187,7 +201,7 @@
       (users || []).find(function (u) { return key(u.name).split(" ")[0] === k; }) || null;
   }
 
-  var api = { COLUMNS: COLUMNS, TEMPLATE: TEMPLATE, mapHeaders: mapHeaders, normalizePhone: normalizePhone, phoneKey: phoneKey,
+  var api = { COLUMNS: COLUMNS, TEMPLATE: TEMPLATE, mapHeaders: mapHeaders, normalizePhone: normalizePhone, validPhone: validPhone, phoneKey: phoneKey,
     contacted: contacted, matchesContacted: matchesContacted, emailHref: emailHref, callList: callList, guardImports: guardImports, guessVertical: guessVertical, guessSource: guessSource, parseRows: parseRows, plan: plan, applyUpdate: applyUpdate, findUser: findUser };
   root.VeriskoLeadImport = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
