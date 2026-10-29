@@ -4,7 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
-| 0 | Admin-created PIN-only sign-in | working | Unique8digitPIN perexistingmember, Adminonlycreate/replace/disable, correctroleaccess, rate limits, phoneUItest and verifiedrelease. |
+| 0 | Admin-created PIN-only sign-in | done | v181source0b31c46 ready6ae39a7422015d4df87d1a6b;753tests. Actual390pxAdmin→createSalesPIN→logout→PIN-onlySaleslogin; all5roles/revocation/rate/serverprivacy;48assets/13protectedroutes; livePINscreen+authenticatedAdmincontrols verified. No realPINscreated. |
 | 0 | Audit school phone numbers and exclude incomplete records | done | All153activecontacts/191phonefields complete+unique;146schools after13exact-ID exclusions/1alternate correction.7priorcontacts/jobs/cashunchanged.146sharedOperations/TeamLead,115source rows held in revised workbook. No livecall/ownership guarantee. Evidence output/audits/school-phone-audit-20261029/final-verification.json. |
 | 0 | Owner Kampala school contact import | done | Actual live Admin import159new/0updates;166totalincl7preserved. OperationsAbraham/TeamLeadAmelia scope both159; sameIDs,6jobs/3cash unchanged, noexplicitdemo.102source rows retainedforreview. Privateevidence output/audits/school-import-20261029/import-result.json. |
 | 0 | Contact upload readiness test | done | v179 sourcec49f2b7 ready6ae37292984cffa3dc83c063;745tests. ActualCSV2new/1update/4skip, CSV+Excelreimport0new, same-contact office text/voice/email and private-role readback. BlankExceltemplate verified.48assets/13protected routes. See ../qa/2026-10-29-import-readiness.md. |
