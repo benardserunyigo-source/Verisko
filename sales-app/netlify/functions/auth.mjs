@@ -1,4 +1,5 @@
 import {canManageMember} from './access.mjs';
+import {adminPinCommand} from './lib/admin-pin.mjs';
 // Verisko Uganda Operations — invite-only staff sign-up and phone + PIN sign-in.
 //
 // POST /api/auth { action, … }
@@ -57,10 +58,10 @@ export function createAuthHandler({storeFor=getStore,identifyRequest=identify,cl
       await dataStore.setJSON(DATA_KEY, { ...fresh, users });
       return users.find((u) => u.id === id);
     };
-    const session = async (uid, v, user) => {
+    const session = async (uid, v, user, method) => {
       const secret = await getSecret(auth);
       const exp = now + SESSION_MS;
-      return { ok: true, token: signToken(secret, { uid, v, exp }), expiresAt: Math.floor(exp / 1000), user };
+      return { ok: true, token: signToken(secret, { uid, v, exp, ...(method?{method}:{}) }), expiresAt: Math.floor(exp / 1000), user };
     };
 
     // A phone reports that the app failed to open or crashed (no sign-in
@@ -73,6 +74,12 @@ export function createAuthHandler({storeFor=getStore,identifyRequest=identify,cl
       return reply({ ok: true });
     }
 
+    if(action==='loginAdminPin'){
+      const data=await loadData();
+      const r=await adminPinCommand({action,body,request,auth,users:data.users||[],now});
+      if(!r.body.ok)return reply(r.body,r.status);
+      return reply(await session(r.body.user.id,r.body.version,r.body.user,'admin-pin'));
+    }
     if (action === "inviteInfo") {
       const inv = await auth.get("invite/" + cleanInviteCode(body.code), { type: "json" });
       const issuerData=await loadData(),issuer=(issuerData.users||[]).find(u=>u.id===inv?.invitedById);
@@ -172,6 +179,11 @@ export function createAuthHandler({storeFor=getStore,identifyRequest=identify,cl
     }
 
     if(idOverdue(me,now))return reply({ok:false,error:"id_overdue"},403);
+
+    if(action==='createAdminPin'||action==='disableAdminPin'){
+      const r=await adminPinCommand({action,body,request,auth,users:data.users||[],me,now});
+      return reply(r.body,r.status);
+    }
 
     // An email account (the Owner) turns on phone + PIN sign-in for itself,
     // or changes its PIN. Signs out its other PIN sessions.

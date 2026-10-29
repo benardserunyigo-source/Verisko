@@ -159,3 +159,7 @@ Operations money: Funds & team pay is office-only. Operations can request funds;
 
 ## Guided site planning photos (v175)
 Sales can add and view guided site photos on their own contacts. Operations/Admin can manage all site guides; Team Lead can manage guides for contacts shared under the existing contact rules. Only those office roles edit camera positions. Assigned installers may read a guide through their own installation job ID; they cannot upload or edit the planning guide. These site photos are separate from installer work evidence and do not grant access to other installation records. All metadata and image bytes require the current roster/session and a per-request contact or assignment check. Images are not publicly linked or included in the shared workspace/financial exports.
+
+
+## Admin-created PIN-only sign-in (v180)
+Admin can generate a unique8-digit PIN for an existing team member from Team & settings. Staff enter only this PIN on the main sign-in screen; their current role and ID-check rules still apply. The PIN is shown once to Admin, salted/hashed in private auth storage, and never enters the shared roster, exports or client records. Creating a replacement or turning it off revokes its sessions. Protected owner management rules remain. Legacy phone/PIN and email sign-in remain under Other sign-in options. No real PINs were created during the release; see qa/2026-10-29-admin-pin.md.

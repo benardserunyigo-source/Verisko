@@ -196,7 +196,9 @@ export async function identify(request, data, deps) {
     // phone + PIN sign-in. Either way the PIN record below must still match.
     const me = users.find((u) => u.id === p.uid);
     if (!me||!ROLES.includes(me.role)) return { error: "not_authorized", status: 403 };
-    const rec = await deps.authStore.get("pin/" + me.id, { type: "json" });
+    if(p.method&&p.method!=='admin-pin')return {error:'session_expired',status:401};
+    const rec = await deps.authStore.get((p.method==='admin-pin'?'admin-pin/':'pin/') + me.id, { type: "json" });
+    if(p.method==='admin-pin'&&(!rec?.active||!rec.hash))return {error:'session_expired',status:401};
     if (!rec || rec.v !== p.v) return { error: "session_expired", status: 401 };   // PIN was reset
     return { email: String(me.email).toLowerCase(), me };
   }

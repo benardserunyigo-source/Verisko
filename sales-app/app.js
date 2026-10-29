@@ -2992,7 +2992,7 @@
       '</form></details>':'') + '</section>' +
 
       '<section class="card settings-card"><h2>Shared workspace</h2>' +
-      "<p>Staff sign in with their phone number and PIN. Existing email accounts can still use a secure sign-in link. Records sync securely.</p>" +
+      "<p>Staff can sign in with an 8-digit PIN created by Admin. Older phone and PIN accounts and email links still work under Other sign-in options.</p>" +
       '<div class="conn-status" data-state="' + connection.state + '"><span class="dot"></span><span class="conn-label">' + esc(connection.text) + "</span></div>" +
       '<div class="button-row"><button class="btn btn-ghost" data-sync>Refresh shared data</button></div></section>' +
 
@@ -4344,7 +4344,7 @@
     renderLogin("denied");
     lockScreen.hidden = false;
   }
-  function signOutLocal() { jobFocus=null;pendingSummaryContactId='';pendingReadyContactId='';var jobBar=document.getElementById('jobReturnBar');if(jobBar){jobBar.textContent='';jobBar.hidden=true;}sessionGeneration++; if(installerModule)installerModule.suspendInstaller(); stopFieldTracking(); window.VeriskoPricing=window.createVeriskoPricing(window.VeriskoPriceCatalogue); settings.auth = null; settings.user = null; salesPriceStatus=null; saveSettings(); }
+  function signOutLocal() { var pinDialog=document.getElementById("askDialog");if(pinDialog?.querySelector("#closeAdminPin")){pinDialog.close();pinDialog.innerHTML="";}jobFocus=null;pendingSummaryContactId='';pendingReadyContactId='';var jobBar=document.getElementById('jobReturnBar');if(jobBar){jobBar.textContent='';jobBar.hidden=true;}sessionGeneration++; if(installerModule)installerModule.suspendInstaller(); stopFieldTracking(); window.VeriskoPricing=window.createVeriskoPricing(window.VeriskoPriceCatalogue); settings.auth = null; settings.user = null; salesPriceStatus=null; saveSettings(); }
 
   /* -------- Email magic-link login -------- */
   function renderLogin(step, message) {
@@ -4381,10 +4381,17 @@
     } else if (step === "signingIn") {
       html += '<h1 id="lockTitle">Signing you in…</h1><p class="lock-sub">One moment while we open your workspace.</p>';
     } else if (step === "pin") {
+      html += '<h1 id="lockTitle">Welcome to Verisko</h1><p class="lock-sub">Enter the 8-digit PIN from Admin.</p>' +
+        '<form id="loginForm" class="account-fields" data-step="adminPin"><div class="field"><label for="pinInput">PIN</label>' +
+        '<input id="pinInput" name="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]{8}" minlength="8" maxlength="8" autocomplete="current-password" placeholder="8-digit PIN" required></div>' + errHtml +
+        '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Sign in</button></form>' +
+        '<p class="settings-note">Forgot your PIN? Ask Admin for a new one.</p>' +
+        '<details class="login-links"><summary>Other sign-in options</summary><button type="button" class="account-back" data-login-step="legacyPin">Use my old phone and PIN</button><button type="button" class="account-back" data-login-step="email">Sign in with email</button><button type="button" class="account-back" data-login-step="signup">Join with an invite</button></details>';
+    } else if (step === "legacyPin") {
       var known = settings.lastPhone ? { phone: settings.lastPhone, first: settings.lastFirst || "" } : null;
       html += '<p class="lock-eyebrow" id="lockTitle">Uganda Operations</p>' +
         (known ? '<p class="lock-sub">Welcome back' + (known.first ? ", <strong>" + esc(known.first) + "</strong>" : "") + ". Enter your PIN.</p>" : '<p class="lock-sub">Sign in with your phone number and PIN.</p>') +
-        '<form id="loginForm" class="account-fields" data-step="pin">' +
+        '<form id="loginForm" class="account-fields" data-step="legacyPin">' +
         '<div class="field"' + (known ? " hidden" : "") + '><label for="pinPhone">Phone number</label>' +
         '<input id="pinPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="0772 123 456" value="' + esc(known ? known.phone : "") + '" required></div>' +
         '<div class="field"><label for="pinInput">PIN</label>' +
@@ -4475,7 +4482,16 @@
     if (!form) return;
     e.preventDefault();
     var step = form.getAttribute("data-step");
-    if (step === "pin") {
+    if(step==='adminPin'){
+      var adminPin=form.querySelector('[name=pin]').value.trim();
+      if(!/^\d{8}$/.test(adminPin)){loginError('Enter the 8-digit PIN from Admin.');return;}
+      loginBusy(true,'Signing in…');
+      var adminReply=await authApi({action:'loginAdminPin',pin:adminPin},true);
+      if(adminReply.ok)return afterPinSignIn('',adminReply);
+      loginBusy(false,'Sign in');form.querySelector('[name=pin]').value='';
+      loginError(adminReply.error||'Could not sign in. Try again.');return;
+    }
+    if (step === "legacyPin") {
       var phone = form.querySelector("[name=phone]").value.trim(), pin = form.querySelector("[name=pin]").value.trim();
       if (!phone || !/^\d{4}$/.test(pin)) { loginError("Enter your phone number and your 4-digit PIN."); return; }
       loginBusy(true, "Signing in…");
@@ -4536,7 +4552,7 @@
   // server (/api/auth clientError → the export's "diagnostics" table) with the
   // phone's browser details, and the person sees a clear screen instead of
   // being dropped back on the sign-in page.
-  var APP_VERSION = "v121";
+  var APP_VERSION = "v180";
   var reportsSent = 0;
   function reportProblem(where, err) {
     if (reportsSent >= 5) return;
@@ -4788,7 +4804,7 @@
       '<div class="field"><label for="memberPhoneName">Name</label><input id="memberPhoneName" name="name" type="text" autocomplete="off" placeholder="e.g. Grace Namubiru" required></div>'+
       '<div class="field"><label for="memberPhone">Phone number</label><input id="memberPhone" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="0772 123 456" required></div>'+
       '<div class="field"><label for="memberPhoneRole">Role</label><select id="memberPhoneRole" name="role">'+staffInviteRoles().map(function(r){return '<option value="'+r[0]+'">'+r[1]+'</option>';}).join('')+'</select></div>'+
-      '<p class="settings-note">No email needed. Create a personal setup link, then share it with them. They choose their own 4-digit PIN. On a new phone, they enter their number and PIN; after that, just their PIN.</p>'+
+      '<p class="settings-note">No email needed. Create a personal setup link so they can join. After they join, Admin can create their 8-digit sign-in PIN from Team members.</p>'+
       '<p class="settings-note">First-time setup includes a selfie and National ID within 5 days. Staff appear in the team list after joining.</p>'+
       '<p class="lock-error" role="alert" hidden></p><button type="submit" class="btn btn-primary btn-block">Add by phone · create setup link</button></form>';
   }
@@ -5081,6 +5097,7 @@
   // phone, only the PIN is asked.
   function pinSignInCard() {
     var me = currentUserRecord();
+    if(isAdmin()&&me)return '<section class="card settings-card"><h2>Sign-in PINs</h2><p>Create a separate 8-digit PIN for each person in Team members below. They enter only that PIN to sign in. Creating a new PIN replaces their previous 8-digit PIN.</p><button type="button" class="btn btn-primary" data-create-admin-pin="'+esc(me.id)+'">Create my sign-in PIN</button></section>';
     if (!me || me.authMethod === "pin") return "";
     var on = !!me.pinPhone;
     return '<section class="card settings-card"><h2>Sign in with a PIN</h2>' +
@@ -5131,11 +5148,30 @@
   }
 
   function pinActions(u) {
-    if (!u || u.authMethod !== "pin") return "";
-    return '<button type="button" class="account-role" data-' + (u.idStatus === "submitted" ? "check-id" : "view-staff") + '="' + esc(u.id) + '">' + (u.idStatus === "submitted" ? "Check ID" : "View ID") + "</button>" +
-      '<button type="button" class="account-role" data-reset-pin="' + esc(u.id) + '">Reset PIN</button>';
+    if (!u) return '';
+    var adminTools=isAdmin()?'<button type="button" class="account-role" data-create-admin-pin="'+esc(u.id)+'">Create sign-in PIN</button><button type="button" class="account-role" data-disable-admin-pin="'+esc(u.id)+'">Turn off sign-in PIN</button>':'';
+    if(u.authMethod!=='pin')return adminTools;
+    return adminTools+'<button type="button" class="account-role" data-' + (u.idStatus === "submitted" ? "check-id" : "view-staff") + '="' + esc(u.id) + '">' + (u.idStatus === "submitted" ? "Check ID" : "View ID") + "</button>" +
+      '<button type="button" class="account-role" data-reset-pin="' + esc(u.id) + '">Reset old phone PIN</button>';
   }
   function pendingSignups() { return canReviewProspects() ? (state.signups || []) : []; }
+  async function createAdminSignInPin(userId){
+    if(!isAdmin()||rolePreview)return;
+    var person=(state.users||[]).find(function(u){return u.id===userId;});if(!person)return;
+    if(!await confirmSheet('Create a PIN for '+person.name+'?', 'They will sign in with only this PIN. If they already have an 8-digit PIN, it will stop working and those sessions will sign out.','Create PIN'))return;
+    var generation=sessionGeneration,actor=settings.user?.id;
+    var r=await authApi({action:'createAdminPin',userId:userId},true);
+    if(generation!==sessionGeneration||actor!==settings.user?.id||!isAdmin())return;
+    if(!r.ok){toast(r.error||'Could not create a PIN.');return;}
+    var dlg=document.getElementById('askDialog');
+    dlg.innerHTML='<div class="ask-head"><h2 id="askTitle">PIN for '+esc(r.name)+'</h2><p>Give this PIN only to '+esc(r.name)+'. It is shown once. You can create a new one if it is lost.</p></div><p class="pin-input" style="text-align:center;font-size:2rem;letter-spacing:.15em">'+esc(r.pin)+'</p><p class="settings-note">Open the Verisko app and enter this PIN. No phone number or email is needed.</p><div class="ask-actions"><button type="button" class="btn btn-primary" id="closeAdminPin">Done</button></div>';
+    var close=function(){dlg.close();dlg.innerHTML='';};dlg.querySelector('#closeAdminPin').addEventListener('click',close);dlg.addEventListener('cancel',function(e){e.preventDefault();close();},{once:true});dlg.showModal();
+  }
+  async function disableAdminSignInPin(userId){
+    if(!isAdmin()||rolePreview)return;
+    if(!await confirmSheet('Turn off this sign-in PIN?','The 8-digit PIN and sessions using it will stop working. Other sign-in methods stay available.','Turn off',true))return;
+    var r=await authApi({action:'disableAdminPin',userId:userId},true);toast(r.ok?'Sign-in PIN turned off':r.error||'Could not turn off the PIN.');
+  }
   function signupsCard() {
     var list = pendingSignups();
     if (!list.length) return "";
@@ -5360,6 +5396,8 @@
     var rsu = e.target.closest("[data-review-signup]"); if (rsu) { reviewSignup(rsu.getAttribute("data-review-signup")); return; }
     var vsi = e.target.closest("[data-view-staff]"); if (vsi) { viewStaffId(vsi.getAttribute("data-view-staff")); return; }
     var rpn = e.target.closest("[data-reset-pin]"); if (rpn) { resetStaffPin(rpn.getAttribute("data-reset-pin")); return; }
+    var apn=e.target.closest('[data-create-admin-pin]');if(apn){createAdminSignInPin(apn.getAttribute('data-create-admin-pin'));return;}
+    var dpn=e.target.closest('[data-disable-admin-pin]');if(dpn){disableAdminSignInPin(dpn.getAttribute('data-disable-admin-pin'));return;}
     if (e.target.closest("[data-certs-seen]")) { markCertsSeen(); return; }
     if (e.target.closest("[data-goview-support]")) { view = "support"; render(); document.getElementById("main").focus(); return; }
     var cd = e.target.closest("[data-cert-download]"); if (cd) { downloadCertificate(cd.getAttribute("data-cert-download")); return; }
