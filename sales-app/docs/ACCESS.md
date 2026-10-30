@@ -163,3 +163,6 @@ Sales can add and view guided site photos on their own contacts. Operations/Admi
 
 ## Admin-created PIN-only sign-in (v180)
 Admin can generate a unique8-digit PIN for an existing team member from Team & settings. Staff enter only this PIN on the main sign-in screen; their current role and ID-check rules still apply. The PIN is shown once to Admin, salted/hashed in private auth storage, and never enters the shared roster, exports or client records. Creating a replacement or turning it off revokes its sessions. Protected owner management rules remain. Legacy phone/PIN and email sign-in remain under Other sign-in options. No real PINs were created during the release; see qa/2026-10-29-admin-pin.md.
+
+## PIN-only staff entry (v184)
+Owner requested only PIN on the sign-in page. Removed Other sign-in options and its email/old phone/invite choices. Obsolete sign-in screen steps resolve to the eight-digit Admin PIN screen. Old email-link callbacks no longer create a fresh frontend session. Existing signed-in sessions, role permissions and credential records are not reset. Direct Admin-issued new-member setup links remain separate; after setup staff need their Admin-issued eight-digit sign-in PIN. Legacy server compatibility is retained for existing clients; this is not a bulk credential revocation or account migration.

@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | PIN-only staff sign-in screen | working | Remove other-method menu; obsolete form steps resolve to PIN; old email callbacks cannot start sign-in. Preserve current sessions/member setup.757tests,390px check;release pending. |
 | 0 | Five-question application phone demo and reviewer list | done | Isolated actual controller/MediaRecorder/handler/Operations UI, fictional SarahDemo, empty before Submit, one record after, same video plays and private review saves. New list shows area rather than absent university. 755tests;v183source6c501ee,48assets/13routes verified. Phone demo localhost4554/demo.html, actual in-memory inbox4553. |
 | 0 | Five-question public application | done | Five essential answers, plain video steps, no pay amounts; preserve past applications and private review.755 tests passed;390px browser answers→video→back, no overflow. v182sourcee933220 ready6ae4181a844a9dbcc2f1b7c1;48assets/13protectedroutes verified, actuallive390px intro no pay amounts. |
 | 0 | Admin-created PIN-only sign-in | done | v181source0b31c46 ready6ae39a7422015d4df87d1a6b;753tests. Actual390pxAdmin→createSalesPIN→logout→PIN-onlySaleslogin; all5roles/revocation/rate/serverprivacy;48assets/13protectedroutes; livePINscreen+authenticatedAdmincontrols verified. No realPINscreated. |

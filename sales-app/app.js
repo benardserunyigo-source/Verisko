@@ -2992,7 +2992,7 @@
       '</form></details>':'') + '</section>' +
 
       '<section class="card settings-card"><h2>Shared workspace</h2>' +
-      "<p>Staff can sign in with an 8-digit PIN created by Admin. Older phone and PIN accounts and email links still work under Other sign-in options.</p>" +
+      "<p>Staff can sign in with an 8-digit PIN created by Admin. Ask Admin for a new PIN if you cannot sign in.</p>" +
       '<div class="conn-status" data-state="' + connection.state + '"><span class="dot"></span><span class="conn-label">' + esc(connection.text) + "</span></div>" +
       '<div class="button-row"><button class="btn btn-ghost" data-sync>Refresh shared data</button></div></section>' +
 
@@ -4346,8 +4346,10 @@
   }
   function signOutLocal() { var pinDialog=document.getElementById("askDialog");if(pinDialog?.querySelector("#closeAdminPin")){pinDialog.close();pinDialog.innerHTML="";}jobFocus=null;pendingSummaryContactId='';pendingReadyContactId='';var jobBar=document.getElementById('jobReturnBar');if(jobBar){jobBar.textContent='';jobBar.hidden=true;}sessionGeneration++; if(installerModule)installerModule.suspendInstaller(); stopFieldTracking(); window.VeriskoPricing=window.createVeriskoPricing(window.VeriskoPriceCatalogue); settings.auth = null; settings.user = null; salesPriceStatus=null; saveSettings(); }
 
-  /* -------- Email magic-link login -------- */
+  /* -------- Staff PIN sign-in and invited member setup -------- */
   function renderLogin(step, message) {
+    // Staff sign-in has one path. Setup links remain separate for invited new members.
+    if (!["pin", "denied", "pending", "signup", "signupDone", "signingIn"].includes(step)) step = "pin";
     var errHtml = message ? '<p class="lock-error">' + esc(message) + "</p>" : '<p class="lock-error" id="loginError" role="alert" hidden></p>';
     var html;
     if (step === "denied") {
@@ -4362,8 +4364,8 @@
         '<p class="lock-sub">' + (deniedRemoved
           ? "Your access to this workspace was removed. If you still need it, ask the owner to add <strong>" + esc(loginEmail) + "</strong> again."
           : "The email <strong>" + esc(loginEmail) + "</strong> hasn't been approved for this workspace yet. Ask your team's owner to add it in <strong>Settings → Team members</strong>, then sign in again.") + "</p>" +
-        '<p class="lock-help">This keeps your team\'s data private — only approved emails can get in.</p>' +
-        '<button type="button" class="btn btn-primary btn-block" data-login-restart>Try a different email</button>';
+        '<p class="lock-help">This keeps your team\'s data private — only approved team members can get in.</p>' +
+        '<button type="button" class="btn btn-primary btn-block" data-login-restart>Back to PIN sign-in</button>';
     } else if (step === "sent") {
       html += '<h1 id="lockTitle">Check your email</h1>' +
         '<p class="lock-sub">We sent a sign-in link to <strong>' + esc(loginEmail) + "</strong>. Open the email on this device and tap <strong>Sign in</strong> — you'll come right back here, signed in.</p>" +
@@ -4385,8 +4387,7 @@
         '<form id="loginForm" class="account-fields" data-step="adminPin"><div class="field"><label for="pinInput">PIN</label>' +
         '<input id="pinInput" name="pin" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]{8}" minlength="8" maxlength="8" autocomplete="current-password" placeholder="8-digit PIN" required></div>' + errHtml +
         '<button type="submit" class="btn btn-primary btn-block" id="loginBtn">Sign in</button></form>' +
-        '<p class="settings-note">Forgot your PIN? Ask Admin for a new one.</p>' +
-        '<details class="login-links"><summary>Other sign-in options</summary><button type="button" class="account-back" data-login-step="legacyPin">Use my old phone and PIN</button><button type="button" class="account-back" data-login-step="email">Sign in with email</button><button type="button" class="account-back" data-login-step="signup">Join with an invite</button></details>';
+        '<p class="settings-note">Forgot your PIN? Ask Admin for a new one.</p>';
     } else if (step === "legacyPin") {
       var known = settings.lastPhone ? { phone: settings.lastPhone, first: settings.lastFirst || "" } : null;
       html += '<p class="lock-eyebrow" id="lockTitle">Uganda Operations</p>' +
@@ -4425,7 +4426,7 @@
         '<button type="button" class="account-back" data-login-step="pin">I already have an account — sign in</button>';
     } else if (step === "signupDone") {
       html += '<h1 id="lockTitle">Thank you' + (loginFirst ? ", " + esc(loginFirst) : "") + "!</h1>" +
-        '<p class="lock-sub">Your details were sent to your manager. Once they approve you, sign in here with your <strong>phone number and PIN</strong>.</p>' +
+        '<p class="lock-sub">Your details were sent to your manager. Once they approve you, ask Admin for your <strong>8-digit sign-in PIN</strong>.</p>' +
         '<button type="button" class="btn btn-primary btn-block" data-login-step="pin">Back to sign in</button>';
     } else if (step === "pending") {
       html += '<h1 id="lockTitle">Waiting for approval</h1>' +
@@ -4468,7 +4469,7 @@
   }
 
   lockCard.addEventListener("click", async function (e) {
-    if (e.target.closest("[data-login-restart]")) { renderLogin("email"); return; }
+    if (e.target.closest("[data-login-restart]")) { renderLogin("pin"); return; }
     var ls = e.target.closest("[data-login-step]"); if (ls) { renderLogin(ls.getAttribute("data-login-step")); return; }
     if (e.target.closest("[data-login-notme]")) { settings.lastPhone = ""; settings.lastFirst = ""; saveSettings(); renderLogin("pin"); return; }
     if (e.target.closest("[data-login-resend]")) {
@@ -5515,14 +5516,9 @@
   if(rolePreview){window.VeriskoPricing=window.createVeriskoPricing({version:window.VeriskoPriceCatalogue.version,catalogue:window.VeriskoPriceCatalogue.catalogue});enterApp();setSync('local','Preview only · sample data');return;}
   var hashAuth = readAuthFromHash();
   if (!storageWorks()) showOpenProblem("storage-blocked", "This browser won't let the app save on this phone");
-  else if (hashAuth && hashAuth.access_token) {
-    // Landed back from a magic link — complete sign-in.
-    showLogin(); renderLogin("signingIn"); setSync("syncing", "Signing you in…");
-    loginEmail = emailFromJwt(hashAuth.access_token);
-    afterVerify(loginEmail, { access_token: hashAuth.access_token, refresh_token: hashAuth.refresh_token, expires_at: Number(hashAuth.expires_at) });
-  } else if (hashAuth && hashAuth.error) {
-    showLogin(); renderLogin("email", "That sign-in link has expired or was already used. Enter your email to get a new one.");
-    reportProblem("email-link-error", (hashAuth.error_code || hashAuth.error || "") + " " + (hashAuth.error_description || ""));
+  else if (hashAuth && (hashAuth.access_token || hashAuth.error)) {
+    // Old email links must not start a new staff sign-in.
+    showLogin("Use your 8-digit PIN from Admin. Email sign-in is no longer available.");
   } else if (settings.auth && settings.user) {
     try { enterApp(); } catch (err) { showOpenProblem("start", err); } // open straight to the app from cached data (offline-friendly)
     if (syncClosedSales(true)) render();
