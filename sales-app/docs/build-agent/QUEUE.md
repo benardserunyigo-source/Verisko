@@ -4,7 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
-| 0 | Admin-only email sign-in | working | PIN remains default for all roles; single Admin email choice; server identify requires current Admin on verified email; unknown/removed/nonAdmin denied.758tests;phone screen check;release pending. |
+| 0 | Admin-only email sign-in | done | PIN remains default for all roles; single Admin email choice; server identify requires current Admin on verified email; unknown/removed/nonAdmin denied.758tests;v185source92157d7 ready6ae4ab7bfe70de4a0221990c;48assets/13routes and live390pxPIN/Adminemailforms verified. |
 | 0 | PIN-only staff sign-in screen | done | Remove other-method menu; obsolete form steps resolve to PIN; old email callbacks cannot start sign-in. Preserve current sessions/member setup.757tests;v184source8d45982 ready6ae4aad41f89cbaeec718e18;48assets/13protectedroutes;actual live390px onePINfield/nootherchoices. |
 | 0 | Five-question application phone demo and reviewer list | done | Isolated actual controller/MediaRecorder/handler/Operations UI, fictional SarahDemo, empty before Submit, one record after, same video plays and private review saves. New list shows area rather than absent university. 755tests;v183source6c501ee,48assets/13routes verified. Phone demo localhost4554/demo.html, actual in-memory inbox4553. |
 | 0 | Five-question public application | done | Five essential answers, plain video steps, no pay amounts; preserve past applications and private review.755 tests passed;390px browser answers→video→back, no overflow. v182sourcee933220 ready6ae4181a844a9dbcc2f1b7c1;48assets/13protectedroutes verified, actuallive390px intro no pay amounts. |
