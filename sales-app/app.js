@@ -663,7 +663,7 @@
     var host = document.getElementById("viewContent");
     host.innerHTML = '<p class="help">Loading applications…</p>';
     try {
-      var module = await import("./applications-ui.mjs?v=182");
+      var module = await import("./applications-ui.mjs?v=183");
       if (view !== "applications") return;
       await module.mountApplications({ host: host, token: function () { return settings.auth ? settings.auth.access_token : ""; }, esc: esc, confirm: openSheet, role: settings.user.role });
     } catch (error) { if (view === "applications") host.textContent = "Could not open applications. Refresh and try again."; }
