@@ -28,3 +28,17 @@ test('incomplete video cannot be submitted or appear in inbox',async()=>{const f
 test('automatic draft upload stays out of inbox until final applicant submission',async()=>{const f=fixture(),session=await create(f);await upload(f,session);assert.equal((await (await f.handler(req('list',{method:'GET',role:'admin'}))).json()).applications.length,0);assert.equal((await f.handler(req('complete',session))).status,200);assert.equal((await (await f.handler(req('list',{method:'GET',role:'admin'}))).json()).applications.length,1)});
 test('upload token, origin, expiry, part size and video header are checked',async()=>{const f=fixture(),session=await create(f);assert.equal((await f.handler(req('chunk',{...session,token:'x'.repeat(64),index:0,raw:videoBytes.slice(0,CHUNK_SIZE)}))).status,401);assert.equal((await f.handler(req('chunk',{...session,index:0,raw:videoBytes.slice(0,100)}))).status,400);assert.equal((await f.handler(req('chunk',{...session,index:0,raw:new Uint8Array(CHUNK_SIZE)}))).status,400);assert.equal((await f.handler(req('complete',{...session,origin:'https://evil.test'}))).status,403);f.advance(86400001);assert.equal((await f.handler(req('complete',session))).status,410)});
 test('consent and public intake quota enforced',async()=>{const f=fixture();assert.equal((await f.handler(req('create',{payload:{answers,consent:false}}))).status,400);for(let i=0;i<10;i++)await create(f);assert.equal((await f.handler(req('create',{payload:{answers,consent:true,video:{size:1000,mime:'video/mp4',duration:5}}}))).status,429)});
+
+const simple={formVersion:'simple-v3',fullName:'TEST ONLY Applicant',phone:'0772123456',area:'Nakawa',study:'Year 3',availability:'Yes, for all three months'};
+test('five essential answers validate, round trip and retain historical applications',()=>{
+ const result=validateAnswers(simple);assert.equal(questionsFor(result).length,5);assert.equal(result.phone,'+256772123456');assert.deepEqual(validateAnswers(result),result);
+ for(const key of ['fullName','phone','area','study','availability'])assert.throws(()=>validateAnswers({...simple,[key]:''}));
+ assert.throws(()=>validateAnswers({...simple,area:'Other'}));
+ const other=validateAnswers({...simple,area:'Other',areaOther:'TEST Area'});assert.equal(other.area,'TEST Area');assert.deepEqual(validateAnswers(other),other);
+ assert.equal(questionsFor(validateAnswers(answers)).length,10);assert.equal(questionsFor(validateAnswers(picked)).length,10);
+});
+test('five-answer application uploads once and hiring team reads exactly those answers',async()=>{
+ const f=fixture();const response=await f.handler(req('create',{payload:{answers:simple,consent:true,video:{size:videoBytes.length,mime:'video/webm',duration:3}}}));assert.equal(response.status,200);const session=await response.json();await upload(f,session);
+ for(let n=0;n<2;n++)assert.equal((await f.handler(req('complete',session))).status,200);
+ const list=await (await f.handler(req('list',{method:'GET',role:'operations'}))).json();assert.equal(list.applications.length,1);assert.equal(questionsFor(list.applications[0].answers).length,5);assert.equal(list.applications[0].answers.university,undefined);
+});

@@ -1,10 +1,10 @@
-import {QUESTIONS,STUDY,OPTIONS,FORM_VERSION,validateAnswers,videoInfo,CHUNK_SIZE,MAX_VIDEO} from './application-model.mjs?v=80';
+import {SIMPLE_QUESTIONS as QUESTIONS,STUDY,OPTIONS,SIMPLE_VERSION as FORM_VERSION,validateAnswers,videoInfo,CHUNK_SIZE,MAX_VIDEO} from './application-model.mjs?v=182';
 const $=s=>document.querySelector(s),escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let step=0,answers={},blob=null,duration=0,recorder=null,stream=null,timer=null,startAt=0,objectURL=null,uploadSession=null,sending=false,sent=false,uploaded=false,uploading=false;
 const select=(name,options)=>'<select id="answer-'+name+'" name="'+name+'" required><option value="">Choose one</option>'+options.map(x=>'<option value="'+escape(x)+'">'+escape(x)+'</option>').join('')+'</select>';
 function choices(name,options,type='radio'){return '<div class="pick-options">'+options.map(x=>'<label class="pick"><input type="'+type+'" name="'+name+'" value="'+escape(x)+'" '+(type==='radio'?'required':'')+'><span>'+escape(x)+'</span></label>').join('')+'</div>';}
 $('#questions').innerHTML=QUESTIONS.map(([key,label,help],index)=>{
- const start='<fieldset class="question" data-step="'+(index<6?0:1)+'" '+(index>=6?'hidden':'')+'><legend>'+String(index+1)+'. '+label+'</legend><p class="question-help">'+help+'</p>';
+ const start='<fieldset class="question" data-step="0"><legend>'+String(index+1)+'. '+label+'</legend><p class="question-help">'+help+'</p>';
  let body;
  if(key==='fullName'||key==='phone')body='<label class="sr-only" for="answer-'+key+'">'+label+'</label><input id="answer-'+key+'" name="'+key+'" required maxlength="160" '+(key==='phone'?'type="tel" inputmode="tel" autocomplete="tel"':'autocomplete="name"')+'>';
  else if(['availability','approach','motivation'].includes(key))body=choices(key,OPTIONS[key]);
@@ -13,12 +13,12 @@ $('#questions').innerHTML=QUESTIONS.map(([key,label,help],index)=>{
 }).join('');
 $('#answers').addEventListener('change',e=>{uploadSession=null;uploaded=false;const key=e.target.name,other=$('#other-'+key);if(other){const visible=e.target.value===(key==='startDate'?'Pick a date':'Other');other.hidden=!visible;const input=other.querySelector('input');input.disabled=!visible;input.required=visible;}});
 function error(message){$('#error').textContent=message;}
-function showStep(value){step=value;error('');$('#progress').textContent='STEP '+(value+1)+' OF 3';$('#step-title').textContent=['A little about you','Your availability & experience','Tell us about yourself'][value];$('#answers').hidden=value===2;$('#video-step').hidden=value!==2;document.querySelectorAll('[data-step]').forEach(el=>el.hidden=Number(el.dataset.step)!==value);$('#back').textContent=value?'Back':'About the role';window.scrollTo({top:0,behavior:'smooth'});}
+function showStep(value){step=value;error('');$('#progress').textContent='STEP '+(value===2?2:1)+' OF 2';$('#step-title').textContent=['A little about you','Your availability & experience','Tell us about yourself'][value];$('#answers').hidden=value===2;$('#video-step').hidden=value!==2;document.querySelectorAll('[data-step]').forEach(el=>el.hidden=Number(el.dataset.step)!==value);$('#back').textContent=value?'Back':'About the role';window.scrollTo({top:0,behavior:'smooth'});}
 $('#start').onclick=()=>{$('#intro').hidden=true;$('#application').hidden=false;showStep(0)};
 $('#back').onclick=()=>{if(step)showStep(0);else{$('#intro').hidden=false;$('#application').hidden=true;window.scrollTo(0,0)}};
-$('#video-back').onclick=()=>{if(!sending)showStep(1)};
+$('#video-back').onclick=()=>{if(!sending)showStep(0)};
 $('#answers').addEventListener('input',()=>{uploadSession=null;uploaded=false});
-$('#answers').onsubmit=e=>{e.preventDefault();error('');const fields=[...document.querySelectorAll('[data-step="'+step+'"] input,[data-step="'+step+'"] select')].filter(x=>!x.disabled);for(const field of fields)if(!field.reportValidity())return;const form=new FormData(e.target);answers={...Object.fromEntries(form),formVersion:FORM_VERSION,availabilityDays:form.getAll('availabilityDays')};if(step===0){if(!/^0[37]\d{8}$/.test(answers.phone.replace(/\D/g,'').replace(/^256/,'0'))){error('Enter a Ugandan mobile number, for example 0772 123 456.');$('#answer-phone').focus();return}showStep(1);return}try{answers=validateAnswers(answers);showStep(2);if(blob&&!uploaded)autoUpload()}catch(e){error(e.message)}};
+$('#answers').onsubmit=e=>{e.preventDefault();error('');const fields=[...document.querySelectorAll('[data-step="'+step+'"] input,[data-step="'+step+'"] select')].filter(x=>!x.disabled);for(const field of fields)if(!field.reportValidity())return;const form=new FormData(e.target);answers={...Object.fromEntries(form),formVersion:FORM_VERSION};try{answers=validateAnswers(answers);showStep(2);if(blob&&!uploaded)autoUpload()}catch(e){error(e.message)}};
 function stopTracks(){stream?.getTracks().forEach(track=>track.stop());stream=null;}
 function stopRecording(){if(recorder?.state==='recording')recorder.stop();}
 function ready(){const busy=sending||uploading,recording=recorder?.state==='recording';$('#send').disabled=!uploaded||!$('#consent').checked||busy||recording;$('#record').disabled=busy||!$('#consent').checked;$('#video-file').disabled=busy||recording||!$('#consent').checked;$('#video-back').disabled=busy||recording;$('#consent').disabled=busy||recording;}

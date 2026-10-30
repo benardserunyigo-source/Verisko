@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | Five-question public application | working | Five essential answers, plain video steps, no pay amounts; preserve past applications and private review.755 tests passed;390px browser answers→video→back, no overflow. Release pending. |
 | 0 | Admin-created PIN-only sign-in | done | v181source0b31c46 ready6ae39a7422015d4df87d1a6b;753tests. Actual390pxAdmin→createSalesPIN→logout→PIN-onlySaleslogin; all5roles/revocation/rate/serverprivacy;48assets/13protectedroutes; livePINscreen+authenticatedAdmincontrols verified. No realPINscreated. |
 | 0 | Audit school phone numbers and exclude incomplete records | done | All153activecontacts/191phonefields complete+unique;146schools after13exact-ID exclusions/1alternate correction.7priorcontacts/jobs/cashunchanged.146sharedOperations/TeamLead,115source rows held in revised workbook. No livecall/ownership guarantee. Evidence output/audits/school-phone-audit-20261029/final-verification.json. |
 | 0 | Owner Kampala school contact import | done | Actual live Admin import159new/0updates;166totalincl7preserved. OperationsAbraham/TeamLeadAmelia scope both159; sameIDs,6jobs/3cash unchanged, noexplicitdemo.102source rows retainedforreview. Privateevidence output/audits/school-import-20261029/import-result.json. |

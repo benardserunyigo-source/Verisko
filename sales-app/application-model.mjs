@@ -26,9 +26,12 @@ export const QUESTIONS = [
  ['approach','Have you done sales or customer service before?','Choose the answer that fits you best. Experience is not required.'],
  ['motivation','Can you visit businesses and work towards 3 confirmed site bookings a week?','Choose the answer that fits you best. We can discuss training and your timetable.']
 ];
+export const SIMPLE_VERSION = 'simple-v3';
+export const SIMPLE_QUESTIONS = [QUESTIONS[0], QUESTIONS[1], QUESTIONS[2],
+ ['study','Are you studying for a bachelor’s degree, or have you graduated?','Choose your year, or Graduated.'], QUESTIONS[6]];
 export const PICK_V1_QUESTIONS = QUESTIONS.map(q=>q[0]==='availability'?['availability','When can you do fieldwork during the week?','Pick all the days you are free, then choose the best time.']:q);
 export const LEGACY_QUESTIONS = [...PICK_V1_QUESTIONS.slice(0,8), ['approach','How would you ask a shop owner to book a camera site check?',''], ['motivation','Why would you like this sales role?','']];
-export function questionsFor(answers={}) { return answers.formVersion===FORM_VERSION?QUESTIONS:answers.formVersion==='pick-v1'?PICK_V1_QUESTIONS:LEGACY_QUESTIONS; }
+export function questionsFor(answers={}) { return answers.formVersion===SIMPLE_VERSION?SIMPLE_QUESTIONS:answers.formVersion===FORM_VERSION?QUESTIONS:answers.formVersion==='pick-v1'?PICK_V1_QUESTIONS:LEGACY_QUESTIONS; }
 function selectedAnswers(input) {
  const out={...input};
  for(const key of ['area','university','course']){
@@ -50,6 +53,21 @@ function selectedAnswers(input) {
  return out;
 }
 export function validateAnswers(input={}) {
+ if(input.formVersion===SIMPLE_VERSION){
+  const answers={formVersion:SIMPLE_VERSION};
+  for(const [key,label] of SIMPLE_QUESTIONS){const value=String(input[key]||'').trim();if(!value||value.length>160)throw Error(label);answers[key]=value;}
+  const digits=answers.phone.replace(/\D/g,'').replace(/^256/,'0');
+  if(!/^0[37]\d{8}$/.test(digits))throw Error('Enter a Ugandan mobile number, for example 0772 123 456.');
+  answers.phone='+256'+digits.slice(1);
+  const choice=input.areaChoice||input.area;
+  if(!OPTIONS.area.includes(choice))throw Error('Choose your area.');
+  answers.areaChoice=choice;
+  answers.area=choice==='Other'?String(input.areaOther||input.area||'').trim():choice;
+  if(!answers.area||answers.area==='Other'||answers.area.length>160)throw Error('Enter your area under Other.');
+  if(!STUDY.includes(answers.study))throw Error('Choose your year of study or Graduated.');
+  if(!OPTIONS.availability.includes(answers.availability))throw Error('Choose whether you can do this job for the full three months.');
+  return answers;
+ }
  const selected=[FORM_VERSION,'pick-v1'].includes(input.formVersion);
  if(selected)input=selectedAnswers(input);
  const answers={};
