@@ -152,3 +152,16 @@ test('installer roles can use phone invites without inheriting sales or admin pe
  assert.equal(protectPinUsers([person],[person])[0].role,'installer');
  assert.equal(protectPinUsers([person],[{...person,role:'supervisor'}])[0].role,'installer');
 });
+
+test('email sessions admit only a current Admin, regardless of client role claims',async()=>{
+ const now=Date.now(),authStore=fakeAuthStore({});
+ for(const role of ['admin','operations','teamlead','sales','installer']){
+  const me={id:role,role,email:role+'@test.invalid'};
+  const result=await identify(reqWith('verified-email-token'),{users:[me]},{authStore,now,supabaseUser:async()=>me.email});
+  if(role==='admin')assert.equal(result.me.id,'admin');else{assert.equal(result.status,403);assert.equal(result.me,undefined);}
+ }
+ const deps={authStore,now,supabaseUser:async()=> 'unknown@test.invalid'};
+ assert.equal((await identify(reqWith('verified-email-token'),{users:[]},deps)).status,403);
+ assert.equal((await identify(reqWith('verified-email-token'),{users:[{id:'other',role:'admin',email:'other@test.invalid'}]},deps)).status,403);
+ assert.equal((await identify(reqWith('invalid-email-token'),{users:[]},{...deps,supabaseUser:async()=>null})).status,401);
+});

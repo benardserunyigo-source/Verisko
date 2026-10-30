@@ -205,6 +205,6 @@ export async function identify(request, data, deps) {
   const email = await deps.supabaseUser(token);
   if (!email) return { error: "session_expired", status: 401 };
   const me = users.find((u) => String(u.email || "").toLowerCase() === email) || null;
-  if (me && (!ROLES.includes(me.role)||me.authMethod === "pin")) return { error: "not_authorized", status: 403 };
+  if (!me || me.role !== "admin" || me.authMethod === "pin") return { error: "not_authorized", status: 403 };
   return { email, me };
 }
