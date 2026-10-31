@@ -4,6 +4,7 @@ Maintain one queue. Status: ready, working, needs-device, needs-decision, done. 
 
 | Priority | Item | Status | Acceptance |
 | --- | --- | --- | --- |
+| 0 | Test email/PIN and role scopes together | done |761tests;real auth→issuedPIN→identify→data/install handlers, Adminemail/PINsameview;all4nonAdminemail403;scopedcontacts/finance/jobs/pay. Actual390pxfictionalbrowserAdminemail+all5PINroles+Salesemaildenial;no realemails/data. See ../qa/2026-10-31-sign-in-roles.md. |
 | 0 | Admin-only email sign-in | done | PIN remains default for all roles; single Admin email choice; server identify requires current Admin on verified email; unknown/removed/nonAdmin denied.758tests;v185source92157d7 ready6ae4ab7bfe70de4a0221990c;48assets/13routes and live390pxPIN/Adminemailforms verified. |
 | 0 | PIN-only staff sign-in screen | done | Remove other-method menu; obsolete form steps resolve to PIN; old email callbacks cannot start sign-in. Preserve current sessions/member setup.757tests;v184source8d45982 ready6ae4aad41f89cbaeec718e18;48assets/13protectedroutes;actual live390px onePINfield/nootherchoices. |
 | 0 | Five-question application phone demo and reviewer list | done | Isolated actual controller/MediaRecorder/handler/Operations UI, fictional SarahDemo, empty before Submit, one record after, same video plays and private review saves. New list shows area rather than absent university. 755tests;v183source6c501ee,48assets/13routes verified. Phone demo localhost4554/demo.html, actual in-memory inbox4553. |
